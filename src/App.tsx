@@ -1,5 +1,6 @@
 import { Routes, Route } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
+import { Analytics } from '@vercel/analytics/react';
 import Navbar from './components/layout/Navigation';
 import Footer from './components/layout/Footer';
 import Home from './pages/Home';
@@ -62,6 +63,7 @@ function App() {
       <Footer />
       <ChatBot />
       <Toaster position="top-right" />
+      <Analytics />
     </div>
   );
 }
