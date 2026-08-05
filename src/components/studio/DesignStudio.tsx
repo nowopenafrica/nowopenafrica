@@ -160,12 +160,16 @@ function LiveFieldRow({
 
   return (
     <div className="mt-1.5">
-      <div className="flex items-center gap-2">
+      {/* Both controls carry a 44px touch target via min-h + a matching negative
+          margin, so the hit area meets the minimum without the row growing into
+          the sidebar. px not rem — index.css shrinks the root font to 14px on
+          phones, which would leave a rem-based minimum ~12% short. */}
+      <div className="flex items-center gap-3 -my-3">
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className={`inline-flex items-center gap-1 text-[11px] font-semibold transition ${
+          className={`inline-flex items-center gap-1 min-h-[44px] text-[11px] font-semibold transition rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
             linked
               ? 'text-green-700 dark:text-green-400'
               : 'text-purple-600 dark:text-purple-400 hover:text-purple-700'
@@ -178,7 +182,7 @@ function LiveFieldRow({
             type="button"
             onClick={() => onChange(resolve(value))}
             title={`Replace the tokens in ${field} with their current text`}
-            className="text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+            className="inline-flex items-center min-h-[44px] text-[10px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
           >
             Unlink
           </button>
@@ -203,7 +207,10 @@ function LiveFieldRow({
                     type="button"
                     title={t.desc}
                     onClick={() => { onChange(insertToken(value, t.key)); setOpen(false); }}
-                    className="px-2 py-1 rounded-md text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-purple-100 dark:hover:bg-purple-900/40 hover:text-purple-700 dark:hover:text-purple-300 transition"
+                    // min-h in px, not rem: index.css scales the root font-size to
+                    // 14px on phones, so a rem-based minimum lands ~12% short of
+                    // the 44px touch target.
+                    className="inline-flex items-center min-h-[44px] px-2.5 rounded-md text-[10px] font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-purple-100 dark:hover:bg-purple-900/40 hover:text-purple-700 dark:hover:text-purple-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 transition"
                   >
                     {t.label}
                   </button>
