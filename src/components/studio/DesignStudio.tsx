@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, createContext, useContext } from 
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
-import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge } from 'lucide-react';
+import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge, Move } from 'lucide-react';
 import { Business } from '../../types';
 import { profileUrl, generateQr, downloadUrl, downloadBlob, slugForFile, shareLinks, exportNodeToPng } from '../../lib/studio';
 import { StudioTemplate, StudioFormat, STUDIO_LAYOUTS, darken } from '../../data/studioPresets';
@@ -15,6 +15,11 @@ import PreviewFrame from './PreviewFrame';
 import { PreviewFrameKind, PREVIEW_FRAME_OPTIONS } from '../../lib/previewFrames';
 import NowOpenMark from '../NowOpenMark';
 import { useLiveCanvas } from '../../hooks/useLiveCanvas';
+import { CanvasLayers, CanvasPanel } from './FreeCanvas';
+import {
+  docFromSlots, initHistory, pushHistory, undo as undoDoc, redo as redoDoc,
+  canUndo as histCanUndo, canRedo as histCanRedo, type CanvasDoc, type History,
+} from '../../lib/canvasDoc';
 import { liveTokenGroups, insertToken, liveCanvasSummary, hasLiveTokens } from '../../lib/liveCanvas';
 
 // Live Business Canvas: every text slot resolves its {{tokens}} through this
@@ -324,6 +329,12 @@ export default function DesignStudio({
   // The coach is on demand: it used to sit open in the right column and crowd
   // the editor. Closed means not rendered at all — just a button.
   const [coachOpen, setCoachOpen] = useState(false);
+  // Smart layout is the default and stays the fixed-layout path. Free canvas
+  // is opt-in and renders from a layer document instead. The two never share
+  // state, so toggling can't damage a working design.
+  const [freeCanvas, setFreeCanvas] = useState(false);
+  const [docHistory, setDocHistory] = useState<History<CanvasDoc> | null>(null);
+  const [selectedLayer, setSelectedLayer] = useState<string | null>(null);
   // Which editor pane is showing. Stacking all three made the column
   // ~3,400px tall, so changing a headline meant scrolling past every
   // template and layout card.
@@ -538,6 +549,40 @@ export default function DesignStudio({
     setCta(null);
     toast.success('CTA applied');
   };
+  const doc = docHistory?.present ?? null;
+  const commitDoc = (next: CanvasDoc) =>
+    setDocHistory((h) => (h ? pushHistory(h, next) : initHistory(next)));
+
+  // Seeding happens on the way IN to canvas mode only, so returning to smart
+  // layout and coming back doesn't silently discard the merchant's edits.
+  const enterFreeCanvas = () => {
+    if (!docHistory) {
+      setDocHistory(initHistory(docFromSlots({
+        width: w, height: h,
+        headline: live.values.headline,
+        subline: live.values.subline,
+        badge: live.values.badge,
+        accent,
+        logoUrl: business.logo_url ?? null,
+        qrDataUrl: qr || null,
+      })));
+    }
+    setFreeCanvas(true);
+  };
+
+  const resetFreeCanvas = () => {
+    setDocHistory(initHistory(docFromSlots({
+      width: w, height: h,
+      headline: live.values.headline,
+      subline: live.values.subline,
+      badge: live.values.badge,
+      accent,
+      logoUrl: business.logo_url ?? null,
+      qrDataUrl: qr || null,
+    })));
+    setSelectedLayer(null);
+  };
+
   const applyBrandAccent = () => {
     if (!brandAccent) return;
     setAccent(brandAccent);
@@ -1235,6 +1280,57 @@ export default function DesignStudio({
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
       {/* Left — structure, words, AI, style */}
       <div className="lg:col-span-2 space-y-4">
+        {/* Mode: fixed layouts (default) or a free canvas. */}
+        <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1">
+          <button
+            type="button"
+            onClick={() => setFreeCanvas(false)}
+            aria-pressed={!freeCanvas}
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+              !freeCanvas ? 'bg-gray-900 dark:bg-gray-700 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <LayoutTemplate size={13} /> Smart layout
+          </button>
+          <button
+            type="button"
+            onClick={enterFreeCanvas}
+            aria-pressed={freeCanvas}
+            title="Move and resize elements freely"
+            className={`flex-1 inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+              freeCanvas ? 'bg-purple-600 text-white' : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+            }`}
+          >
+            <Move size={13} /> Free canvas
+          </button>
+        </div>
+
+        {freeCanvas && doc && (
+          <StudioSection icon={Move} title="Canvas">
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              Drag on the design to move a layer. Arrow keys nudge, Shift+arrows move further,
+              Delete removes. Your Smart layout design is kept — switch back any time.
+            </p>
+            <CanvasPanel
+              doc={doc}
+              selectedId={selectedLayer}
+              onSelect={setSelectedLayer}
+              onChange={commitDoc}
+              onUndo={() => setDocHistory((hst) => (hst ? undoDoc(hst) : hst))}
+              onRedo={() => setDocHistory((hst) => (hst ? redoDoc(hst) : hst))}
+              canUndo={!!docHistory && histCanUndo(docHistory)}
+              canRedo={!!docHistory && histCanRedo(docHistory)}
+            />
+            <button
+              type="button"
+              onClick={resetFreeCanvas}
+              className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            >
+              <RotateCcw size={13} /> Reset from Smart layout
+            </button>
+          </StudioSection>
+        )}
+
         {/* Editor panes. One at a time — see editorTab above. */}
         <div
           role="tablist"
@@ -1528,9 +1624,20 @@ export default function DesignStudio({
                   </div>
                   {/* Live Business Canvas: one provider resolves {{tokens}} for
                       every text slot in whichever layout renders below. */}
-                  <LiveResolveContext.Provider value={resolve}>
-                    {renderLayout()}
-                  </LiveResolveContext.Provider>
+                  {freeCanvas && doc ? (
+                    <CanvasLayers
+                      doc={doc}
+                      selectedId={selectedLayer}
+                      interactive={!captureOverlay}
+                      scale={scale}
+                      onSelect={setSelectedLayer}
+                      onChange={commitDoc}
+                    />
+                  ) : (
+                    <LiveResolveContext.Provider value={resolve}>
+                      {renderLayout()}
+                    </LiveResolveContext.Provider>
+                  )}
                 </div>
               </div>
             </PreviewFrame>
