@@ -18,6 +18,7 @@ import { useLiveCanvas } from '../../hooks/useLiveCanvas';
 import { CanvasLayers, CanvasPanel } from './FreeCanvas';
 import InspirationUpload from './InspirationUpload';
 import type { InspirationPlan } from '../../lib/designInspiration';
+import { docFromRenderedLayout } from '../../lib/layoutImport';
 import {
   docFromSlots, initHistory, pushHistory, undo as undoDoc, redo as redoDoc,
   canUndo as histCanUndo, canRedo as histCanRedo, type CanvasDoc, type History,
@@ -351,6 +352,7 @@ export default function DesignStudio({
 
   const template = templates.find((t) => t.key === templateKey)!;
   const format = formats.find((f) => f.key === formatKey)!;
+  const layout = STUDIO_LAYOUTS.find((l) => l.key === layoutKey) ?? STUDIO_LAYOUTS[0];
   const { w, h } = format;
   const url = profileUrl(business);
   const brandUrl = url.replace(/^https?:\/\//, '');
@@ -557,23 +559,14 @@ export default function DesignStudio({
 
   // Seeding happens on the way IN to canvas mode only, so returning to smart
   // layout and coming back doesn't silently discard the merchant's edits.
-  const enterFreeCanvas = () => {
-    if (!docHistory) {
-      setDocHistory(initHistory(docFromSlots({
-        width: w, height: h,
-        headline: live.values.headline,
-        subline: live.values.subline,
-        badge: live.values.badge,
-        accent,
-        logoUrl: business.logo_url ?? null,
-        qrDataUrl: qr || null,
-      })));
-    }
-    setFreeCanvas(true);
-  };
-
-  const resetFreeCanvas = () => {
-    setDocHistory(initHistory(docFromSlots({
+  // Measure the layout the merchant actually picked. docFromSlots is only a
+  // fallback for when there's nothing painted to measure (jsdom, or a layout
+  // that hasn't laid out yet).
+  const buildDocFromLayout = (): CanvasDoc => {
+    const measured = flyerRef.current
+      ? docFromRenderedLayout({ node: flyerRef.current, width: w, height: h, scale })
+      : null;
+    return measured ?? docFromSlots({
       width: w, height: h,
       headline: live.values.headline,
       subline: live.values.subline,
@@ -581,7 +574,25 @@ export default function DesignStudio({
       accent,
       logoUrl: business.logo_url ?? null,
       qrDataUrl: qr || null,
-    })));
+    });
+  };
+
+  const enterFreeCanvas = () => {
+    if (!docHistory) setDocHistory(initHistory(buildDocFromLayout()));
+    setFreeCanvas(true);
+  };
+
+  // Pull the current Smart layout in again — after switching layout or format,
+  // or to start over. Pushes onto history so it's undoable.
+  const importCurrentLayout = () => {
+    const next = buildDocFromLayout();
+    setDocHistory((hst) => (hst ? pushHistory(hst, next) : initHistory(next)));
+    setSelectedLayer(null);
+    toast.success(`Imported the ${layout.label} layout — every element is editable.`);
+  };
+
+  const resetFreeCanvas = () => {
+    setDocHistory(initHistory(buildDocFromLayout()));
     setSelectedLayer(null);
   };
 
@@ -1335,6 +1346,13 @@ export default function DesignStudio({
             />
             <button
               type="button"
+              onClick={importCurrentLayout}
+              className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            >
+              <LayoutTemplate size={13} /> Import “{layout.label}” layout
+            </button>
+            <button
+              type="button"
               onClick={resetFreeCanvas}
               className="inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
             >
@@ -1638,7 +1656,21 @@ export default function DesignStudio({
                   </div>
                   {/* Live Business Canvas: one provider resolves {{tokens}} for
                       every text slot in whichever layout renders below. */}
-                  {freeCanvas && doc ? (
+                  {/* The smart layout stays mounted while free canvas is on, but
+                      hidden. visibility:hidden keeps real geometry for
+                      "Import layout" to measure, while painting nothing — so it
+                      never reaches an export. */}
+                  <div
+                    aria-hidden={freeCanvas || undefined}
+                    style={freeCanvas
+                      ? { visibility: 'hidden', position: 'absolute', inset: 0, pointerEvents: 'none' }
+                      : undefined}
+                  >
+                    <LiveResolveContext.Provider value={resolve}>
+                      {renderLayout()}
+                    </LiveResolveContext.Provider>
+                  </div>
+                  {freeCanvas && doc && (
                     <CanvasLayers
                       doc={doc}
                       selectedId={selectedLayer}
@@ -1647,10 +1679,6 @@ export default function DesignStudio({
                       onSelect={setSelectedLayer}
                       onChange={commitDoc}
                     />
-                  ) : (
-                    <LiveResolveContext.Provider value={resolve}>
-                      {renderLayout()}
-                    </LiveResolveContext.Provider>
                   )}
                 </div>
               </div>
