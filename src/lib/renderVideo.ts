@@ -53,7 +53,8 @@ export interface RenderOptions {
 export type RenderTransition = 'cut' | 'fade';
 
 export interface SceneRenderPlan {
-  seed: string;
+  /** Numeric hash from renderSeed(); feeds mulberry32 and the film-grain RNG. */
+  seed: number;
   gradient: [string, string, string];
   zoomIn: number;
   zoomOut: number;
@@ -297,7 +298,10 @@ function drawSceneContent(
   index: number,
   scene: DirectorScene,
   t: number,
-  opts: RenderOptions,
+  // SceneFrameOptions, not RenderOptions: drawOverlay below needs scenesCount
+  // for the progress dots and the final-scene end card. Every caller already
+  // passes it — only these two annotations were too narrow.
+  opts: SceneFrameOptions,
   source: FrameSource,
   frame: number,
 ): void {
@@ -322,7 +326,7 @@ function drawOverlay(
   index: number,
   scene: DirectorScene,
   t: number,
-  opts: RenderOptions,
+  opts: SceneFrameOptions,
   overVideo: boolean,
 ): void {
   const isLandscape = opts.aspect === 'Landscape';

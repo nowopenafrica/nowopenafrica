@@ -1,4 +1,3 @@
-import React from 'react';
 import { BusinessStatus, getStatusMeta } from '../lib/businessStatus';
 
 interface BusinessStatusBadgeProps {

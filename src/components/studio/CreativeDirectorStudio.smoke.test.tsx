@@ -1,6 +1,6 @@
 import { describe, it, vi, expect } from 'vitest';
 import { render, screen, fireEvent, act } from '@testing-library/react';
-import { Business } from '../types';
+import { Business } from '../../types';
 
 vi.mock('./supabase', () => {
   const q = () => {

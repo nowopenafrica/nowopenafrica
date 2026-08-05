@@ -634,7 +634,11 @@ export default function DesignStudio({
           audioDestRef.current = ctx.createMediaStreamDestination();
           audioSourceRef.current.connect(audioDestRef.current);
         }
-        const audioTrack = audioDestRef.current.stream.getAudioTracks()[0];
+        // Optional chain, not a bare deref: the refs above are only assigned
+        // when audioCtxRef is empty, so if createMediaStreamDestination() ever
+        // threw after the context was stored, a later export would find
+        // audioCtxRef set but audioDestRef still null. Degrade to no audio.
+        const audioTrack = audioDestRef.current?.stream.getAudioTracks()[0];
         if (audioTrack) stream.addTrack(audioTrack);
       } catch (e) {
         console.error('Audio capture failed — exporting without sound.', e);

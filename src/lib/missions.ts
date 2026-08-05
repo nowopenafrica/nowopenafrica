@@ -97,7 +97,9 @@ export function completeMission(businessId: string, now = new Date()): { mission
 }
 
 export function levelFor(points: number): (typeof MISSIONS_LEVELS)[number] {
-  let level = MISSIONS_LEVELS[0];
+  // Annotated with the union: MISSIONS_LEVELS is `as const`, so without this
+  // `level` infers the literal type of element 0 and the loop can't reassign it.
+  let level: (typeof MISSIONS_LEVELS)[number] = MISSIONS_LEVELS[0];
   for (const l of MISSIONS_LEVELS) {
     if (points >= l.at) level = l;
   }

@@ -423,6 +423,11 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
         direction: s.direction,
         transition: s.transition,
         voiceover: s.voiceover,
+        // Rescaling the director's scenes rebuilds each VideoScene from a
+        // DirectorScene, which carries no media source — so carry the project's
+        // choice through rather than dropping it. Nothing reads scene.media
+        // today, but generateVideoProject sets it and the type requires it.
+        media: b.plan.input.media,
       })),
     };
   };
