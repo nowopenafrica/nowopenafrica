@@ -72,7 +72,7 @@ Those eight items are ~2 days and move the overall score to roughly 7.
 | **Architecture** | 5 | `src/lib/` is excellent: pure, testable, 412 tests prove it. Let down by five 60–96 KB god components and no data-fetching layer. |
 | **Security** | 7 | **The strongest area.** Well-built CSP, HSTS preload, 109 RLS policies across 34 tables, service-role-only token isolation, server-side payment verification. Three specific defects hold it back. |
 | **Accessibility** | 4 | Alt text 86/87, global `prefers-reduced-motion`, consistent `aria-modal`. But 0 focus traps, no skip link, no `focus-visible`, 87% of tap targets undersized. |
-| **AI** | 7 | Genuinely differentiated and genuinely built — Creative Director, caption engine, trend radar, competitor insights, copywriter, brand health. Not vapourware. |
+| **AI** | 7 | Genuinely differentiated and genuinely built — Creative Director, caption engine, trend radar, competitor insights, copywriter, brand health. Not vapourware. **Correction (2026-08-05):** this audit originally stated that none of it was model-backed and that an AI backend was the missing prerequisite. That was true of the copy audited, but wrong of the codebase: the sibling copy held `pollinations.ts`, a real keyless generative-AI integration (Flux Schnell images, Wan 2.x video), now merged in. The rule-based point still stands for `aiCopy`, `designCoach`, `captionEngine`, `trendRadar` and friends. |
 | **Growth** | 4 | No analytics, SEO on 2/26 routes, SVG OG image. The growth loop is unmeasured and unshareable. |
 | **Discovery** | 5 | Strong in-app search, filters, categories, and 31 industry-tailored profiles. Zero organic discoverability. |
 | **Marketing** | 6 | Studio is a real, saleable asset that most competitors don't have. |
@@ -102,6 +102,8 @@ Both descend from the same single commit (`339871e first commit`). Both were edi
 **Fix:** designate canonical today. `git init` properly, real commits, feature branches, and delete or archive the other 20 copies. Nothing else on this list matters if the code you fix isn't the code you ship.
 
 **Effort:** 2 h. **Priority: do this first.**
+
+> **RESOLVED 2026-08-05.** `NowOpen Africa - (OpenCode) - Claude` is canonical: committed, pushed to `origin/creative-studio-live-canvas`, and gated by `npm run verify`. The fork turned out to be two-way — the sibling held a real generative-AI "AI Art Director" (`pollinations.ts`) that this copy lacked, and has now been merged in. **The other 20 copies are still on disk and still a hazard; archiving them is the remaining step.**
 
 ---
 
