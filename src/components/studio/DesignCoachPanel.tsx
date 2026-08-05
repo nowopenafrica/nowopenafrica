@@ -1,5 +1,5 @@
-import { Gauge, ChevronDown, CheckCircle2, AlertTriangle, BadgeCheck, Palette } from 'lucide-react';
-import { DesignCoachReport } from '../../lib/designCoach';
+import { Gauge, ChevronDown, CheckCircle2, AlertTriangle, BadgeCheck, Palette, MonitorSmartphone } from 'lucide-react';
+import { DesignCoachReport, ChannelScore } from '../../lib/designCoach';
 
 const GRADE_COLOR: Record<DesignCoachReport['grade'], string> = {
   A: 'text-emerald-600 dark:text-emerald-400 border-emerald-500/40 bg-emerald-50 dark:bg-emerald-900/30',
@@ -20,11 +20,14 @@ function barColor(score: number) {
 // editing controls.
 export default function DesignCoachPanel({
   report,
+  channels,
   onApplyBrandAccent,
   open,
   onToggle,
 }: {
   report: DesignCoachReport;
+  /** Per-surface readiness. Omit to hide the section. */
+  channels?: ChannelScore[];
   onApplyBrandAccent: () => void;
   open: boolean;
   onToggle: () => void;
@@ -71,6 +74,31 @@ export default function DesignCoachPanel({
               </div>
             ))}
           </div>
+
+          {channels && channels.length > 0 && (
+            <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+              <p className="inline-flex items-center gap-1.5 text-[11px] font-bold text-gray-700 dark:text-gray-200 mb-2">
+                <MonitorSmartphone size={12} className="text-purple-600 dark:text-purple-400" />
+                Where this design works
+              </p>
+              <div className="space-y-2">
+                {channels.map((c) => (
+                  <div key={c.key}>
+                    <div className="flex items-center justify-between text-[11px] mb-0.5">
+                      <span className="font-semibold text-gray-600 dark:text-gray-300">{c.label}</span>
+                      <span className="font-bold text-gray-700 dark:text-gray-200 tabular-nums">{c.score}</span>
+                    </div>
+                    <div className="h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                      <div className={`h-full rounded-full ${barColor(c.score)}`} style={{ width: `${c.score}%` }} />
+                    </div>
+                    <p className="mt-0.5 text-[10px] leading-snug text-gray-500 dark:text-gray-400">
+                      {c.note} <span className="text-gray-400 dark:text-gray-500">({c.basis})</span>
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
 
           {report.canApplyBrand && (
             <button

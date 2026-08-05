@@ -9,7 +9,7 @@ import { StudioTemplate, StudioFormat, STUDIO_LAYOUTS, darken } from '../../data
 import { useBrandIdentity } from '../../hooks/useBrandIdentity';
 import { useCardSettings } from '../../hooks/useCardSettings';
 import { generateCopyVariants, smartCta, CopyVariant, CtaSuggestion } from '../../lib/aiCopy';
-import { designCoachReport } from '../../lib/designCoach';
+import { designCoachReport, channelReadiness } from '../../lib/designCoach';
 import DesignCoachPanel from './DesignCoachPanel';
 import PreviewFrame from './PreviewFrame';
 import { PreviewFrameKind, PREVIEW_FRAME_OPTIONS } from '../../lib/previewFrames';
@@ -353,6 +353,22 @@ export default function DesignStudio({
     [resolveSlots, headline, subline, badge],
   );
   const liveSummary = useMemo(() => liveCanvasSummary(live), [live]);
+
+  // Per-surface readiness (feed / story / Facebook / print / outdoor /
+  // accessibility). Scored from the resolved text and the format's real pixel
+  // size, so it reflects what a viewer actually gets.
+  const channels = useMemo(
+    () => channelReadiness({
+      width: w,
+      height: h,
+      headline: live.values.headline,
+      subline: live.values.subline,
+      badge: live.values.badge,
+      accent,
+      bgColor,
+    }),
+    [w, h, live, accent, bgColor],
+  );
 
   const coachReport = useMemo(
     () => designCoachReport({
@@ -1468,7 +1484,7 @@ export default function DesignStudio({
         </div>
 
         {/* AI Design Coach */}
-        <DesignCoachPanel report={coachReport} onApplyBrandAccent={applyBrandAccent} open={coachOpen} onToggle={() => setCoachOpen(!coachOpen)} />
+        <DesignCoachPanel report={coachReport} channels={channels} onApplyBrandAccent={applyBrandAccent} open={coachOpen} onToggle={() => setCoachOpen(!coachOpen)} />
 
         {/* Export & share */}
         <StudioSection icon={Download} title="Export & Share">

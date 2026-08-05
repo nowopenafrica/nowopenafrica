@@ -141,6 +141,163 @@ function normalize(hex: string): string {
   return (hex || '').trim().toLowerCase();
 }
 
+// ---------------------------------------------------------------------------
+// Channel readiness
+// ---------------------------------------------------------------------------
+//
+// Per-surface scores for the same design. Every number here is derived from
+// geometry, character counts or WCAG contrast maths — things that can actually
+// be measured from the canvas.
+//
+// Deliberately absent: "sales potential", "predicted reach", "predicted
+// clicks". Those need historical performance data this product doesn't collect
+// yet, and inventing a precise-looking number would poison trust in the scores
+// that ARE real. Each score carries a `basis` string so the owner can see what
+// it was computed from.
+
+export type ChannelKey = 'feed' | 'story' | 'facebook' | 'print' | 'billboard' | 'accessibility';
+
+export interface ChannelScore {
+  key: ChannelKey;
+  label: string;
+  score: number;
+  /** What the score was computed from — shown in the UI so it's auditable. */
+  basis: string;
+  note: string;
+}
+
+export interface ChannelInput {
+  /** Canvas pixel size of the selected format. */
+  width: number;
+  height: number;
+  headline: string;
+  subline: string;
+  badge: string;
+  accent: string;
+  /** Solid background colour, or null when the layout default / media is used. */
+  bgColor: string | null;
+}
+
+/** How close `actual` is to `target` as a 0–100 score, tolerant either side. */
+function aspectFit(actual: number, target: number): number {
+  const ratio = actual > target ? target / actual : actual / target;
+  return clampScore(ratio * 100);
+}
+
+/**
+ * The renderer sizes the headline from the canvas's short edge
+ * (~7–8.5% of minDim — see DesignStudio's `S.h1`). That makes on-screen
+ * legibility at a given display width exactly computable.
+ */
+const HEADLINE_RATIO = 0.075;
+
+function legibilityAtWidth(input: ChannelInput, displayWidth: number): { px: number; score: number } {
+  const minDim = Math.min(input.width, input.height);
+  const headlinePx = minDim * HEADLINE_RATIO;
+  const scale = displayWidth / input.width;
+  const effective = headlinePx * scale;
+  // ~11px is about the floor for a glanceable headline in a scrolling feed.
+  const score = clampScore((effective / 16) * 100);
+  return { px: Math.round(effective), score };
+}
+
+function textLoadScore(input: ChannelInput): { chars: number; score: number } {
+  const chars = `${input.headline} ${input.subline} ${input.badge}`.trim().length;
+  // Megapixels of canvas; more area genuinely carries more text.
+  const mp = (input.width * input.height) / 1_000_000;
+  const perMp = chars / Math.max(0.25, mp);
+  // Above ~90 chars per megapixel a design starts reading as a wall of text.
+  const score = perMp <= 90 ? 100 : clampScore(100 - (perMp - 90) * 1.1);
+  return { chars, score };
+}
+
+export function channelReadiness(input: ChannelInput): ChannelScore[] {
+  const aspect = input.width / input.height;
+  const load = textLoadScore(input);
+
+  // Feed (Instagram / LinkedIn square-ish, shown small in a scroll)
+  const feedLeg = legibilityAtWidth(input, 320);
+  const feedAspect = Math.max(aspectFit(aspect, 1), aspectFit(aspect, 4 / 5));
+  const feed = Math.round(feedAspect * 0.4 + feedLeg.score * 0.35 + load.score * 0.25);
+
+  // Story / WhatsApp status — full-screen 9:16
+  const storyAspect = aspectFit(aspect, 9 / 16);
+  const storyLeg = legibilityAtWidth(input, 390);
+  const story = Math.round(storyAspect * 0.5 + storyLeg.score * 0.3 + load.score * 0.2);
+
+  // Facebook feed — tolerant of 1.91:1 and square
+  const fbAspect = Math.max(aspectFit(aspect, 1.91), aspectFit(aspect, 1));
+  const fbLeg = legibilityAtWidth(input, 470);
+  const facebook = Math.round(fbAspect * 0.4 + fbLeg.score * 0.35 + load.score * 0.25);
+
+  // Print — A5 short edge is 5.83in; DPI is exact once the pixel size is known.
+  const shortIn = 5.83;
+  const dpi = Math.round(Math.min(input.width, input.height) / shortIn);
+  const print = clampScore((dpi / 300) * 100);
+
+  // Billboard — read at distance, so the headline must occupy real height.
+  const headlineShare = (Math.min(input.width, input.height) * HEADLINE_RATIO) / input.height;
+  const billboard = Math.round(
+    aspectFit(aspect, 3) * 0.45 + clampScore((headlineShare / 0.12) * 100) * 0.3 + load.score * 0.25,
+  );
+
+  // Accessibility — WCAG contrast, exact when a solid background is set.
+  let a11y: number;
+  let a11yBasis: string;
+  let a11yNote: string;
+  if (input.bgColor) {
+    const ratio = contrastRatio(input.accent, input.bgColor);
+    a11y = ratio >= 7 ? 100 : ratio >= 4.5 ? 82 : ratio >= 3 ? 58 : 28;
+    a11yBasis = `contrast ${ratio.toFixed(1)}:1`;
+    a11yNote = ratio >= 7 ? 'Passes WCAG AAA.' : ratio >= 4.5 ? 'Passes WCAG AA.' : ratio >= 3 ? 'Large text only — below AA for body copy.' : 'Fails WCAG AA — raise the contrast.';
+  } else {
+    a11y = 70;
+    a11yBasis = 'no solid background set';
+    a11yNote = 'Contrast varies over media — set a background colour for an exact reading.';
+  }
+
+  return [
+    {
+      key: 'feed', label: 'Instagram / feed', score: feed,
+      basis: `${Math.round(aspect * 100) / 100}:1 aspect · headline ~${feedLeg.px}px at 320px wide`,
+      note: feedAspect < 80 ? 'Crops in a square feed — try a 1:1 or 4:5 format.' : feedLeg.score < 60 ? 'Headline gets small in a scrolling feed.' : 'Reads well in-feed.',
+    },
+    {
+      key: 'story', label: 'Story / WhatsApp', score: story,
+      basis: `${storyAspect >= 95 ? 'matches' : 'differs from'} 9:16 · headline ~${storyLeg.px}px on a phone`,
+      note: storyAspect < 80 ? 'Letterboxes as a story — use a 9:16 format.' : 'Fills a phone screen properly.',
+    },
+    {
+      key: 'facebook', label: 'Facebook', score: facebook,
+      basis: `headline ~${fbLeg.px}px at 470px wide`,
+      note: fbAspect < 75 ? 'Awkward crop in the Facebook feed.' : 'Sits well in the Facebook feed.',
+    },
+    {
+      key: 'print', label: 'Print', score: print,
+      basis: `${dpi} DPI at A5`,
+      note: dpi >= 300 ? 'Print-ready at A5.' : dpi >= 150 ? `${dpi} DPI — fine for handouts, soft for a press run.` : `${dpi} DPI — too low to print sharply.`,
+    },
+    {
+      key: 'billboard', label: 'Outdoor / LED', score: billboard,
+      basis: `headline ${(headlineShare * 100).toFixed(0)}% of height · ${load.chars} chars`,
+      // Keep the wording in step with the score band the bar is coloured by,
+      // so a 59 never reads as an unqualified pass.
+      note: load.score < 60
+        ? 'Too much copy to read while passing.'
+        : billboard >= 75
+          ? 'Legible at a distance.'
+          : billboard >= 45
+            ? 'Usable, but a wider format and a bigger headline would carry further.'
+            : 'Needs a wider format and a much bigger headline.',
+    },
+    {
+      key: 'accessibility', label: 'Accessibility', score: a11y,
+      basis: a11yBasis,
+      note: a11yNote,
+    },
+  ];
+}
+
 export function designCoachReport(input: DesignCoachInput): DesignCoachReport {
   const read = readabilityScore(input.headline, input.subline);
   const cta = ctaScore(input.badge, input.subline);
