@@ -83,6 +83,28 @@ export const OCCASION_TEMPLATES: StudioTemplate[] = [
   { key: 'holiday-hours', label: 'Holiday Hours', badge: 'HOLIDAY HOURS', headline: 'Holiday Hours', subline: 'See our updated schedule', accent: '#9333ea' },
   { key: 'anniversary', label: 'Anniversary', badge: 'ANNIVERSARY', headline: 'Years In Business', subline: 'Thank you for growing with us', accent: '#b45309' },
   { key: 'event', label: 'Event', badge: "DON'T MISS IT", headline: 'You Are Invited', subline: 'Join us for this event', accent: '#e11d48' },
+
+  // Seasonal & calendar moments. Quick Create maps its festive cards onto
+  // these, so each needs a real template rather than being pointed at an
+  // unrelated occasion — a "Ramadan" card that opened Holiday Hours would
+  // produce the wrong design.
+  { key: 'christmas', label: 'Christmas', badge: 'CHRISTMAS', headline: 'Merry Christmas', subline: 'Festive offers all season', accent: '#b91c1c' },
+  { key: 'new-year', label: 'New Year', badge: 'NEW YEAR', headline: 'Happy New Year', subline: 'New year, new offers', accent: '#a16207' },
+  { key: 'valentine', label: "Valentine's", badge: "VALENTINE'S DAY", headline: 'Treat Someone Special', subline: 'Gifts and offers for two', accent: '#db2777' },
+  { key: 'ramadan', label: 'Ramadan', badge: 'RAMADAN', headline: 'Ramadan Kareem', subline: 'Iftar specials all month', accent: '#047857' },
+  { key: 'eid', label: 'Eid', badge: 'EID MUBARAK', headline: 'Eid Mubarak', subline: 'Celebrate with us', accent: '#0d9488' },
+  { key: 'easter', label: 'Easter', badge: 'EASTER', headline: 'Happy Easter', subline: 'Family offers this weekend', accent: '#7c3aed' },
+  { key: 'black-friday', label: 'Black Friday', badge: 'BLACK FRIDAY', headline: 'Black Friday Deals', subline: 'Biggest savings of the year', accent: '#18181b' },
+  { key: 'independence', label: 'Independence Day', badge: 'INDEPENDENCE DAY', headline: 'Happy Independence Day', subline: 'Celebrating with you', accent: '#15803d' },
+  { key: 'childrens-day', label: "Children's Day", badge: "CHILDREN'S DAY", headline: "Happy Children's Day", subline: 'Treats for the little ones', accent: '#0284c7' },
+  { key: 'back-to-school', label: 'Back to School', badge: 'BACK TO SCHOOL', headline: 'Back to School Ready', subline: 'Everything they need', accent: '#1d4ed8' },
+
+  // Everyday commercial moments the brief listed that had no template.
+  { key: 'price-drop', label: 'Price Drop', badge: 'PRICE DROP', headline: 'Prices Just Dropped', subline: 'While stocks last', accent: '#ea580c' },
+  { key: 'limited-stock', label: 'Limited Stock', badge: 'LIMITED STOCK', headline: 'Almost Gone', subline: 'Only a few left', accent: '#b45309' },
+  { key: 'review', label: 'Customer Review', badge: 'CUSTOMER REVIEW', headline: 'What Our Customers Say', subline: 'Real words from real people', accent: '#0f766e' },
+  { key: 'before-after', label: 'Before & After', badge: 'BEFORE & AFTER', headline: 'See The Difference', subline: 'Real results from our work', accent: '#4f46e5' },
+  { key: 'menu-update', label: 'Menu Update', badge: 'NEW ON THE MENU', headline: 'New On The Menu', subline: 'Come taste what is new', accent: '#c2410c' },
 ];
 
 export const SOCIAL_FORMATS: StudioFormat[] = [

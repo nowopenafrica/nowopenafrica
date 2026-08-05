@@ -32,6 +32,12 @@ export interface DesignStudioSeed {
   runCampaign: boolean;
 }
 
+const EDITOR_TABS = [
+  { key: 'design' as const, label: 'Design', icon: LayoutTemplate },
+  { key: 'content' as const, label: 'Content', icon: Type },
+  { key: 'style' as const, label: 'Style', icon: Palette },
+];
+
 const ACCENT_PRESETS = ['#7c3aed', '#2563eb', '#16a34a', '#dc2626', '#ea580c', '#f59e0b', '#db2777', '#0891b2'];
 // Background palette — the neutral defaults each layout ships with, plus a few
 // popular brand colours. The picker below lets the user override any of them.
@@ -316,6 +322,10 @@ export default function DesignStudio({
   const [cta, setCta] = useState<CtaSuggestion | null>(null);
   const [frame, setFrame] = useState<PreviewFrameKind>('none');
   const [coachOpen, setCoachOpen] = useState(true);
+  // Which editor pane is showing. Stacking all three made the column
+  // ~3,400px tall, so changing a headline meant scrolling past every
+  // template and layout card.
+  const [editorTab, setEditorTab] = useState<'design' | 'content' | 'style'>('content');
   const [exportProgress, setExportProgress] = useState<string | null>(null);
   const flyerRef = useRef<HTMLDivElement>(null);
   const bgVideoRef = useRef<HTMLVideoElement>(null);
@@ -1225,7 +1235,36 @@ export default function DesignStudio({
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
       {/* Left — structure, words, AI, style */}
       <div className="lg:col-span-2 space-y-4">
-        {/* Design */}
+        {/* Editor panes. One at a time — see editorTab above. */}
+        <div
+          role="tablist"
+          aria-label="Editor sections"
+          className="flex gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1"
+        >
+          {EDITOR_TABS.map((t) => {
+            const active = editorTab === t.key;
+            return (
+              <button
+                key={t.key}
+                type="button"
+                role="tab"
+                aria-selected={active}
+                onClick={() => setEditorTab(t.key)}
+                // px min-height: index.css scales the root font to 14px on
+                // phones, so a rem minimum lands under the 44px touch target.
+                className={`flex-1 inline-flex items-center justify-center gap-1.5 min-h-[44px] rounded-lg text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                  active
+                    ? 'bg-purple-600 text-white'
+                    : 'text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
+                }`}
+              >
+                <t.icon size={13} /> {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {editorTab === 'design' && (
         <StudioSection icon={LayoutTemplate} title="Design">
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">{templateLabel}</label>
@@ -1262,7 +1301,10 @@ export default function DesignStudio({
           </div>
         </StudioSection>
 
-        {/* Content */}
+        )}
+
+        {editorTab === 'content' && (
+        <>
         <StudioSection icon={Type} title="Content">
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -1375,7 +1417,10 @@ export default function DesignStudio({
           </div>
         </div>
 
-        {/* Style */}
+        </>
+        )}
+
+        {editorTab === 'style' && (
         <StudioSection icon={Palette} title="Style">
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Accent colour</label>
@@ -1435,6 +1480,7 @@ export default function DesignStudio({
             <p className="mt-1 text-[11px] text-gray-400">Any size image or video — used only to make your downloadable materials. Leave empty to use your profile cover.</p>
           </div>
         </StudioSection>
+        )}
       </div>
 
       {/* Right — live preview (sticky), coach, export */}
