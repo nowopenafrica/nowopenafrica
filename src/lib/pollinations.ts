@@ -1,7 +1,7 @@
-// NowOpen Studio — AI Art Director (Pollinations, free & keyless).
+// NowOpen Studio — AI Art Director (Pollinations).
 //
-// The AI Creative Director now generates REAL media from open-weight models
-// through the free Pollinations endpoint (no account, no API key):
+// The AI Creative Director generates media from open-weight models via
+// Pollinations:
 //   • Images  — Flux Schnell (open-weight) and friends, one key frame per scene.
 //   • Videos  — Wan 2.x (open-source, the same model Auto picks) and other
 //               T2V models, one clip per scene that the renderer films over.
@@ -13,6 +13,24 @@
 // only network call and is guarded so importing this module never needs a real
 // browser or network; failures return null and the pipeline falls back to the
 // gradient / Pexels renderer.
+//
+// ⚠️ NOT KEYLESS ANY MORE — verified 2026-08-05.
+// This module was written against a free, keyless Pollinations API. That is no
+// longer how the service works:
+//   GET https://gen.pollinations.ai/image/<prompt>?model=…  → 401 UNAUTHORIZED
+//     {"error":{"message":"Authentication required. Please provide an API key
+//      via Authorization header (Bearer token) or ?key= query parameter."}}
+//   GET https://image.pollinations.ai/prompt/<prompt>       → 403
+//
+// Consequence: every fetchAiImage() returns null, so the AI Art Director
+// silently produces NO art and the renderer falls back to gradients / Pexels.
+// The failure is invisible — nothing errors, the video just isn't AI-generated.
+//
+// To switch it back on, the key must NOT be a VITE_ var (it would ship in the
+// bundle, the same mistake as VITE_PEXELS_API_KEY). Proxy it through a Supabase
+// edge function holding POLLINATIONS_API_KEY as a secret, and point
+// POLLINATIONS_BASE at that function. Until then, treat the AI Art Director as
+// wired-but-inactive.
 
 import type { DirectorScene } from './creativeDirector';
 import { renderSeed } from './renderVideo';

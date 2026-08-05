@@ -94,6 +94,25 @@ function walk(dir, acc = []) {
   return acc;
 }
 
+/**
+ * Blank out comments so a URL mentioned in prose can't fail the build — code
+ * that fetches a host is the only thing that matters here. (This script's own
+ * note about the dead image.pollinations.ai endpoint tripped it otherwise.)
+ *
+ * Replaces comment bodies with spaces rather than deleting them, so reported
+ * line numbers still line up with the real file. Only whole-line `//` and `*`
+ * comments and `/* … *\/` blocks are stripped — a trailing comment after code
+ * is left alone, because naively cutting at `//` would also cut the `//` inside
+ * every https:// literal.
+ */
+function stripComments(text) {
+  const blanked = text.replace(/\/\*[\s\S]*?\*\//g, (m) => m.replace(/[^\n]/g, ' '));
+  return blanked
+    .split('\n')
+    .map((line) => (/^\s*(\/\/|\*)/.test(line) ? ' '.repeat(line.length) : line))
+    .join('\n');
+}
+
 // Classify by the nearest preceding tag/call in the WHOLE file, not line by
 // line — a JSX <iframe> often carries its src two lines below the tag, which a
 // per-line scan misreads as an image.
@@ -124,7 +143,7 @@ const gaps = [];
 const seen = new Set();
 
 for (const file of walk(SRC)) {
-  const text = readFileSync(file, 'utf8');
+  const text = stripComments(readFileSync(file, 'utf8'));
     // Require a real hostname: a dotted name with a 2+ char TLD, or localhost.
     // A looser pattern matches the `https?://` inside regex literals (e.g.
     // stripProtocol) and reports a bogus "https://." host.
