@@ -32,28 +32,41 @@ if (!URL || !KEY) throw new Error('Missing VITE_SUPABASE_URL / VITE_SUPABASE_ANO
 const source = readFileSync(join(root, 'src', 'data', 'populateData.ts'), 'utf8');
 const arrMatch = source.match(/const AD_PLACEMENTS: PlacementSeed\[\] = \[([\s\S]*?)\n\];/);
 const descMatch = source.match(/const AD_TYPE_DESCRIPTIONS[^{]*\{([\s\S]*?)\n\};/);
-if (!arrMatch || !descMatch) throw new Error('Could not find AD_PLACEMENTS in populateData.ts');
+const imgMatch = source.match(/const AD_TYPE_IMAGES[^{]*\{([\s\S]*?)\n\};/);
+if (!arrMatch || !descMatch || !imgMatch) throw new Error('Could not find AD_PLACEMENTS in populateData.ts');
 
 // The extracted text is a plain JS array/object literal — evaluate it.
+// AD_TYPE_IMAGES uses .map(pexels), so define the same helper here first.
+const pexels = (id) =>
+  `https://images.pexels.com/photos/${id}/pexels-photo-${id}.jpeg?auto=compress&cs=tinysrgb&w=640`;
 const placements = eval(`[${arrMatch[1]}]`);
 const descriptions = eval(`({${descMatch[1]}})`);
+const typeImages = eval(`({${imgMatch[1]}})`);
+void pexels; // referenced inside the evaluated AD_TYPE_IMAGES literal
 console.log(`Parsed ${placements.length} placements from populateData.ts`);
 
-const rows = placements.map(([title, type, location, pricePerDay, dimensions, traffic], i) => ({
-  title,
-  type,
-  category: type,
-  description: `${descriptions[type] || 'Premium advertising placement'} — ${dimensions}, ${traffic} traffic. Located at ${location}.`,
-  location,
-  price_per_day: pricePerDay,
-  pricing: pricePerDay,
-  budget: pricePerDay * 30,
-  duration: 30,
-  dimensions,
-  traffic_density: traffic,
-  status: i % 8 === 0 ? 'pending' : 'active',
-  image_url: `https://picsum.photos/seed/placement${i + 1}/400/300.jpg`,
-}));
+const typeCounts = {};
+const rows = placements.map(([title, type, location, pricePerDay, dimensions, traffic], i) => {
+  const pool = typeImages[type] ?? [];
+  typeCounts[type] = (typeCounts[type] ?? -1) + 1;
+  return {
+    title,
+    type,
+    category: type,
+    description: `${descriptions[type] || 'Premium advertising placement'} — ${dimensions}, ${traffic} traffic. Located at ${location}.`,
+    location,
+    price_per_day: pricePerDay,
+    pricing: pricePerDay,
+    budget: pricePerDay * 30,
+    duration: 30,
+    dimensions,
+    traffic_density: traffic,
+    status: i % 8 === 0 ? 'pending' : 'active',
+    image_url: pool.length > 0
+      ? pool[typeCounts[type] % pool.length]
+      : `https://picsum.photos/seed/placement${i + 1}/400/300.jpg`,
+  };
+});
 
 // --- always generate the SQL fallback ---------------------------------
 const esc = (v) => (v === null || v === undefined) ? 'NULL'
@@ -75,6 +88,12 @@ const sql = [
 const sqlPath = join(root, 'scripts', 'sql', 'seed_african_ad_placements.sql');
 writeFileSync(sqlPath, sql, 'utf8');
 console.log(`Wrote SQL fallback: ${sqlPath}`);
+
+// SQL_ONLY=1 regenerates the SQL file without touching the live database
+if (process.env.SQL_ONLY) {
+  console.log('SQL_ONLY set — skipping live apply.');
+  process.exit(0);
+}
 
 // --- try to apply live via the REST API -------------------------------
 // Anonymous writes are (correctly) blocked by RLS, so authenticate first.

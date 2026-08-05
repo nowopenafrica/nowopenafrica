@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { ADVERT_CATEGORIES } from '../../data/advertCategories';
 
 interface AdvertFormProps {
   editingId: string | null;
@@ -11,6 +13,7 @@ interface AdvertFormProps {
 export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFormProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [businesses, setBusinesses] = useState<{ id: string; name: string }[]>([]);
   const [formData, setFormData] = useState({
     business_id: '',
     title: '',
@@ -28,23 +31,35 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
 
   useEffect(() => {
     if (editingId) fetchAdvert();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
 
+  // Load the user's businesses so a campaign can be linked to one
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from('businesses')
+      .select('id, name')
+      .eq('user_id', user.id)
+      .then(({ data }) => setBusinesses(data || []));
+  }, [user]);
+
   const fetchAdvert = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('advertisements')
       .select('*')
-      .eq('id', editingId)
-      .maybeSingle();
+      .eq('id', editingId);
+    if (user) query = query.eq('user_id', user.id);
+    const { data } = await query.maybeSingle();
 
     if (data) {
       setFormData({
-        business_id: data.business_id,
-        title: data.title,
-        description: data.description,
-        image_url: data.image_url,
-        budget: data.budget.toString(),
-        status: data.status,
+        business_id: data.business_id || '',
+        title: data.title || '',
+        description: data.description || '',
+        image_url: data.image_url || '',
+        budget: data.budget?.toString() || '',
+        status: data.status || 'pending',
         category: data.category || '',
         location: data.location || '',
         pricing: data.pricing?.toString() || '',
@@ -61,9 +76,11 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
 
     setLoading(true);
     try {
-      const advertData = {
+      const advertData: Record<string, unknown> = {
         ...formData,
-        budget: parseInt(formData.budget),
+        // Don't store an empty-string business_id — omit it instead
+        business_id: formData.business_id || null,
+        budget: parseInt(formData.budget) || 0,
         pricing: parseFloat(formData.pricing) || 0,
         duration: parseInt(formData.duration) || 0
       };
@@ -73,43 +90,45 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
             .from('advertisements')
             .update(advertData)
             .eq('id', editingId)
+            .eq('user_id', user.id)
         : await supabase
             .from('advertisements')
             .insert([{ ...advertData, user_id: user.id }]);
 
       if (error) throw error;
+      toast.success(editingId ? 'Campaign updated' : 'Campaign created');
       onSuccess();
     } catch (error: any) {
       console.error('Error saving advertisement:', error);
-      alert(`Could not save advert: ${error.message || 'unknown error'}`);
+      toast.error(`Could not save advert: ${error.message || 'unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-      <h3 className="font-bold text-lg text-gray-900 mb-4">
+    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+      <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">
         {editingId ? 'Edit Campaign' : 'Create Campaign'}
       </h3>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Campaign Title</label>
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Campaign Title</label>
         <input
           type="text"
           value={formData.title}
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           required
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
         <textarea
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           rows={3}
           required
         />
@@ -117,73 +136,78 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Category</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Category</label>
           <select
             value={formData.category}
             onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             required
           >
             <option value="">Select Category</option>
-            <option value="Billboard">Billboard</option>
-            <option value="Transit">Transit</option>
-            <option value="Digital">Digital</option>
-            <option value="Print">Print</option>
-            <option value="Radio">Radio</option>
-            <option value="Television">Television</option>
-            <option value="Online">Online</option>
+            {ADVERT_CATEGORIES.map(category => (
+              <option key={category} value={category}>{category}</option>
+            ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Location</label>
-          <select
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Location</label>
+          <input
+            type="text"
             value={formData.location}
             onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            placeholder="e.g. Victoria Island, Lagos or Westlands, Nairobi"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             required
-          >
-            <option value="">Select Location</option>
-            <option value="Ikeja, Lagos">Ikeja, Lagos</option>
-            <option value="Victoria Island, Lagos">Victoria Island, Lagos</option>
-            <option value="Lekki, Lagos">Lekki, Lagos</option>
-            <option value="Surulere, Lagos">Surulere, Lagos</option>
-            <option value="Ajah, Lagos">Ajah, Lagos</option>
-            <option value="Ikorodu, Lagos">Ikorodu, Lagos</option>
-            <option value="Badagry, Lagos">Badagry, Lagos</option>
-          </select>
+          />
         </div>
       </div>
 
+      {businesses.length > 0 && (
+        <div>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Linked Business (optional)</label>
+          <select
+            value={formData.business_id}
+            onChange={(e) => setFormData({ ...formData, business_id: e.target.value })}
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white dark:bg-gray-800"
+          >
+            <option value="">Not linked to a business</option>
+            {businesses.map(b => (
+              <option key={b.id} value={b.id}>{b.name}</option>
+            ))}
+          </select>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Budget ($)</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Budget ($)</label>
           <input
             type="number"
             value={formData.budget}
             onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             required
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Duration (days)</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Duration (days)</label>
           <input
             type="number"
             value={formData.duration}
             onChange={(e) => setFormData({ ...formData, duration: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             required
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Status</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Status</label>
           <select
             value={formData.status}
             onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
             <option value="pending">Pending</option>
             <option value="active">Active</option>
@@ -194,35 +218,35 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Pricing ($/day)</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Pricing ($/day)</label>
           <input
             type="number"
             step="0.01"
             value={formData.pricing}
             onChange={(e) => setFormData({ ...formData, pricing: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Dimensions</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Dimensions</label>
           <input
             type="text"
             value={formData.dimensions}
             onChange={(e) => setFormData({ ...formData, dimensions: e.target.value })}
             placeholder="e.g., 10ft x 20ft"
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           />
         </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Traffic Density</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Traffic Density</label>
           <select
             value={formData.traffic_density}
             onChange={(e) => setFormData({ ...formData, traffic_density: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           >
             <option value="">Select Density</option>
             <option value="low">Low</option>
@@ -233,12 +257,12 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Image URL</label>
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Image URL</label>
         <input
           type="url"
           value={formData.image_url}
           onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
       </div>
 
@@ -253,7 +277,7 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
         <button
           type="button"
           onClick={onCancel}
-          className="px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition text-sm"
+          className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm"
         >
           Cancel
         </button>

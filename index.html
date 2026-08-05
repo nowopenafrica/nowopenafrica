@@ -2,14 +2,104 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Coolvetica:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>NowOpen African</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+
+    <title>NowOpen Africa — The Operating System for Business Growth in Africa</title>
+    <meta name="description" content="Helping Africa's 100M+ businesses get discovered, advertise effectively, and access creative services from one ecosystem. Verified listings, ad placements and media services across 20+ African markets." />
+    <link rel="canonical" href="https://nowopenafrica.com/" />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <meta name="author" content="NowOpen Africa" />
+    <meta name="keywords" content="African business directory, list your business, advertise in Africa, media services, NowOpen Africa, business operating system, Nigeria, Kenya, Ghana, South Africa" />
+    <meta name="application-name" content="NowOpen Africa" />
+    <meta name="format-detection" content="telephone=no" />
+
+    <!-- Favicon: color-wheel brand mark (static twin of the animated nav logo) -->
+    <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='6' r='5' fill='%233b82f6'/%3E%3Ccircle cx='24.7' cy='11' r='5' fill='%238b5cf6'/%3E%3Ccircle cx='24.7' cy='21' r='5' fill='%23ec4899'/%3E%3Ccircle cx='16' cy='26' r='5' fill='%23f97316'/%3E%3Ccircle cx='7.3' cy='21' r='5' fill='%23eab308'/%3E%3Ccircle cx='7.3' cy='11' r='5' fill='%2322c55e'/%3E%3C/svg%3E" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/site.webmanifest" />
+    <meta name="theme-color" content="#2563eb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#111827" media="(prefers-color-scheme: dark)" />
+
+    <!-- Apple / iOS web-app standard -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="NowOpen" />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <!-- Open Graph / social sharing -->
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="NowOpen Africa" />
+    <meta property="og:title" content="NowOpen Africa — The Operating System for Business Growth in Africa" />
+    <meta property="og:description" content="Get discovered, advertise everywhere and access creative services — Africa's business growth ecosystem across 20+ markets." />
+    <meta property="og:url" content="https://nowopenafrica.com/" />
+    <meta property="og:image" content="https://nowopenafrica.com/og-image.svg" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="NowOpen Africa — the operating system for business growth in Africa" />
+    <meta property="og:locale" content="en_US" />
+
+    <!-- Twitter / X card -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:site" content="@nowopenafrica" />
+    <meta name="twitter:creator" content="@nowopenafrica" />
+    <meta name="twitter:title" content="NowOpen Africa — Africa's Business Operating System" />
+    <meta name="twitter:description" content="Get discovered, advertise everywhere and access creative services — all in one ecosystem." />
+    <meta name="twitter:image" content="https://nowopenafrica.com/og-image.svg" />
+
+    <!-- Speed: warm up the connection to sample/image hosts. The Supabase
+         origin is preconnected at runtime from VITE_SUPABASE_URL (see main.tsx),
+         since its project ref isn't known at build time here. -->
+    <link rel="preconnect" href="https://images.pexels.com" crossorigin />
+    <link rel="dns-prefetch" href="https://images.pexels.com" />
+
+    <!-- Coolvetica (the brand font) is self-hosted via @font-face in
+         src/index.css and preloaded here so it's ready before first paint —
+         no third-party font request, so it renders identically for every
+         visitor regardless of what's installed on their device. -->
+    <link rel="preload" href="/fonts/coolvetica/Coolvetica-Regular.otf" as="font" type="font/otf" crossorigin>
+
+    <!-- Structured data: Organization + WebSite (with a search action so Google
+         can show a sitelinks search box). Powers richer, more visible results. -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@graph": [
+          {
+            "@type": "Organization",
+            "@id": "https://nowopenafrica.com/#organization",
+            "name": "NowOpen Africa",
+            "url": "https://nowopenafrica.com/",
+            "description": "Africa's business operating system — get discovered, advertise everywhere and access creative services.",
+            "areaServed": "Africa",
+            "sameAs": [
+              "https://twitter.com/nowopenafrica",
+              "https://www.instagram.com/nowopenafrica",
+              "https://www.facebook.com/nowopenafrica",
+              "https://www.linkedin.com/company/nowopenafrica"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://nowopenafrica.com/#website",
+            "url": "https://nowopenafrica.com/",
+            "name": "NowOpen Africa",
+            "publisher": { "@id": "https://nowopenafrica.com/#organization" },
+            "potentialAction": {
+              "@type": "SearchAction",
+              "target": {
+                "@type": "EntryPoint",
+                "urlTemplate": "https://nowopenafrica.com/businesses?query={search_term_string}"
+              },
+              "query-input": "required name=search_term_string"
+            }
+          }
+        ]
+      }
+    </script>
   </head>
   <body>
     <div id="root"></div>
+    <noscript>NowOpen Africa needs JavaScript enabled to run. Please enable JavaScript and reload the page.</noscript>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

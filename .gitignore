@@ -21,3 +21,14 @@ dist-ssr
 *.sln
 *.sw?
 .env
+
+.vercel
+.env*
+
+# Supabase CLI machine-local state (linked project ref, pooler URL, tool
+# versions) — regenerated on `supabase link`, never shared.
+supabase/.temp/
+
+# Local dev server logs
+dev-server.log
+dev-server.err.log

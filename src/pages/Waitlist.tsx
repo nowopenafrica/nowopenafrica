@@ -47,13 +47,25 @@ export default function Waitlist() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      const { error } = await supabase.from('waitlist').insert([{
+      const base = {
         name: form.name.trim(),
         email: form.email.trim().toLowerCase(),
         business_type: form.business_type,
         country: form.country,
         source: 'website',
-      }]);
+      };
+      let { error } = await supabase.from('waitlist').insert([base]);
+
+      // Some deployments have a legacy waitlist table with extra NOT NULL
+      // columns this form never collected (full_name, phone), which rejected
+      // every signup with a not-null violation. Retry once filling those
+      // legacy columns so signups succeed there too. On a clean schema the
+      // first insert already succeeds, so this never runs.
+      if (error && /not-null|null value|full_name|phone|user_type/i.test(error.message)) {
+        ({ error } = await supabase.from('waitlist').insert([{
+          ...base, full_name: base.name, phone: '', user_type: base.business_type || 'business',
+        }]));
+      }
 
       if (error) {
         // 23505 = unique violation → they're already on the list
@@ -76,14 +88,14 @@ export default function Waitlist() {
 
   if (done) {
     return (
-      <div className="min-h-screen bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 flex items-center justify-center px-4">
-        <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full p-10 text-center space-y-5">
-          <div className="w-16 h-16 mx-auto bg-green-100 rounded-full flex items-center justify-center">
-            <CheckCircle size={32} className="text-green-600" />
+      <div className="min-h-screen flex items-center justify-center px-4" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
+        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl max-w-lg w-full p-10 text-center space-y-5">
+          <div className="w-16 h-16 mx-auto bg-green-100 dark:bg-green-900/30 rounded-full flex items-center justify-center">
+            <CheckCircle size={32} className="text-green-600 dark:text-green-400" />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900">You're on the list! 🎉</h1>
-          <p className="text-gray-600">
-            We'll email <span className="font-medium text-gray-900">{form.email}</span> your
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">You're on the list! 🎉</h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            We'll email <span className="font-medium text-gray-900 dark:text-white">{form.email}</span> your
             invite as we open up{form.country ? ` in ${form.country}` : ''}. Founding members
             are invited first, market by market.
           </p>
@@ -96,7 +108,7 @@ export default function Waitlist() {
             </Link>
             <Link
               to="/pricing"
-              className="px-6 py-3 bg-gray-100 text-gray-800 font-medium rounded-lg hover:bg-gray-200 transition"
+              className="px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
             >
               See Pricing
             </Link>
@@ -107,34 +119,33 @@ export default function Waitlist() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <section className="bg-gradient-to-r from-blue-600 via-purple-600 to-blue-800 text-white">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      <section className="text-white" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
-          {/* Pitch */}
-          <div className="space-y-6">
+          {/* Pitch — centered on mobile/tablet where it stacks above the form
+              as its own block; reverts to the original left-aligned look
+              once it sits beside the form at lg: (2-column layout). */}
+          <div className="space-y-6 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
               <Sparkles size={16} className="text-yellow-300" />
               Invite-only early access
             </div>
             <h1 className="text-3xl md:text-5xl font-bold leading-tight">
-              Be first when Africa's business growth ecosystem
-              <span className="block text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-400">
-                goes live
-              </span>
+              Be first when Africa's business growth ecosystem goes live
             </h1>
             <p className="text-blue-100 text-base md:text-lg">
               NowOpen Africa connects businesses, advertising placements and creative
               professionals across 20+ African markets. Join the waitlist and we'll send
               your invite as we open your market.
             </p>
-            <div className="flex items-center gap-3 text-sm text-blue-100">
-              <Users size={18} />
-              Businesses, advertisers and creators from 21 countries are already in line.
+            <div className="flex items-center justify-center lg:justify-start gap-3 text-sm text-blue-100">
+              <Users size={18} className="flex-shrink-0" />
+              Businesses, advertisers and creators across Africa are joining the line.
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
               {perks.map(perk => (
                 <div key={perk.title} className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                  <perk.icon size={20} className="text-yellow-300 mb-2" />
+                  <perk.icon size={20} className="text-yellow-300 mb-2 mx-auto lg:mx-0" />
                   <h3 className="font-semibold text-sm mb-1">{perk.title}</h3>
                   <p className="text-xs text-blue-100">{perk.text}</p>
                 </div>
@@ -143,23 +154,23 @@ export default function Waitlist() {
           </div>
 
           {/* Form */}
-          <div className="bg-white rounded-2xl shadow-2xl p-8 text-gray-900">
-            <h2 className="text-xl font-bold mb-1">Join the waitlist</h2>
-            <p className="text-sm text-gray-600 mb-6">Takes 30 seconds. No payment needed.</p>
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 text-gray-900 dark:text-white">
+            <h2 className="text-xl font-bold mb-1 text-center sm:text-left">African is NowOpen</h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 text-center sm:text-left">Takes 30 seconds. No payment needed.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Full name</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
                 <input
                   type="text"
                   required
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="Amina Okafor"
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Email address</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Email address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3.5 text-gray-400" size={18} />
                   <input
@@ -168,29 +179,29 @@ export default function Waitlist() {
                     value={form.email}
                     onChange={e => setForm({ ...form, email: e.target.value })}
                     placeholder="you@business.com"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">I am a…</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">I am a…</label>
                 <select
                   required
                   value={form.business_type}
                   onChange={e => setForm({ ...form, business_type: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                 >
                   <option value="" disabled>Select what describes you best</option>
                   {BUSINESS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Country</label>
+                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
                 <select
                   required
                   value={form.country}
                   onChange={e => setForm({ ...form, country: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white"
+                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                 >
                   <option value="" disabled>Select your country</option>
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}
@@ -204,7 +215,7 @@ export default function Waitlist() {
                 {submitting ? 'Joining…' : 'Get My Invite'}
                 {!submitting && <ArrowRight size={18} />}
               </button>
-              <p className="text-xs text-gray-500 text-center">
+              <p className="text-xs text-gray-500 dark:text-gray-400 text-center">
                 We'll only email you about your invite and launch news. No spam, ever.
               </p>
             </form>
@@ -214,7 +225,7 @@ export default function Waitlist() {
 
       {/* How it works */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 text-center mb-10">
+        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white text-center mb-10">
           How the invite rollout works
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -223,12 +234,12 @@ export default function Waitlist() {
             { step: '2', title: 'Get your invite', text: 'We open market by market, starting with Nigeria, Kenya, Ghana, South Africa and Egypt.' },
             { step: '3', title: 'Launch day setup', text: 'Claim your profile, get verified free, and start listing, booking or selling from day one.' },
           ].map(s => (
-            <div key={s.step} className="bg-white rounded-xl border border-gray-100 shadow-sm p-6">
-              <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold mb-4">
+            <div key={s.step} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 text-center sm:text-left">
+              <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold mb-4 mx-auto sm:mx-0">
                 {s.step}
               </div>
-              <h3 className="font-semibold text-gray-900 mb-2">{s.title}</h3>
-              <p className="text-sm text-gray-600">{s.text}</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{s.title}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">{s.text}</p>
             </div>
           ))}
         </div>

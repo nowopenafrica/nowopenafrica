@@ -1,0 +1,45 @@
+name: CI
+
+# Runs the full quality gate on every push to main and every pull request, so
+# a regression can never reach production silently. All four steps must pass.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Typecheck · Lint · Test · Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Unit tests
+        run: npm run test
+
+      - name: Production build
+        run: npm run build
+        # The app reads Supabase/Paystack keys at runtime via import.meta.env and
+        # degrades gracefully when they're absent, so the build needs no secrets.
+        # To build against real values, add repo secrets and expose them here as
+        # VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY / VITE_PAYSTACK_PUBLIC_KEY.

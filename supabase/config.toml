@@ -1,0 +1,52 @@
+
+[functions.hello-world]
+enabled = true
+verify_jwt = false
+import_map = "./functions/hello-world/deno.json"
+# Uncomment to specify a custom file path to the entrypoint.
+# Supported file extensions are: .ts, .js, .mjs, .jsx, .tsx
+entrypoint = "./functions/hello-world/index.ts"
+# Specifies static files to be bundled with the function. Supports glob patterns.
+# For example, if you want to serve static HTML pages in your function:
+# static_files = [ "./functions/hello-world/*.html" ]
+
+# chatbot, translate-caption, and verify-payment are all called by our own
+# frontend with the anon key as a bearer token, so they need no override
+# here — Supabase's default JWT verification (enabled unless turned off)
+# already accepts that.
+
+# paystack-webhook is called directly by Paystack's servers, which have no
+# way to attach our Supabase anon key — JWT verification must be off, or
+# every webhook delivery would be rejected with 401 before our code runs.
+[functions.paystack-webhook]
+enabled = true
+verify_jwt = false
+
+# send-onboarding is called right after signup — with email confirmation
+# enabled there is no session (and thus no user JWT) yet, so JWT verification
+# must be off or the very first call would be rejected. It's a low-value target
+# (it only mails the address already on file for a given user id) and is
+# IP-rate-limited + de-duplicated per user in code.
+[functions.send-onboarding]
+enabled = true
+verify_jwt = false
+
+# run-automations is triggered by a scheduler (Supabase Cron / GitHub Action /
+# external cron), which can't attach a user JWT — so JWT verification is off and
+# access is gated by the AUTOMATION_SECRET header inside the function instead.
+[functions.run-automations]
+enabled = true
+verify_jwt = false
+
+# social-auth's callback route is hit by Facebook/LinkedIn/X/TikTok redirects,
+# which can't attach our JWT — verification must be off. authorize/disconnect
+# re-validate the user JWT in code, and callback trusts the signed `state` only.
+[functions.social-auth]
+enabled = true
+verify_jwt = false
+
+# social-publish is only ever called by our own frontend with the user's JWT,
+# so default JWT verification stays on — nobody else can trigger posts.
+[functions.social-publish]
+enabled = true
+

@@ -1,20 +1,39 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
 
 const corsHeaders = {
+  // "*" here is deliberate, not an oversight: this endpoint takes only the
+  // public anon key (no cookies/credentials), so CORS can't protect
+  // anything a direct HTTP call couldn't already do — the anon key is
+  // visible in the shipped frontend bundle regardless. Real abuse
+  // protection is the rate limiter below, not the origin check.
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
+
+const RATE_LIMIT_MAX = 20;
+const RATE_LIMIT_WINDOW_MS = 60_000;
 
 interface ChatMessage {
   role: "user" | "assistant";
   content: string;
 }
 
+interface BusinessContext {
+  name?: string;
+  category?: string;
+  location?: string;
+  description?: string;
+}
+
 interface ChatRequest {
   messages?: ChatMessage[];
   query: string;
+  /** Present when the widget is opened from a business's NowOpen Live
+   * viewer — scopes the assistant to that business without a second prompt. */
+  business?: BusinessContext;
 }
 
 const MAX_HISTORY_MESSAGES = 20;
@@ -34,7 +53,7 @@ What's on the platform:
 - **Discover** (/businesses) — a directory of African businesses across categories like food & hospitality, retail, tech, health, professional services, trades, education, and arts & entertainment. Each business has a profile at nowopenafrica.com/<username> with a location map, contact details, and a blue verified badge for verified/premium listings.
 - **Promote** (/adverts) — advertising placements across Africa: billboards, digital screens, transit, airport displays, mall media, street furniture, stadiums, radio. Cities include Lagos, Nairobi, Accra, Johannesburg, Cairo, Kigali, Dakar, and more. Typical pricing is roughly $110–$900 per day depending on location and traffic.
 - **Create** (/media) — creative and media services: photography, videography, branding, web/app design, social media management, animation, audio production, and more. Typical pricing is roughly $15–$3,000 per project.
-- **Pricing** (/pricing) — Starter (free: 1 listing, pay-per-booking), Growth ($15/mo, $12/mo billed annually: verified badge, 5 campaigns, analytics), Pro ($39/mo, $31/mo annually: unlimited listings/campaigns, 0% booking fees, dedicated support).
+- **Pricing** (/pricing) — Free Launch (free: basic profile, 50 AI credits/mo), Growth (~$3/mo, ~$33/yr: verified badge, bookings, analytics, 500 AI credits), Business Pro (~$12/mo, ~$120/yr: unlimited modules, 0% booking fees, 2,000 AI credits), Enterprise (custom). AI credits and Promote advertising are separate add-on spends.
 - **Waitlist** (/waitlist) — the platform is in invite-only early access; visitors join the waitlist for an invite. Founding members get launch pricing locked for 12 months and a free verified badge.
 
 Use the search_platform tool whenever someone asks about specific businesses, placements, prices, categories, or locations — never invent listings, prices, or ratings; state only what the tool returns. If a search comes back empty, say so honestly and suggest browsing the relevant page or joining the waitlist instead of guessing.
@@ -175,8 +194,15 @@ Deno.serve(async (req: Request) => {
     return new Response(null, { status: 200, headers: corsHeaders });
   }
 
+  if (isRateLimited(getClientIp(req), RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS)) {
+    return new Response(JSON.stringify({ message: "You're sending messages too quickly — please wait a moment and try again." }), {
+      status: 429,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+
   try {
-    const { query, messages = [] } = (await req.json()) as ChatRequest;
+    const { query, messages = [], business } = (await req.json()) as ChatRequest;
 
     if (!query || typeof query !== "string" || !query.trim()) {
       return new Response(JSON.stringify({ message: "Please type a message." }), {
@@ -185,6 +211,10 @@ Deno.serve(async (req: Request) => {
       });
     }
     const trimmedQuery = query.slice(0, MAX_QUERY_LENGTH);
+
+    const system = business?.name
+      ? `${SYSTEM_PROMPT}\n\nRight now you're embedded in "${business.name}"'s live stream on NowOpen Africa${business.category ? ` (a ${business.category} business` : ""}${business.location ? ` in ${business.location}` : ""}${business.category || business.location ? ")" : ""}.${business.description ? ` About them: ${business.description}` : ""} Prioritize answering questions about this specific business — use search_platform to look up their current services/products/pricing rather than guessing. If asked about something unrelated to this business or the platform, answer briefly and steer back.`
+      : SYSTEM_PROMPT;
 
     const history = messages
       .filter((m) => m.role === "user" || m.role === "assistant")
@@ -210,7 +240,7 @@ Deno.serve(async (req: Request) => {
         body: JSON.stringify({
           model: MODEL,
           max_tokens: 1024,
-          system: SYSTEM_PROMPT,
+          system,
           thinking: { type: "adaptive" },
           tools: [SEARCH_TOOL],
           messages: anthropicMessages,

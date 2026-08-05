@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import { MEDIA_SERVICE_TYPES } from '../../data/mediaCategories';
 
 interface MediaFormProps {
   editingId: string | null;
@@ -18,29 +20,29 @@ export default function MediaForm({ editingId, onSuccess, onCancel }: MediaFormP
     pricing: '',
     image_url: '',
     portfolio_url: '',
-    rating: '5',
   });
 
   useEffect(() => {
     if (editingId) fetchMedia();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
 
   const fetchMedia = async () => {
-    const { data } = await supabase
+    let query = supabase
       .from('media_services')
       .select('*')
-      .eq('id', editingId)
-      .maybeSingle();
+      .eq('id', editingId);
+    if (user) query = query.eq('user_id', user.id);
+    const { data } = await query.maybeSingle();
 
     if (data) {
       setFormData({
-        title: data.title,
-        description: data.description,
-        service_type: data.service_type,
-        pricing: data.pricing,
-        image_url: data.image_url,
-        portfolio_url: data.portfolio_url,
-        rating: data.rating,
+        title: data.title || '',
+        description: data.description || '',
+        service_type: data.service_type || '',
+        pricing: data.pricing?.toString() || '',
+        image_url: data.image_url || '',
+        portfolio_url: data.portfolio_url || '',
       });
     }
   };
@@ -51,10 +53,11 @@ export default function MediaForm({ editingId, onSuccess, onCancel }: MediaFormP
 
     setLoading(true);
     try {
+      // Rating deliberately excluded — providers can't rate themselves;
+      // it stays at the DB default until real reviews exist.
       const payload = {
         ...formData,
         pricing: parseInt(formData.pricing) || 0,
-        rating: parseFloat(formData.rating) || 0,
       };
 
       const { error } = editingId
@@ -62,43 +65,45 @@ export default function MediaForm({ editingId, onSuccess, onCancel }: MediaFormP
             .from('media_services')
             .update(payload)
             .eq('id', editingId)
+            .eq('user_id', user.id)
         : await supabase
             .from('media_services')
             .insert([{ ...payload, user_id: user.id }]);
 
       if (error) throw error;
+      toast.success(editingId ? 'Service updated' : 'Service listed');
       onSuccess();
     } catch (error: any) {
       console.error('Error saving media service:', error);
-      alert(`Could not save media service: ${error.message || 'unknown error'}`);
+      toast.error(`Could not save media service: ${error.message || 'unknown error'}`);
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="bg-white rounded-lg border border-gray-200 p-6 space-y-4">
-      <h3 className="font-bold text-lg text-gray-900 mb-4">
+    <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4">
+      <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">
         {editingId ? 'Edit Service' : 'List New Service'}
       </h3>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Service Title</label>
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Service Title</label>
         <input
           type="text"
           value={formData.title}
           onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           required
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Description</label>
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Description</label>
         <textarea
           value={formData.description}
           onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
           rows={3}
           required
         />
@@ -106,52 +111,49 @@ export default function MediaForm({ editingId, onSuccess, onCancel }: MediaFormP
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Service Type</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Service Type</label>
           <select
             value={formData.service_type}
             onChange={(e) => setFormData({ ...formData, service_type: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             required
           >
             <option value="">Select Service Type</option>
-            <option value="Video Production">Video Production</option>
-            <option value="Graphic Design">Graphic Design</option>
-            <option value="Content Creation">Content Creation</option>
-            <option value="Photography">Photography</option>
-            <option value="Advertising">Advertising</option>
-            <option value="Social Media">Social Media</option>
+            {MEDIA_SERVICE_TYPES.map(type => (
+              <option key={type} value={type}>{type}</option>
+            ))}
           </select>
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-gray-700 mb-1">Price ($)</label>
+          <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Price ($)</label>
           <input
             type="number"
             value={formData.pricing}
             onChange={(e) => setFormData({ ...formData, pricing: e.target.value })}
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
             required
           />
         </div>
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Image URL</label>
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Image URL</label>
         <input
           type="url"
           value={formData.image_url}
           onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-gray-700 mb-1">Portfolio URL</label>
+        <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Portfolio URL</label>
         <input
           type="url"
           value={formData.portfolio_url}
           onChange={(e) => setFormData({ ...formData, portfolio_url: e.target.value })}
-          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+          className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
       </div>
 
@@ -166,7 +168,7 @@ export default function MediaForm({ editingId, onSuccess, onCancel }: MediaFormP
         <button
           type="button"
           onClick={onCancel}
-          className="px-6 py-2 border border-gray-300 text-gray-700 font-medium rounded-lg hover:bg-gray-50 transition text-sm"
+          className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm"
         >
           Cancel
         </button>

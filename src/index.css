@@ -2,9 +2,113 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Self-hosted brand font — bundled with the site so every visitor renders
+   the exact same face regardless of what's installed on their device.
+   (Coolvetica is not a system font anywhere; relying on it being merely
+   "installed" only works on machines that happen to have it, which is why
+   this must ship as an actual webfont rather than a font-family name.) */
+@font-face {
+  font-family: 'Coolvetica';
+  src: url('/fonts/coolvetica/Coolvetica-Light.otf') format('opentype');
+  font-weight: 300;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Coolvetica';
+  src: url('/fonts/coolvetica/Coolvetica-Regular.otf') format('opentype');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Coolvetica';
+  src: url('/fonts/coolvetica/Coolvetica-Bold.otf') format('opentype');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+@layer utilities {
+  /* Hide the scrollbar on horizontally-scrollable strips (e.g. the founder
+     sub-nav) while keeping them scrollable via drag/swipe. */
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+}
+
 @layer base {
+  /* Everything in the UI is rem-based, so the root font-size is a single
+     global "zoom" lever — nudging it down proportionally tightens type AND
+     spacing across every page (listings, detail pages, dashboards, modals…)
+     with no per-page overrides. The homepage video-banner title is exempt —
+     it uses a fixed px-based clamp() so it never shrinks with this rule. */
+  html {
+    font-size: 16px;
+  }
+
+  /* Tablet & up (≈768px+): hold a flat, compact "retina-small" scale so the
+     site looks the same crisp density on a 13" laptop, a 15" laptop, a 1080p
+     external and a 1440p/QHD panel — instead of feeling oversized as the
+     viewport grows. `rem` + a capped max-w container do the rest. */
+  @media (min-width: 768px) {
+    html {
+      font-size: 15px;
+    }
+  }
+  /* Large laptops / QHD (≈1536px+): a touch smaller again so content density
+     stays consistent rather than ballooning on the biggest laptop panels. */
+  @media (min-width: 1536px) {
+    html {
+      font-size: 14.5px;
+    }
+  }
+
+  /* Phones: daintier still. */
+  @media (max-width: 640px) {
+    html {
+      font-size: 14px;
+    }
+  }
+
   body {
-    @apply bg-gray-50;
+    @apply bg-gray-50 dark:bg-gray-900 transition-colors duration-200;
+  }
+}
+
+/* Dark-mode base overrides for things Tailwind utility classes don't reach
+   directly — form controls fall back to the browser's default white
+   background unless a bg-* class is set, which most inputs in this project
+   don't do. Keyed off the same .dark class the theme toggle sets on <html>. */
+.dark input:not([type='checkbox']):not([type='radio']),
+.dark select,
+.dark textarea {
+  background-color: #111827; /* gray-900 */
+  color: #f3f4f6; /* gray-100 */
+}
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #6b7280; /* gray-500 */
+}
+.dark ::-webkit-scrollbar-track {
+  background: #1f2937; /* gray-800 */
+}
+.dark ::-webkit-scrollbar-thumb {
+  background: #4b5563; /* gray-600 */
+}
+
+/* Smooth, non-jarring theme switches */
+* {
+  transition-property: background-color, border-color, color, fill, stroke;
+  transition-duration: 150ms;
+}
+@media (prefers-reduced-motion: reduce) {
+  * {
+    transition: none !important;
   }
 }
 
@@ -50,5 +154,16 @@
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+/* Brand/partner logo strip — the track holds two identical halves, so
+   shifting by exactly -50% loops seamlessly */
+@keyframes marquee {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
   }
 }

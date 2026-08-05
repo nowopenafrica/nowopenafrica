@@ -1,0 +1,10 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /security
+Disallow: /reset-password
+Disallow: /forgot-password
+
+Sitemap: https://nowopenafrica.com/sitemap.xml

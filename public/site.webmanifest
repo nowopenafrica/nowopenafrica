@@ -1,0 +1,21 @@
+{
+  "name": "NowOpen Africa",
+  "short_name": "NowOpen",
+  "description": "Africa's business operating system — get discovered, advertise everywhere and access creative services.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0f172a",
+  "theme_color": "#2563eb",
+  "lang": "en",
+  "categories": ["business", "shopping", "productivity"],
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

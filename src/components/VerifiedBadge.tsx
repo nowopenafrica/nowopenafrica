@@ -23,7 +23,7 @@ export default function VerifiedBadge({ compact = false, size = 16, className = 
   }
   return (
     <span
-      className={`inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-semibold rounded-full ${className}`}
+      className={`inline-flex items-center gap-1 px-2 py-0.5 bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-xs font-semibold rounded-full ${className}`}
       title="This business is verified by NowOpen Africa"
     >
       <BadgeCheck size={size} className="text-blue-500" />

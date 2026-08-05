@@ -22,6 +22,30 @@ CREATE TABLE IF NOT EXISTS waitlist (
 
 CREATE UNIQUE INDEX IF NOT EXISTS waitlist_email_unique ON waitlist (lower(email));
 
+-- Reconcile a hand-created / legacy waitlist table. Some deployments have
+-- extra NOT NULL columns the current form never populates (full_name, phone,
+-- user_type, …), so every signup fails with a not-null violation. Generically
+-- drop NOT NULL from every waitlist column that has no default, except the
+-- essentials (id + email), then backfill full_name from name if present.
+DO $$
+DECLARE col record;
+BEGIN
+  FOR col IN
+    SELECT column_name FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'waitlist'
+      AND is_nullable = 'NO' AND column_default IS NULL
+      AND column_name NOT IN ('id', 'email')
+  LOOP
+    EXECUTE format('ALTER TABLE public.waitlist ALTER COLUMN %I DROP NOT NULL', col.column_name);
+  END LOOP;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'waitlist' AND column_name = 'full_name'
+  ) THEN
+    EXECUTE 'UPDATE public.waitlist SET full_name = name WHERE full_name IS NULL AND name IS NOT NULL';
+  END IF;
+END $$;
+
 ALTER TABLE waitlist ENABLE ROW LEVEL SECURITY;
 
 DROP POLICY IF EXISTS "Anyone can join the waitlist" ON waitlist;

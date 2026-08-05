@@ -1,0 +1,98 @@
+// Demo spotlights for the Group-10 industry systems (veterinary, spa &
+// wellness, religious organizations, bakeries, bars & lounges). Shown on the
+// /platform live-examples grid and rendered like any other sample business on
+// /business/<username> — the generic Services / Products / Contact modules
+// power each profile until their category ships a dedicated module.
+
+export const NEW_INDUSTRY_SPOTLIGHTS: Record<string, any> = {
+  business_69: {
+    id: 'business_69',
+    username: 'pawvet-clinic',
+    name: 'PawVet Clinic',
+    category: 'Veterinary Services',
+    description:
+      'Full-service veterinary clinic — consultations, vaccinations, surgery, grooming and boarding. Book a visit, or use our home-visit and emergency care for your pets.',
+    location: 'Gbagada, Lagos',
+    phone: '+234 802 411 9033',
+    website: 'https://pawvet.example.com',
+    email: 'care@pawvet.example.com',
+    opening_hours: 'Mon–Sat: 8AM–8PM · Sun: 10AM–4PM',
+    image_url: 'https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.9,
+    status: 'open',
+    verified: true,
+    user_id: 'sample',
+  },
+  business_70: {
+    id: 'business_70',
+    username: 'zenith-wellness-spa',
+    name: 'Zenith Wellness Spa',
+    category: 'Spa & Beauty',
+    description:
+      'Treatments for body and mind — massages, facials, body wraps and therapy, with a pick-your-therapist booking flow and monthly wellness memberships.',
+    location: 'Victoria Island, Lagos',
+    phone: '+234 901 227 8844',
+    website: 'https://zenithspa.example.com',
+    email: 'hello@zenithspa.example.com',
+    opening_hours: 'Mon–Sun: 9AM–9PM',
+    image_url: 'https://images.pexels.com/photos/385998/pexels-photo-385998.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.8,
+    status: 'open',
+    verified: true,
+    user_id: 'sample',
+  },
+  business_71: {
+    id: 'business_71',
+    username: 'grace-community',
+    name: 'Grace Community Church',
+    category: 'Religious Organization',
+    description:
+      'A community of faith online and in person — service times, live worship streams, sermon archive, prayer requests, tithes & offerings and volunteer signup in one place.',
+    location: 'Ikeja, Lagos',
+    phone: '+234 803 552 6671',
+    website: 'https://gracecommunity.example.com',
+    email: 'connect@gracecommunity.example.com',
+    opening_hours: 'Services: Sun 8AM & 10AM · Midweek Wed 6PM',
+    image_url: 'https://images.pexels.com/photos/1181271/pexels-photo-1181271.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 5.0,
+    status: 'open',
+    verified: true,
+    user_id: 'sample',
+  },
+  business_72: {
+    id: 'business_72',
+    username: 'golden-crust-bakery',
+    name: 'Golden Crust Bakery',
+    category: 'Bakery & Pastry',
+    description:
+      'Fresh bakes daily — bread, pastries, custom celebration cakes and dessert boxes, delivered same-day or ready for pickup with a cart-based ordering flow.',
+    location: 'Yaba, Lagos',
+    phone: '+234 805 990 1234',
+    website: 'https://goldencrust.example.com',
+    email: 'orders@goldencrust.example.com',
+    opening_hours: 'Mon–Sat: 6AM–8PM · Sun: 7AM–12PM',
+    image_url: 'https://images.pexels.com/photos/8535230/pexels-photo-8535230.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.7,
+    status: 'open',
+    verified: true,
+    user_id: 'sample',
+  },
+  business_73: {
+    id: 'business_73',
+    username: 'tipsy-terrace',
+    name: 'The Tipsy Terrace',
+    category: 'Bar & Lounge',
+    description:
+      'Signature cocktails, shisha and happy-hour deals with table reservations, bottle service and private hire — plus a live DJ schedule so you always know the vibe.',
+    location: 'Lekki Phase 1, Lagos',
+    phone: '+234 812 448 9955',
+    website: 'https://tipsyterrace.example.com',
+    email: 'book@tipsyterrace.example.com',
+    opening_hours: 'Tue–Sun: 4PM–2AM',
+    image_url: 'https://images.pexels.com/photos/905163/pexels-photo-905163.jpeg?auto=compress&cs=tinysrgb&w=800',
+    rating: 4.6,
+    status: 'open',
+    verified: true,
+    user_id: 'sample',
+  },
+};

@@ -8,7 +8,7 @@ export default function ContactInfo({ business }: ContactInfoProps) {
   return (
     <div className="space-y-3">
       {business.phone && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <Phone size={16} className="text-blue-500" />
           <a href={`tel:${business.phone}`} className="hover:text-blue-600">
             {business.phone}
@@ -16,7 +16,7 @@ export default function ContactInfo({ business }: ContactInfoProps) {
         </div>
       )}
       {business.email && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <Mail size={16} className="text-blue-500" />
           <a href={`mailto:${business.email}`} className="hover:text-blue-600">
             {business.email}
@@ -24,7 +24,7 @@ export default function ContactInfo({ business }: ContactInfoProps) {
         </div>
       )}
       {business.website && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <Globe size={16} className="text-blue-500" />
           <a href={business.website} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600">
             {business.website}
@@ -32,7 +32,7 @@ export default function ContactInfo({ business }: ContactInfoProps) {
         </div>
       )}
       {business.location && (
-        <div className="flex items-center gap-2 text-sm text-gray-600">
+        <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <MapPin size={16} className="text-blue-500" />
           <span>{business.location}</span>
         </div>

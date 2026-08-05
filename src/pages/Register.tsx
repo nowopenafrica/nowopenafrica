@@ -1,16 +1,18 @@
 import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Mail, Lock, Eye, EyeOff, User } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { AtSign, Lock, Eye, EyeOff, User } from 'lucide-react';
+import { useAuth, isEmail, normalizePhone } from '../contexts/AuthContext';
+import PhoneOtpForm from '../components/auth/PhoneOtpForm';
 import toast from 'react-hot-toast';
 
 export default function Register() {
-  const [email, setEmail] = useState('');
+  const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'business' | 'media_service'>('business');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pendingPhone, setPendingPhone] = useState<string | null>(null);
   const { signUp } = useAuth();
   const navigate = useNavigate();
 
@@ -22,17 +24,28 @@ export default function Register() {
       return;
     }
 
-    if (password.length < 6) {
-      toast.error('Password must be at least 6 characters');
+    if (password.length < 8) {
+      toast.error('Password must be at least 8 characters');
+      return;
+    }
+    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+      toast.error('Password must include both letters and numbers');
       return;
     }
 
     setLoading(true);
 
     try {
-      await signUp(email, password, role);
-      toast.success('Account created! Please check your email to verify.');
-      navigate('/login');
+      const usingEmail = isEmail(identifier);
+      await signUp(identifier, password, role);
+      if (usingEmail) {
+        toast.success('Account created! Please check your email to verify.');
+        navigate('/login');
+      } else {
+        // Phone signup — show the SMS code step instead of leaving the page.
+        toast.success('We sent a verification code to your phone.');
+        setPendingPhone(normalizePhone(identifier));
+      }
     } catch (error: any) {
       console.error('Registration error:', error);
       toast.error(error.message || 'Failed to create account');
@@ -42,42 +55,51 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-purple-50 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-md w-full space-y-8 bg-white p-8 rounded-xl shadow-lg">
+    <div className="min-h-screen bg-gradient-to-br from-slate-100 to-indigo-50 dark:from-gray-900 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900">Create your account</h2>
-          <p className="mt-2 text-sm text-gray-600">
-            Already have an account?{' '}
-            <Link to="/login" className="font-medium text-blue-600 hover:text-blue-500">
-              Sign in
-            </Link>
-          </p>
+          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+            {pendingPhone ? 'Verify your phone' : 'Create your account'}
+          </h2>
+          {!pendingPhone && (
+            <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+              Already have an account?{' '}
+              <Link to="/login" className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500">
+                Sign in
+              </Link>
+            </p>
+          )}
         </div>
 
+        {pendingPhone ? (
+          <PhoneOtpForm phone={pendingPhone} onVerified={() => navigate('/dashboard')} />
+        ) : (
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="space-y-4">
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
-                Email address
+              <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                Email or phone number
               </label>
               <div className="mt-1 relative">
                 <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="email"
+                  id="identifier"
+                  name="identifier"
+                  type="text"
+                  autoComplete="username"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  placeholder="Enter your email"
+                  maxLength={120}
+                  value={identifier}
+                  onChange={(e) => setIdentifier(e.target.value)}
+                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  placeholder="you@email.com or +234 801 234 5678"
                 />
-                <Mail className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <AtSign className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
               </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sign up with an email or a phone number — include the country code for phone (e.g. +234).</p>
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Password
               </label>
               <div className="mt-1 relative">
@@ -87,9 +109,11 @@ export default function Register() {
                   type={showPassword ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
+                  minLength={8}
+                  maxLength={128}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Create a password"
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
@@ -101,10 +125,11 @@ export default function Register() {
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
               </div>
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">At least 8 characters, with letters and numbers.</p>
             </div>
 
             <div>
-              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Confirm Password
               </label>
               <div className="mt-1 relative">
@@ -116,7 +141,7 @@ export default function Register() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Confirm your password"
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
@@ -124,7 +149,7 @@ export default function Register() {
             </div>
 
             <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
                 Account Type
               </label>
               <div className="mt-1 relative">
@@ -133,7 +158,7 @@ export default function Register() {
                   name="role"
                   value={role}
                   onChange={(e) => setRole(e.target.value as 'business' | 'media_service')}
-                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="business">Business</option>
                   <option value="media_service">Media Service</option>
@@ -153,6 +178,7 @@ export default function Register() {
             </button>
           </div>
         </form>
+        )}
       </div>
     </div>
   );

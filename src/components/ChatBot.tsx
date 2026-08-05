@@ -43,7 +43,7 @@ function parseInline(text: string, keyPrefix: string): ReactNode[] {
     const link = part.match(/^\[([^\]]+)\]\(([^)]+)\)$/);
     if (link) {
       const [, label, href] = link;
-      const className = 'text-blue-600 underline decoration-blue-300 hover:text-blue-800 font-medium';
+      const className = 'text-blue-600 dark:text-blue-400 underline decoration-blue-300 hover:text-blue-800 font-medium';
       return href.startsWith('/') ? (
         <Link key={`${keyPrefix}-l-${i}`} to={href} className={className}>{label}</Link>
       ) : (
@@ -180,15 +180,26 @@ export default function ChatBot() {
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
   };
 
-  const sendMessage = async (override?: string) => {
+  const sendMessage = async (override?: string, isRetry = false) => {
     const text = (override ?? input).trim();
     if (!text || loading) return;
 
     lastUserQueryRef.current = text;
-    const historyForRequest = messages; // snapshot before appending the new turn
+    // Cap the history sent per request — the full session transcript would
+    // grow the payload (and token cost) without bound. Error bubbles are UI
+    // artifacts, not conversation, so they're excluded. On retry the failed
+    // user turn is already in `messages`; dropping the tail avoids sending
+    // the same question twice.
+    const cleanHistory = messages.filter((m) => !m.error);
+    const historyForRequest = (isRetry && cleanHistory[cleanHistory.length - 1]?.role === 'user'
+      ? cleanHistory.slice(0, -1)
+      : cleanHistory
+    ).slice(-10);
 
-    const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', content: text };
-    setMessages((prev) => [...prev, userMessage]);
+    if (!isRetry) {
+      const userMessage: Message = { id: `u-${Date.now()}`, role: 'user', content: text };
+      setMessages((prev) => [...prev, userMessage]);
+    }
     setInput('');
     requestAnimationFrame(autoResize);
     setLoading(true);
@@ -261,7 +272,7 @@ export default function ChatBot() {
 
   return (
     <div
-      className={`fixed bottom-6 right-6 w-[380px] max-w-[calc(100vw-1.5rem)] bg-white rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 overflow-hidden transition-[height] duration-200 ${
+      className={`fixed bottom-6 right-6 w-[380px] max-w-[calc(100vw-1.5rem)] bg-white dark:bg-gray-800 rounded-2xl shadow-2xl flex flex-col z-50 border border-gray-200 dark:border-gray-700 overflow-hidden transition-[height] duration-200 ${
         isMinimized ? 'h-auto' : 'h-[600px] max-h-[calc(100vh-7rem)]'
       }`}
     >
@@ -298,8 +309,8 @@ export default function ChatBot() {
                     message.role === 'user'
                       ? 'bg-blue-600 text-white rounded-br-sm'
                       : message.error
-                      ? 'bg-red-50 text-red-800 border border-red-200 rounded-bl-sm'
-                      : 'bg-gray-100 text-gray-900 rounded-bl-sm'
+                      ? 'bg-red-50 dark:bg-red-900/30 text-red-800 dark:text-red-300 border border-red-200 dark:border-red-800 rounded-bl-sm'
+                      : 'bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white rounded-bl-sm'
                   }`}
                 >
                   {message.role === 'assistant' ? (
@@ -314,8 +325,8 @@ export default function ChatBot() {
                   )}
                   {message.error && (
                     <button
-                      onClick={() => sendMessage(lastUserQueryRef.current)}
-                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-700 hover:text-red-900"
+                      onClick={() => sendMessage(lastUserQueryRef.current, true)}
+                      className="mt-2 inline-flex items-center gap-1 text-xs font-medium text-red-700 dark:text-red-400 hover:text-red-900"
                     >
                       <RotateCcw size={12} />
                       Try again
@@ -331,7 +342,7 @@ export default function ChatBot() {
                   <button
                     key={s}
                     onClick={() => sendMessage(s)}
-                    className="text-xs px-3 py-1.5 bg-blue-50 text-blue-700 rounded-full hover:bg-blue-100 transition border border-blue-100"
+                    className="text-xs px-3 py-1.5 bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded-full hover:bg-blue-100 dark:hover:bg-blue-900/50 transition border border-blue-100 dark:border-blue-800"
                   >
                     {s}
                   </button>
@@ -341,7 +352,7 @@ export default function ChatBot() {
 
             {loading && (
               <div className="flex justify-start">
-                <div className="bg-gray-100 text-gray-900 px-4 py-2.5 rounded-2xl rounded-bl-sm text-sm">
+                <div className="bg-gray-100 dark:bg-gray-700 text-gray-900 dark:text-white px-4 py-2.5 rounded-2xl rounded-bl-sm text-sm">
                   <div className="flex gap-1">
                     <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" />
                     <div className="w-1.5 h-1.5 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0.12s' }} />
@@ -353,7 +364,7 @@ export default function ChatBot() {
             <div ref={messagesEndRef} />
           </div>
 
-          <div className="border-t border-gray-200 p-3 flex gap-2 items-end flex-shrink-0">
+          <div className="border-t border-gray-200 dark:border-gray-700 p-3 flex gap-2 items-end flex-shrink-0">
             <textarea
               ref={textareaRef}
               value={input}
@@ -362,7 +373,7 @@ export default function ChatBot() {
               placeholder="Ask about businesses, ads, pricing…"
               rows={1}
               maxLength={MAX_INPUT_LENGTH}
-              className="flex-1 resize-none border border-gray-300 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent max-h-[120px] leading-normal"
+              className="flex-1 resize-none border border-gray-300 dark:border-gray-600 rounded-xl px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent max-h-[120px] leading-normal"
               disabled={loading}
             />
             <button

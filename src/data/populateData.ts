@@ -5,6 +5,10 @@
 
 const LOCATIONS = ['Lagos', 'Nairobi', 'Accra', 'Kampala', 'Dakar', 'Abidjan', 'Johannesburg', 'Cairo', 'Addis Ababa', 'Dar es Salaam'];
 
+// Country dialling code for each LOCATIONS entry (index-aligned) so sample
+// phone numbers match the business's city instead of all being Nigerian.
+const DIAL_CODES = ['+234', '+254', '+233', '+256', '+221', '+225', '+27', '+20', '+251', '+255'];
+
 const BUSINESS_CATEGORIES = ['Restaurant', 'Tech', 'Fashion', 'Healthcare', 'Education', 'Construction', 'Retail', 'Entertainment', 'Finance', 'Agriculture'];
 
 // Category-appropriate Pexels photos (ids verified reachable) so sample
@@ -97,6 +101,19 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['Maputo Julius Nyerere Avenue Board', 'Billboard', 'Maputo, Mozambique', 140, '9m x 4.5m', 'medium'],
 ];
 
+// Type-appropriate Pexels photos (visually verified) so placement cards show
+// realistic imagery — billboards for billboards, terminals for airport ads…
+const AD_TYPE_IMAGES: Record<string, string[]> = {
+  'Billboard': [802024, 1580625, 1058759].map(pexels),
+  'Digital Screen': [2506923, 2614818, 2372982].map(pexels),
+  'Transit': [2031758, 3626589].map(pexels),
+  'Mall Media': [264636, 2861656, 3962285].map(pexels),
+  'Airport': [227690, 2033343, 358319].map(pexels),
+  'Street Furniture': [374815, 2422588].map(pexels),
+  'Stadium': [270085, 2263436].map(pexels),
+  'Radio': [164829, 1054713, 744318].map(pexels),
+};
+
 const AD_TYPE_DESCRIPTIONS: Record<string, string> = {
   'Billboard': 'Large-format outdoor billboard with premium visibility',
   'Digital Screen': 'High-brightness digital LED screen with rotating 10-second slots',
@@ -112,41 +129,72 @@ const AD_TYPE_DESCRIPTIONS: Record<string, string> = {
 // empty. Kept deterministic (ids media_service_1..N) so detail pages can
 // resolve the exact item a list page linked to.
 const CREATIVE_SERVICES = [
-  { title: 'Lens & Light Photography — Product Shoots', service_type: 'Photography', description: 'Studio product photography for e-commerce and catalogues. Includes 20 retouched images, white background and lifestyle setups.', pricing: 350, pricing_model: 'per shoot', delivery_time: '5 days', clients_served: 140, review_count: 62, rating: 4.8 },
-  { title: 'Kalahari Films — Brand Video Production', service_type: 'Videography', description: 'Full-service brand films and TV commercials: scripting, shooting, colour grading and sound design. 30-90 second final cuts.', pricing: 2500, pricing_model: 'per project', delivery_time: '21 days', clients_served: 85, review_count: 41, rating: 4.9 },
-  { title: 'Sable Studio — Logo & Brand Identity', service_type: 'Branding', description: 'Complete identity package: logo suite, colour system, typography, brand guidelines PDF and social media kit.', pricing: 800, pricing_model: 'per project', delivery_time: '14 days', clients_served: 210, review_count: 98, rating: 4.7 },
-  { title: 'Ubuntu Digital — Social Media Management', service_type: 'Social Media Management', description: 'Monthly content calendar, 20 designed posts, community management and a performance report across Instagram, X and TikTok.', pricing: 450, pricing_model: 'per month', delivery_time: 'ongoing', clients_served: 96, review_count: 54, rating: 4.6 },
-  { title: 'Baobab Motion — 2D Explainer Animation', service_type: 'Animation', description: 'Animated explainer videos with script, storyboard, voice-over and custom illustration. Up to 90 seconds.', pricing: 1200, pricing_model: 'per video', delivery_time: '18 days', clients_served: 58, review_count: 33, rating: 4.8 },
-  { title: 'Sahara Sound — Radio Jingle & Audio Ads', service_type: 'Audio Production', description: 'Catchy radio jingles and audio spots in English, French, Swahili or Pidgin. Includes composition, voice talent and mastering.', pricing: 300, pricing_model: 'per spot', delivery_time: '7 days', clients_served: 175, review_count: 80, rating: 4.5 },
-  { title: 'Nairobi Drone Collective — Aerial Coverage', service_type: 'Drone Photography', description: 'Licensed drone pilots for real estate, events and documentaries. 4K footage plus edited highlight reel.', pricing: 550, pricing_model: 'per day', delivery_time: '5 days', clients_served: 64, review_count: 29, rating: 4.7 },
-  { title: 'Accra Creative Lab — Web & Landing Page Design', service_type: 'Web Design', description: 'Conversion-focused landing pages and small business sites. Design in Figma, responsive build, basic SEO setup.', pricing: 950, pricing_model: 'per site', delivery_time: '14 days', clients_served: 120, review_count: 66, rating: 4.6 },
-  { title: 'Jollof Post — Video Editing & Colour Grading', service_type: 'Video Editing', description: 'Post-production for creators and agencies: multi-cam editing, motion titles, colour grading and delivery in all aspect ratios.', pricing: 200, pricing_model: 'per minute of output', delivery_time: '4 days', clients_served: 230, review_count: 112, rating: 4.8 },
-  { title: 'Kigali Sessions — Podcast Production', service_type: 'Podcast Production', description: 'End-to-end podcast production: recording, editing, show notes, cover art and distribution to all platforms.', pricing: 180, pricing_model: 'per episode', delivery_time: '3 days', clients_served: 44, review_count: 21, rating: 4.9 },
-  { title: 'Zebra Ink — Print & Packaging Design', service_type: 'Graphic Design', description: 'Flyers, billboards, product packaging and print-ready artwork with supplier liaison for CMYK production.', pricing: 260, pricing_model: 'per design', delivery_time: '6 days', clients_served: 190, review_count: 87, rating: 4.5 },
-  { title: 'Lagos Wedding Stories — Event Coverage', service_type: 'Event Photography', description: 'Weddings, launches and conferences covered by a two-person crew. 300+ edited photos and a same-week highlight video.', pricing: 700, pricing_model: 'per event', delivery_time: '10 days', clients_served: 155, review_count: 74, rating: 4.7 },
-  { title: 'Savanna UX — Mobile App UI/UX Design', service_type: 'UI/UX Design', description: 'User research, wireframes and polished UI kits for iOS and Android apps, delivered as developer-ready Figma files.', pricing: 1500, pricing_model: 'per project', delivery_time: '21 days', clients_served: 39, review_count: 18, rating: 4.8 },
-  { title: 'AfroBeat Visuals — Music Video Production', service_type: 'Videography', description: 'Concept-to-delivery music videos with location scouting, styling, cinematography and VFX-ready editing.', pricing: 3000, pricing_model: 'per video', delivery_time: '30 days', clients_served: 47, review_count: 25, rating: 4.6 },
-  { title: 'Cape Copy Co. — Copywriting & Content', service_type: 'Content Creation', description: 'Website copy, ad scripts, blog articles and product descriptions written for African audiences in EN/FR/PT.', pricing: 120, pricing_model: 'per 1000 words', delivery_time: '3 days', clients_served: 260, review_count: 130, rating: 4.7 },
-  { title: 'Kampala Motion — Logo Animation & Stingers', service_type: 'Motion Graphics', description: 'Animated logos, lower thirds and broadcast stingers for TV stations, YouTubers and event screens.', pricing: 240, pricing_model: 'per animation', delivery_time: '5 days', clients_served: 91, review_count: 45, rating: 4.6 },
-  { title: 'Dakar Retouch — Photo Editing & Restoration', service_type: 'Photo Editing', description: 'High-end retouching, background removal, colour correction and old photo restoration with 48-hour rush option.', pricing: 15, pricing_model: 'per image', delivery_time: '2 days', clients_served: 340, review_count: 150, rating: 4.5 },
-  { title: 'Joburg Influence — Influencer Campaign Management', service_type: 'Influencer Marketing', description: 'Campaign strategy, creator sourcing, content approval and reporting across African influencer networks.', pricing: 1000, pricing_model: 'per campaign', delivery_time: '30 days', clients_served: 52, review_count: 27, rating: 4.4 },
+  { title: 'Lens & Light Photography — Product Shoots', service_type: 'Photography', description: 'Studio product photography for e-commerce and catalogues. Includes 20 retouched images, white background and lifestyle setups.', pricing: 350, pricing_model: 'per shoot', delivery_time: '5 days', clients_served: 140, review_count: 62, rating: 4.8, img: 90946 },
+  { title: 'Kalahari Films — Brand Video Production', service_type: 'Videography', description: 'Full-service brand films and TV commercials: scripting, shooting, colour grading and sound design. 30-90 second final cuts.', pricing: 2500, pricing_model: 'per project', delivery_time: '21 days', clients_served: 85, review_count: 41, rating: 4.9, img: 66134 },
+  { title: 'Sable Studio — Logo & Brand Identity', service_type: 'Branding', description: 'Complete identity package: logo suite, colour system, typography, brand guidelines PDF and social media kit.', pricing: 800, pricing_model: 'per project', delivery_time: '14 days', clients_served: 210, review_count: 98, rating: 4.7, img: 196644 },
+  { title: 'Ubuntu Digital — Social Media Management', service_type: 'Social Media Management', description: 'Monthly content calendar, 20 designed posts, community management and a performance report across Instagram, X and TikTok.', pricing: 450, pricing_model: 'per month', delivery_time: 'ongoing', clients_served: 96, review_count: 54, rating: 4.6, img: 607812 },
+  { title: 'Baobab Motion — 2D Explainer Animation', service_type: 'Animation', description: 'Animated explainer videos with script, storyboard, voice-over and custom illustration. Up to 90 seconds.', pricing: 1200, pricing_model: 'per video', delivery_time: '18 days', clients_served: 58, review_count: 33, rating: 4.8, img: 326502 },
+  { title: 'Sahara Sound — Radio Jingle & Audio Ads', service_type: 'Audio Production', description: 'Catchy radio jingles and audio spots in English, French, Swahili or Pidgin. Includes composition, voice talent and mastering.', pricing: 300, pricing_model: 'per spot', delivery_time: '7 days', clients_served: 175, review_count: 80, rating: 4.5, img: 164829 },
+  { title: 'Nairobi Drone Collective — Aerial Coverage', service_type: 'Drone Photography', description: 'Licensed drone pilots for real estate, events and documentaries. 4K footage plus edited highlight reel.', pricing: 550, pricing_model: 'per day', delivery_time: '5 days', clients_served: 64, review_count: 29, rating: 4.7, img: 336232 },
+  { title: 'Accra Creative Lab — Web & Landing Page Design', service_type: 'Web Design', description: 'Conversion-focused landing pages and small business sites. Design in Figma, responsive build, basic SEO setup.', pricing: 950, pricing_model: 'per site', delivery_time: '14 days', clients_served: 120, review_count: 66, rating: 4.6, img: 574071 },
+  { title: 'Jollof Post — Video Editing & Colour Grading', service_type: 'Video Editing', description: 'Post-production for creators and agencies: multi-cam editing, motion titles, colour grading and delivery in all aspect ratios.', pricing: 200, pricing_model: 'per minute of output', delivery_time: '4 days', clients_served: 230, review_count: 112, rating: 4.8, img: 257904 },
+  { title: 'Kigali Sessions — Podcast Production', service_type: 'Podcast Production', description: 'End-to-end podcast production: recording, editing, show notes, cover art and distribution to all platforms.', pricing: 180, pricing_model: 'per episode', delivery_time: '3 days', clients_served: 44, review_count: 21, rating: 4.9, img: 1054713 },
+  { title: 'Zebra Ink — Print & Packaging Design', service_type: 'Graphic Design', description: 'Flyers, billboards, product packaging and print-ready artwork with supplier liaison for CMYK production.', pricing: 260, pricing_model: 'per design', delivery_time: '6 days', clients_served: 190, review_count: 87, rating: 4.5, img: 1779487 },
+  { title: 'Lagos Wedding Stories — Event Coverage', service_type: 'Event Photography', description: 'Weddings, launches and conferences covered by a two-person crew. 300+ edited photos and a same-week highlight video.', pricing: 700, pricing_model: 'per event', delivery_time: '10 days', clients_served: 155, review_count: 74, rating: 4.7, img: 169198 },
+  { title: 'Savanna UX — Mobile App UI/UX Design', service_type: 'UI/UX Design', description: 'User research, wireframes and polished UI kits for iOS and Android apps, delivered as developer-ready Figma files.', pricing: 1500, pricing_model: 'per project', delivery_time: '21 days', clients_served: 39, review_count: 18, rating: 4.8, img: 196645 },
+  { title: 'AfroBeat Visuals — Music Video Production', service_type: 'Videography', description: 'Concept-to-delivery music videos with location scouting, styling, cinematography and VFX-ready editing.', pricing: 3000, pricing_model: 'per video', delivery_time: '30 days', clients_served: 47, review_count: 25, rating: 4.6, img: 2263436 },
+  { title: 'Cape Copy Co. — Copywriting & Content', service_type: 'Content Creation', description: 'Website copy, ad scripts, blog articles and product descriptions written for African audiences in EN/FR/PT.', pricing: 120, pricing_model: 'per 1000 words', delivery_time: '3 days', clients_served: 260, review_count: 130, rating: 4.7, img: 261510 },
+  { title: 'Kampala Motion — Logo Animation & Stingers', service_type: 'Motion Graphics', description: 'Animated logos, lower thirds and broadcast stingers for TV stations, YouTubers and event screens.', pricing: 240, pricing_model: 'per animation', delivery_time: '5 days', clients_served: 91, review_count: 45, rating: 4.6, img: 4062561 },
+  { title: 'Dakar Retouch — Photo Editing & Restoration', service_type: 'Photo Editing', description: 'High-end retouching, background removal, colour correction and old photo restoration with 48-hour rush option.', pricing: 15, pricing_model: 'per image', delivery_time: '2 days', clients_served: 340, review_count: 150, rating: 4.5, img: 257897 },
+  { title: 'Joburg Influence — Influencer Campaign Management', service_type: 'Influencer Marketing', description: 'Campaign strategy, creator sourcing, content approval and reporting across African influencer networks.', pricing: 1000, pricing_model: 'per campaign', delivery_time: '30 days', clients_served: 52, review_count: 27, rating: 4.4, img: 267350 },
+  { title: 'Timbuktu Voices — Voice-Over in 6 Languages', service_type: 'Voice-Over', description: 'Professional voice-over for ads, IVR and e-learning in English, French, Swahili, Hausa, Yoruba and Pidgin. Broadcast-ready audio.', pricing: 90, pricing_model: 'per finished minute', delivery_time: '2 days', clients_served: 205, review_count: 93, rating: 4.7, img: 744318 },
+  { title: 'Cape Estates Media — Real Estate Photo & Virtual Tours', service_type: 'Real Estate Media', description: 'HDR interiors, twilight exteriors, floor plans and 360° virtual tours that help listings sell faster.', pricing: 250, pricing_model: 'per listing', delivery_time: '3 days', clients_served: 130, review_count: 61, rating: 4.8, img: 1396122 },
+  { title: 'Naija Live — Livestream & Event Streaming', service_type: 'Live Streaming', description: 'Multi-camera livestreams for conferences, weddings and product launches to YouTube, Facebook and private feeds.', pricing: 600, pricing_model: 'per event', delivery_time: 'same day', clients_served: 75, review_count: 38, rating: 4.6, img: 2873486 },
+  { title: 'Serengeti Signs — Billboard & OOH Creative', service_type: 'Graphic Design', description: 'High-impact large-format artwork for billboards, transit wraps and mall screens, sized to any placement spec.', pricing: 320, pricing_model: 'per design', delivery_time: '5 days', clients_served: 88, review_count: 41, rating: 4.5, img: 4348404 },
+  { title: 'Atlas Media — TV Commercial Production', service_type: 'Videography', description: 'Broadcast-standard TV commercials: casting, studio or location shoots, licensed music and clearance-ready masters.', pricing: 4500, pricing_model: 'per commercial', delivery_time: '45 days', clients_served: 29, review_count: 15, rating: 4.9, img: 3062541 },
+  { title: 'Accra Food Frames — Menu & Food Photography', service_type: 'Photography', description: 'Appetising menu, delivery-app and social photography for restaurants — styled, shot and delivered ready to upload.', pricing: 220, pricing_model: 'per menu shoot', delivery_time: '4 days', clients_served: 112, review_count: 57, rating: 4.7, img: 279906 },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
+// Realistic primary → secondary category combos for sample businesses, so the
+// multi-category feature demos out of the box (dev data only).
+const SECONDARY_PAIRS: [string, string][] = [
+  ['Tailor & Fashion Designer', 'Fabric Store'],
+  ['Boutique', 'Tailor & Fashion Designer'],
+  ['Frozen Food Store', 'Catering'],
+  ['Fashion & Apparel', 'Footwear & Bags'],
+  ['Café & Bakery', 'Bakery & Pastry'],
+  ['Laundry & Dry Cleaning', 'House Cleaning'],
+  ['Salon / Barber', 'Hair Braiding Studio'],
+  ['Restaurant', 'Catering'],
+  ['Supermarket', 'Produce / Fruit & Veg Market'],
+  ['Electronics', 'Phone & Gadget Store'],
+];
+
+// Fake sample listings are a dev convenience only. In production, empty results
+// must show a real empty state — never invented businesses to real visitors.
+// (The curated /platform "see it live" showcase uses separate spotlight data
+// and is unaffected.)
+const SAMPLES_ENABLED = import.meta.env.DEV;
+
 export const generateBusinesses = (count: number = 30) =>
+  !SAMPLES_ENABLED ? [] :
   Array.from({ length: count }).map((_, index) => {
     const category = BUSINESS_CATEGORIES[index % BUSINESS_CATEGORIES.length];
     const name = `${LOCATIONS[index % LOCATIONS.length]} ${category} Co. ${index + 1}`;
+    const pair = SECONDARY_PAIRS[index % SECONDARY_PAIRS.length];
     return {
       id: `business_${index + 1}`,
       username: name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, ''),
       name,
       category,
+      secondary_categories: category === pair[0] ? [pair[1]] : undefined,
       description: `We provide excellent ${category.toLowerCase()} services to our valued customers.`,
       location: LOCATIONS[index % LOCATIONS.length],
-      phone: `+234 800 ${String(1000000 + index * 137).slice(0, 3)} ${String(1000 + index * 7).slice(0, 4)}`,
-      website: `https://www.business${index + 1}.com`,
+      phone: `${DIAL_CODES[index % LOCATIONS.length]} 800 ${String(1000000 + index * 137).slice(0, 3)} ${String(1000 + index * 7).slice(0, 4)}`,
+      // example.com is reserved for demos (RFC 2606) — never a live third-party site
+      website: `https://business${index + 1}.example.com`,
       // Cycle through the category's photo set so repeat categories vary
       image_url: BUSINESS_IMAGES[category][Math.floor(index / BUSINESS_CATEGORIES.length) % BUSINESS_IMAGES[category].length],
       rating: 3.5 + ((index * 7) % 15) / 10,
@@ -156,8 +204,14 @@ export const generateBusinesses = (count: number = 30) =>
     };
   });
 
-export const generateAdverts = (count: number = AD_PLACEMENTS.length) =>
-  AD_PLACEMENTS.slice(0, count).map(([title, type, location, pricePerDay, dimensions, traffic], index) => ({
+export const generateAdverts = (count: number = AD_PLACEMENTS.length) => {
+  if (!SAMPLES_ENABLED) return [];
+  // Cycle each type's photo set independently so repeats of a type vary
+  const typeCounts: Record<string, number> = {};
+  return AD_PLACEMENTS.slice(0, count).map(([title, type, location, pricePerDay, dimensions, traffic], index) => {
+    const pool = AD_TYPE_IMAGES[type] ?? [];
+    typeCounts[type] = (typeCounts[type] ?? -1) + 1;
+    return {
     id: `advert_${index + 1}`,
     title,
     type,
@@ -171,18 +225,21 @@ export const generateAdverts = (count: number = AD_PLACEMENTS.length) =>
     dimensions,
     traffic_density: traffic,
     available_until: new Date(Date.now() + ((index % 45) + 15) * DAY_MS).toISOString(),
-    image_url: `https://picsum.photos/seed/placement${index + 1}/400/300.jpg`,
+    image_url: pool.length > 0 ? pool[typeCounts[type] % pool.length] : `https://picsum.photos/seed/placement${index + 1}/400/300.jpg`,
     awards: index % 9 === 0 ? 'Top Rated Location' : null,
     status: index % 8 === 0 ? 'pending' : 'active',
     user_id: 'sample',
     created_at: new Date(Date.now() - ((index % 60) + 1) * DAY_MS).toISOString(),
-  }));
+    };
+  });
+};
 
 export const generateMediaServices = (count: number = 30) =>
-  CREATIVE_SERVICES.slice(0, count).map((service, index) => ({
+  !SAMPLES_ENABLED ? [] :
+  CREATIVE_SERVICES.slice(0, count).map(({ img, ...service }, index) => ({
     id: `media_service_${index + 1}`,
     ...service,
-    image_url: `https://picsum.photos/seed/creative${index + 1}/400/300.jpg`,
+    image_url: pexels(img),
     status: 'open',
     user_id: 'sample',
   }));
