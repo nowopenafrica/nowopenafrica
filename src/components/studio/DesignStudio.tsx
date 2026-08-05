@@ -16,6 +16,8 @@ import { PreviewFrameKind, PREVIEW_FRAME_OPTIONS } from '../../lib/previewFrames
 import NowOpenMark from '../NowOpenMark';
 import { useLiveCanvas } from '../../hooks/useLiveCanvas';
 import { CanvasLayers, CanvasPanel } from './FreeCanvas';
+import InspirationUpload from './InspirationUpload';
+import type { InspirationPlan } from '../../lib/designInspiration';
 import {
   docFromSlots, initHistory, pushHistory, undo as undoDoc, redo as redoDoc,
   canUndo as histCanUndo, canRedo as histCanRedo, type CanvasDoc, type History,
@@ -581,6 +583,16 @@ export default function DesignStudio({
       qrDataUrl: qr || null,
     })));
     setSelectedLayer(null);
+  };
+
+  // AI Design Inspiration: the plan only ever sets layout, accent and
+  // background — the merchant's own copy, logo and QR are untouched. Jumps to
+  // Content afterwards, since the words are what they'll want next.
+  const applyInspiration = (plan: InspirationPlan) => {
+    setLayoutKey(plan.layoutKey);
+    setAccent(plan.accent);
+    setBgColor(plan.bgColor);
+    setEditorTab('content');
   };
 
   const applyBrandAccent = () => {
@@ -1361,6 +1373,8 @@ export default function DesignStudio({
         </div>
 
         {editorTab === 'design' && (
+        <>
+        <InspirationUpload brandAccent={brandAccent} onApply={applyInspiration} />
         <StudioSection icon={LayoutTemplate} title="Design">
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">{templateLabel}</label>
@@ -1396,7 +1410,7 @@ export default function DesignStudio({
             </select>
           </div>
         </StudioSection>
-
+        </>
         )}
 
         {editorTab === 'content' && (
