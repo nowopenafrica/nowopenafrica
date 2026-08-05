@@ -35,6 +35,11 @@ import {
   type StockClip, type FootageAspect,
 } from '../../lib/stockFootage';
 import { voiceoverProfile, pickPreviewVoice } from '../../lib/voicePreview';
+import {
+  AI_IMAGE_MODELS, AI_VIDEO_MODELS, aspectDimensions, aiPromptForScene,
+  aiSeedFor, pollinationsImageUrl, pollinationsVideoUrl, fetchAiImage,
+  type AiImageModel, type AiVideoModel,
+} from '../../lib/pollinations';
 import { downloadText, downloadUrl, slugForFile } from '../../lib/studio';
 
 const selectClass = 'w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500';
@@ -158,6 +163,16 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
   const [storyStills, setStoryStills] = useState<(string | null)[] | null>(null);
   const [storyBusy, setStoryBusy] = useState(false);
 
+  const [aiArt, setAiArt] = useState(true);
+  const [aiImageModel, setAiImageModel] = useState<AiImageModel>('flux');
+  const [aiVideoModel, setAiVideoModel] = useState<AiVideoModel>('wan');
+  const [aiImages, setAiImages] = useState<(string | null)[] | null>(null);
+  const [aiImageStatus, setAiImageStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [aiImageProgress, setAiImageProgress] = useState(0);
+  const [aiClips, setAiClips] = useState<Record<number, StockClip> | null>(null);
+  const [aiVideoStatus, setAiVideoStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [aiVideoProgress, setAiVideoProgress] = useState(0);
+
   const [publishChannels, setPublishChannels] = useState<string[]>(['instagram', 'facebook', 'x']);
   const [publishCaption, setPublishCaption] = useState('');
   const [publishHashtags, setPublishHashtags] = useState('');
@@ -229,22 +244,29 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
   };
 
   const currentSettings = (): DirectorBriefSettings => ({
-    voiceover, titles, logoAnimation, callouts, transitionPref, quality, length, container, aspect, model: modelPref, stockFootage,
+    voiceover, titles, logoAnimation, callouts, transitionPref, quality, length, container, aspect, model: modelPref, stockFootage, aiArt, aiImageModel, aiVideoModel,
   });
 
-  const frameOpts = (): SceneFrameOptions => ({
-    businessName: business.name,
-    directionLabel: directionByKey(direction).label,
-    grade: directionByKey(direction).grade,
-    hook: result?.hook,
-    cta: rendered?.cta ?? result?.cta,
-    aspect,
-    fps: 30,
-    logoEmoji: result?.plan.industry.emoji,
-    scenesCount: scenes.length,
-    footage: stockFootage && footage ? footage : undefined,
-    footageEnabled: !!stockFootage && !!footage && Object.keys(footage).length > 0,
-  });
+  const frameOpts = (): SceneFrameOptions => {
+    const activeFootage = (aiArt && aiClips) || (stockFootage ? footage : undefined) || undefined;
+    return {
+      businessName: business.name,
+      directionLabel: directionByKey(direction).label,
+      grade: directionByKey(direction).grade,
+      hook: result?.hook,
+      cta: rendered?.cta ?? result?.cta,
+      aspect,
+      fps: 30,
+      logoEmoji: result?.plan.industry.emoji,
+      scenesCount: scenes.length,
+      // AI clips (Wan) win over Pexels stock; AI key art fills scenes without clips.
+      footage: activeFootage,
+      footageEnabled: !!activeFootage && Object.keys(activeFootage).length > 0,
+      // The aiImages state is `| null` but RenderOptions wants `| undefined`,
+      // so normalise rather than leaking null into the renderer.
+      aiImages: aiArt ? aiImages ?? undefined : undefined,
+    };
+  };
 
   useEffect(() => {
     if (tab !== 'storyboard' || !scenes.length) {
@@ -276,6 +298,49 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
     return () => { cancelled = true; window.clearTimeout(timer); };
   }, [tab, scenes, direction, aspect, result, rendered, business]);
 
+  useEffect(() => {
+    if (!aiArt || !result || !scenes.length) {
+      setAiImages(null);
+      setAiImageStatus(aiArt && result ? 'loading' : 'idle');
+      setAiImageProgress(0);
+      return;
+    }
+    const ctrl = new AbortController();
+    let cancelled = false;
+    const industry = result.plan.industry;
+    const directionLabel = directionByKey(direction).label;
+    const dims = aspectDimensions(aspect);
+    setAiImageStatus('loading');
+    setAiImageProgress(0);
+    (async () => {
+      const urls: (string | null)[] = [];
+      for (let i = 0; i < scenes.length; i++) {
+        if (cancelled) return;
+        const prompt = aiPromptForScene({
+          businessName: business.name,
+          industryLabel: industry.label,
+          directionLabel,
+          scene: scenes[i],
+          index: i,
+        });
+        const url = pollinationsImageUrl({
+          prompt,
+          model: aiImageModel,
+          width: dims.width,
+          height: dims.height,
+          seed: aiSeedFor(business.name, directionLabel, i),
+        });
+        urls.push(await fetchAiImage(url, ctrl.signal));
+        if (!cancelled) setAiImageProgress(i + 1);
+      }
+      if (!cancelled) {
+        setAiImages(urls);
+        setAiImageStatus(urls.some((u) => !!u) ? 'ready' : 'error');
+      }
+    })();
+    return () => { cancelled = true; ctrl.abort(); };
+  }, [aiArt, aiImageModel, result, scenes, direction, aspect, business]);
+
   const persistBrief = (projectId: string, b: CreativeBrief): DirectorBriefRecord => {
     const record = buildDirectorBriefRecord(projectId, business.id, b, currentSettings());
     saveDirectorBrief(business.id, record);
@@ -300,11 +365,48 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
     setAspect(record.settings.aspect as RenderAspect);
     setModelPref(record.settings.model ?? 'auto');
     setStockFootage(record.settings.stockFootage ?? true);
+    setAiArt(record.settings.aiArt ?? true);
+    setAiImageModel((record.settings.aiImageModel as AiImageModel) ?? 'flux');
+    setAiVideoModel((record.settings.aiVideoModel as AiVideoModel) ?? 'wan');
     setRendered(null);
     setRenderBlobUrl(null);
     setPublishOutcome(null);
     setTab('brief');
     toast.success('Creative brief restored from the saved project.');
+  };
+
+  const buildAiClips = async () => {
+    if (!result || !scenes.length) return;
+    const directionLabel = directionByKey(direction).label;
+    const dims = aspectDimensions(aspect);
+    const industry = result.plan.industry;
+    setAiVideoStatus('loading');
+    setAiVideoProgress(0);
+    const clips: Record<number, StockClip> = {};
+    for (let i = 0; i < scenes.length; i++) {
+      const prompt = aiPromptForScene({
+        businessName: business.name,
+        industryLabel: industry.label,
+        directionLabel,
+        scene: scenes[i],
+        index: i,
+        forVideo: true,
+      });
+      const duration = Math.min(6, Math.max(3, Math.round(scenes[i].seconds)));
+      const url = pollinationsVideoUrl({
+        prompt,
+        model: aiVideoModel,
+        width: dims.width,
+        height: dims.height,
+        seed: aiSeedFor(business.name, directionLabel, i),
+        duration,
+      });
+      clips[i] = { id: i + 1, url, preview: url, width: dims.width, height: dims.height, duration };
+      setAiVideoProgress(i + 1);
+    }
+    setAiClips(clips);
+    setAiVideoStatus('ready');
+    toast.success(`${scenes.length} AI video clip(s) queued — the render films over the ${AI_VIDEO_MODELS.find((m) => m.key === aiVideoModel)?.label ?? aiVideoModel} clips.`);
   };
 
   const removeSaved = (id: string) => {
@@ -424,9 +526,8 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
         transition: s.transition,
         voiceover: s.voiceover,
         // Rescaling the director's scenes rebuilds each VideoScene from a
-        // DirectorScene, which carries no media source — so carry the project's
-        // choice through rather than dropping it. Nothing reads scene.media
-        // today, but generateVideoProject sets it and the type requires it.
+        // DirectorScene, which carries no media source — carry the project's
+        // choice through rather than dropping a required field.
         media: b.plan.input.media,
       })),
     };
@@ -499,6 +600,12 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
     model: modelLabel(rendered?.model ?? resolvedModel.pick.key),
     modelReason: resolvedModel.reason,
     footageCount: footage ? Object.keys(footage).length : 0,
+    aiArtCount: aiArt && aiImages ? aiImages.filter((u) => !!u).length : 0,
+    aiNote: aiArt
+      ? aiClips
+        ? `${scenes.length} AI video clip(s) (${AI_VIDEO_MODELS.find((m) => m.key === aiVideoModel)?.label ?? aiVideoModel} via Pollinations)`
+        : `${(aiImages ?? []).filter((u) => !!u).length} AI key art frame(s) (${AI_IMAGE_MODELS.find((m) => m.key === aiImageModel)?.label ?? aiImageModel} via Pollinations)`
+      : undefined,
   };
 
   const saveStockKey = () => {
@@ -805,7 +912,12 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                     <div key={s.id} className="grid grid-cols-[72px,1fr] gap-3 rounded-xl border border-gray-200 dark:border-gray-700 p-3 bg-gray-50 dark:bg-gray-900">
                       <div className="flex flex-col items-center">
                         <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-purple-600 to-fuchsia-600 flex items-center justify-center text-2xl overflow-hidden">
-                          {footage?.[s.order - 1] ? (
+                          {aiArt && aiClips?.[s.order - 1] ? (
+                            <video key={aiClips[s.order - 1].url} src={aiClips[s.order - 1].url} muted autoPlay loop playsInline
+                              className="h-full w-full object-cover" />
+                          ) : aiArt && aiImages?.[s.order - 1] ? (
+                            <img src={aiImages[s.order - 1] ?? ''} alt={`Scene ${s.order} AI key art`} className="h-full w-full object-cover" />
+                          ) : footage?.[s.order - 1] ? (
                             <video key={footage[s.order - 1].url} src={footage[s.order - 1].url} muted autoPlay loop playsInline
                               className="h-full w-full object-cover" />
                           ) : storyStills?.[s.order - 1] ? (
@@ -1071,6 +1183,89 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                 <p className="mt-1 text-[10px] text-gray-400">
                   Reference bar: {SEEDANCE_REFERENCE.name} ({SEEDANCE_REFERENCE.maker}) — {SEEDANCE_REFERENCE.license}, so Auto never uses it.
                 </p>
+              </div>
+
+              <div className="mt-3 rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/20 p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-purple-600 dark:text-purple-300 flex items-center gap-1">
+                    <Sparkles size={11} /> AI Art Direction — real images, video & motion
+                  </p>
+                  <button onClick={() => setAiArt(!aiArt)}
+                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${aiArt
+                      ? 'border-purple-500 bg-purple-600 text-white'
+                      : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                    <span className="inline-flex items-center gap-1.5">
+                      <Sparkles size={12} /> {aiArt ? 'AI media on' : 'AI media off'}
+                    </span>
+                  </button>
+                </div>
+
+                {aiArt && result && (
+                  <>
+                    <p className="mt-2 text-[11px] text-purple-900/80 dark:text-purple-200/80 leading-snug">
+                      Free, keyless open-weight models: one Flux key art frame per scene, one Wan 2.x video clip per scene to film over, with the motion graphics animator on top. Deterministic seeds — the same brief always requests the same media.
+                    </p>
+                    <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="block">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Key art model</span>
+                        <select value={aiImageModel} onChange={(e) => setAiImageModel(e.target.value as AiImageModel)} className={`${selectClass} mt-1`}>
+                          {AI_IMAGE_MODELS.map((m) => (
+                            <option key={m.key} value={m.key}>{m.label} — {m.note}</option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">Video clip model</span>
+                        <select value={aiVideoModel} onChange={(e) => setAiVideoModel(e.target.value as AiVideoModel)} className={`${selectClass} mt-1`}>
+                          {AI_VIDEO_MODELS.map((m) => (
+                            <option key={m.key} value={m.key}>{m.label} — {m.note}</option>
+                          ))}
+                        </select>
+                      </label>
+                    </div>
+
+                    <p className="mt-2 text-[11px] text-purple-900/80 dark:text-purple-200/80 flex items-center gap-1">
+                      {aiImageStatus === 'loading' && <RefreshCcw size={11} className="animate-spin" />}
+                      {aiImageStatus === 'loading' && `Generating key art… ${aiImageProgress}/${scenes.length}`}
+                      {aiImageStatus === 'ready' && `${(aiImages ?? []).filter((u) => !!u).length}/${scenes.length} key art frame(s) ready — the render films over them.`}
+                      {aiImageStatus === 'error' && 'Could not reach the free model right now — falling back to generated graphics.'}
+                      {aiImageStatus === 'idle' && 'Generate a brief to create key art for each scene.'}
+                    </p>
+
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <button onClick={buildAiClips} disabled={aiVideoStatus === 'loading'}
+                        className={`${chip} justify-center bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-60`}>
+                        {aiVideoStatus === 'loading' ? <RefreshCcw size={13} className="animate-spin" /> : <Clapperboard size={13} />}
+                        {aiVideoStatus === 'ready' ? 'Regenerate AI video clips' : aiVideoStatus === 'loading' ? `Building clips… ${aiVideoProgress}/${scenes.length}` : 'Generate AI video clips (Wan)'}
+                      </button>
+                      {aiVideoStatus === 'ready' && aiClips && (
+                        <span className="text-[11px] text-purple-700 dark:text-purple-300">
+                          {Object.keys(aiClips).length} clip(s) queued — the render films over them.
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+                      {scenes.map((s, i) => (
+                        <div key={s.id} className="relative aspect-video overflow-hidden rounded-lg bg-gray-200 dark:bg-gray-700">
+                          {aiVideoStatus === 'ready' && aiClips?.[i] ? (
+                            <video key={aiClips[i].url} src={aiClips[i].url} muted autoPlay loop playsInline
+                              className="h-full w-full object-cover" />
+                          ) : aiImages?.[i] ? (
+                            <img src={aiImages[i] ?? ''} alt={`AI key art ${i + 1}`} className="h-full w-full object-cover" />
+                          ) : (
+                            <div className="flex h-full w-full items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-gray-400">
+                              {aiImageStatus === 'loading' ? 'Generating…' : '—'}
+                            </div>
+                          )}
+                          <span className="absolute bottom-1 left-1 rounded bg-black/70 px-1.5 py-0.5 text-[9px] font-bold text-white">
+                            S{i + 1} · {s.seconds}s
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               <div className="mt-3 rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50 dark:bg-blue-900/20 p-3">

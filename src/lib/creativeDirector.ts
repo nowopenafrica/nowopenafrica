@@ -346,6 +346,10 @@ export interface DirectorPackExtras {
   modelReason?: string;
   /** Number of real stock clips filmed per storyboard scene. */
   footageCount?: number;
+  /** Number of AI key-art frames generated per storyboard scene. */
+  aiArtCount?: number;
+  /** Short description of the AI media used (takes precedence in the pack). */
+  aiNote?: string;
 }
 
 export function directorPackText(business: Business, brief: CreativeBrief, extras: DirectorPackExtras = {}): string {
@@ -404,7 +408,7 @@ export function directorPackText(business: Business, brief: CreativeBrief, extra
     `Quality: ${extras.quality ?? '1080p'} · Length: ${extras.length ?? brief.duration}s · Container: ${extras.format ?? 'MP4'} · Aspect: ${extras.aspect ?? 'Vertical'}`,
     `AI Video Model: ${extras.model ?? 'Auto — Wan 2.2 (Alibaba)'}${extras.modelReason ? ` — ${extras.modelReason}` : ''}`,
     `Media attached: ${extras.media?.length ?? 0} file(s)`,
-    `Footage: ${extras.footageCount ? `${extras.footageCount} real stock clip(s) (Pexels)` : 'generated graphics (no stock key set)'}`,
+    `Media: ${extras.aiNote ?? (extras.aiArtCount ? `${extras.aiArtCount} AI key art frame(s) (Flux via Pollinations)` : 'generated graphics')}${extras.footageCount ? ` · ${extras.footageCount} real stock clip(s) (Pexels)` : ''}`,
   ];
   if (brief.plan.season) {
     lines.push('', 'SEASON CAMPAIGN', `Occasion: ${brief.plan.season.occasion.label}`, `SMS: ${brief.plan.season.plan.sms}`, `Email subject: ${brief.plan.season.plan.emailSubject}`);
@@ -439,6 +443,12 @@ export interface DirectorBriefSettings {
   model?: string;
   /** Film the reel over real stock footage instead of generated graphics. */
   stockFootage?: boolean;
+  /** Generate real AI key art (Pollinations, keyless) per scene. */
+  aiArt?: boolean;
+  /** Pollinations image model used for AI key art. */
+  aiImageModel?: string;
+  /** Pollinations video model used for AI clips. */
+  aiVideoModel?: string;
 }
 
 export interface DirectorBriefRecord {

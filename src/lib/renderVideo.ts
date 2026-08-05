@@ -48,6 +48,13 @@ export interface RenderOptions {
    */
   footage?: Record<number, StockClip>;
   footageEnabled?: boolean;
+  /**
+   * Real AI-generated key art per scene index (object/data URLs from
+   * pollinations.fetchAiImage). When set, scenes with a ready image are filmed
+   * over it (Ken Burns + film grade) instead of the gradient — unless real
+   * footage wins by priority in drawTimelineFrame.
+   */
+  aiImages?: (string | null)[];
 }
 
 export type RenderTransition = 'cut' | 'fade';
@@ -224,31 +231,56 @@ function drawBackground(ctx: CanvasRenderingContext2D, w: number, h: number, pla
 
 type FrameSource =
   | { kind: 'gradient' }
-  | { kind: 'video'; video: HTMLVideoElement | null };
+  | { kind: 'video'; video: HTMLVideoElement | null }
+  | { kind: 'image'; image: HTMLImageElement | null };
 
 function isVideoReady(v: HTMLVideoElement | null): v is HTMLVideoElement {
   return !!v && v.readyState >= 2 && v.videoWidth > 0;
 }
 
-/** Cover-fit the current video frame into the (already transformed) canvas. */
-function drawVideoCover(ctx: CanvasRenderingContext2D, w: number, h: number, video: HTMLVideoElement): void {
-  const vw = video.videoWidth;
-  const vh = video.videoHeight;
-  if (!vw || !vh) return;
+function isImageReady(img: HTMLImageElement | null): img is HTMLImageElement {
+  return !!img && img.complete && img.naturalWidth > 0;
+}
+
+/**
+ * Cover-fit an arbitrary source rect into the canvas.
+ * Pure geometry — the caller's `draw` callback owns the context, so this takes
+ * no ctx of its own.
+ */
+function drawCover(
+  w: number,
+  h: number,
+  srcW: number,
+  srcH: number,
+  draw: (sx: number, sy: number, sw: number, sh: number, dx: number, dy: number, dw: number, dh: number) => void,
+): void {
+  if (!srcW || !srcH) return;
   const canvasA = w / h;
-  const videoA = vw / vh;
+  const srcA = srcW / srcH;
   let sx = 0;
   let sy = 0;
-  let sw = vw;
-  let sh = vh;
-  if (videoA > canvasA) {
-    sw = vh * canvasA;
-    sx = (vw - sw) / 2;
+  let sw = srcW;
+  let sh = srcH;
+  if (srcA > canvasA) {
+    sw = srcH * canvasA;
+    sx = (srcW - sw) / 2;
   } else {
-    sh = vw / canvasA;
-    sy = (vh - sh) / 2;
+    sh = srcW / canvasA;
+    sy = (srcH - sh) / 2;
   }
-  ctx.drawImage(video, sx, sy, sw, sh, 0, 0, w, h);
+  draw(sx, sy, sw, sh, 0, 0, w, h);
+}
+
+/** Cover-fit the current video frame into the (already transformed) canvas. */
+function drawVideoCover(ctx: CanvasRenderingContext2D, w: number, h: number, video: HTMLVideoElement): void {
+  drawCover(w, h, video.videoWidth, video.videoHeight, (sx, sy, sw, sh, dx, dy, dw, dh) =>
+    ctx.drawImage(video, sx, sy, sw, sh, dx, dy, dw, dh));
+}
+
+/** Cover-fit a still image (AI key art) into the (already transformed) canvas. */
+function drawImageCover(ctx: CanvasRenderingContext2D, w: number, h: number, image: HTMLImageElement): void {
+  drawCover(w, h, image.naturalWidth, image.naturalHeight, (sx, sy, sw, sh, dx, dy, dw, dh) =>
+    ctx.drawImage(image, sx, sy, sw, sh, dx, dy, dw, dh));
 }
 
 function drawVignette(ctx: CanvasRenderingContext2D, w: number, h: number): void {
@@ -285,6 +317,10 @@ function drawBackdrop(
     drawVideoCover(ctx, w, h, source.video);
     drawVignette(ctx, w, h);
     drawFilmGrain(ctx, w, h, plan.seed, frame);
+  } else if (source.kind === 'image' && isImageReady(source.image)) {
+    drawImageCover(ctx, w, h, source.image);
+    drawVignette(ctx, w, h);
+    drawFilmGrain(ctx, w, h, plan.seed, frame);
   } else {
     drawBackground(ctx, w, h, plan);
   }
@@ -300,7 +336,7 @@ function drawSceneContent(
   t: number,
   // SceneFrameOptions, not RenderOptions: drawOverlay below needs scenesCount
   // for the progress dots and the final-scene end card. Every caller already
-  // passes it — only these two annotations were too narrow.
+  // passes the wider type — only these two annotations were too narrow.
   opts: SceneFrameOptions,
   source: FrameSource,
   frame: number,
@@ -315,7 +351,11 @@ function drawSceneContent(
   drawBackdrop(ctx, w, h, plan, source, frame);
   ctx.restore();
 
-  drawOverlay(ctx, w, h, plan, index, scene, t, opts, source.kind === 'video' && isVideoReady(source.video));
+  drawOverlay(
+    ctx, w, h, plan, index, scene, t, opts,
+    (source.kind === 'video' && isVideoReady(source.video)) ||
+      (source.kind === 'image' && isImageReady(source.image)),
+  );
 }
 
 function drawOverlay(
@@ -467,11 +507,12 @@ function drawTimelineFrame(
   timeline: RenderTimeline,
   frame: number,
   videos: (HTMLVideoElement | null)[] | null,
+  images: (HTMLImageElement | null)[] | null,
 ): void {
   const { scene, t } = timelineAt(timeline, frame);
   const current = scenes[scene.index];
   const plan = sceneRenderPlan(opts, current, scene.index);
-  const source: FrameSource = videos ? { kind: 'video', video: videos[scene.index] } : { kind: 'gradient' };
+  const source = resolveSource(videos?.[scene.index] ?? null, images?.[scene.index] ?? null);
 
   drawSceneContent(ctx, w, h, plan, scene.index, current, t, opts, source, frame);
 
@@ -482,13 +523,20 @@ function drawTimelineFrame(
     if (within <= plan.transitionFrames) {
       const blend = 1 - within / plan.transitionFrames;
       const nextPlan = sceneRenderPlan(opts, scenes[nextIndex], nextIndex);
-      const nextSource: FrameSource = videos ? { kind: 'video', video: videos[nextIndex] } : { kind: 'gradient' };
+      const nextSource = resolveSource(videos?.[nextIndex] ?? null, images?.[nextIndex] ?? null);
       ctx.save();
       ctx.globalAlpha = clamp(blend, 0, 1);
       drawSceneContent(ctx, w, h, nextPlan, nextIndex, scenes[nextIndex], 0, opts, nextSource, frame);
       ctx.restore();
     }
   }
+}
+
+/** Backdrop priority: real footage video, then AI key art, then the gradient. */
+function resolveSource(video: HTMLVideoElement | null, image: HTMLImageElement | null): FrameSource {
+  if (isVideoReady(video)) return { kind: 'video', video };
+  if (isImageReady(image)) return { kind: 'image', image };
+  return { kind: 'gradient' };
 }
 
 export function drawSceneFrame(
@@ -499,8 +547,9 @@ export function drawSceneFrame(
   scenes: DirectorScene[],
   timeline: RenderTimeline,
   frame: number,
+  images?: (HTMLImageElement | null)[] | null,
 ): void {
-  drawTimelineFrame(ctx, w, h, opts, scenes, timeline, frame, null);
+  drawTimelineFrame(ctx, w, h, opts, scenes, timeline, frame, null, images ?? null);
 }
 
 /** Same as drawSceneFrame but films each scene over its real stock clip. */
@@ -513,8 +562,9 @@ export function drawFootageFrame(
   timeline: RenderTimeline,
   frame: number,
   videos: (HTMLVideoElement | null)[],
+  images?: (HTMLImageElement | null)[] | null,
 ): void {
-  drawTimelineFrame(ctx, w, h, opts, scenes, timeline, frame, videos);
+  drawTimelineFrame(ctx, w, h, opts, scenes, timeline, frame, videos, images ?? null);
 }
 
 // --- Poster & contact sheet (still frames) -----------------------------------
@@ -574,12 +624,13 @@ export function renderContactSheet(opts: SceneFrameOptions, scenes: DirectorScen
   return { dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height };
 }
 
-/** Render one storyboard scene as a still frame (gradient backdrop + caption overlay). */
+/** Render one storyboard scene as a still frame (AI key art / gradient backdrop + caption overlay). */
 export function renderSceneStill(
   opts: SceneFrameOptions,
   scene: DirectorScene,
   index: number,
   width = 480,
+  image?: HTMLImageElement | null,
 ): RenderedStill | null {
   const dims = RENDER_DIMENSIONS[opts.aspect];
   const w = width;
@@ -589,7 +640,7 @@ export function renderSceneStill(
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   const plan = sceneRenderPlan(opts, scene, index);
-  drawSceneContent(ctx, w, h, plan, index, scene, 0.5, opts, { kind: 'gradient' }, 0);
+  drawSceneContent(ctx, w, h, plan, index, scene, 0.5, opts, { kind: 'image', image: image ?? null }, 0);
   return { dataUrl: canvas.toDataURL('image/png'), width: w, height: h };
 }
 
@@ -637,6 +688,25 @@ async function preloadFootageVideos(videos: (HTMLVideoElement | null)[]): Promis
   );
 }
 
+function makeAiImage(url: string): HTMLImageElement {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.decoding = 'async';
+  img.src = url;
+  return img;
+}
+
+/** Preload AI key art; failures become null and that scene falls back to the gradient. */
+async function preloadAiImages(urls: (string | null)[]): Promise<(HTMLImageElement | null)[]> {
+  return Promise.all(
+    urls.map((url) => (!url ? Promise.resolve(null) : new Promise<HTMLImageElement | null>((resolve) => {
+      const img = makeAiImage(url);
+      img.onload = () => resolve(img);
+      img.onerror = () => resolve(null);
+    }))),
+  );
+}
+
 export async function renderVideo(
   opts: SceneFrameOptions,
   scenes: DirectorScene[],
@@ -668,6 +738,10 @@ export async function renderVideo(
     const rng = mulberry32(renderSeed('footage', opts.businessName, i));
     return Math.floor(rng() * clip.duration);
   });
+
+  // Preload AI key art when present; scenes without a ready image fall back to
+  // the gradient (or to footage when that wins priority).
+  const images = await preloadAiImages(opts.aiImages ?? []);
 
   const stream = canvas.captureStream(fps);
   const track = stream.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
@@ -706,11 +780,7 @@ export async function renderVideo(
           } catch { /* keep rendering */ }
         }
       }
-      if (videos.some(Boolean)) {
-        drawFootageFrame(ctx, dims.width, dims.height, opts, scenes, timeline, frame, videos);
-      } else {
-        drawSceneFrame(ctx, dims.width, dims.height, opts, scenes, timeline, frame);
-      }
+      drawTimelineFrame(ctx, dims.width, dims.height, opts, scenes, timeline, frame, videos, images);
       try { track?.requestFrame?.(); } catch { /* older captureStream ignores requestFrame */ }
       onProgress?.(timeline.totalFrames > 0 ? frame / timeline.totalFrames : 0, frame, timeline.totalFrames);
       frame += 1;

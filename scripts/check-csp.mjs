@@ -28,8 +28,30 @@ const RUNTIME_HOSTS = [
   { host: 'https://videos.pexels.com', directive: 'media-src', why: 'Pexels video file URLs from api.pexels.com' },
 ];
 
-// Demo/doc hosts that are never actually requested.
-const IGNORE = [/example\.com$/, /schema\.org$/, /^https:\/\/(business|img|x)$/];
+// Demo/doc hosts, and localhost (any port) which only appears in dev-only
+// branches — never requested from a production origin.
+const IGNORE = [/example\.com$/, /schema\.org$/, /^https?:\/\/localhost(:\d+)?$/];
+
+// Hosts the app only ever LINKS to — window.open, href, share intents, an XML
+// namespace, our own canonical origin. Navigation is governed by form-action /
+// navigate-to, not the fetch directives, so flagging these is noise.
+//
+// Adding a host here is a deliberate assertion: "this is never fetched." If
+// something the code actually loads ends up here, the CSP is the right place
+// for it instead — that mistake is exactly what this script exists to catch.
+const NAVIGATION_ONLY = new Set([
+  'https://facebook.com', 'https://www.facebook.com',
+  'https://instagram.com', 'https://www.instagram.com',
+  'https://x.com', 'https://twitter.com',
+  'https://tiktok.com', 'https://www.tiktok.com',
+  'https://youtube.com', 'https://www.youtube.com',
+  'https://linkedin.com', 'https://www.linkedin.com',
+  'https://www.pinterest.com', 'https://www.threads.net',
+  'https://wa.me', 'https://web.whatsapp.com', 'https://t.me',
+  'https://nowopenafrica.com', 'https://www.nowopen.africa',
+  'http://www.w3.org', // SVG xmlns attribute
+  'http://localhost',  // dev-only reference
+]);
 
 function loadCsp() {
   const cfg = JSON.parse(readFileSync(join(ROOT, 'vercel.json'), 'utf8'));
@@ -93,23 +115,40 @@ function classify(text, index) {
   return candidates[0][0];
 }
 
+// Directives that actually gate a network fetch. An unclassified host must at
+// least be known to one of these, or it's unreachable in production.
+const FETCH_DIRECTIVES = ['connect-src', 'img-src', 'media-src', 'script-src', 'frame-src', 'font-src'];
+
 const directives = parseCsp(loadCsp());
 const gaps = [];
 const seen = new Set();
 
 for (const file of walk(SRC)) {
   const text = readFileSync(file, 'utf8');
-  for (const m of text.matchAll(/https?:\/\/[a-zA-Z0-9.-]+/g)) {
+    // Require a real hostname: a dotted name with a 2+ char TLD, or localhost.
+    // A looser pattern matches the `https?://` inside regex literals (e.g.
+    // stripProtocol) and reports a bogus "https://." host.
+  for (const m of text.matchAll(/https?:\/\/(?:localhost(?::\d+)?|[a-zA-Z0-9][a-zA-Z0-9-]*(?:\.[a-zA-Z0-9-]+)*\.[a-zA-Z]{2,})/g)) {
     const host = m[0].replace(/\/$/, '');
     if (IGNORE.some((re) => re.test(host))) continue;
+    if (NAVIGATION_ONLY.has(host)) continue;
     const directive = classify(text, m.index);
-    if (!directive) continue;
-    const key = `${host}|${directive}`;
+    const key = `${host}|${directive ?? '*'}`;
     if (seen.has(key)) continue;
     seen.add(key);
-    if (!allowed(directives, host, directive)) {
-      const line = text.slice(0, m.index).split('\n').length;
-      gaps.push({ host, directive, where: `${relative(ROOT, file).replace(/\\/g, '/')}:${line}` });
+    const line = text.slice(0, m.index).split('\n').length;
+    const where = `${relative(ROOT, file).replace(/\\/g, '/')}:${line}`;
+
+    if (directive) {
+      if (!allowed(directives, host, directive)) gaps.push({ host, directive, where });
+      continue;
+    }
+    // Unclassified: a bare constant like `const BASE = 'https://x.example'`,
+    // used indirectly later. This is NOT safe to skip — it's how
+    // gen.pollinations.ai slipped past an earlier version of this script.
+    // Require the host to appear under at least one fetching directive.
+    if (!FETCH_DIRECTIVES.some((d) => allowed(directives, host, d))) {
+      gaps.push({ host, directive: '(unclassified)', where });
     }
   }
 }
