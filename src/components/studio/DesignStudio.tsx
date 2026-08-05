@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, createContext, useContext } from 
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
-import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2 } from 'lucide-react';
+import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge } from 'lucide-react';
 import { Business } from '../../types';
 import { profileUrl, generateQr, downloadUrl, downloadBlob, slugForFile, shareLinks, exportNodeToPng } from '../../lib/studio';
 import { StudioTemplate, StudioFormat, STUDIO_LAYOUTS, darken } from '../../data/studioPresets';
@@ -321,7 +321,9 @@ export default function DesignStudio({
   const [copyIdeas, setCopyIdeas] = useState<CopyVariant[] | null>(null);
   const [cta, setCta] = useState<CtaSuggestion | null>(null);
   const [frame, setFrame] = useState<PreviewFrameKind>('none');
-  const [coachOpen, setCoachOpen] = useState(true);
+  // The coach is on demand: it used to sit open in the right column and crowd
+  // the editor. Closed means not rendered at all — just a button.
+  const [coachOpen, setCoachOpen] = useState(false);
   // Which editor pane is showing. Stacking all three made the column
   // ~3,400px tall, so changing a headline meant scrolling past every
   // template and layout card.
@@ -364,22 +366,7 @@ export default function DesignStudio({
   );
   const liveSummary = useMemo(() => liveCanvasSummary(live), [live]);
 
-  // Per-surface readiness (feed / story / Facebook / print / outdoor /
-  // accessibility). Scored from the resolved text and the format's real pixel
-  // size, so it reflects what a viewer actually gets.
-  const channels = useMemo(
-    () => channelReadiness({
-      width: w,
-      height: h,
-      headline: live.values.headline,
-      subline: live.values.subline,
-      badge: live.values.badge,
-      accent,
-      bgColor,
-    }),
-    [w, h, live, accent, bgColor],
-  );
-
+  // Rule-based, so cheap to keep current even while the panel is closed.
   const coachReport = useMemo(
     () => designCoachReport({
       headline: live.values.headline,
@@ -391,6 +378,19 @@ export default function DesignStudio({
       brandAccent,
     }),
     [live, accent, bgColor, qr, bgImageSrc, hasVideo, brandAccent, business.logo_url],
+  );
+
+  // Per-surface readiness, scored from the resolved text and the format's real
+  // pixel size so it reflects what a viewer actually gets.
+  const channels = useMemo(
+    () => channelReadiness({
+      width: w, height: h,
+      headline: live.values.headline,
+      subline: live.values.subline,
+      badge: live.values.badge,
+      accent, bgColor,
+    }),
+    [w, h, live, accent, bgColor],
   );
 
   useEffect(() => {
@@ -1435,6 +1435,17 @@ export default function DesignStudio({
               <input type="color" value={accent} onChange={(e) => setAccent(e.target.value)}
                 className="w-8 h-8 rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-transparent" />
             </div>
+            {/* Moved here from the Design Coach: it's an accent control, and it
+                shouldn't disappear just because the coach did. */}
+            {brandAccent && brandAccent.toLowerCase() !== accent.toLowerCase() && (
+              <button
+                onClick={applyBrandAccent}
+                className="mt-2 inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+              >
+                <Palette size={13} /> Use my brand colour
+                <span className="w-3 h-3 rounded-full border border-white/50" style={{ background: brandAccent }} />
+              </button>
+            )}
           </div>
 
           <div>
@@ -1529,8 +1540,25 @@ export default function DesignStudio({
           </p>
         </div>
 
-        {/* AI Design Coach */}
-        <DesignCoachPanel report={coachReport} channels={channels} onApplyBrandAccent={applyBrandAccent} open={coachOpen} onToggle={() => setCoachOpen(!coachOpen)} />
+        {/* AI Design Coach — on demand. Hidden behind a button so it never
+            crowds the editor; opening it swaps the button for the full panel. */}
+        {coachOpen ? (
+          <DesignCoachPanel
+            report={coachReport}
+            channels={channels}
+            onApplyBrandAccent={applyBrandAccent}
+            open
+            onToggle={() => setCoachOpen(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCoachOpen(true)}
+            className="w-full inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 text-xs font-bold text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+          >
+            <Gauge size={14} /> Check this design
+          </button>
+        )}
 
         {/* Export & share */}
         <StudioSection icon={Download} title="Export & Share">
