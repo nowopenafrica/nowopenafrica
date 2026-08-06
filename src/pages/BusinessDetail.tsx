@@ -7,6 +7,8 @@ import { generateBusinesses, isSampleId } from '../data/populateData';
 import VerifiedBadge from '../components/VerifiedBadge';
 import TrustBadge from '../components/TrustBadge';
 import BusinessTrustPanel from '../components/BusinessTrustPanel';
+import { withDemoTrustAll } from '../data/demoTrust';
+import { deriveTier, TIERS } from '../lib/trust';
 import EnquiryModal from '../components/EnquiryModal';
 import BookingModal from '../components/BookingModal';
 import CartModal, { CartLine } from '../components/CartModal';
@@ -94,7 +96,10 @@ const HEALTH_CATEGORIES = ['Hospital & Clinic', 'Dental Care', 'Veterinary Servi
 // Categories whose Services tab renders programmes + teachers.
 const EDUCATION_CATEGORIES = ['School & Education', 'Training & Tutoring'];
 // Curated demo listings that live outside the 30 generated samples.
-const SPOTLIGHTS: Record<string, any> = { ...SPOTLIGHT_BUSINESSES, ...MENU_SPOTLIGHTS, ...HOTEL_SPOTLIGHTS, ...CAR_SPOTLIGHTS, ...PHARMACY_SPOTLIGHTS, ...FITNESS_SPOTLIGHTS, ...BEAUTY_SPOTLIGHTS, ...HEALTH_SPOTLIGHTS, ...FASHION_SPOTLIGHTS, ...EDUCATION_SPOTLIGHTS, ...PHOTO_SPOTLIGHTS, ...TRANSPORT_SPOTLIGHTS, ...EVENT_SPOTLIGHTS, ...RETAIL_SPOTLIGHTS, ...AGRICULTURE_SPOTLIGHTS, ...LEGAL_SPOTLIGHTS, ...SERVICE_PROVIDER_SPOTLIGHTS, ...FINANCE_SPOTLIGHTS, ...MANUFACTURING_SPOTLIGHTS, ...CONSTRUCTION_SPOTLIGHTS, ...TRAVEL_SPOTLIGHTS, ...AUTOMOTIVE_SPOTLIGHTS, ...CHILDCARE_SPOTLIGHTS, ...MUSIC_SPOTLIGHTS, ...DESIGN_SPOTLIGHTS, ...INSURANCE_SPOTLIGHTS, ...ACCOUNTING_SPOTLIGHTS, ...MARKETING_SPOTLIGHTS, ...MONEY_SPOTLIGHTS, ...SOFTWARE_SPOTLIGHTS, ...REPAIR_SPOTLIGHTS, ...NEW_INDUSTRY_SPOTLIGHTS, ...MORE_SPOTLIGHTS };
+// Demo spotlights carry the legacy `verified` flag but no trust signals, which
+// made the header badge contradict the Trust Panel. withDemoTrustAll gives them
+// earned signals; real rows are untouched.
+const SPOTLIGHTS: Record<string, any> = withDemoTrustAll({ ...SPOTLIGHT_BUSINESSES, ...MENU_SPOTLIGHTS, ...HOTEL_SPOTLIGHTS, ...CAR_SPOTLIGHTS, ...PHARMACY_SPOTLIGHTS, ...FITNESS_SPOTLIGHTS, ...BEAUTY_SPOTLIGHTS, ...HEALTH_SPOTLIGHTS, ...FASHION_SPOTLIGHTS, ...EDUCATION_SPOTLIGHTS, ...PHOTO_SPOTLIGHTS, ...TRANSPORT_SPOTLIGHTS, ...EVENT_SPOTLIGHTS, ...RETAIL_SPOTLIGHTS, ...AGRICULTURE_SPOTLIGHTS, ...LEGAL_SPOTLIGHTS, ...SERVICE_PROVIDER_SPOTLIGHTS, ...FINANCE_SPOTLIGHTS, ...MANUFACTURING_SPOTLIGHTS, ...CONSTRUCTION_SPOTLIGHTS, ...TRAVEL_SPOTLIGHTS, ...AUTOMOTIVE_SPOTLIGHTS, ...CHILDCARE_SPOTLIGHTS, ...MUSIC_SPOTLIGHTS, ...DESIGN_SPOTLIGHTS, ...INSURANCE_SPOTLIGHTS, ...ACCOUNTING_SPOTLIGHTS, ...MARKETING_SPOTLIGHTS, ...MONEY_SPOTLIGHTS, ...SOFTWARE_SPOTLIGHTS, ...REPAIR_SPOTLIGHTS, ...NEW_INDUSTRY_SPOTLIGHTS, ...MORE_SPOTLIGHTS });
 import { ArrowLeft, ShoppingBag, Clock, MapPin, Phone, Mail, Globe, Star, Tag, Image, Grid, Package, Users2, Navigation, Loader2, Send, MessageCircle, CalendarCheck, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, Radio, Play } from 'lucide-react';
 import { telHref, whatsappHref } from '../lib/phone';
 
@@ -622,7 +627,10 @@ export default function BusinessDetail() {
                   <h1 className="text-lg sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
                     {business.name}
                   </h1>
-                  {business.verified && <VerifiedBadge size={18} />}
+                  {/* Derived from the trust model, not the legacy `verified`
+                      boolean — otherwise the header can claim "Verified" while
+                      the Trust Panel below reports nothing confirmed. */}
+                  {TIERS[deriveTier(business)].rank > 0 && <VerifiedBadge size={18} />}
                   <TrustBadge tier={business.verification_tier} score={business.trust_score} size="md" />
                   {hasLiveNow && (
                     <button
