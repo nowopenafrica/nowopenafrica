@@ -19,6 +19,7 @@ import { CanvasLayers, CanvasPanel } from './FreeCanvas';
 import InspirationUpload from './InspirationUpload';
 import type { InspirationPlan } from '../../lib/designInspiration';
 import { docFromRenderedLayout } from '../../lib/layoutImport';
+import { pickRecorderMime } from '../../lib/renderVideo';
 import {
   docFromSlots, initHistory, pushHistory, undo as undoDoc, redo as redoDoc,
   canUndo as histCanUndo, canRedo as histCanRedo, type CanvasDoc, type History,
@@ -739,16 +740,45 @@ export default function DesignStudio({
       }
     }
 
-    const mp4Mimes = ['video/mp4;codecs=avc1.42E01E', 'video/mp4;codecs=avc1', 'video/mp4'];
-    const webmMimes = ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm'];
-    const mime = [...mp4Mimes, ...webmMimes].find((m) => MediaRecorder.isTypeSupported(m));
-    const rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    // Ask the STREAM whether audio actually made it in — `withAudio` is only an
+    // intent, and the capture above degrades to silent on failure. A codecs=
+    // parameter declares every track in the file, so picking a video-only type
+    // for a stream that carries audio makes start() throw even though
+    // isTypeSupported() said yes.
+    const streamHasAudio = stream.getAudioTracks().length > 0;
+    const mime = pickRecorderMime(streamHasAudio);
+
+    // isTypeSupported lying is precisely the bug this replaced, so don't trust
+    // the chosen type either: if the recorder still refuses, drop the mimeType
+    // and let the browser pick a combination it can honour.
+    let rec: MediaRecorder;
+    try {
+      rec = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+    } catch (e) {
+      console.warn('Recorder rejected', mime, '— falling back to the browser default.', e);
+      rec = new MediaRecorder(stream);
+    }
     const chunks: BlobPart[] = [];
-    rec.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
-    const stopped = new Promise<void>((res) => { rec.onstop = () => res(); });
+    const wire = (r: MediaRecorder) => {
+      r.ondataavailable = (e) => { if (e.data.size) chunks.push(e.data); };
+    };
+    wire(rec);
+    let stopped = new Promise<void>((res) => { rec.onstop = () => res(); });
 
     const dur = hasVideo && v && v.duration ? Math.min(durationSec, v.duration) : durationSec;
-    rec.start();
+    // start() is where a mismatched mimeType actually surfaces — the constructor
+    // accepts it and only start() reports "an audio track cannot be recorded".
+    // One retry on the browser default turns a failed export into a silent-but-
+    // successful one, which beats losing the whole video.
+    try {
+      rec.start();
+    } catch (e) {
+      console.warn('Recorder refused to start with', mime, '— retrying on the browser default.', e);
+      rec = new MediaRecorder(stream);
+      wire(rec);
+      stopped = new Promise<void>((res) => { rec.onstop = () => res(); });
+      rec.start();
+    }
     const start = performance.now();
     await new Promise<void>((res) => {
       const tick = () => {

@@ -2,8 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   renderSeed, sceneRenderPlan, buildRenderTimeline, timelineAt,
   pickRenderMime, renderTotalSeconds, renderSceneStill, RENDER_DIMENSIONS, RENDER_FPS,
-  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions,
-} from './renderVideo';
+  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO } from './renderVideo';
 import type { DirectorScene } from './creativeDirector';
 
 const base: RenderOptions = {
@@ -150,5 +149,53 @@ describe('renderVideo — dimensions', () => {
     expect(RENDER_DIMENSIONS.Square.width).toBe(RENDER_DIMENSIONS.Square.height);
     expect(RENDER_DIMENSIONS.Landscape.width).toBe(1920);
     expect(RENDER_DIMENSIONS.Landscape.height).toBe(1080);
+  });
+});
+
+describe('recorder mime selection with audio', () => {
+  // Reproduces the reported failure: Firefox accepts
+  // isTypeSupported('video/webm;codecs=vp8') but then MediaRecorder.start()
+  // throws "An audio track cannot be recorded: video/webm;codecs=vp8 indicates
+  // an unsupported codec" once the stream carries audio.
+  const firefoxIsh = (t: string) =>
+    ['video/webm;codecs=vp9', 'video/webm;codecs=vp8', 'video/webm',
+     'video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus'].includes(t);
+
+  it('never picks a video-only codec string for a stream with audio', () => {
+    const mime = pickRecorderMime(true, firefoxIsh)!;
+    expect(mime).toBeTruthy();
+    // If a codecs= list is present it must declare an audio codec too.
+    if (/codecs=/.test(mime)) {
+      expect(mime, mime).toMatch(/opus|mp4a/);
+    }
+  });
+
+  it('picks the audio-capable webm on a Firefox-like browser', () => {
+    expect(pickRecorderMime(true, firefoxIsh)).toBe('video/webm;codecs=vp9,opus');
+  });
+
+  it('still uses the video-only list when there is no audio track', () => {
+    expect(pickRecorderMime(false, firefoxIsh)).toBe('video/webm;codecs=vp9');
+  });
+
+  it('prefers mp4 with an audio codec where supported', () => {
+    const safariIsh = (t: string) => t.startsWith('video/mp4');
+    expect(pickRecorderMime(true, safariIsh)).toBe('video/mp4;codecs=avc1.42E01E,mp4a.40.2');
+  });
+
+  it('falls back to a bare type, which lets the browser choose both codecs', () => {
+    const bareOnly = (t: string) => t === 'video/webm';
+    expect(pickRecorderMime(true, bareOnly)).toBe('video/webm');
+  });
+
+  it('returns null when nothing is supported, so the caller omits mimeType', () => {
+    expect(pickRecorderMime(true, () => false)).toBeNull();
+    expect(pickRecorderMime(false, () => false)).toBeNull();
+  });
+
+  it('offers an audio-capable option for every codec family it lists', () => {
+    const withAudio = RENDER_MIME_CANDIDATES_WITH_AUDIO.filter((m) => /codecs=/.test(m));
+    expect(withAudio.length).toBeGreaterThan(0);
+    for (const m of withAudio) expect(m, m).toMatch(/opus|mp4a/);
   });
 });

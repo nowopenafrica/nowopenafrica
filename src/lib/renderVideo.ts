@@ -183,6 +183,47 @@ export const RENDER_MIME_CANDIDATES = [
   'video/mp4',
 ];
 
+/**
+ * Candidates for a stream that CONTAINS AN AUDIO TRACK.
+ *
+ * A codecs= parameter is a complete declaration of the track types in the file.
+ * "video/webm;codecs=vp8" says "one VP8 video track and nothing else", so
+ * recording a stream that also has audio is a contradiction — Firefox rejects
+ * MediaRecorder.start() with "An audio track cannot be recorded:
+ * video/webm;codecs=vp8 indicates an unsupported codec".
+ *
+ * The trap is that isTypeSupported('video/webm;codecs=vp8') returns TRUE. It
+ * answers "can you produce this type at all", not "for this stream". So the
+ * check passes and start() throws afterwards.
+ *
+ * These declare an audio codec alongside the video one. The bare types are kept
+ * last: with no codecs= parameter the browser picks both itself, which is always
+ * consistent with whatever the stream holds.
+ */
+export const RENDER_MIME_CANDIDATES_WITH_AUDIO = [
+  'video/mp4;codecs=avc1.42E01E,mp4a.40.2',
+  'video/mp4;codecs=avc1,mp4a.40.2',
+  'video/webm;codecs=vp9,opus',
+  'video/webm;codecs=vp8,opus',
+  'video/webm',
+  'video/mp4',
+];
+
+/**
+ * Pick a recorder MIME type for a stream, given whether it carries audio.
+ * Returns null when nothing matches, in which case the caller should construct
+ * MediaRecorder without a mimeType and let the browser choose.
+ */
+export function pickRecorderMime(
+  hasAudio: boolean,
+  isSupported?: (type: string) => boolean,
+): string | null {
+  return pickRenderMime(
+    hasAudio ? RENDER_MIME_CANDIDATES_WITH_AUDIO : RENDER_MIME_CANDIDATES,
+    isSupported,
+  );
+}
+
 // --- Drawing helpers (DOM) ----------------------------------------------------
 
 function easeInOut(t: number): number {
