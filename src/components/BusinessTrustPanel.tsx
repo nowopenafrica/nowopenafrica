@@ -54,7 +54,11 @@ export default function BusinessTrustPanel({
   serviceCount?: number;
 }) {
   const [open, setOpen] = useState(false);
-  const summary = useMemo(() => publicTrustSummary(business, Date.now()), [business]);
+  // Date.now() is impure, so it can't sit inside the memo — React Compiler
+  // flags it, and a memo that re-runs unpredictably would recompute against a
+  // different clock. Tenure only needs a stable per-mount reading.
+  const [now] = useState(() => Date.now());
+  const summary = useMemo(() => publicTrustSummary(business, now), [business, now]);
 
   const established = business.created_at
     ? new Date(business.created_at).getFullYear()
