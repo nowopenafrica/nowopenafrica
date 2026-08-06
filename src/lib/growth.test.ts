@@ -86,7 +86,7 @@ describe('weekly plan', () => {
   });
 
   it('keeps ids unique and modules valid', () => {
-    const valid: GrowthPlanModule[] = ['home', 'brand-kit', 'card', 'qr', 'social', 'flyer', 'poster', 'banner', 'copywriter', 'promotions', 'planner', 'health', 'assistant', 'campaign', 'announce', 'quotations', 'catalogues'];
+    const valid: GrowthPlanModule[] = ['home', 'brand-kit', 'card', 'social', 'flyer', 'poster', 'banner', 'copywriter', 'promotions', 'planner', 'health', 'assistant', 'campaign', 'announce', 'quotations', 'catalogues'];
     const tasks = weeklyPlan(complete);
     const ids = tasks.map((t) => t.id);
     expect(new Set(ids).size).toBe(ids.length);

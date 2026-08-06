@@ -30,10 +30,12 @@ const stats = {
 };
 
 describe('challenges', () => {
-  it('defines five unique challenges with points', () => {
+  it('defines four unique challenges with points', () => {
     const ids = CHALLENGES.map((c) => c.id);
     expect(new Set(ids).size).toBe(ids.length);
-    expect(ids.length).toBe(5);
+    // Review Booster was removed with the Review Manager module — it asked
+    // owners to reply to reviews, which there's no longer a UI for.
+    expect(ids.length).toBe(4);
     for (const c of CHALLENGES) {
       expect(c.points).toBeGreaterThan(0);
       expect(c.title.length).toBeGreaterThan(3);
@@ -62,10 +64,8 @@ describe('challenges', () => {
     expect(challengeProgress(tasksFor(c, stats)).done).toBe(3);
   });
 
-  it('review booster needs three reviews and one response', () => {
-    const c = CHALLENGES.find((x) => x.id === 'review-boost')!;
-    expect(challengeProgress(tasksFor(c, { ...stats, reviewsCount: 3, respondedCount: 0 })).done).toBe(2);
-    expect(challengeProgress(tasksFor(c, stats)).done).toBe(3);
+  it('no longer offers the Review Booster, which needs a removed module', () => {
+    expect(CHALLENGES.find((c) => c.id === 'review-boost')).toBeUndefined();
   });
 
   it('plan pilot rewards partial completion', () => {

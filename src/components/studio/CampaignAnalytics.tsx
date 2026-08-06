@@ -202,7 +202,7 @@ export default function CampaignAnalytics({ business, onNavigate }: Props) {
             <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
               <Star size={16} className="text-purple-600 dark:text-purple-400" /> Review sentiment
             </h3>
-            <button onClick={() => onNavigate('reviews')} className="text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline">
+            <button onClick={() => onNavigate('home')} className="text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline">
               Manage
             </button>
           </div>

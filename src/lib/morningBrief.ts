@@ -104,9 +104,9 @@ export function buildMorningBrief(business: Business, now = new Date()): Morning
   }
 
   if (analytics.reviewStats.total > 0 && analytics.reviewStats.responded < analytics.reviewStats.total) {
-    push('Reviews need replies', `${analytics.reviewStats.responded}/${analytics.reviewStats.total} reviews answered. Public replies win customers back.`, '💬', 'warn', 'reviews');
+    push('Reviews need replies', `${analytics.reviewStats.responded}/${analytics.reviewStats.total} reviews answered. Public replies win customers back.`, '💬', 'warn', 'home');
   } else {
-    push('Ask for a review', 'Happy customers rarely review unless asked. Send a gentle request after the visit.', '⭐', 'info', 'reviews');
+    push('Ask for a review', 'Happy customers rarely review unless asked. Send a gentle request after the visit.', '⭐', 'info', 'home');
   }
 
   if (analytics.score < 60) {

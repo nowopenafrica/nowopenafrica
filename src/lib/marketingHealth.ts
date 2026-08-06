@@ -18,7 +18,7 @@ export interface HealthDimension {
   score: number;
   detail: string;
   tip: string;
-  module: 'home' | 'social' | 'planner' | 'promotions' | 'reviews' | 'loyalty' | 'campaigns' | 'analytics' | 'copywriter' | 'live-promo' | 'card';
+  module: 'home' | 'social' | 'planner' | 'promotions' | 'loyalty' | 'campaigns' | 'analytics' | 'copywriter' | 'live-promo' | 'card';
 }
 
 export interface MarketingHealth {
@@ -81,7 +81,7 @@ export function marketingHealth(business: Business, _now = new Date()): Marketin
     { key: 'promotions', label: 'Promotions', emoji: '🏷️', score: promotions, detail: 'Offers live, scheduled and shared.', tip: analytics.promoStats.live === 0 ? 'No offer is live — launch a weekend promo now.' : 'A promotion is live — keep the momentum.', module: 'promotions' },
     { key: 'reach', label: 'Reach', emoji: '📣', score: reach, detail: 'Estimated people who see your business each week.', tip: 'Reels and live sessions are the fastest way to grow reach.', module: 'analytics' },
     { key: 'consistency', label: 'Consistency', emoji: '📅', score: consistency, detail: 'Posting and opening reliably, week after week.', tip: 'Schedule posts ahead so consistency never depends on a busy day.', module: 'planner' },
-    { key: 'reviews', label: 'Reviews', emoji: '⭐', score: reviews, detail: `Average rating and reply rate (${analytics.reviewStats.responded}/${analytics.reviewStats.total || 0} replied).`, tip: analytics.reviewStats.total > 0 && analytics.reviewStats.responded < analytics.reviewStats.total ? 'Reply to unanswered reviews — it lifts your rating.' : 'Ask happy customers for reviews right after their visit.', module: 'reviews' },
+    { key: 'reviews', label: 'Reviews', emoji: '⭐', score: reviews, detail: `Average rating and reply rate (${analytics.reviewStats.responded}/${analytics.reviewStats.total || 0} replied).`, tip: analytics.reviewStats.total > 0 && analytics.reviewStats.responded < analytics.reviewStats.total ? 'Reply to unanswered reviews — it lifts your rating.' : 'Ask happy customers for reviews right after their visit.', module: 'home' },
     { key: 'bookings', label: 'Bookings & orders', emoji: '🧾', score: bookings, detail: 'Orders, bookings and enquiries your profile generates.', tip: isOrderingCategory(business.category) ? 'Add a clear "Order / Book" button and reply fast on WhatsApp.' : 'Make booking effortless — one tap from your profile to a booking.', module: 'card' },
     { key: 'followers', label: 'Followers', emoji: '🧑‍🤝‍🧑', score: followers, detail: 'Estimated audience following your business.', tip: 'Cross-post to every connected channel to grow followers faster.', module: 'social' },
     { key: 'advertising', label: 'Advertising', emoji: '📢', score: advertising, detail: 'Promoted posts and paid campaigns reach new people.', tip: 'Boost your best-performing post with a small budget.', module: 'campaigns' },

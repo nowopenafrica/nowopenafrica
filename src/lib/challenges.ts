@@ -38,7 +38,6 @@ export const CHALLENGES: Challenge[] = [
   { id: 'profile-perfect', title: 'Profile Perfection', desc: 'Complete the six essentials that make a profile trustworthy.', points: 100, module: 'home' },
   { id: 'content-sprint', title: 'Social Sprint', desc: 'Publish three posts this week from your Content Planner.', points: 150, module: 'planner' },
   { id: 'promo-launch', title: 'Promo Pro', desc: 'Create, launch and share a live promotion.', points: 200, module: 'promotions' },
-  { id: 'review-boost', title: 'Review Booster', desc: 'Collect three reviews and respond to at least one.', points: 120, module: 'reviews' },
   { id: 'plan-pilot', title: 'Plan Pilot', desc: 'Tackle your weekly growth plan and finish every task.', points: 100, module: 'home' },
 ];
 

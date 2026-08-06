@@ -112,7 +112,7 @@ export default function ContentFactory({ business, onDesign, onSchedule, onNavig
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition">
                 <Send size={13} /> Schedule & publish
               </button>
-              <button onClick={() => onNavigate('video')}
+              <button onClick={() => onNavigate('flyer')}
                 className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
                 🎬 Make a video with AI Video Creator
               </button>

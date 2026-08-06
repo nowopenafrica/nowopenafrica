@@ -14,7 +14,7 @@ const QUICK_ACTIONS: { module: GrowthPlanModule; label: string; desc: string; ic
   { module: 'copywriter', label: 'AI Copywriter', desc: 'Captions, ads & SMS', icon: PenLine },
   { module: 'assistant', label: 'Marketing Assistant', desc: 'Ask anything, get answers', icon: MessageCircle },
   { module: 'planner', label: 'Content Planner', desc: 'Schedule the week ahead', icon: CalendarDays },
-  { module: 'qr', label: 'QR Studio', desc: 'Flyer-ready smart links', icon: QrCode },
+  { module: 'card', label: 'Business Card', desc: 'Smart link + QR to share', icon: QrCode },
 ];
 
 export default function GrowthHome({ business, onNavigate }: Props) {

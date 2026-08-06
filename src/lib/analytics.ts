@@ -140,9 +140,9 @@ export function insightsFor(s: AnalyticsSnapshot): Insight[] {
   if (s.campaigns.total === 0)
     out.push({ tip: 'You have not saved an email or SMS campaign yet. Draft one in minutes from your profile.', module: 'campaigns', tone: 'info' });
   if (s.reviewStats.total < 3)
-    out.push({ tip: 'Fewer than 3 reviews means new visitors have little to judge you on. Ask your happiest customers.', module: 'reviews', tone: 'warn' });
+    out.push({ tip: 'Fewer than 3 reviews means new visitors have little to judge you on. Ask your happiest customers.', module: 'home', tone: 'warn' });
   if (s.reviewStats.negative > 0)
-    out.push({ tip: `${s.reviewStats.negative} negative review${s.reviewStats.negative === 1 ? '' : 's'} need a reply. Responding publicly shows you care and wins customers back.`, module: 'reviews', tone: 'warn' });
+    out.push({ tip: `${s.reviewStats.negative} negative review${s.reviewStats.negative === 1 ? '' : 's'} need a reply. Responding publicly shows you care and wins customers back.`, module: 'home', tone: 'warn' });
   if (s.loyalty.members < 5)
     out.push({ tip: 'A small loyalty base means repeat visits are leaving value on the table. Launch your programme and sign up regulars.', module: 'loyalty', tone: 'info' });
   if (s.campaigns.latest && Date.now() - new Date(s.campaigns.latest).getTime() > 30 * 86400000)

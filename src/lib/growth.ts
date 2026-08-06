@@ -14,10 +14,10 @@ export interface ScoreItem {
 }
 
 export type GrowthPlanModule =
-  | 'home' | 'brand-kit' | 'card' | 'qr' | 'social' | 'flyer' | 'poster' | 'banner'
+  | 'home' | 'brand-kit' | 'card' | 'social' | 'flyer' | 'poster' | 'banner'
   | 'copywriter' | 'promotions' | 'planner' | 'health' | 'assistant'
-  | 'live-promo' | 'campaigns' | 'reviews' | 'loyalty' | 'analytics' | 'challenges'
-  | 'video' | 'landing' | 'invoices'
+  | 'live-promo' | 'campaigns' | 'loyalty' | 'analytics' | 'challenges'
+  | 'landing' | 'invoices'
   | 'campaign' | 'announce' | 'quotations' | 'catalogues';
 
 export interface GrowthPlanTask {
@@ -118,7 +118,7 @@ export function weeklyPlan(business: Business): GrowthPlanTask[] {
   if (descLen < 60) push('description', 'Strengthen your description', 'Profiles with a full description get more visits. Use the AI Copywriter to rewrite it in your brand tone.', 'copywriter', 'quick');
   if (!business.phone) push('phone', 'Add a phone number', 'Customers expect to call or WhatsApp you. Add your number to unlock calls in one tap.', 'card', 'quick');
   if (!business.hours) push('hours', 'Set your opening hours', 'Showing hours builds trust and stops missed customers. Update them in your card.', 'card', 'quick');
-  if (!business.username) push('link', 'Claim your brand link', 'Own a clean NowOpen link like nowopenafrica.com/yourbrand, then turn it into a QR people can scan.', 'qr', 'quick');
+  if (!business.username) push('link', 'Claim your brand link', 'Own a clean NowOpen link like nowopenafrica.com/yourbrand, then put it on your business card with its QR.', 'card', 'quick');
 
   push('post', 'Design this week’s social post', 'One polished post a week beats a month of silence. Pick a template and download it in every format.', 'social', 'quick');
   push('promo', 'Run a weekend promotion', 'Weekend offers are the fastest way to pull customers in. Build a promo asset with a clear headline and deadline.', 'promotions', 'deep');
@@ -156,6 +156,6 @@ export function healthTips(business: Business): { tip: string; module: GrowthPla
   if (tips.length < 3)
     tips.push({ tip: 'Keep posting weekly — businesses that post 4× a month get far more profile views.', module: 'social' });
   if (tips.length < 4)
-    tips.push({ tip: 'Turn your profile link into a QR for flyers, receipts and your storefront window.', module: 'qr' });
+    tips.push({ tip: 'Put your profile link and its QR on your business card for flyers, receipts and your storefront window.', module: 'card' });
   return tips.slice(0, 4);
 }

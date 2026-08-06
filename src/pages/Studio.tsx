@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, ArrowLeft, Sparkles, Palette, CreditCard, QrCode, Instagram, LayoutPanelTop, PenLine, ImagePlus, PackageOpen, CalendarDays, WalletCards, Printer, Presentation, Stamp, Camera, Home, MessageCircle, Activity, Star, Mail, Heart, Receipt, Trophy, LayoutTemplate, Zap, TrendingUp, Store, FileText, Mic, Clapperboard, Globe, Wand2, Podcast, Bot, CalendarCheck, Users, Banknote, Radar, Search, Workflow } from 'lucide-react';
+import { Loader2, ArrowLeft, Sparkles, Palette, CreditCard, Instagram, LayoutPanelTop, PenLine, ImagePlus, PackageOpen, CalendarDays, WalletCards, Printer, Presentation, Stamp, Camera, Home, MessageCircle, Activity, Mail, Heart, Receipt, Trophy, LayoutTemplate, Zap, TrendingUp, Store, FileText, Mic, Clapperboard, Globe, Wand2, Podcast, Bot, CalendarCheck, Users, Banknote, Radar, Search, Workflow } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { Business } from '../types';
@@ -8,29 +8,26 @@ import DesignStudioHub from '../components/studio/DesignStudioHub';
 import CampaignManager from '../components/studio/CampaignManager';
 import BrandKitStudio from '../components/studio/BrandKitStudio';
 import BrandCardStudio from '../components/studio/BrandCardStudio';
-import QrStudio from '../components/studio/QrStudio';
 import MediaLibrary from '../components/studio/MediaLibrary';
 import ExportCentre from '../components/studio/ExportCentre';
 import GrowthHome from '../components/studio/GrowthHome';
 import HealthDashboard from '../components/studio/HealthDashboard';
 import LivePromoCenter from '../components/studio/LivePromoCenter';
-import ReviewManager from '../components/studio/ReviewManager';
 import GrowthChallenges from '../components/studio/GrowthChallenges';
 import CustomerLoyaltyHub from '../components/studio/CustomerLoyaltyHub';
 import CampaignAnalytics from '../components/studio/CampaignAnalytics';
 import InvoicesStudio from '../components/studio/InvoicesStudio';
 import LandingPageBuilder from '../components/studio/LandingPageBuilder';
-import ReelVideoStudio from '../components/studio/ReelVideoStudio';
 import ProposalStudio from '../components/studio/ProposalStudio';
 import DigitalCatalogue from '../components/studio/DigitalCatalogue';
 import SocialStudioHub from '../components/studio/SocialStudioHub';
 import { GrowthPlanModule } from '../lib/growth';
 
 type ModuleKey =
-  | 'home' | 'brand-kit' | 'card' | 'qr'
-  | 'design' | 'social' | 'video' | 'copywriter' | 'assistant'
+  | 'home' | 'brand-kit' | 'card'
+  | 'design' | 'social' | 'copywriter' | 'assistant'
   | 'campaigns' | 'promotions' | 'live-promo' | 'planner' | 'landing'
-  | 'quotations' | 'invoices' | 'catalogues' | 'reviews' | 'loyalty'
+  | 'quotations' | 'invoices' | 'catalogues' | 'loyalty'
   | 'health' | 'analytics' | 'challenges'
   | 'media' | 'export';
 
@@ -55,7 +52,6 @@ const MODULES: { group: string; items: ModuleMeta[] }[] = [
     items: [
       { key: 'brand-kit', label: 'Brand OS', icon: Palette, desc: 'Your identity, voice, colours, stationery and brand health — how your entire brand works.' },
       { key: 'card', label: 'Digital Business Card', icon: CreditCard, desc: 'A professional business card with a live QR that always points to your profile.' },
-      { key: 'qr', label: 'QR Studio', icon: QrCode, desc: 'QR codes for your profile, website, WhatsApp, calls, email and directions.' },
     ],
   },
   {
@@ -63,7 +59,6 @@ const MODULES: { group: string; items: ModuleMeta[] }[] = [
     items: [
       { key: 'design', label: 'Creative Studio', icon: LayoutPanelTop, desc: 'Flyers, posters, banners, stories and social graphics — one studio, every size. Quick Create, AI copy, live previews and a full campaign pack.' },
       { key: 'social', label: 'AI Marketing Department', icon: Instagram, desc: 'Daily Growth, AI Director, Trend Radar, Monthly Planner, Campaign Marketplace, Content Factory, Growth Score and AI Notifications.' },
-      { key: 'video', label: 'AI Creative Director', icon: Clapperboard, desc: 'One-line brief → full campaign plan with goals, platform, storyboard, hooks, score and a 7-day calendar — Creative Agency Mode included.' },
     ],
   },
   {
@@ -85,7 +80,6 @@ const MODULES: { group: string; items: ModuleMeta[] }[] = [
   {
     group: 'Customers',
     items: [
-      { key: 'reviews', label: 'Review Manager', icon: Star, desc: 'Track reviews, score sentiment and respond in seconds with AI-drafted replies.' },
       { key: 'loyalty', label: 'Loyalty Hub', icon: Heart, desc: 'Reward regulars and bring them back with points, stamp cards and VIP perks.' },
     ],
   },
@@ -192,7 +186,6 @@ export default function Studio() {
       case 'home': return <GrowthHome business={business} onNavigate={go} />;
       case 'brand-kit': return <BrandKitStudio business={business} />;
       case 'card': return <BrandCardStudio business={business} />;
-      case 'qr': return <QrStudio business={business} />;
       case 'social': return <SocialStudioHub key={`${business.id}-social`} business={business} onNavigate={go} />;
       case 'design': return <DesignStudioHub business={business} />;
       case 'promotions': return <DesignStudioHub key={`${business.id}-promo`} business={business} initialTab="promo" />;
@@ -201,14 +194,12 @@ export default function Studio() {
       case 'planner': return <SocialStudioHub key={`${business.id}-social-planner`} business={business} onNavigate={go} initialTab="planner" />;
       case 'live-promo': return <LivePromoCenter business={business} onNavigate={go} />;
       case 'campaigns': return <CampaignManager business={business} />;
-      case 'reviews': return <ReviewManager business={business} />;
       case 'loyalty': return <CustomerLoyaltyHub business={business} onNavigate={go} />;
       case 'analytics': return <CampaignAnalytics business={business} onNavigate={go} />;
       case 'invoices': return <InvoicesStudio key={`${business.id}-invoices`} business={business} />;
       case 'quotations': return <ProposalStudio key={`${business.id}-quotations`} business={business} />;
       case 'catalogues': return <DigitalCatalogue key={`${business.id}-catalogues`} business={business} />;
       case 'landing': return <LandingPageBuilder key={`${business.id}-landing`} business={business} />;
-      case 'video': return <ReelVideoStudio key={`${business.id}-video`} business={business} />;
       case 'challenges': return <GrowthChallenges business={business} onNavigate={go} />;
       case 'health': return <HealthDashboard business={business} onNavigate={go} />;
       case 'media': return <MediaLibrary business={business} />;
