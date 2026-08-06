@@ -148,6 +148,67 @@ export const VERIFICATION_STEPS: VerificationStep[] = [
   { key: 'onsite_verified', label: 'On-site verification', detail: 'In-person or trusted-partner confirmation', tier: 'platinum' },
 ];
 
+// ---------------------------------------------------------------------------
+// Public-facing summary (the Business Trust Panel on a profile)
+// ---------------------------------------------------------------------------
+//
+// Deliberately shows what is NOT verified alongside what is. A panel that only
+// lists green ticks is marketing, not trust — a visitor learns more from
+// "registration not yet verified" than from its absence, and an honest panel is
+// what makes the confirmed items worth believing.
+//
+// Only signals an admin has confirmed appear as confirmed; a DB trigger blocks
+// self-verification, so these can't be set by the owner.
+
+export interface PublicTrustItem {
+  label: string;
+  detail: string;
+  confirmed: boolean;
+}
+
+export interface PublicTrustSummary {
+  score: number;
+  tier: TierMeta;
+  items: PublicTrustItem[];
+  confirmedCount: number;
+  totalCount: number;
+  /** Score contributions, so the number is auditable rather than asserted. */
+  breakdown: ScoreBreakdown[];
+}
+
+/**
+ * Build the profile's trust panel content.
+ *
+ * `storedScore` lets an admin-set trust_score win over the derived one (some
+ * rows carry a manually reviewed value); when absent the score is computed from
+ * the row so a profile is never left without one.
+ */
+export function publicTrustSummary(
+  b: TrustSignals & { verification_tier?: string | null; trust_score?: number | null },
+  now: number = 0,
+): PublicTrustSummary {
+  const derived = computeTrustScore(b, now);
+  const stored = typeof b.trust_score === 'number' && b.trust_score > 0 ? b.trust_score : null;
+  const tierKey = (b.verification_tier && b.verification_tier in TIERS
+    ? b.verification_tier
+    : deriveTier(b)) as Tier;
+
+  const items: PublicTrustItem[] = VERIFICATION_STEPS.map((s) => ({
+    label: s.label,
+    detail: s.detail,
+    confirmed: !!b[s.key],
+  }));
+
+  return {
+    score: Math.round(stored ?? derived.score),
+    tier: TIERS[tierKey],
+    items,
+    confirmedCount: items.filter((i) => i.confirmed).length,
+    totalCount: items.length,
+    breakdown: derived.breakdown,
+  };
+}
+
 // Document types an owner can upload for review.
 export const DOC_TYPES: { value: string; label: string }[] = [
   { value: 'national_id', label: 'National ID' },

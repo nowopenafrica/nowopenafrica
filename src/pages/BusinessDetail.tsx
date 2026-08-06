@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { generateBusinesses, isSampleId } from '../data/populateData';
 import VerifiedBadge from '../components/VerifiedBadge';
 import TrustBadge from '../components/TrustBadge';
+import BusinessTrustPanel from '../components/BusinessTrustPanel';
 import EnquiryModal from '../components/EnquiryModal';
 import BookingModal from '../components/BookingModal';
 import CartModal, { CartLine } from '../components/CartModal';
@@ -663,6 +664,17 @@ export default function BusinessDetail() {
                   <span className="text-gray-700 dark:text-gray-300">{business.location}</span>
                 </div>
               )}
+            </div>
+
+            {/* Trust & verification — answers "can I trust this business?"
+                before the visitor has to go looking for it. */}
+            <div className="mt-4">
+              <BusinessTrustPanel
+                business={business}
+                reviewCount={content.reviews.length}
+                productCount={content.products.length}
+                serviceCount={content.services.length}
+              />
             </div>
 
             {/* Also serves — secondary categories set by the owner */}
