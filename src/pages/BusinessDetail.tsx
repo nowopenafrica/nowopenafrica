@@ -8,6 +8,8 @@ import VerifiedBadge from '../components/VerifiedBadge';
 import TrustBadge from '../components/TrustBadge';
 import BusinessTrustPanel from '../components/BusinessTrustPanel';
 import { withDemoTrustAll } from '../data/demoTrust';
+import OpeningHoursPanel from '../components/OpeningHoursPanel';
+import { parseOpeningHours, isOpenAt } from '../lib/openingHours';
 import { deriveTier, TIERS } from '../lib/trust';
 import EnquiryModal from '../components/EnquiryModal';
 import BookingModal from '../components/BookingModal';
@@ -570,7 +572,23 @@ export default function BusinessDetail() {
   }
 
   const clockConfig = loadClockConfig(business);
-  const liveStatus = resolveBusinessStatus(business, clockConfig, new Date());
+
+  // A visitor's open/closed must come from the business's OWN stored hours.
+  // loadClockConfig reads the VIEWER's localStorage, so on someone else's
+  // profile it fell through to defaultAutoHours(category) and invented a status
+  // from the category — a restaurant read "Open" because restaurants usually
+  // are. When the stored text can't be parsed we show no claim at all rather
+  // than a confident guess that could send someone to a closed shop.
+  const publicHours = parseOpeningHours(business.opening_hours || business.hours);
+  const publicOpen = publicHours ? isOpenAt(publicHours, new Date()) : null;
+  // Owner-side signals (live now, manual override) are still viewer-local, so
+  // they only refine a status we already know is real.
+  const ownerStatus = resolveBusinessStatus(business, clockConfig, new Date());
+  const liveStatus = publicOpen === null
+    ? null
+    : ownerStatus === 'live'
+      ? 'live'
+      : publicOpen ? 'open' : 'closed';
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -658,7 +676,14 @@ export default function BusinessDetail() {
             {/* Business Status & Quick Info */}
             <div className="flex items-center gap-2 sm:gap-6 text-xs sm:text-sm flex-wrap">
               <div className="flex items-center gap-2">
-                <BusinessStatusBadge status={liveStatus} category={business.category} showSub />
+                {liveStatus ? (
+                  <BusinessStatusBadge status={liveStatus} category={business.category} showSub />
+                ) : (
+                  <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
+                    <span className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600" aria-hidden="true" />
+                    Hours not confirmed
+                  </span>
+                )}
               </div>
               {business.category && (
                 <div className="flex items-center gap-2">
@@ -867,12 +892,9 @@ export default function BusinessDetail() {
                           <p className="text-sm text-gray-900 dark:text-white">{business.services}</p>
                         </div>
                       )}
-                      {business.opening_hours && (
-                        <div>
-                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Opening Hours</p>
-                          <p className="text-sm text-gray-900 dark:text-white">{business.opening_hours}</p>
-                        </div>
-                      )}
+                      <div className="sm:col-span-2">
+                        <OpeningHoursPanel hours={business.opening_hours || business.hours} />
+                      </div>
                     </div>
                   </div>
                 </div>
