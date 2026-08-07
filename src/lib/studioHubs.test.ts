@@ -9,7 +9,7 @@ import { HUBS, HOME_MODULES, HIDDEN_MODULES, INTENTS, hubOf, greeting, type Modu
 
 const ALL: ModuleKey[] = [
   'home', 'brand-kit', 'card',
-  'design', 'social', 'copywriter', 'assistant',
+  'design', 'video', 'social', 'copywriter', 'assistant',
   'campaigns', 'promotions', 'live-promo', 'planner', 'landing',
   'quotations', 'invoices', 'catalogues', 'loyalty',
   'health', 'analytics', 'challenges',
