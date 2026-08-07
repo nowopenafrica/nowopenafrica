@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
+import { runAgent, resolveProvider, probeProviders, type ToolDef } from "../_shared/llm.ts";
 
 const corsHeaders = {
   // "*" here is deliberate, not an oversight: this endpoint takes only the
@@ -38,7 +39,8 @@ interface ChatRequest {
 
 const MAX_HISTORY_MESSAGES = 20;
 const MAX_QUERY_LENGTH = 2000;
-const MODEL = "claude-opus-4-8";
+// The model is no longer named here — _shared/llm.ts picks the provider from
+// whichever API key is set (Groq, then OpenRouter, then Anthropic).
 
 // Anon key only — every table this searches has a public SELECT policy, so
 // there's nothing here RLS wouldn't already allow a visitor to read directly.
@@ -56,7 +58,9 @@ What's on the platform:
 - **Pricing** (/pricing) — Free Launch (free: basic profile, 50 AI credits/mo), Growth (~$3/mo, ~$33/yr: verified badge, bookings, analytics, 500 AI credits), Business Pro (~$12/mo, ~$120/yr: unlimited modules, 0% booking fees, 2,000 AI credits), Enterprise (custom). AI credits and Promote advertising are separate add-on spends.
 - **Waitlist** (/waitlist) — the platform is in invite-only early access; visitors join the waitlist for an invite. Founding members get launch pricing locked for 12 months and a free verified badge.
 
-Use the search_platform tool whenever someone asks about specific businesses, placements, prices, categories, or locations — never invent listings, prices, or ratings; state only what the tool returns. If a search comes back empty, say so honestly and suggest browsing the relevant page or joining the waitlist instead of guessing.
+Use the search_platform tool whenever someone asks about specific businesses, advertising placements, or creative services — including their prices, categories or locations. Never invent listings, prices, or ratings; state only what the tool returns. If a search comes back empty, say so honestly and suggest browsing the relevant page or joining the waitlist instead of guessing.
+
+Do NOT use the tool for subscription plans and their pricing (Free Launch, Growth, Business Pro, Enterprise) — those are listed above; answer directly and link to /pricing. The tool only searches listings, and its "domain" must be exactly one of businesses, adverts, media, or all.
 
 Reply in short, friendly markdown: **bold** sparingly, a bullet list when there are multiple results, and markdown links like [Business Name](/username) or [View placement](/adverts/id) so people can click straight through. Keep answers brief — this is a chat widget, not an essay. If someone asks something unrelated to NowOpen Africa, answer briefly and steer back to how the platform can help.`;
 
@@ -181,17 +185,78 @@ async function runSearchTool(input: { domain?: string; query?: string; location?
   return { result_count: results.length, results };
 }
 
-function extractText(content: any[]): string {
-  return content
-    .filter((b) => b.type === "text")
-    .map((b) => b.text)
-    .join("\n")
-    .trim();
+/**
+ * Format directory matches for when no model is available.
+ *
+ * Returns "" when there are no matches — the caller decides what to say about
+ * that, because only the caller knows whether the model was reachable. This
+ * function must never imply the directory is empty.
+ */
+const FALLBACK_GROUPS: { type: string; label: string }[] = [
+  { type: "business", label: "Businesses" },
+  { type: "advert", label: "Ad placements" },
+  { type: "media_service", label: "Creative services" },
+];
+
+async function searchOnlyAnswer(query: string): Promise<string> {
+  const { results } = await runSearchTool({ domain: "all", query });
+
+  const parts = FALLBACK_GROUPS.map(({ type, label }) => {
+    const rows = results.filter((r: any) => r.type === type);
+    if (!rows.length) return null;
+    const lines = rows.slice(0, 5).map((r: any) => {
+      // Businesses carry `name`, adverts and services carry `title`.
+      const title = r.name || r.title || "Untitled";
+      const detail = r.location || r.category || "";
+      const text = r.link ? `[${title}](${r.link})` : title;
+      return `- ${text}${detail ? ` — ${detail}` : ""}`;
+    });
+    return `**${label}**\n${lines.join("\n")}`;
+  }).filter(Boolean);
+
+  return parts.length ? parts.join("\n\n") : "";
 }
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { status: 200, headers: corsHeaders });
+  }
+
+  // GET is a health check: which provider is actually live on this deployment.
+  // Without it the only way to tell a working assistant from one silently
+  // running on the search-only fallback is to read the function logs.
+  // It reports the provider NAME and model id — never the key itself.
+  if (req.method === "GET") {
+    const provider = resolveProvider();
+
+    // ?probe=1 additionally makes a 1-token call upstream and reports the real
+    // status. A key can be present but dead, or a model id can be retired by the
+    // host — both look identical from outside, and both silently downgrade the
+    // assistant to search-only.
+    if (new URL(req.url).searchParams.get("probe")) {
+      const probes = await probeProviders();
+      return new Response(
+        JSON.stringify({
+          firstChoice: provider.name,
+          // `usable` is the real answer: runAgent walks the list, so the
+          // assistant is model-backed as long as ANY provider here is ok.
+          usable: probes.filter((p) => p.ok).map((p) => p.provider),
+          probes,
+        }, null, 2),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    return new Response(
+      JSON.stringify({
+        ok: provider.name !== "none",
+        provider: provider.name,
+        model: provider.model || null,
+        label: provider.label,
+        mode: provider.name === "none" ? "search-only fallback" : "model",
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   }
 
   if (isRateLimited(getClientIp(req), RATE_LIMIT_MAX, RATE_LIMIT_WINDOW_MS)) {
@@ -227,72 +292,55 @@ Deno.serve(async (req: Request) => {
       history.shift();
     }
 
-    const anthropicMessages: any[] = [...history, { role: "user", content: trimmedQuery }];
+    const turns = [...history, { role: "user" as const, content: trimmedQuery }];
 
-    const callAnthropic = async () => {
-      const res = await fetch("https://api.anthropic.com/v1/messages", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "",
-          "anthropic-version": "2023-06-01",
-        },
-        body: JSON.stringify({
-          model: MODEL,
-          max_tokens: 1024,
-          system,
-          thinking: { type: "adaptive" },
-          tools: [SEARCH_TOOL],
-          messages: anthropicMessages,
-        }),
-      });
-      if (!res.ok) {
-        const errBody = await res.text();
-        console.error("Anthropic API error:", res.status, errBody);
-        return null;
-      }
-      return res.json();
+    // The tool definition, in the shared shape. Anthropic calls this field
+    // `input_schema` and OpenAI-compatible providers call it `parameters`;
+    // _shared/llm.ts maps it per provider so there's one definition here.
+    const tool: ToolDef = {
+      name: SEARCH_TOOL.name,
+      description: SEARCH_TOOL.description,
+      parameters: SEARCH_TOOL.input_schema,
     };
 
-    let data = await callAnthropic();
-    if (!data) {
-      return new Response(
-        JSON.stringify({ message: "I'm having trouble processing your request. Please try again later." }),
-        { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    const runTool = async (name: string, args: Record<string, unknown>) =>
+      name === "search_platform" ? await runSearchTool(args as any) : { error: "unknown tool" };
+
+    const result = await runAgent(system, turns, [tool], runTool);
+
+    // The model was unreachable. Rather than a dead chat box, search the
+    // directory directly and hand back real listings.
+    //
+    // The wording matters more than it looks. An earlier version always said
+    // "I couldn't find anything matching X" — which, when the real cause was a
+    // rate limit, told the user their own directory was empty. On a platform
+    // whose pitch is discovery, that's a damaging thing to say untruthfully.
+    // So the message names the actual cause, and the listings are offered as
+    // what we *can* still confirm.
+    if (!result.ok) {
+      console.warn(`Assistant degraded (${result.reason}) — answering from search only.`);
+
+      const listings = await searchOnlyAnswer(trimmedQuery);
+      const preamble = result.reason === "rate_limited"
+        ? "The assistant is handling a lot of requests right now, so I can't answer in full for a moment."
+        : "I can't reach the assistant right now.";
+
+      const message = listings
+        ? `${preamble} Here's what I can pull straight from the directory:\n\n${listings}`
+        : `${preamble} Please try again shortly — in the meantime you can browse [businesses](/businesses), [ad placements](/adverts) or [creative services](/media).`;
+
+      // Upstream detail is withheld unless ASSISTANT_DEBUG is set — it is
+      // operator diagnostics, not something a visitor should be shown.
+      const debug = Deno.env.get("ASSISTANT_DEBUG")
+        ? { status: result.status, detail: result.detail }
+        : {};
+
+      return new Response(JSON.stringify({ message, degraded: true, reason: result.reason, ...debug }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // One round of tool use is enough for a chat widget: search, then answer.
-    if (data.stop_reason === "tool_use") {
-      const toolUseBlocks = (data.content || []).filter((b: any) => b.type === "tool_use");
-
-      anthropicMessages.push({ role: "assistant", content: data.content });
-
-      const toolResults = await Promise.all(
-        toolUseBlocks.map(async (block: any) => {
-          const result =
-            block.name === "search_platform" ? await runSearchTool(block.input || {}) : { error: "unknown tool" };
-          return {
-            type: "tool_result",
-            tool_use_id: block.id,
-            content: JSON.stringify(result),
-          };
-        })
-      );
-      anthropicMessages.push({ role: "user", content: toolResults });
-
-      data = await callAnthropic();
-      if (!data) {
-        return new Response(
-          JSON.stringify({ message: "I found some results but had trouble finishing my answer. Please try again." }),
-          { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
-    }
-
-    const assistantMessage = extractText(data.content || []) || "I couldn't generate a response.";
-
-    return new Response(JSON.stringify({ message: assistantMessage }), {
+    return new Response(JSON.stringify({ message: result.text }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {

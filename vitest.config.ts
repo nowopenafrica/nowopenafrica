@@ -10,7 +10,13 @@ export default defineConfig({
     environment: 'jsdom',
     globals: true,
     setupFiles: './src/test/setup.ts',
-    include: ['src/**/*.{test,spec}.{ts,tsx}'],
+    // Edge functions are Deno and mostly unreachable from Node, but the LLM
+    // provider layer is pure TypeScript with no remote imports, so its tests run
+    // here rather than being untested until deploy.
+    include: [
+      'src/**/*.{test,spec}.{ts,tsx}',
+      'supabase/functions/**/*.{test,spec}.ts',
+    ],
     css: false,
   },
 });

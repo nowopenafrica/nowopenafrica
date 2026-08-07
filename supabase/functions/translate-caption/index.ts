@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
+import { runAgent } from "../_shared/llm.ts";
 
 const corsHeaders = {
   // See chatbot/index.ts for why this is intentionally "*" — anon-key-only,
@@ -9,9 +10,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Client-Info, Apikey",
 };
 
-// Haiku, not Opus — this runs once per caption line while a stream is live,
-// so latency and cost matter far more than depth here.
-const MODEL = "claude-haiku-4-5";
+// The model comes from _shared/llm.ts (whichever key is set). This runs once
+// per caption line while a stream is live, so latency matters more than depth —
+// which is one reason Groq's default is a good fit here.
 const MAX_TEXT_LENGTH = 500;
 // A live broadcaster's speech can generate a caption line every few seconds —
 // higher ceiling than the chat widget, but still bounded.
@@ -57,35 +58,19 @@ Deno.serve(async (req: Request) => {
     const languageName = LANG_NAMES[targetLang] || targetLang;
     const trimmedText = text.slice(0, MAX_TEXT_LENGTH);
 
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": Deno.env.get("ANTHROPIC_API_KEY") || "",
-        "anthropic-version": "2023-06-01",
-      },
-      body: JSON.stringify({
-        model: MODEL,
-        max_tokens: 300,
-        system: `You translate live-stream captions to ${languageName}. Reply with ONLY the translated text — no quotes, no explanation, no original text.`,
-        messages: [{ role: "user", content: trimmedText }],
-      }),
-    });
+    // Same provider layer as the assistant, so one key (Groq, OpenRouter or
+    // Anthropic) powers both. No tools — this is a single translate turn.
+    const result = await runAgent(
+      `You translate live-stream captions to ${languageName}. Reply with ONLY the translated text — no quotes, no explanation, no original text.`,
+      [{ role: "user", content: trimmedText }],
+      [],
+      undefined,
+      { maxTokens: 300 },
+    );
 
-    if (!res.ok) {
-      const errBody = await res.text();
-      console.error("Anthropic API error:", res.status, errBody);
-      return new Response(JSON.stringify({ translation: text }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    const data = await res.json();
-    const translation = (data.content || [])
-      .filter((b: any) => b.type === "text")
-      .map((b: any) => b.text)
-      .join("")
-      .trim() || text;
+    // Captions are live: returning the untranslated original is far better than
+    // an error, so every failure path degrades to the source text.
+    const translation = result.ok ? result.text : text;
 
     return new Response(JSON.stringify({ translation }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
