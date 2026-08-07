@@ -22,14 +22,8 @@ import ProposalStudio from '../components/studio/ProposalStudio';
 import DigitalCatalogue from '../components/studio/DigitalCatalogue';
 import SocialStudioHub from '../components/studio/SocialStudioHub';
 import { GrowthPlanModule } from '../lib/growth';
+import { HUBS, HOME_MODULES, INTENTS, greeting, type ModuleKey } from '../lib/studioHubs';
 
-type ModuleKey =
-  | 'home' | 'brand-kit' | 'card'
-  | 'design' | 'social' | 'copywriter' | 'assistant'
-  | 'campaigns' | 'promotions' | 'live-promo' | 'planner' | 'landing'
-  | 'quotations' | 'invoices' | 'catalogues' | 'loyalty'
-  | 'health' | 'analytics' | 'challenges'
-  | 'media' | 'export';
 
 interface ModuleMeta {
   key: ModuleKey;
@@ -39,69 +33,38 @@ interface ModuleMeta {
   soon?: boolean;
 }
 
-const MODULES: { group: string; items: ModuleMeta[] }[] = [
-  {
-    group: 'Growth',
-    items: [
-      { key: 'home', label: 'Growth Center', icon: Home, desc: 'Your growth score, weekly plan and quick wins — the heartbeat of Studio.' },
-      { key: 'challenges', label: 'Growth Challenges', icon: Trophy, desc: 'Gamified sprints that turn advice into finished actions — earn points as you grow.' },
-    ],
-  },
-  {
-    group: 'Brand',
-    items: [
-      { key: 'brand-kit', label: 'Brand OS', icon: Palette, desc: 'Your identity, voice, colours, stationery and brand health — how your entire brand works.' },
-      { key: 'card', label: 'Digital Business Card', icon: CreditCard, desc: 'A professional business card with a live QR that always points to your profile.' },
-    ],
-  },
-  {
-    group: 'Content',
-    items: [
-      { key: 'design', label: 'Creative Studio', icon: LayoutPanelTop, desc: 'Flyers, posters, banners, stories and social graphics — one studio, every size. Quick Create, AI copy, live previews and a full campaign pack.' },
-      { key: 'social', label: 'AI Marketing Department', icon: Instagram, desc: 'Daily Growth, AI Director, Trend Radar, Monthly Planner, Campaign Marketplace, Content Factory, Growth Score and AI Notifications.' },
-    ],
-  },
-  {
-    group: 'Marketing',
-    items: [
-      { key: 'campaigns', label: 'Campaign Manager', icon: Mail, desc: 'Email, SMS, WhatsApp, announcements and one-click campaigns — coordinated in one place.' },
-      { key: 'live-promo', label: 'Live Promotion Center', icon: Zap, desc: 'Create, schedule, launch and count down promotions — then share them on WhatsApp.' },
-      { key: 'landing', label: 'Landing Pages', icon: LayoutTemplate, desc: 'A one-page site for launches, events and offers.' },
-    ],
-  },
-  {
-    group: 'Sales',
-    items: [
-      { key: 'quotations', label: 'Quotes & Proposals', icon: FileText, desc: 'Professional quotes and proposals customers can approve in one tap.' },
-      { key: 'invoices', label: 'Invoices & Payments', icon: Receipt, desc: 'Invoice, receipt and payment reminders that look the part.' },
-      { key: 'catalogues', label: 'Product Catalogue', icon: Store, desc: 'Turn your products or menu into a shareable digital catalogue.' },
-    ],
-  },
-  {
-    group: 'Customers',
-    items: [
-      { key: 'loyalty', label: 'Loyalty Hub', icon: Heart, desc: 'Reward regulars and bring them back with points, stamp cards and VIP perks.' },
-    ],
-  },
-  {
-    group: 'Insights',
-    items: [
-      { key: 'health', label: 'Business Health', icon: Activity, desc: 'Your growth score, trust signals and coach recommendations in one dashboard.' },
-      { key: 'analytics', label: 'Campaign Analytics', icon: TrendingUp, desc: 'Your Marketing Health Score, weekly activity and rule-based next steps in one dashboard.' },
-    ],
-  },
-  {
-    group: 'Manage',
-    items: [
-      { key: 'media', label: 'Media Library', icon: ImagePlus, desc: 'Your logo, cover and brand files — cloud synced for every Studio export.' },
-      { key: 'export', label: 'Export Centre', icon: PackageOpen, desc: 'Download every asset Studio has created for you, all in one place.' },
-    ],
-  },
-];
+// How each module presents itself. WHERE it appears is decided by lib/studioHubs
+// — keeping the two apart is what lets the IA be tested without importing React.
+const META: Record<ModuleKey, ModuleMeta> = {
+  home: { key: 'home', label: 'Growth Center', icon: Home, desc: 'Your growth score, weekly plan and quick wins — the heartbeat of Studio.' },
+  challenges: { key: 'challenges', label: 'Growth Challenges', icon: Trophy, desc: 'Gamified sprints that turn advice into finished actions — earn points as you grow.' },
 
-// Old module keys still referenced by the weekly growth plan, now grouped into
-// their broader modules. Kept as aliases so nothing breaks when a task sends
-// you straight to a feature.
+  design: { key: 'design', label: 'Creative Studio', icon: LayoutPanelTop, desc: 'Flyers, posters, banners, stories and social graphics — one studio, every size. Quick Create, AI copy, live previews and a full campaign pack.' },
+  'brand-kit': { key: 'brand-kit', label: 'Brand OS', icon: Palette, desc: 'Your identity, voice, colours, stationery and brand health — how your entire brand works.' },
+  card: { key: 'card', label: 'Digital Business Card', icon: CreditCard, desc: 'A professional business card with a live QR that always points to your profile.' },
+  landing: { key: 'landing', label: 'Landing Pages', icon: LayoutTemplate, desc: 'A one-page site for launches, events and offers.' },
+
+  social: { key: 'social', label: 'AI Marketing Department', icon: Instagram, desc: 'Daily Growth, AI Director, Trend Radar, Monthly Planner, Campaign Marketplace, Content Factory, Growth Score and AI Notifications.' },
+  campaigns: { key: 'campaigns', label: 'Campaign Manager', icon: Mail, desc: 'Email, SMS, WhatsApp, announcements and one-click campaigns — coordinated in one place.' },
+  'live-promo': { key: 'live-promo', label: 'Live Promotion Center', icon: Zap, desc: 'Create, schedule, launch and count down promotions — then share them on WhatsApp.' },
+
+  quotations: { key: 'quotations', label: 'Quotes & Proposals', icon: FileText, desc: 'Professional quotes and proposals customers can approve in one tap.' },
+  invoices: { key: 'invoices', label: 'Invoices & Payments', icon: Receipt, desc: 'Invoice, receipt and payment reminders that look the part.' },
+  catalogues: { key: 'catalogues', label: 'Product Catalogue', icon: Store, desc: 'Turn your products or menu into a shareable digital catalogue.' },
+  loyalty: { key: 'loyalty', label: 'Loyalty Hub', icon: Heart, desc: 'Reward regulars and bring them back with points, stamp cards and VIP perks.' },
+  health: { key: 'health', label: 'Business Health', icon: Activity, desc: 'Your growth score, trust signals and coach recommendations in one dashboard.' },
+  analytics: { key: 'analytics', label: 'Campaign Analytics', icon: TrendingUp, desc: 'Your Marketing Health Score, weekly activity and rule-based next steps in one dashboard.' },
+  media: { key: 'media', label: 'Media Library', icon: ImagePlus, desc: 'Your logo, cover and brand files — cloud synced for every Studio export.' },
+  export: { key: 'export', label: 'Export Centre', icon: PackageOpen, desc: 'Download every asset Studio has created for you, all in one place.' },
+
+  // Merged into larger tools; reachable by deep link so emailed brand kits and
+  // old links keep working.
+  promotions: { key: 'promotions', label: 'Promotion Builder', icon: WalletCards, desc: 'BOGO, discounts, referrals, loyalty and more — designed & ready to share in Creative Studio.' },
+  planner: { key: 'planner', label: 'Content Planner', icon: CalendarDays, desc: 'Plan posts, promos and stories — now in the AI Marketing Department > Monthly Planner.' },
+  copywriter: { key: 'copywriter', label: 'AI Copywriter', icon: PenLine, desc: 'Captions, ads, emails and hashtags — now in the AI Marketing Department > Content Factory.' },
+  assistant: { key: 'assistant', label: 'AI Business Assistant', icon: MessageCircle, desc: 'Ask anything about customers, campaigns and growth — now in the AI Marketing Department > AI Director.' },
+};
+
 const ALIAS: Partial<Record<GrowthPlanModule, ModuleKey>> = {
   flyer: 'design',
   poster: 'design',
@@ -114,15 +77,6 @@ const ALIAS: Partial<Record<GrowthPlanModule, ModuleKey>> = {
 // Department) but are still valid deep-link targets from growth plans,
 // challenges and the AI assistant. They stay out of the sidebar so nothing is
 // duplicated.
-const HIDDEN_MODULES: ModuleKey[] = ['promotions', 'planner', 'copywriter', 'assistant'];
-
-const HIDDEN_META: Partial<Record<ModuleKey, ModuleMeta>> = {
-  promotions: { key: 'promotions', label: 'Promotion Builder', icon: WalletCards, desc: 'BOGO, discounts, referrals, loyalty and more — designed & ready to share in Creative Studio.' },
-  planner: { key: 'planner', label: 'Content Planner', icon: CalendarDays, desc: 'Plan posts, promos and stories — now in the AI Marketing Department > Monthly Planner.' },
-  copywriter: { key: 'copywriter', label: 'AI Copywriter', icon: PenLine, desc: 'Captions, ads, emails and hashtags — now in the AI Marketing Department > Content Factory.' },
-  assistant: { key: 'assistant', label: 'AI Business Assistant', icon: MessageCircle, desc: 'Ask anything about customers, campaigns and growth — now in the AI Marketing Department > AI Director.' },
-};
-
 const ROADMAP: { label: string; icon: typeof Printer }[] = [
   { label: 'Presentation Builder', icon: Presentation },
   { label: 'Print Studio', icon: Printer },
@@ -173,12 +127,12 @@ export default function Studio() {
     const module = new URLSearchParams(window.location.search).get('module');
     if (!module) return;
     const target = ALIAS[module as GrowthPlanModule]
-      ?? ((MODULES.some((g) => g.items.some((m) => m.key === module)) || (HIDDEN_MODULES as string[]).includes(module)) ? (module as ModuleKey) : undefined);
+      ?? (module in META ? (module as ModuleKey) : undefined);
     if (target) setActive(target);
   }, []);
 
   const business = businesses.find((b) => String(b.id) === selectedId);
-  const activeMeta = MODULES.flatMap((g) => g.items).find((m) => m.key === active) ?? HIDDEN_META[active];
+  const activeMeta = META[active];
 
   const renderModule = () => {
     if (!business) return null;
@@ -251,17 +205,15 @@ export default function Studio() {
                 </div>
               )}
               <nav className="flex lg:flex-col gap-1 lg:gap-0 overflow-x-auto pb-2 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0">
-                {MODULES.map((group) => (
-                  <div key={group.group} className="flex lg:flex-col gap-1 lg:gap-0 lg:mb-3 shrink-0">
-                    <p className="hidden lg:block text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold px-2 mb-1">{group.group}</p>
-                    {group.items.map((m) => (
-                      <button key={m.key} onClick={() => setActive(m.key)}
-                        className={`inline-flex items-center gap-2 px-2.5 py-2 rounded-lg text-sm font-medium whitespace-nowrap lg:w-full transition ${active === m.key ? 'bg-purple-600 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}>
-                        <m.icon size={15} />
-                        <span>{m.label}</span>
-                        {m.soon && <span className="ml-auto hidden lg:inline text-[9px] font-bold uppercase text-purple-300 dark:text-purple-400">{'Soon'}</span>}
-                      </button>
-                    ))}
+                {/* Growth sits above the hubs — it's the front door, not a peer. */}
+                <div className="flex lg:flex-col gap-1 lg:gap-0 lg:mb-4 shrink-0">
+                  {HOME_MODULES.map((key) => <NavItem key={key} meta={META[key]} active={active} onClick={setActive} />)}
+                </div>
+
+                {HUBS.map((hub) => (
+                  <div key={hub.key} className="flex lg:flex-col gap-1 lg:gap-0 lg:mb-4 shrink-0">
+                    <p className="hidden lg:block text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold px-2 mb-1">{hub.label}</p>
+                    {hub.modules.map((key) => <NavItem key={key} meta={META[key]} active={active} onClick={setActive} />)}
                   </div>
                 ))}
               </nav>
@@ -269,6 +221,8 @@ export default function Studio() {
 
             {/* Content */}
             <section className="min-w-0">
+              {active === 'home' && <IntentLauncher name={business?.name} onPick={setActive} />}
+
               <div className="mb-5">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">{activeMeta?.label}</h2>
                 <p className="text-sm text-gray-500 dark:text-gray-400">{activeMeta?.desc}</p>
@@ -297,6 +251,62 @@ export default function Studio() {
             </section>
           </div>
         )}
+      </div>
+    </div>
+  );
+}
+
+function NavItem({ meta, active, onClick }: { meta: ModuleMeta; active: ModuleKey; onClick: (k: ModuleKey) => void }) {
+  const Icon = meta.icon;
+  return (
+    <button
+      onClick={() => onClick(meta.key)}
+      aria-current={active === meta.key ? 'page' : undefined}
+      className={`inline-flex items-center gap-2 px-2.5 min-h-[44px] rounded-lg text-sm font-medium whitespace-nowrap lg:w-full transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${active === meta.key ? 'bg-purple-600 text-white' : 'text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-800'}`}
+    >
+      <Icon size={15} />
+      <span>{meta.label}</span>
+      {meta.soon && <span className="ml-auto hidden lg:inline text-[9px] font-bold uppercase text-purple-300 dark:text-purple-400">Soon</span>}
+    </button>
+  );
+}
+
+/**
+ * "What do you want to create today?"
+ *
+ * The old Studio opened on a dashboard of scores. That answers "how am I
+ * doing?", which is a question owners ask occasionally, while the question they
+ * arrive with is "I need a poster for Saturday". These tiles name outcomes, not
+ * tools, and route to modules that already exist.
+ */
+function IntentLauncher({ name, onPick }: { name?: string; onPick: (k: ModuleKey) => void }) {
+  // Read the clock once per mount. Impure calls don't belong in render or a
+  // memo — the React Compiler flags them, and a greeting that flips mid-session
+  // is worse than one that's a few minutes stale.
+  const [hour] = useState(() => new Date().getHours());
+
+  return (
+    <div className="mb-6 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+      <h2 className="text-xl font-bold text-gray-900 dark:text-white">
+        {greeting(hour)}{name ? `, ${name}` : ''} 👋
+      </h2>
+      <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">What do you want to create today?</p>
+
+      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {INTENTS.map((intent) => (
+          <button
+            key={intent.id}
+            onClick={() => onPick(intent.target)}
+            className="group text-left p-3 min-h-[44px] rounded-xl border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+          >
+            <span className="block text-sm font-bold text-gray-900 dark:text-white group-hover:text-purple-700 dark:group-hover:text-purple-300">
+              {intent.label}
+            </span>
+            <span className="block mt-0.5 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+              {intent.outcome}
+            </span>
+          </button>
+        ))}
       </div>
     </div>
   );
