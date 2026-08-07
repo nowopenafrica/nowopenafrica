@@ -136,22 +136,52 @@ export interface FetchStockOptions {
   signal?: AbortSignal;
 }
 
+/**
+ * Search Pexels for clips.
+ *
+ * Prefers the `stock-footage` edge function, which holds the API key as a
+ * Supabase secret. The direct-from-browser path is kept only for an owner who
+ * pasted their own key into the Studio, because that key is theirs and never
+ * leaves their machine — but the platform's key must not ship in the bundle,
+ * which is exactly what VITE_PEXELS_API_KEY did.
+ *
+ * Only the search is proxied. The clip URLs it returns are public, so the
+ * browser still streams video straight from videos.pexels.com to the canvas.
+ */
 export async function fetchStockVideos(query: string, opts: FetchStockOptions = {}): Promise<StockClip[]> {
+  const orientation = opts.orientation ?? 'portrait';
+  const perPage = opts.perPage ?? 8;
   const key = getStockApiKey();
-  if (!key) return [];
-  const params = new URLSearchParams({
-    query,
-    orientation: opts.orientation ?? 'portrait',
-    per_page: String(opts.perPage ?? 8),
-    size: 'medium',
-  });
-  const res = await fetch(`https://api.pexels.com/videos/search?${params.toString()}`, {
-    headers: { Authorization: key },
-    signal: opts.signal,
-  });
-  if (!res.ok) throw new Error(`Pexels search failed (${res.status})`);
-  const data = (await res.json()) as { videos?: PexelsVideo[] };
-  const aspect = opts.orientation === 'portrait' ? 'Vertical' : opts.orientation === 'landscape' ? 'Landscape' : 'Square';
+
+  let data: { videos?: PexelsVideo[] };
+
+  if (key) {
+    const params = new URLSearchParams({ query, orientation, per_page: String(perPage), size: 'medium' });
+    const res = await fetch(`https://api.pexels.com/videos/search?${params.toString()}`, {
+      headers: { Authorization: key },
+      signal: opts.signal,
+    });
+    if (!res.ok) throw new Error(`Pexels search failed (${res.status})`);
+    data = (await res.json()) as { videos?: PexelsVideo[] };
+  } else {
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/stock-footage`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({ query, orientation, perPage }),
+      signal: opts.signal,
+    });
+    if (!res.ok) return [];
+    const body = await res.json().catch(() => null);
+    // No key on the server either — an empty list, not an exception, so the
+    // renderer simply falls back to designed graphics for every scene.
+    if (!body?.ok) return [];
+    data = body as { videos?: PexelsVideo[] };
+  }
+
+  const aspect = orientation === 'portrait' ? 'Vertical' : orientation === 'landscape' ? 'Landscape' : 'Square';
   return (data.videos ?? [])
     .map((v) => ({
       id: v.id,
@@ -182,8 +212,10 @@ export interface ResolveFootageOptions {
  */
 export async function resolveFootage(opts: ResolveFootageOptions): Promise<Record<number, StockClip>> {
   const out: Record<number, StockClip> = {};
-  if (!hasStockApiKey()) return out;
-
+  // No early return on a missing client key any more: the platform's key now
+  // lives on the server, so footage can be available with nothing set locally.
+  // fetchStockVideos returns [] when neither has one, which lands here as an
+  // empty map — the same outcome, reached honestly.
   const queries = opts.scenes.map((s, i) => footageQueryForScene(opts.industry, s, i, opts.directionLabel));
   const orientation = orientationForAspect(opts.aspect);
   const results = new Map<string, StockClip[]>();

@@ -38,7 +38,7 @@ describe('resolveImageProvider', () => {
 
   it('defaults to an open-weight model, overridable per deployment', () => {
     env = { HUGGINGFACE_API_KEY: 'h' };
-    expect(resolveImageProvider().model).toBe('black-forest-labs/FLUX.1-schnell');
+    expect(resolveImageProvider().model).toBe('stabilityai/stable-diffusion-3-medium-diffusers');
 
     env = { HUGGINGFACE_API_KEY: 'h', IMAGE_MODEL: 'stabilityai/sdxl-turbo' };
     expect(resolveImageProvider().model).toBe('stabilityai/sdxl-turbo');
@@ -70,6 +70,13 @@ describe('generateImage — Hugging Face', () => {
     // The seed must reach the model, or a re-render produces a different image.
     const body = JSON.parse(fetchMock.mock.calls[0][1].body);
     expect(body.parameters).toMatchObject({ width: 512, height: 512, seed: 7 });
+
+    // The old api-inference host was retired and no longer resolves in DNS, so
+    // pin the router URL — a silent revert would fail with a lookup error that
+    // reads nothing like "wrong endpoint".
+    expect(fetchMock.mock.calls[0][0]).toBe(
+      'https://router.huggingface.co/hf-inference/models/stabilityai/stable-diffusion-3-medium-diffusers',
+    );
   });
 
   it('distinguishes a cold model (503) from a real failure', async () => {

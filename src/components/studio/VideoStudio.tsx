@@ -6,6 +6,7 @@ import { directorScenesFromReel, voiceoverScript, shotList } from '../../lib/ree
 import { renderVideo, RENDER_DIMENSIONS, type RenderAspect } from '../../lib/renderVideo';
 import { generateKeyArt, keyArtMessage } from '../../lib/aiKeyArt';
 import { industryByKey, industryKeyForCategory } from '../../lib/videoCreator';
+import { resolveFootage, orientationForAspect } from '../../lib/stockFootage';
 
 // Video Studio.
 //
@@ -52,9 +53,12 @@ export default function VideoStudio({ business }: { business: Business }) {
   const [aspect, setAspect] = useState<RenderAspect>('Vertical');
   const [script, setScript] = useState<ReelScript>(() => generateReel(business, '15s Reel'));
 
-  const [useKeyArt, setUseKeyArt] = useState(false);
+  // Two independent sources of real visuals. Footage wins per scene where both
+  // exist — real film beats a generated still — and any scene with neither
+  // falls back to the designed graphic.
+  const [visuals, setVisuals] = useState<'graphics' | 'footage' | 'keyart'>('graphics');
   const [rendering, setRendering] = useState(false);
-  const [stage, setStage] = useState<'idle' | 'art' | 'film'>('idle');
+  const [stage, setStage] = useState<'idle' | 'art' | 'footage' | 'film'>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -73,11 +77,29 @@ export default function VideoStudio({ business }: { business: Business }) {
     setProgress(0);
     try {
       const scenes = directorScenesFromReel(script);
+      const industry = industryByKey(industryKeyForCategory(business.category || ''));
       let aiImages: (string | null)[] | undefined;
+      let footage: Awaited<ReturnType<typeof resolveFootage>> | undefined;
 
-      if (useKeyArt) {
+      if (visuals === 'footage') {
+        setStage('footage');
+        footage = await resolveFootage({
+          industry,
+          scenes,
+          directionLabel: format,
+          aspect: orientationForAspect(aspect) === 'portrait' ? 'Vertical'
+            : orientationForAspect(aspect) === 'landscape' ? 'Landscape' : 'Square',
+        });
+        const found = Object.keys(footage).length;
+        if (found < scenes.length) {
+          setNotice(found === 0
+            ? 'No stock footage is available yet, so the video uses designed graphics. Ask your admin to connect a Pexels key.'
+            : `Found footage for ${found} of ${scenes.length} scenes; the rest use designed graphics.`);
+        }
+      }
+
+      if (visuals === 'keyart') {
         setStage('art');
-        const industry = industryByKey(industryKeyForCategory(business.category || ''));
         const art = await generateKeyArt({
           businessName: business.name,
           industryLabel: industry.label,
@@ -103,6 +125,7 @@ export default function VideoStudio({ business }: { business: Business }) {
           aspect,
           scenesCount: script.scenes.length,
           aiImages,
+          footage,
         },
         scenes,
         (p) => setProgress(p),
@@ -221,9 +244,11 @@ export default function VideoStudio({ business }: { business: Business }) {
               <Clapperboard size={15} className="text-purple-500" /> Download the video
             </h3>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 max-w-md">
-              {useKeyArt
-                ? 'Generates a still for each scene with an open-weight image model, then films it with camera motion and your captions on top.'
-                : 'Renders your script with designed graphics — captions, timing and transitions. Turn on key art to have each scene generated instead.'}
+              {visuals === 'footage'
+                ? 'Films real stock clips chosen for your industry, with your captions and timing over them.'
+                : visuals === 'keyart'
+                  ? 'Generates a still for each scene with an open-weight image model, then films it with camera motion and your captions on top.'
+                  : 'Renders your script with designed graphics — captions, timing and transitions.'}
             </p>
           </div>
           <button
@@ -235,29 +260,42 @@ export default function VideoStudio({ business }: { business: Business }) {
             {rendering
               ? stage === 'art'
                 ? `Generating key art ${Math.round(progress * 100)}%`
-                : `Filming ${Math.round(progress * 100)}%`
+                : stage === 'footage'
+                  ? 'Finding footage…'
+                  : `Filming ${Math.round(progress * 100)}%`
               : `Render ${seconds}s video`}
           </button>
         </div>
 
-        <label className="mt-3 flex items-start gap-2.5 cursor-pointer">
-          <input
-            type="checkbox"
-            checked={useKeyArt}
-            onChange={(e) => setUseKeyArt(e.target.checked)}
-            disabled={rendering}
-            className="mt-0.5 w-4 h-4 rounded accent-purple-600"
-          />
-          <span className="min-w-0">
-            <span className="block text-xs font-semibold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-              <Sparkles size={12} className="text-purple-500" /> Generate key art for each scene
-            </span>
-            <span className="block text-[11px] text-gray-500 dark:text-gray-400">
-              Adds about {script.scenes.length * 8}s while the images generate. Scenes that fail fall back to designed
-              graphics, so you always get a finished video.
-            </span>
-          </span>
-        </label>
+        <fieldset className="mt-3" disabled={rendering}>
+          <legend className="text-[11px] font-bold text-gray-600 dark:text-gray-300 mb-1.5">Visuals</legend>
+          <div className="flex flex-wrap gap-2">
+            {([
+              { key: 'graphics', label: 'Designed graphics', icon: Film, note: 'Instant' },
+              { key: 'footage', label: 'Real stock footage', icon: Clapperboard, note: `~${script.scenes.length * 2}s` },
+              { key: 'keyart', label: 'Generated key art', icon: Sparkles, note: `~${script.scenes.length * 8}s` },
+            ] as const).map((o) => (
+              <button
+                key={o.key}
+                type="button"
+                onClick={() => { setVisuals(o.key); setNotice(null); }}
+                aria-pressed={visuals === o.key}
+                className={`inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-xl border text-xs font-semibold transition disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                  visuals === o.key
+                    ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                    : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700/50'
+                }`}
+              >
+                <o.icon size={13} />
+                {o.label}
+                <span className="text-[10px] font-normal opacity-70">{o.note}</span>
+              </button>
+            ))}
+          </div>
+          <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
+            Any scene without a clip or an image falls back to designed graphics, so you always get a finished video.
+          </p>
+        </fieldset>
 
         {rendering && (
           <div className="mt-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">

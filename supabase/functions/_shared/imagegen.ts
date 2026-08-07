@@ -30,11 +30,18 @@ export interface ImageProviderConfig {
 }
 
 const DEFAULTS: Record<Exclude<ImageProviderName, "none">, string> = {
-  // Schnell = "fast": 4 inference steps, Apache-2.0, good enough for key art
-  // that will sit behind a Ken Burns move and a caption.
-  huggingface: "black-forest-labs/FLUX.1-schnell",
+  // Open-weight, and — the part that matters — actually served by the
+  // `hf-inference` provider. FLUX.1-schnell is the more obvious pick but HF
+  // routes it through nscale/together, not hf-inference, so asking for it on
+  // this route 404s. Override with IMAGE_MODEL if you add another provider.
+  huggingface: "stabilityai/stable-diffusion-3-medium-diffusers",
   replicate: "black-forest-labs/flux-schnell",
 };
+
+// api-inference.huggingface.co was retired — it no longer resolves in DNS at
+// all, which is why the first deploy failed with a lookup error rather than an
+// HTTP status. Inference Providers replaced it with a per-provider router.
+const HF_ROUTER = "https://router.huggingface.co/hf-inference/models";
 
 export function resolveImageProvider(): ImageProviderConfig {
   const env = (k: string) => Deno.env.get(k) || "";
@@ -96,7 +103,7 @@ function toDataUrl(bytes: Uint8Array, contentType: string): string {
 // --- Hugging Face -----------------------------------------------------------
 
 async function runHuggingFace(cfg: ImageProviderConfig, req: ImageRequest): Promise<ImageOutcome> {
-  const res = await fetch(`https://api-inference.huggingface.co/models/${cfg.model}`, {
+  const res = await fetch(`${HF_ROUTER}/${cfg.model}`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${Deno.env.get("HUGGINGFACE_API_KEY")}`,

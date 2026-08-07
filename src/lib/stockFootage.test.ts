@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import {
   orientationForAspect, footageQueryForScene, bestMp4ForAspect, pickClipForScene,
-  getStockApiKey, hasStockApiKey, setStockApiKey, resolveFootage,
+  getStockApiKey, hasStockApiKey, setStockApiKey, resolveFootage, clearFootageCache,
   type StockClip, type PexelsVideoFile,
 } from './stockFootage';
 import { VIDEO_INDUSTRIES, industryByKey } from './videoCreator';
@@ -122,9 +122,42 @@ describe('stockFootage — API key', () => {
 });
 
 describe('stockFootage — resolve', () => {
-  it('returns an empty map without a key instead of fetching', async () => {
+  // No client key no longer means "don't look": the platform's Pexels key now
+  // lives on the server, so the search goes through the stock-footage function.
+  it('asks the proxy when there is no local key, and maps what comes back', async () => {
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({
+        ok: true,
+        videos: [{
+          id: 42, image: 'p.jpg', width: 1080, height: 1920, duration: 12,
+          video_files: [{ link: 'https://videos.pexels.com/a.mp4', file_type: 'video/mp4', width: 1080, height: 1920, quality: 'hd' }],
+        }],
+      }),
+    }) as any));
+
+    const map = await resolveFootage({ industry, scenes: [scene()], directionLabel: 'Commercial', aspect: 'Vertical' });
+    expect(map[0]?.url).toBe('https://videos.pexels.com/a.mp4');
+
+    const [url, init] = (globalThis.fetch as any).mock.calls[0];
+    expect(String(url)).toContain('/functions/v1/stock-footage');
+    // The key must never be in a browser request — that's the whole point.
+    expect(JSON.stringify(init.headers)).not.toContain('pexels-');
+    vi.unstubAllGlobals();
+  });
+
+  it('returns an empty map when neither the client nor the server has a key', async () => {
+    // The query cache is module-level, so the previous test's clips would
+    // otherwise be served without any fetch happening at all.
+    clearFootageCache();
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: false, reason: 'no_provider', videos: [] }),
+    }) as any));
+
     const map = await resolveFootage({ industry, scenes: [scene()], directionLabel: 'Commercial', aspect: 'Vertical' });
     expect(map).toEqual({});
+    vi.unstubAllGlobals();
   });
 });
 
