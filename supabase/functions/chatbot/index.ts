@@ -62,7 +62,11 @@ Use the search_platform tool whenever someone asks about specific businesses, ad
 
 Do NOT use the tool for subscription plans and their pricing (Free Launch, Growth, Business Pro, Enterprise) — those are listed above; answer directly and link to /pricing. The tool only searches listings, and its "domain" must be exactly one of businesses, adverts, media, or all.
 
-Reply in short, friendly markdown: **bold** sparingly, a bullet list when there are multiple results, and markdown links like [Business Name](/username) or [View placement](/adverts/id) so people can click straight through. Keep answers brief — this is a chat widget, not an essay. If someone asks something unrelated to NowOpen Africa, answer briefly and steer back to how the platform can help.`;
+Reply in short, friendly markdown: **bold** sparingly, a bullet list when there are multiple results, and markdown links like [Business Name](/username) or [View placement](/adverts/id) so people can click straight through. Keep answers brief — this is a chat widget, not an essay. If someone asks something unrelated to NowOpen Africa, answer briefly and steer back to how the platform can help.
+
+Never narrate your own process. Do not mention the search_platform tool or the parameters you used, and do not open with a preamble like "Let me check" or "Searching..." — the visitor sees only your finished reply, so an announcement of work already done just reads as filler. Begin with the answer itself.
+
+When searching by place, put the plain noun in query ("restaurant") and the city in location ("Accra") — a whole phrase in query matches nothing, so a real listing would look like no result.`;
 
 const SEARCH_TOOL = {
   name: "search_platform",
@@ -78,11 +82,13 @@ const SEARCH_TOOL = {
       },
       query: {
         type: "string",
-        description: "Free-text search term — matched against name/title, description, and category.",
+        description:
+          "What kind of thing to find — matched against name/title, description and category. Use the noun ALONE, e.g. \"restaurant\", \"barber\", \"billboard\". Never put a city in here and never pass a whole sentence: this is a text match, so \"restaurants in Accra\" matches nothing.",
       },
       location: {
         type: "string",
-        description: "Optional city or country to filter by (businesses and adverts only).",
+        description:
+          "The city or country, passed separately from query — e.g. \"Accra\". This is how location filtering works (businesses and adverts only); putting it in query instead will return no results.",
       },
     },
     required: ["domain", "query"],

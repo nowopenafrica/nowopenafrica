@@ -61,7 +61,14 @@ Deno.serve(async (req: Request) => {
     // Same provider layer as the assistant, so one key (Groq, OpenRouter or
     // Anthropic) powers both. No tools — this is a single translate turn.
     const result = await runAgent(
-      `You translate live-stream captions to ${languageName}. Reply with ONLY the translated text — no quotes, no explanation, no original text.`,
+      // "Translate everything" is not redundant padding: an open-weight model
+      // will happily copy through numbers written as words ("eight" survived
+      // into a French caption), which reads as a glitch to a live audience.
+      `You translate live-stream captions to ${languageName}.
+
+Translate EVERY word, including numbers, times, prices and idioms — leave nothing in the source language. Keep it natural and spoken, the way a person would say it aloud, and keep it roughly the same length so it fits on screen.
+
+Reply with ONLY the translated text — no quotes, no explanation, no original text, no notes.`,
       [{ role: "user", content: trimmedText }],
       [],
       undefined,
