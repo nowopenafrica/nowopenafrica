@@ -43,10 +43,11 @@ export interface RenderOptions {
   logoEmoji?: string;
   /**
    * Real stock footage per scene index (from stockFootage.resolveFootage).
-   * When set AND `footageEnabled`, `drawFootageFrame`/`renderVideo` film the
-   * scene with the clip (Ken Burns + film grade) under the caption overlay.
+   * When set, `drawFootageFrame`/`renderVideo` film the scene with the clip
+   * (Ken Burns + film grade) under the caption overlay.
    */
   footage?: Record<number, StockClip>;
+  /** Only needed to opt OUT: set false to ignore `footage` and use graphics. */
   footageEnabled?: boolean;
   /**
    * Real AI-generated key art per scene index (object/data URLs from
@@ -715,6 +716,22 @@ function makeFootageVideo(url: string): HTMLVideoElement {
   return v;
 }
 
+/**
+ * Whether a render should film the supplied clips.
+ *
+ * Passing `footage` defaults to USING it. This used to require a second flag,
+ * which meant a caller could hand over a full footage map, receive a video of
+ * plain gradients, and get no error anywhere to say why — a silent failure that
+ * looked exactly like "no clips were found". Opting out is still possible, but
+ * now has to be deliberate.
+ *
+ * Exported so the rule is testable: renderVideo itself needs MediaRecorder and
+ * a real canvas, so nothing inside it can be covered under jsdom.
+ */
+export function footageIsEnabled(opts: Pick<SceneFrameOptions, 'footage' | 'footageEnabled'>): boolean {
+  return opts.footageEnabled !== false && !!opts.footage && Object.keys(opts.footage).length > 0;
+}
+
 /** Wait (bounded) for every footage clip to be ready to draw; failures fall back to graphics. */
 async function preloadFootageVideos(videos: (HTMLVideoElement | null)[]): Promise<void> {
   const pending = videos.filter((v): v is HTMLVideoElement => !!v && v.readyState < 2);
@@ -766,8 +783,7 @@ export async function renderVideo(
   const fps = timeline.fps;
   const mimeType = pickRenderMime(RENDER_MIME_CANDIDATES);
 
-  // Preload real stock footage when enabled; otherwise fall back to graphics.
-  const footageOn = !!opts.footageEnabled && !!opts.footage;
+  const footageOn = footageIsEnabled(opts);
   const videos: (HTMLVideoElement | null)[] = scenes.map((_, i) => {
     const clip = opts.footage?.[i];
     return footageOn && clip ? makeFootageVideo(clip.url) : null;

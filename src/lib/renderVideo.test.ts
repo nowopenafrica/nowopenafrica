@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   renderSeed, sceneRenderPlan, buildRenderTimeline, timelineAt,
   pickRenderMime, renderTotalSeconds, renderSceneStill, RENDER_DIMENSIONS, RENDER_FPS,
-  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO } from './renderVideo';
+  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled } from './renderVideo';
 import type { DirectorScene } from './creativeDirector';
 
 const base: RenderOptions = {
@@ -139,6 +139,27 @@ describe('renderVideo — mime selection', () => {
 describe('renderVideo — scene stills', () => {
   it('returns null gracefully when the canvas 2D context is unavailable (jsdom)', () => {
     expect(renderSceneStill(opts(), scenes[0], 0)).toBeNull();
+  });
+});
+
+describe('renderVideo — footage gating', () => {
+  const clip = { id: 1, url: 'https://videos.pexels.com/a.mp4', preview: '', width: 1080, height: 1920, duration: 12 };
+
+  // The regression: Video Studio passed a full footage map without the extra
+  // flag, so the render silently produced gradients and said nothing. Clips
+  // supplied must mean clips used.
+  it('films supplied clips without needing a second opt-in flag', () => {
+    expect(footageIsEnabled({ footage: { 0: clip } })).toBe(true);
+  });
+
+  it('still allows an explicit opt-out', () => {
+    expect(footageIsEnabled({ footage: { 0: clip }, footageEnabled: false })).toBe(false);
+  });
+
+  it('is off when there are no clips, so an empty search falls back to graphics', () => {
+    expect(footageIsEnabled({})).toBe(false);
+    expect(footageIsEnabled({ footage: {} })).toBe(false);
+    expect(footageIsEnabled({ footage: {}, footageEnabled: true })).toBe(false);
   });
 });
 

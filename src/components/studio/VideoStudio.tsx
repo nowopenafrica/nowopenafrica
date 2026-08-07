@@ -126,6 +126,9 @@ export default function VideoStudio({ business }: { business: Business }) {
           scenesCount: script.scenes.length,
           aiImages,
           footage,
+          // renderVideo gates footage on BOTH the map and this flag, so passing
+          // clips alone silently renders gradients instead.
+          footageEnabled: visuals === 'footage',
         },
         scenes,
         (p) => setProgress(p),
