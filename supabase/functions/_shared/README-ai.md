@@ -116,6 +116,43 @@ with `degraded: true` on the response. Captions fall back to the untranslated
 original. Both are worse than a model, and both are much better than an error —
 the assistant is never a dead box.
 
+## Image generation (Video Studio key art)
+
+`generate-image` is a second function with the same shape: provider chosen by
+whichever secret is set, key never leaves the server, response proxied so no
+provider host needs adding to the CSP.
+
+| Secret | Provider | Default model | Cost |
+| --- | --- | --- | --- |
+| `HUGGINGFACE_API_KEY` | Hugging Face Inference | `black-forest-labs/FLUX.1-schnell` | Free tier |
+| `REPLICATE_API_TOKEN` | Replicate | `black-forest-labs/flux-schnell` | ~$0.003/image |
+
+Get a free token at <https://huggingface.co/settings/tokens> (read scope is
+enough), then:
+
+```bash
+npx supabase secrets set HUGGINGFACE_API_KEY=hf_your_token --project-ref wvayqqfqqocwjripugnb
+```
+
+```bash
+curl -H "Authorization: Bearer $VITE_SUPABASE_ANON_KEY" https://wvayqqfqqocwjripugnb.supabase.co/functions/v1/generate-image
+```
+
+Override the model per deployment with `IMAGE_MODEL`.
+
+**The free tier's one quirk:** an idle model answers `503` while it loads, which
+surfaces as `reason: "loading"` and a "warming up, try again in a minute"
+message rather than a failure. Replicate has no cold start, at a small cost per
+image.
+
+**Key art is not text-to-video.** This generates one still per scene, which the
+canvas engine films with a Ken Burns move under your captions — real generated
+visuals, in a real video. Actual generated *footage* (Wan, LTX, Veo) is a
+different tier: roughly $0.05–$0.50 per clip and 1–3 minutes per generation, with
+no free option. The renderer already accepts per-scene clips via
+`RenderOptions.footage`, so that path is wiring plus a paid provider, not a
+rewrite.
+
 ## An honest note on "free"
 
 The *models* are open-weight; the *hosting* still needs a free account and an API

@@ -1,9 +1,11 @@
 import { useState } from 'react';
-import { Clapperboard, Copy, Check, Download, Loader2, Film, Mic, ListVideo } from 'lucide-react';
+import { Clapperboard, Copy, Check, Download, Loader2, Film, Mic, ListVideo, Sparkles } from 'lucide-react';
 import { Business } from '../../types';
 import { REEL_FORMATS, generateReel, totalDuration, type ReelFormat, type ReelScript } from '../../lib/video';
 import { directorScenesFromReel, voiceoverScript, shotList } from '../../lib/reelRender';
 import { renderVideo, RENDER_DIMENSIONS, type RenderAspect } from '../../lib/renderVideo';
+import { generateKeyArt, keyArtMessage } from '../../lib/aiKeyArt';
+import { industryByKey, industryKeyForCategory } from '../../lib/videoCreator';
 
 // Video Studio.
 //
@@ -50,21 +52,48 @@ export default function VideoStudio({ business }: { business: Business }) {
   const [aspect, setAspect] = useState<RenderAspect>('Vertical');
   const [script, setScript] = useState<ReelScript>(() => generateReel(business, '15s Reel'));
 
+  const [useKeyArt, setUseKeyArt] = useState(false);
   const [rendering, setRendering] = useState(false);
+  const [stage, setStage] = useState<'idle' | 'art' | 'film'>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   const pickFormat = (f: ReelFormat) => {
     setFormat(f);
     setScript(generateReel(business, f));
     setError(null);
+    setNotice(null);
   };
 
   const download = async () => {
     setRendering(true);
     setError(null);
+    setNotice(null);
     setProgress(0);
     try {
+      const scenes = directorScenesFromReel(script);
+      let aiImages: (string | null)[] | undefined;
+
+      if (useKeyArt) {
+        setStage('art');
+        const industry = industryByKey(industryKeyForCategory(business.category || ''));
+        const art = await generateKeyArt({
+          businessName: business.name,
+          industryLabel: industry.label,
+          directionLabel: format,
+          scenes,
+          aspect,
+          onProgress: (done, total) => setProgress(done / total),
+        });
+        aiImages = art.images;
+        // Say so when it didn't fully work. A video that quietly came back as
+        // plain gradients, with no explanation, is how "AI" features lose trust.
+        if (art.reason) setNotice(keyArtMessage(art.reason, art.generated, scenes.length));
+      }
+
+      setStage('film');
+      setProgress(0);
       const result = await renderVideo(
         {
           businessName: business.name,
@@ -73,8 +102,9 @@ export default function VideoStudio({ business }: { business: Business }) {
           cta: script.cta,
           aspect,
           scenesCount: script.scenes.length,
+          aiImages,
         },
-        directorScenesFromReel(script),
+        scenes,
         (p) => setProgress(p),
       );
 
@@ -91,6 +121,7 @@ export default function VideoStudio({ business }: { business: Business }) {
       setError(e instanceof Error ? e.message : 'Could not render the video.');
     } finally {
       setRendering(false);
+      setStage('idle');
       setProgress(0);
     }
   };
@@ -190,8 +221,9 @@ export default function VideoStudio({ business }: { business: Business }) {
               <Clapperboard size={15} className="text-purple-500" /> Download the video
             </h3>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 max-w-md">
-              Renders your script as a titled motion graphic — captions, timing and transitions — ready to post or to
-              use as the opening of a video you film yourself. It does not generate footage.
+              {useKeyArt
+                ? 'Generates a still for each scene with an open-weight image model, then films it with camera motion and your captions on top.'
+                : 'Renders your script with designed graphics — captions, timing and transitions. Turn on key art to have each scene generated instead.'}
             </p>
           </div>
           <button
@@ -200,9 +232,32 @@ export default function VideoStudio({ business }: { business: Business }) {
             className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
           >
             {rendering ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
-            {rendering ? `Rendering ${Math.round(progress * 100)}%` : `Render ${seconds}s video`}
+            {rendering
+              ? stage === 'art'
+                ? `Generating key art ${Math.round(progress * 100)}%`
+                : `Filming ${Math.round(progress * 100)}%`
+              : `Render ${seconds}s video`}
           </button>
         </div>
+
+        <label className="mt-3 flex items-start gap-2.5 cursor-pointer">
+          <input
+            type="checkbox"
+            checked={useKeyArt}
+            onChange={(e) => setUseKeyArt(e.target.checked)}
+            disabled={rendering}
+            className="mt-0.5 w-4 h-4 rounded accent-purple-600"
+          />
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+              <Sparkles size={12} className="text-purple-500" /> Generate key art for each scene
+            </span>
+            <span className="block text-[11px] text-gray-500 dark:text-gray-400">
+              Adds about {script.scenes.length * 8}s while the images generate. Scenes that fail fall back to designed
+              graphics, so you always get a finished video.
+            </span>
+          </span>
+        </label>
 
         {rendering && (
           <div className="mt-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
@@ -211,6 +266,12 @@ export default function VideoStudio({ business }: { business: Business }) {
               style={{ width: `${Math.round(progress * 100)}%` }}
             />
           </div>
+        )}
+
+        {notice && (
+          <p role="status" className="mt-3 text-xs text-amber-700 dark:text-amber-400">
+            {notice}
+          </p>
         )}
 
         {error && (
