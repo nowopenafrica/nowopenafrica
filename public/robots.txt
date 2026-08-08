@@ -1,9 +1,14 @@
 User-agent: *
 Allow: /
 Disallow: /admin
+Disallow: /admin-creator
 Disallow: /dashboard
 Disallow: /profile
 Disallow: /security
+Disallow: /studio
+Disallow: /register
+Disallow: /login
+Disallow: /digital-forms
 Disallow: /reset-password
 Disallow: /forgot-password
 

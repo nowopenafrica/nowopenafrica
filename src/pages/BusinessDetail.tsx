@@ -17,6 +17,7 @@ import LiveSection from '../components/live/LiveSection';
 import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { resolveBusinessStatus, loadClockConfig, resolvePublicStatus } from '../lib/businessStatus';
+import { applySeo, SITE_URL } from '../lib/seo';
 import { getActiveFeatures } from '../data/categoryFeatures';
 import { getTabLabel } from '../data/categoryTabLabels';
 import RealEstatePortal from '../components/RealEstatePortal';
@@ -246,6 +247,56 @@ export default function BusinessDetail() {
   };
 
   const isSample = business ? isSampleId(String(business.id)) : false;
+
+  // Per-listing SEO. Real businesses get their own title, description,
+  // canonical (friendly username URL when available) and LocalBusiness
+  // JSON-LD, so each profile ranks as its own entity. Sample and unresolved
+  // listings are noindexed — demo data must never appear in search results.
+  useEffect(() => {
+    if (!business) return undefined;
+    if (isSample) {
+      return applySeo({
+        title: 'Page Not Found — NowOpen Africa',
+        description: 'The listing you are looking for is not available.',
+        path: window.location.pathname,
+        robots: 'noindex, nofollow',
+      });
+    }
+    const name = business.name ?? 'Business';
+    const category = business.category ?? 'business';
+    const description =
+      (business.description ?? '').trim().slice(0, 300) ||
+      `${name} — a ${category} on NowOpen Africa.`;
+    const path = business.username ? `/${business.username}` : `/businesses/${business.id}`;
+    const image = business.cover_image_url || business.image_url || business.logo_url || '/og-image.png';
+    const absImage = image.startsWith('http') ? image : `${SITE_URL}${image}`;
+    const rating =
+      typeof business.rating === 'number' && business.rating > 0 ? business.rating : undefined;
+
+    return applySeo({
+      title: `${name} — ${category} | NowOpen Africa`,
+      description,
+      path,
+      image,
+      type: 'profile',
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        name,
+        description,
+        url: `${SITE_URL}${path}`,
+        image: [absImage],
+        ...(business.phone ? { telephone: business.phone } : {}),
+        ...(business.email ? { email: business.email } : {}),
+        ...(business.location
+          ? { address: { '@type': 'PostalAddress', addressLocality: business.location } }
+          : {}),
+        ...(rating !== undefined
+          ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: rating, bestRating: 5 } }
+          : {}),
+      },
+    });
+  }, [business, isSample]);
 
   // Real businesses: load their services/products/gallery/reviews. Tables may
   // not exist yet on a fresh project — fail soft to empty content.

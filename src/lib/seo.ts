@@ -14,6 +14,7 @@ interface SeoInput {
   path?: string; // canonical path, e.g. "/founder"
   image?: string; // absolute or root-relative
   type?: 'website' | 'profile' | 'article';
+  robots?: string; // e.g. "noindex, nofollow" — overrides the index.html default
   jsonLd?: object | object[];
 }
 
@@ -45,15 +46,20 @@ function upsertLink(rel: string, href: string) {
  * blocks (and managed OG tags) so single-page navigations don't leak stale
  * structured data onto the next route. Call it from a useEffect cleanup.
  */
-export function applySeo({ title, description, path, image, type = 'website', jsonLd }: SeoInput): () => void {
+export function applySeo({ title, description, path, image, type = 'website', robots, jsonLd }: SeoInput): () => void {
   const url = path ? `${SITE_URL}${path}` : SITE_URL;
   const img = image ? (image.startsWith('http') ? image : `${SITE_URL}${image}`) : undefined;
 
   const prevTitle = document.title;
   document.title = title;
 
+  // Robots is always set explicitly so a noindex page can't leak its directive
+  // onto the next route in a single-page session (cleanup only removes JSON-LD).
+  const robotsMeta = robots ?? 'index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1';
+
   upsertMeta('meta[name="description"]', { name: 'description', content: description });
   upsertLink('canonical', url);
+  upsertMeta('meta[name="robots"]', { name: 'robots', content: robotsMeta });
 
   upsertMeta('meta[property="og:title"]', { property: 'og:title', content: title });
   upsertMeta('meta[property="og:description"]', { property: 'og:description', content: description });

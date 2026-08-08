@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Loader2, ArrowLeft, Sparkles, Palette, CreditCard, Instagram, LayoutPanelTop, PenLine, ImagePlus, PackageOpen, CalendarDays, WalletCards, Printer, Presentation, Stamp, Camera, Home, MessageCircle, Activity, Mail, Heart, Receipt, Trophy, LayoutTemplate, Zap, TrendingUp, Store, FileText, Mic, Clapperboard, Globe, Wand2, Podcast, Bot, CalendarCheck, Users, Banknote, Radar, Search, Workflow } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { applySeo } from '../lib/seo';
 import { Business } from '../types';
 import VideoStudio from '../components/studio/VideoStudio';
 import DesignStudioHub from '../components/studio/DesignStudioHub';
@@ -109,6 +110,15 @@ export default function Studio() {
   const [selectedId, setSelectedId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [active, setActive] = useState<ModuleKey>('home');
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Studio — NowOpen Africa',
+      description: 'Your business growth studio on NowOpen Africa.',
+      path: '/studio',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
 
   const go = (m: GrowthPlanModule) => setActive(ALIAS[m] ?? (m as ModuleKey));
 

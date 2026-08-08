@@ -8,6 +8,7 @@ import PaymentModal from '../components/PaymentModal';
 import PlatformEnquiryModal from '../components/PlatformEnquiryModal';
 import { generateMediaServices, isSampleId } from '../data/populateData';
 import { MediaService } from '../types';
+import { applySeo } from '../lib/seo';
 import {
   ArrowLeft, Star, DollarSign, ShoppingBag, Clock, Users, Tag, Camera, Video, Music, Tv, Radio,
   Image as ImageIcon, CheckCircle, Mail, ExternalLink, X, ChevronLeft, ChevronRight, Loader2,
@@ -39,6 +40,36 @@ export default function MediaDetail() {
   const [submittingReview, setSubmittingReview] = useState(false);
 
   const isSample = id ? isSampleId(id) : false;
+
+  useEffect(() => {
+    if (!service) return undefined;
+    if (isSample) {
+      return applySeo({
+        title: 'Creative Services in Africa — NowOpen Africa',
+        description: 'Hire vetted photographers, videographers, designers and creative studios across Africa.',
+        path: window.location.pathname,
+        robots: 'noindex, nofollow',
+      });
+    }
+    const title = `${service.title} — Creative Services in Africa | NowOpen Africa`;
+    return applySeo({
+      title,
+      description:
+        (service.description ?? '').trim().slice(0, 300) ||
+        `${service.title} — a ${service.service_type ?? 'creative service'} offered on NowOpen Africa.`,
+      path: `/media/${service.id}`,
+      image: service.thumbnail_url || service.image_url || '/og-image.png',
+      type: 'profile',
+      jsonLd: {
+        '@context': 'https://schema.org',
+        '@type': 'Service',
+        name: service.title,
+        description: (service.description ?? '').trim().slice(0, 300) || title,
+        serviceType: service.service_type ?? 'Creative Service',
+        provider: { '@type': 'Organization', name: 'NowOpen Africa' },
+      },
+    });
+  }, [service, isSample]);
 
   const fetchService = useCallback(async () => {
     try {

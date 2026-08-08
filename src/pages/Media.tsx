@@ -7,6 +7,7 @@ import { Star, DollarSign, Search, Palette, X, ArrowRight } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { normalize } from '../lib/search';
 import { MEDIA_CATEGORY_GROUPS, groupForMediaType, DEFAULT_MEDIA_ICON } from '../data/mediaCategories';
+import { applySeo } from '../lib/seo';
 
 const ACCENT: Record<string, { grad: string; text: string }> = {
   pink: { grad: 'from-pink-500 to-pink-600', text: 'text-pink-600 dark:text-pink-400' },
@@ -53,6 +54,16 @@ export default function Media() {
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Creative Services in Africa — Photographers, Designers & Studios',
+      description:
+        'Hire vetted photographers, videographers, designers and creative studios across Africa. Browse portfolios and book projects directly.',
+      path: '/media',
+      image: '/og-image.png',
+    });
+  }, []);
 
   useEffect(() => {
     const fetchServices = async () => {

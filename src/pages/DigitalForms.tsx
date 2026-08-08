@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link as RouterLink } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -8,6 +8,7 @@ import {
   Loader2, CheckCircle, Clock, CreditCard, Languages, ShieldCheck, MessageCircle, Music2,
 } from 'lucide-react';
 import { XLogo } from '../components/SocialLinks';
+import { applySeo } from '../lib/seo';
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 interface DayHours {
@@ -111,6 +112,16 @@ export default function DigitalForms() {
   const [activeSection, setActiveSection] = useState('basic');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'List Your Business on NowOpen Africa',
+      description:
+        'Add your African business to NowOpen Africa — a purpose-built listing with category features, opening hours, booking and more.',
+      path: '/digital-forms',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
 
   const toggleInArray = (field: 'paymentMethods' | 'languages', value: string) => {
     setFormData(prev => ({

@@ -21,6 +21,7 @@ import MediaList from '../components/dashboard/MediaList';
 import BusinessClockCard from '../components/dashboard/BusinessClockCard';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { loadClockConfig, getBusinessHealth } from '../lib/businessStatus';
+import { applySeo } from '../lib/seo';
 
 type TabId = 'overview' | 'businesses' | 'adverts' | 'media' | 'inbox';
 
@@ -61,6 +62,15 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const { format } = useCurrency();
   const [businesses, setBusinesses] = useState<Business[]>([]);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Dashboard — NowOpen Africa',
+      description: 'Manage your NowOpen Africa business.',
+      path: '/dashboard',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
   const [adverts, setAdverts] = useState<Advert[]>([]);
   const [mediaServices, setMediaServices] = useState<MediaService[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);

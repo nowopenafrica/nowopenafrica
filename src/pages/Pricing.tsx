@@ -13,6 +13,7 @@ import {
   DIGITAL_CAMPAIGN_STARTING_USD, FOUNDING_MEMBER_LIMIT, FOUNDING_MEMBER_DISCOUNT,
   moduleLimitForPlan,
 } from '../data/pricingPlans';
+import { applySeo } from '../lib/seo';
 
 const BUSINESS_ICONS: Record<string, typeof Building2> = {
   starter: Building2,
@@ -71,6 +72,16 @@ export default function Pricing() {
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [checkout, setCheckout] = useState<CheckoutItem | null>(null);
   const [businessCount, setBusinessCount] = useState<number | null>(null);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Pricing — NowOpen Africa Plans for Businesses & Creatives',
+      description:
+        'Simple, honest pricing for African businesses and creatives — free listings, growth plans and enterprise options with founding-member discounts.',
+      path: '/pricing',
+      image: '/og-image.png',
+    });
+  }, []);
 
   useEffect(() => {
     supabase

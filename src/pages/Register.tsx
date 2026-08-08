@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { AtSign, Lock, Eye, EyeOff, User } from 'lucide-react';
 import { useAuth, isEmail, normalizePhone } from '../contexts/AuthContext';
 import PhoneOtpForm from '../components/auth/PhoneOtpForm';
 import toast from 'react-hot-toast';
+import { applySeo } from '../lib/seo';
 
 export default function Register() {
   const [identifier, setIdentifier] = useState('');
@@ -15,6 +16,15 @@ export default function Register() {
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
   const { signUp } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Create an Account — NowOpen Africa',
+      description: 'Create your NowOpen Africa account to list a business, publish creative services or book advertising.',
+      path: '/register',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { applySeo } from '../lib/seo';
 import { Business, Advertisement, MediaService, User as UserProfile } from '../types';
 import {
   Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
@@ -47,6 +48,16 @@ const DEV_PREVIEW =
 export default function AdminDashboard() {
   const { user: authUser, loading: authLoading } = useAuth();
   const [role, setRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Admin Console — NowOpen Africa',
+      description: 'NowOpen Africa administration console.',
+      path: '/admin',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
+
   const [checkingRole, setCheckingRole] = useState(true);
   const [activeTab, setActiveTab] = useState<AdminTab>('overview');
   const [trustReviewBiz, setTrustReviewBiz] = useState<{ id: string; name: string } | null>(null);

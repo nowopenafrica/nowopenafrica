@@ -1,9 +1,20 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { applySeo } from '../lib/seo';
 
 // Plain-language starting-point privacy policy for NowOpen Africa. Have this
 // reviewed against the data-protection law of each market you operate in
 // (e.g. Nigeria's NDPA, Kenya's DPA, South Africa's POPIA) before launch.
 export default function Privacy() {
+  useEffect(() => {
+    return applySeo({
+      title: 'Privacy Policy — NowOpen Africa',
+      description:
+        'How NowOpen Africa collects, uses and protects your personal data, and the rights you have over it.',
+      path: '/privacy',
+    });
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

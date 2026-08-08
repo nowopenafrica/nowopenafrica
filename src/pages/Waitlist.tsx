@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { applySeo } from '../lib/seo';
 import { CheckCircle, Mail, Rocket, BadgeCheck, Gift, Users, ArrowRight, Sparkles } from 'lucide-react';
 
 const BUSINESS_TYPES = [
@@ -42,6 +43,16 @@ export default function Waitlist() {
   const [form, setForm] = useState({ name: '', email: '', business_type: '', country: '' });
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Join the Waitlist — NowOpen Africa',
+      description:
+        'Get early access to NowOpen Africa in your market. Founding members lock in launch pricing, a free verified badge and early invites.',
+      path: '/waitlist',
+      image: '/og-image.png',
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

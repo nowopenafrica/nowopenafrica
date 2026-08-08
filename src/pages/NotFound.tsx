@@ -1,7 +1,18 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Compass, Home, Search } from 'lucide-react';
+import { applySeo } from '../lib/seo';
 
 export default function NotFound() {
+  useEffect(() => {
+    return applySeo({
+      title: 'Page Not Found — NowOpen Africa',
+      description: 'The page you are looking for does not exist or has moved.',
+      path: window.location.pathname,
+      robots: 'noindex, nofollow',
+    });
+  }, []);
+
   return (
     <div className="min-h-[70vh] flex items-center justify-center px-4">
       <div className="text-center max-w-md">

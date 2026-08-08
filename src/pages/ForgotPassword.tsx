@@ -1,13 +1,23 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Mail, ArrowLeft, CheckCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { applySeo } from '../lib/seo';
 
 export default function ForgotPassword() {
   const { requestPasswordReset } = useAuth();
   const [email, setEmail] = useState('');
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Reset Your Password — NowOpen Africa',
+      description: 'Request a password reset link for your NowOpen Africa account.',
+      path: '/forgot-password',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AtSign, Lock, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { applySeo } from '../lib/seo';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -12,6 +13,15 @@ export default function Login() {
   const { signIn } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Login — NowOpen Africa',
+      description: 'Sign in to manage your NowOpen Africa business listing, studio and dashboard.',
+      path: '/login',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

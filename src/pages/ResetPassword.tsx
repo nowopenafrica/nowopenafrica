@@ -4,6 +4,7 @@ import { Lock, Eye, EyeOff } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
+import { applySeo } from '../lib/seo';
 
 // Reached from the emailed reset link. Supabase puts the visitor in a
 // short-lived recovery session (a PASSWORD_RECOVERY auth event), from which
@@ -16,6 +17,15 @@ export default function ResetPassword() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Set a New Password — NowOpen Africa',
+      description: 'Choose a new password for your NowOpen Africa account.',
+      path: '/reset-password',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
 
   useEffect(() => {
     // Confirm we actually have a session (from the recovery link) before

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
 import SocialLinks from '../components/SocialLinks';
+import { applySeo } from '../lib/seo';
 
 const SUPPORT_EMAIL = 'hello@nowopenafrica.com';
 
@@ -15,6 +16,16 @@ export default function Contact() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Contact NowOpen Africa',
+      description:
+        'Questions, partnerships or press — reach the NowOpen Africa team by email, phone or WhatsApp. We respond within 1–2 business days.',
+      path: '/contact',
+      image: '/og-image.png',
+    });
+  }, []);
 
   // Opens the visitor's email client pre-filled — no backend dependency, so it
   // works reliably regardless of database state.

@@ -8,6 +8,7 @@ import { supabase } from '../lib/supabase';
 import { generateAdverts } from '../data/populateData';
 import { ADVERT_CATEGORY_GROUPS, groupForAdvertCategory } from '../data/advertCategories';
 import { Advertisement } from '../types';
+import { applySeo } from '../lib/seo';
 
 // Static accent classes (Tailwind JIT can't see interpolated class names).
 const ACCENT: Record<string, { grad: string; soft: string; text: string }> = {
@@ -71,6 +72,16 @@ export default function Adverts() {
   const [locationFilter, setLocationFilter] = useState(searchParams.get('location') ?? '');
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
   const [categoryFilter, setCategoryFilter] = useState('');
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Advertise in Africa — Book Billboards & Ad Placements',
+      description:
+        'Book real-world and digital advertising placements across 20+ African markets — billboards, transit, digital screens and managed campaigns.',
+      path: '/adverts',
+      image: '/og-image.png',
+    });
+  }, []);
 
   useEffect(() => {
     const fetchAdverts = async () => {

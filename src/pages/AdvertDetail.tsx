@@ -9,6 +9,7 @@ import PlatformEnquiryModal from '../components/PlatformEnquiryModal';
 import { generateAdverts, isSampleId } from '../data/populateData';
 import { Advertisement } from '../types';
 import { telHref, whatsappHref } from '../lib/phone';
+import { applySeo } from '../lib/seo';
 
 const DURATION_PRESETS = [7, 14, 30, 60, 90];
 
@@ -25,6 +26,27 @@ export default function AdvertDetail() {
   const [days, setDays] = useState(30);
   const [customDays, setCustomDays] = useState('');
   const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+
+  useEffect(() => {
+    if (!advert) return undefined;
+    if (isSampleId(advert.id)) {
+      return applySeo({
+        title: 'Advertise in Africa — NowOpen Africa',
+        description: 'Book real-world and digital advertising placements across 20+ African markets.',
+        path: window.location.pathname,
+        robots: 'noindex, nofollow',
+      });
+    }
+    const location = advert.location ?? 'Africa';
+    return applySeo({
+      title: `${advert.title} — Advertise in ${location} | NowOpen Africa`,
+      description:
+        (advert.description ?? '').trim().slice(0, 300) ||
+        `Book this ${advert.category ?? 'advert placement'} in ${location} on NowOpen Africa.`,
+      path: `/adverts/${advert.id}`,
+      image: advert.image_url || '/og-image.png',
+    });
+  }, [advert]);
 
   const fetchAdvert = useCallback(async () => {
     try {

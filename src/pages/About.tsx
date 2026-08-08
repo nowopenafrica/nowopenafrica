@@ -1,5 +1,7 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { Compass, Megaphone, Palette, ShieldCheck, ArrowRight } from 'lucide-react';
+import { applySeo } from '../lib/seo';
 
 const pillars = [
   { icon: Compass, title: 'Discover', text: 'A living directory of African businesses — searchable by what they do, where they are, and how they’re rated.' },
@@ -9,6 +11,16 @@ const pillars = [
 ];
 
 export default function About() {
+  useEffect(() => {
+    return applySeo({
+      title: 'About NowOpen Africa — The Operating System for African Business',
+      description:
+        'NowOpen Africa helps African businesses get discovered, advertise effectively and hire creative talent — all in one place, built for African markets.',
+      path: '/about',
+      image: '/og-image.png',
+    });
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Hero */}

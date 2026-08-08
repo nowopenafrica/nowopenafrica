@@ -6,6 +6,7 @@ import { INDUSTRIES } from '../data/industrySystems';
 import { generateAdverts, generateBusinesses, generateMediaServices } from '../data/populateData';
 import { Advertisement, Business, MediaService } from '../types';
 import { useCacheBuster } from '../hooks/useCacheBuster';
+import { applySeo } from '../lib/seo';
 import { InfiniteSlider } from '../components/InfiniteSlider';
 import GlobalSearchInput from '../components/GlobalSearchInput';
 import LocationAutocomplete from '../components/LocationAutocomplete';
@@ -22,6 +23,16 @@ export default function Home() {
   const [searchType, setSearchType] = useState('businesses');
   const [searchLocation, setSearchLocation] = useState('');
   const [textVisible, setTextVisible] = useState(true);
+
+  useEffect(() => {
+    return applySeo({
+      title: 'NowOpen Africa — The Operating System for Business Growth in Africa',
+      description:
+        'Get your business discovered across Africa. Verified listings, ad placements, creative services and an AI-powered Studio — built for 20+ African markets.',
+      path: '/',
+      image: '/og-image.png',
+    });
+  }, []);
 
   useEffect(() => {
     const VISIBLE_MS = 15000;

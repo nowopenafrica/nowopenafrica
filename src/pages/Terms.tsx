@@ -1,8 +1,19 @@
+import { useEffect } from 'react';
 import { Link } from 'react-router-dom';
+import { applySeo } from '../lib/seo';
 
 // Plain-language starting-point terms for NowOpen Africa. Have these reviewed
 // by a qualified lawyer for each market you operate in before launch.
 export default function Terms() {
+  useEffect(() => {
+    return applySeo({
+      title: 'Terms of Service — NowOpen Africa',
+      description:
+        'The plain-language terms governing your use of NowOpen Africa — accounts, listings, bookings, payments, verification and acceptable use.',
+      path: '/terms',
+    });
+  }, []);
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 py-12">

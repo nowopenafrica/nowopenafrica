@@ -16,6 +16,7 @@ import {
   resolvePublicStatus, isOrderingCategory, buildBusinessPulse, statusSortRank,
 } from '../lib/businessStatus';
 import { parseOpeningHours } from '../lib/openingHours';
+import { applySeo } from '../lib/seo';
 
 // Icon + accent + one-liner per business category group (keyed by group label).
 const GROUP_META: Record<string, { icon: LucideIcon; accent: string; description: string }> = {
@@ -76,6 +77,16 @@ export default function Businesses() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [now, setNow] = useState(() => new Date());
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Businesses Directory — Find Verified Businesses Across Africa',
+      description:
+        'Search and discover businesses across Africa by category, location and opening status. Verified listings, honest reviews and direct booking.',
+      path: '/businesses',
+      image: '/og-image.png',
+    });
+  }, []);
 
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 60000);

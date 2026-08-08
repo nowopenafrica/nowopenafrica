@@ -5,11 +5,21 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Business, MediaService } from '../types';
 import { ArrowLeft, User as UserIcon, Clock, MapPin, Phone, Mail, Globe, Star, Image } from 'lucide-react';
+import { applySeo } from '../lib/seo';
 
 export default function Profile() {
   const { user: authUser } = useAuth();
   // /profile always shows the signed-in user's own profile.
   const profileId = authUser?.id;
+
+  useEffect(() => {
+    return applySeo({
+      title: 'My Profile — NowOpen Africa',
+      description: 'Manage your NowOpen Africa profile.',
+      path: '/profile',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
   const [user, setUser] = useState<User | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [mediaServices, setMediaServices] = useState<MediaService[]>([]);

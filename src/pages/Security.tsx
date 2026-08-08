@@ -4,10 +4,20 @@ import toast from 'react-hot-toast';
 import { ShieldCheck, Smartphone, Monitor, LogOut, Loader2, ArrowLeft, Check, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
+import { applySeo } from '../lib/seo';
 
 export default function Security() {
   const { user, signOutAllDevices } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    return applySeo({
+      title: 'Account Security — NowOpen Africa',
+      description: 'Manage two-factor authentication, sessions and sign-out for your NowOpen Africa account.',
+      path: '/security',
+      robots: 'noindex, nofollow',
+    });
+  }, []);
 
   const [factors, setFactors] = useState<any[]>([]);
   const [loadingFactors, setLoadingFactors] = useState(true);
