@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { UsersRound, Bot, User, Plus, X, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
+import { UsersRound, Bot, User, Plus, X, ArrowRight, Loader2, ShieldCheck, Network } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -11,6 +11,10 @@ import {
 } from '../../lib/workforce';
 import { sectionById } from '../../lib/adminCreator';
 import { jobDescriptionByAgentKey, PERMISSION_LABELS } from '../../lib/jobDescriptions';
+import {
+  PERMISSION_MATRIX, permissionForMember, buildOrgChart, reportingChain,
+  type OrgNode,
+} from '../../lib/hierarchy';
 
 // The People front door of the OS (#21, group People): every human and AI
 // agent, with honest statuses from the os_workforce table. When the migration
@@ -36,6 +40,43 @@ const STATUS_TONE: Record<WorkforceStatus, string> = {
   'clocked-out': 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
 };
 
+function OrgTreeNodeView({ node, onSelect }: { node: OrgNode; onSelect: (id: string) => void }) {
+  const jd = node.member.kind === 'ai' ? jobDescriptionByAgentKey(node.member.agent_key) : undefined;
+  const level = node.member.kind === 'human' ? 5 : jd?.permission ?? 2;
+  const direct = node.children.length;
+  return (
+    <div className="mt-3">
+      <button type="button" onClick={() => onSelect(node.member.id)}
+        className={`w-full rounded-lg border px-3 py-2 text-left transition hover:shadow-sm ${node.depth === 0 ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30'}`}>
+        <div className="flex items-center gap-2">
+          {node.member.kind === 'ai'
+            ? <Bot size={13} className="text-emerald-500 shrink-0" />
+            : <User size={13} className="text-blue-500 shrink-0" />}
+          <span className="text-xs font-bold text-gray-900 dark:text-white truncate">{node.member.name}</span>
+          {node.member.kind === 'human' && (
+            <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 text-[9px] font-bold">L5</span>
+          )}
+          {node.member.kind === 'ai' && (
+            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold ${level >= 4 ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300' : level >= 2 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+              L{level}
+            </span>
+          )}
+          {direct > 0 && (
+            <span className="ml-auto shrink-0 text-[10px] text-gray-400 dark:text-gray-500">
+              {direct} direct report{direct === 1 ? '' : 's'}
+            </span>
+          )}
+        </div>
+      </button>
+      {node.children.length > 0 && (
+        <div className="ml-4 border-l border-gray-200 dark:border-gray-700 pl-3">
+          {node.children.map((child) => <OrgTreeNodeView key={child.member.id} node={child} onSelect={onSelect} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: (id: string) => void }) {
   const { user } = useAuth();
   // Stable identity so a fresh context object every render (common in tests
@@ -50,6 +91,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filters, setFilters] = useState<WorkforceFilters>({ kind: 'all', department: 'all', status: 'all' });
+  const [view, setView] = useState<'directory' | 'chart' | 'permissions'>('directory');
 
   const [formKind, setFormKind] = useState<WorkforceKind>('ai');
   const [formName, setFormName] = useState('');
@@ -81,6 +123,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
   const summary = useMemo(() => summarizeWorkforce(members), [members]);
   const filtered = useMemo(() => filterWorkforce(members, filters), [members, filters]);
   const selected = members.find((m) => m.id === selectedId) ?? null;
+  const chart = useMemo(() => buildOrgChart(members), [members]);
 
   const statusOptions: readonly WorkforceStatus[] = useMemo(
     () => (filters.kind === 'all' ? ALL_STATUSES : statusesFor(filters.kind)),
@@ -162,6 +205,99 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
           </div>
         ))}
       </div>
+
+      {/* View toggle — directory, org chart, permissions */}
+      <div className="flex gap-1 rounded-lg bg-gray-100 dark:bg-gray-800 p-1 w-fit">
+        {([
+          { id: 'directory' as const, label: 'Directory' },
+          { id: 'chart' as const, label: 'Org chart' },
+          { id: 'permissions' as const, label: 'Permissions' },
+        ]).map((v) => (
+          <button key={v.id} type="button" onClick={() => setView(v.id)}
+            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${view === v.id ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+            {v.label}
+          </button>
+        ))}
+      </div>
+
+      {/* OS-17: org chart — reporting lines from reports_to / REPORTING_TREE. */}
+      {view === 'chart' && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+                <Network size={16} className="text-purple-600 dark:text-purple-400" /> Org chart
+              </p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Who reports to whom — {members.length} people, {chart.depth} levels deep from the founder.
+              </p>
+            </div>
+            {chart.orphaned.length > 0 && (
+              <span className="text-[10px] font-semibold text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 px-2 py-1 rounded-full">
+                {chart.orphaned.length} reporting gap{chart.orphaned.length === 1 ? '' : 's'}
+              </span>
+            )}
+          </div>
+          <OrgTreeNodeView node={chart.root} onSelect={setSelectedId} />
+        </div>
+      )}
+
+      {/* OS-17: the L0-L5 permission matrix. */}
+      {view === 'permissions' && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4">
+          <div>
+            <p className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <ShieldCheck size={16} className="text-purple-600 dark:text-purple-400" /> Permission matrix
+            </p>
+            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+              L0 read-only observer to L5 full control. Every AI agent holds what its digital job description grants.
+            </p>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {PERMISSION_MATRIX.map((row) => (
+              <div key={row.level} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-3">
+                <div className="flex items-center gap-2">
+                  <span className={`w-7 h-7 rounded-lg flex items-center justify-center text-xs font-bold ${row.level >= 4 ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300' : row.level >= 2 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-300'}`}>
+                    L{row.level}
+                  </span>
+                  <p className="text-xs font-bold text-gray-900 dark:text-white">{row.label}</p>
+                </div>
+                <ul className="mt-2 space-y-1">
+                  {row.can.map((c) => (
+                    <li key={c} className="text-[11px] text-gray-600 dark:text-gray-300 flex gap-1.5">
+                      <span className="text-emerald-500 shrink-0">✓</span>{c}
+                    </li>
+                  ))}
+                </ul>
+                {row.needsApprovalFor.length > 0 && (
+                  <div className="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                    <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Needs a human for</p>
+                    {row.needsApprovalFor.map((n) => (
+                      <p key={n} className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">{n}</p>
+                    ))}
+                  </div>
+                )}
+                <p className="mt-2 text-[10px] text-gray-400 dark:text-gray-500 italic">{row.example}</p>
+              </div>
+            ))}
+          </div>
+          <div>
+            <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Roster levels</p>
+            <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+              {members.map((m) => (
+                <button key={m.id} type="button" onClick={() => { setSelectedId(m.id); setView('directory'); }}
+                  className="flex items-center gap-2 rounded-lg border border-gray-100 dark:border-gray-700 px-2 py-1.5 text-left hover:border-purple-300 dark:hover:border-purple-700 transition">
+                  {m.kind === 'ai' ? <Bot size={13} className="text-emerald-500 shrink-0" /> : <User size={13} className="text-blue-500 shrink-0" />}
+                  <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate">{m.name}</span>
+                  <span className={`ml-auto shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${permissionForMember(m) >= 4 ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300' : permissionForMember(m) >= 2 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
+                    L{permissionForMember(m)}
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add-member form */}
       {showForm && (
@@ -294,6 +430,25 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
                   <p className="text-xs text-gray-700 dark:text-gray-300 mt-1 leading-relaxed">{selected.current_work}</p>
                 </div>
               )}
+              {(() => {
+                const chain = reportingChain(members, selected.id);
+                if (chain.length < 2) return null;
+                return (
+                  <div>
+                    <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Reports to</p>
+                    <div className="mt-1 flex items-center gap-1 text-xs text-gray-600 dark:text-gray-300 flex-wrap">
+                      {chain.slice(1).map((m, i, arr) => (
+                        <span key={m.id} className="flex items-center gap-1">
+                          <button type="button" onClick={() => setSelectedId(m.id)} className="font-semibold text-purple-600 dark:text-purple-400 hover:underline">
+                            {m.kind === 'human' ? `${m.name} · L5` : `${m.name} · L${permissionForMember(m)}`}
+                          </button>
+                          {i < arr.length - 1 && <ArrowRight size={11} className="text-gray-300 dark:text-gray-600" />}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
               {selected.kind === 'ai' && selected.agent_key && (
                 <div>
                   <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Agent key</p>

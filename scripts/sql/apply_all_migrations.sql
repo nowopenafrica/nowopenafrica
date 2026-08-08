@@ -2903,3 +2903,37 @@ VALUES
   ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Motion Designer', 'Motion Designer', 'Motion Design', 'active', 'motion-designer', 'Builds Lottie animations, motion posters and kinetic typography.'),
   ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Data Analyst', 'Data Analyst', 'Data & Analytics', 'active', 'data-analyst', 'Turns funnels, retention and revenue numbers into recommendations.')
 ON CONFLICT (org_id, name) DO NOTHING;
+
+-- ===== 20260808090000_os_hierarchy.sql =====
+-- OS-17: reporting lines for the org chart. Adds reports_to to os_workforce and
+-- wires the planned AI team to it, mirroring REPORTING_TREE in
+-- src/lib/hierarchy.ts (founder-directors, directors own their specialists).
+-- Permissions (L0-L5) are derived in the app from digital job descriptions, so
+-- this migration only persists the reporting edge. Idempotent: the UPDATE only
+-- touches rows that don't have a manager yet.
+ALTER TABLE os_workforce ADD COLUMN IF NOT EXISTS reports_to uuid REFERENCES os_workforce(id) ON DELETE SET NULL;
+
+UPDATE os_workforce AS agent
+SET reports_to = manager.id
+FROM os_orgs o
+JOIN os_workforce manager ON manager.org_id = o.id
+WHERE o.slug = 'nowopen-africa'
+  AND agent.org_id = o.id
+  AND agent.reports_to IS NULL
+  AND (
+    (agent.agent_key = 'research-analyst' AND manager.agent_key = 'strategy-director') OR
+    (agent.agent_key = 'data-analyst' AND manager.agent_key = 'strategy-director') OR
+    (agent.agent_key = 'seo-manager' AND manager.agent_key = 'growth-director') OR
+    (agent.agent_key = 'social-director' AND manager.agent_key = 'growth-director') OR
+    (agent.agent_key = 'email-marketing-manager' AND manager.agent_key = 'growth-director') OR
+    (agent.agent_key = 'content-manager' AND manager.agent_key = 'social-director') OR
+    (agent.agent_key = 'copywriter' AND manager.agent_key = 'creative-director') OR
+    (agent.agent_key = 'production-manager' AND manager.agent_key = 'creative-director') OR
+    (agent.agent_key = 'product-designer' AND manager.agent_key = 'creative-director') OR
+    (agent.agent_key = 'motion-designer' AND manager.agent_key = 'creative-director') OR
+    (agent.agent_key = 'post-supervisor' AND manager.agent_key = 'production-manager') OR
+    (agent.agent_key = 'partnerships-manager' AND manager.agent_key = 'sales-director') OR
+    (agent.agent_key = 'customer-success-manager' AND manager.agent_key = 'operations-director') OR
+    (agent.agent_key = 'trust-safety-agent' AND manager.agent_key = 'operations-director') OR
+    (agent.agent_key = 'community-manager' AND manager.agent_key = 'operations-director')
+  );

@@ -89,4 +89,33 @@ describe('WorkforceDirectory smoke', () => {
     fireEvent.click(screen.getByRole('button', { name: /Add agent/ }));
     expect(await screen.findByText(/joined the workforce/)).toBeInTheDocument();
   });
+
+  it('renders the org chart rooted at the founder with honest reporting gaps', async () => {
+    render(<WorkforceDirectory />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Org chart' }));
+    expect(screen.getAllByText('Org chart').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Ada Obi').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Strategy Director').length).toBeGreaterThan(0);
+    // Post Supervisor's manager (Production Manager) is not in this roster,
+    // so the chart says so instead of inventing a line.
+    expect(screen.getByText('1 reporting gap')).toBeInTheDocument();
+  });
+
+  it('shows the L0-L5 permission matrix and per-member levels', async () => {
+    render(<WorkforceDirectory />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Permissions' }));
+    expect(screen.getByText('Permission matrix')).toBeInTheDocument();
+    expect(screen.getByText('Read-only observer')).toBeInTheDocument();
+    expect(screen.getByText('Full control')).toBeInTheDocument();
+    expect(screen.getByText('Roster levels')).toBeInTheDocument();
+    expect(screen.getAllByText('L3').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('L5').length).toBeGreaterThan(0);
+  });
+
+  it('shows the reporting chain for a selected member', async () => {
+    render(<WorkforceDirectory />);
+    fireEvent.click(await screen.findByText('Strategy Director'));
+    expect(screen.getByText('Reports to')).toBeInTheDocument();
+    expect(screen.getByText('Ada Obi · L5')).toBeInTheDocument();
+  });
 });

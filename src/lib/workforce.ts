@@ -54,6 +54,9 @@ export interface WorkforceMember {
   current_work?: string | null;
   owner_user_id?: string | null;
   agent_key?: string | null;
+  /** The member this role reports to (an os_workforce row id). Seeded by
+   *  20260808090000_os_hierarchy.sql; the org chart (OS-17) reads it. */
+  reports_to?: string | null;
   kpis?: Record<string, unknown>;
   updated_at?: string;
 }
