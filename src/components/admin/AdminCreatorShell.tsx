@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PenTool, Clapperboard, Video, Instagram, Rocket, FileText, MessageCircle,
   Boxes, Newspaper, Users, Bot, TrendingUp, Radar, Braces, LayoutTemplate, Component,
   BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, Kanban, ClipboardCheck,
-  Factory, Search, ClipboardList, type LucideIcon,
+  Factory, Search, ClipboardList, FolderOpen, type LucideIcon,
 } from 'lucide-react';
 import {
   ADMIN_SECTIONS, ADMIN_GROUPS, sectionById,
@@ -37,6 +37,7 @@ import ApprovalsHub from './ApprovalsHub';
 import WorkforceFactory from './WorkforceFactory';
 import AskNowOpenPalette from './AskNowOpenPalette';
 import OnboardingCommandCenter from './OnboardingCommandCenter';
+import DocumentCenter from './DocumentCenter';
 
 // One internal frame for the whole team: every department in the sidebar,
 // Command Center as the front door. Sections that are live get a real
@@ -61,6 +62,7 @@ const LIVE_MODULES: Record<string, (open: (id: string) => void) => JSX.Element> 
   approvals: (open) => <ApprovalsHub onOpenSection={open} />,
   'workforce-factory': (open) => <WorkforceFactory onOpenSection={open} />,
   onboarding: () => <OnboardingCommandCenter />,
+  'document-center': () => <DocumentCenter />,
   motion: () => <MotionGraphicsStudio />,
   'video-templates': (open) => <VideoTemplateLibrary onOpenSection={open} />,
   'design-system': () => <DesignSystem />,
@@ -84,6 +86,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   approvals: ClipboardCheck,
   'workforce-factory': Factory,
   onboarding: ClipboardList,
+  'document-center': FolderOpen,
   creative: PenTool,
   motion: Clapperboard,
   'video-studio': Video,

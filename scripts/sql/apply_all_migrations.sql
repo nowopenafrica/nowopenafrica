@@ -3056,3 +3056,108 @@ ON CONFLICT (org_id, email) DO NOTHING;
 UPDATE os_onboarding
 SET blocked_at = '2026-08-08T12:00:00Z', updated_at = now()
 WHERE email = 'news@nairobi.media' AND blocked_at IS NULL;
+
+-- ===== 20260808110000_os_documents.sql =====
+-- OS-21: the Document Centre. A template is drafted into a real document for a
+-- counterparty (party details + clause list), and the status (draft / sent /
+-- signed / declined / expired) is only written when someone acts on it — the
+-- app never guesses. Mirrors AGREEMENT_TEMPLATES, buildDocument and
+-- DOCUMENTS_SEED in src/lib/documents.ts. Idempotent; seeded rows use fixed
+-- ids and conflict on (org_id, counterparty_email, title).
+CREATE TABLE IF NOT EXISTS os_documents (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES os_orgs(id) ON DELETE CASCADE,
+  template_id text NOT NULL,
+  title text NOT NULL,
+  kind text NOT NULL CHECK (kind IN ('nda', 'agreement', 'policy', 'letter')),
+  counterparty_name text NOT NULL,
+  counterparty_email text NOT NULL,
+  relationship text NOT NULL CHECK (relationship IN (
+    'employee', 'partner', 'volunteer', 'creative', 'agency',
+    'production-partner', 'strategic-collaborator', 'investor',
+    'media-partner', 'technology-partner', 'other'
+  )),
+  status text NOT NULL DEFAULT 'draft' CHECK (status IN (
+    'draft', 'sent', 'signed', 'declined', 'expired'
+  )),
+  effective_date date,
+  sent_at timestamptz,
+  signed_at timestamptz,
+  clauses jsonb DEFAULT '[]'::jsonb,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE (org_id, counterparty_email, title)
+);
+
+ALTER TABLE os_documents ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins read documents" ON os_documents;
+CREATE POLICY "Admins read documents" ON os_documents
+  FOR SELECT TO authenticated USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins write documents" ON os_documents;
+CREATE POLICY "Admins write documents" ON os_documents
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins update documents" ON os_documents;
+CREATE POLICY "Admins update documents" ON os_documents
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins delete documents" ON os_documents;
+CREATE POLICY "Admins delete documents" ON os_documents
+  FOR DELETE TO authenticated USING (public.is_admin());
+
+INSERT INTO os_documents
+  (id, org_id, template_id, title, kind, counterparty_name, counterparty_email,
+   relationship, status, effective_date, sent_at, signed_at, clauses, created_at)
+VALUES
+  ('60000000-0000-4000-8000-000000000001',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'nda', 'Mutual Non-Disclosure Agreement — Chukwu Emeka', 'nda',
+   'Chukwu Emeka', 'chukwu@nowopen.africa', 'employee', 'signed', '2026-08-01',
+   '2026-08-01T10:00:00Z', '2026-08-01T14:00:00Z',
+   '["Definition of Confidential Information","Obligations of the Receiving Party","Permitted disclosures","Term and survival","Return or destruction","Governing law (Nigeria)"]'::jsonb,
+   '2026-08-01T09:00:00Z'),
+  ('60000000-0000-4000-8000-000000000002',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'employment-agreement', 'Employment Agreement — Chukwu Emeka', 'agreement',
+   'Chukwu Emeka', 'chukwu@nowopen.africa', 'employee', 'sent', '2026-08-01',
+   '2026-08-01T10:00:00Z', NULL,
+   '["Role and duties","Compensation and benefits","Working hours","Confidentiality and IP","Termination and notice","Governing law (Nigeria)"]'::jsonb,
+   '2026-08-01T09:00:00Z'),
+  ('60000000-0000-4000-8000-000000000003',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'nda', 'Mutual Non-Disclosure Agreement — Meatclub Nigeria', 'nda',
+   'Meatclub Nigeria', 'ops@meatclub.ng', 'partner', 'signed', '2026-08-03',
+   '2026-08-03T09:00:00Z', '2026-08-03T16:30:00Z',
+   '["Definition of Confidential Information","Obligations of the Receiving Party","Permitted disclosures","Term and survival","Return or destruction","Governing law (Nigeria)"]'::jsonb,
+   '2026-08-03T08:00:00Z'),
+  ('60000000-0000-4000-8000-000000000004',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'partnership-agreement', 'Partnership Agreement — Meatclub Nigeria', 'agreement',
+   'Meatclub Nigeria', 'ops@meatclub.ng', 'partner', 'draft', '2026-08-03',
+   NULL, NULL,
+   '["Purpose of the partnership","Role and responsibilities","Brand and marketing","Reporting and reviews","Term and renewal","Governing law (Nigeria)"]'::jsonb,
+   '2026-08-03T08:00:00Z'),
+  ('60000000-0000-4000-8000-000000000005',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'volunteer-agreement', 'Volunteer Agreement — Kofi Mensah', 'agreement',
+   'Kofi Mensah', 'kofi@example.com', 'volunteer', 'signed', '2026-07-15',
+   '2026-07-15T09:00:00Z', '2026-07-15T12:00:00Z',
+   '["Role and commitment","Guidance and supervision","Confidentiality","Safeguarding and conduct","Ending the arrangement","Governing law (Nigeria)"]'::jsonb,
+   '2026-07-15T08:00:00Z'),
+  ('60000000-0000-4000-8000-000000000006',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'creative-agreement', 'Creative Collaboration Agreement — Lagos Tech Studio', 'agreement',
+   'Lagos Tech Studio', 'hello@lagostech.studio', 'creative', 'sent', '2026-08-07',
+   '2026-08-07T11:00:00Z', NULL,
+   '["Scope of work","Deliverables and standards","Fees and payment","Intellectual property","Confidentiality","Governing law (Nigeria)"]'::jsonb,
+   '2026-08-07T10:00:00Z'),
+  ('60000000-0000-4000-8000-000000000007',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'nda', 'Mutual Non-Disclosure Agreement — Atlas Capital', 'nda',
+   'Atlas Capital', 'invest@atlascap.co', 'investor', 'draft', '2026-08-08',
+   NULL, NULL,
+   '["Definition of Confidential Information","Obligations of the Receiving Party","Permitted disclosures","Term and survival","Return or destruction","Governing law (Nigeria)"]'::jsonb,
+   '2026-08-08T09:00:00Z')
+ON CONFLICT (org_id, counterparty_email, title) DO NOTHING;
