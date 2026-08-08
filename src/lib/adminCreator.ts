@@ -66,7 +66,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { id: 'prompt-library', num: 15, group: 'Create', status: 'live', label: 'AI Prompt Library', blurb: 'Every proven prompt, organised — video, image, voice, copy, animation and social.' },
 
   { id: 'social', num: 5, group: 'Produce', status: 'live', label: 'Social Media Department', blurb: 'Operate like an agency: calendar, every channel, publish now/scheduled/series, analytics and an AI coach.', reuses: ['SchedulePublish', 'SocialStudioHub'] },
-  { id: 'campaign-factory', num: 6, group: 'Produce', status: 'live', label: 'Campaign Factory', blurb: 'Launch platform campaigns — Africa is NowOpen, Restaurant Week, Tailor Week — with assets, ads and performance.', reuses: ['CampaignManager', 'CampaignStudio', 'AnnouncementsStudio'] },
+  { id: 'campaign-factory', num: 6, group: 'Produce', status: 'live', label: 'Campaign Factory', blurb: 'Launch platform campaigns — Africa is NowOpen, Restaurant Week, Tailor Week — on the os_campaigns ledger, plus the real per-business Campaign Manager.', reuses: ['os_campaigns', 'CampaignManager', 'CampaignStudio', 'AnnouncementsStudio'] },
   { id: 'content-factory', num: 7, group: 'Produce', status: 'live', label: 'Content Factory', blurb: 'Ideas, scripts, copy, SEO, press releases, emails and newsletters — an AI writer that knows the NowOpen voice.', reuses: ['ContentFactory', 'CaptionEnginePanel', 'MarketingAssistant'] },
 
   { id: 'community', num: 8, group: 'Operate', status: 'live', label: 'Community Management', blurb: 'Every reply — Facebook, Instagram, TikTok, WhatsApp, chat, email and support — in one inbox.', reuses: ['LiveChat', 'EnquiryModal'] },
