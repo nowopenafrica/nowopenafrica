@@ -64,6 +64,8 @@ describe('knowledge lib', () => {
       'Founder Office', 'Strategy & BI', 'Marketing & Growth', 'Social Media', 'Communications & PR',
       'Creative & Brand', 'Production', 'Post Production', 'Sales & Business Development', 'Operations',
       'Finance', 'Product & Engineering', 'Customer Success', 'Trust & Safety',
+      'Email & Customer Communications', 'Community & Culture', 'Partnerships',
+      'Product Design', 'Motion Design', 'Data & Analytics',
     ];
     const categories = new Set(KB_CATEGORIES);
     for (const d of departments) {

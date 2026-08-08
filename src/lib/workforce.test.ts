@@ -37,9 +37,9 @@ describe('workforce — status sets', () => {
 });
 
 describe('workforce — departments', () => {
-  it('has all 14 vision departments with unique names', () => {
-    expect(DEPARTMENTS).toHaveLength(14);
-    expect(new Set(DEPARTMENTS.map((d) => d.name)).size).toBe(14);
+  it('has all 20 vision departments with unique names', () => {
+    expect(DEPARTMENTS).toHaveLength(20);
+    expect(new Set(DEPARTMENTS.map((d) => d.name)).size).toBe(20);
   });
 
   it('maps every roster seed row to a known department', () => {
@@ -55,9 +55,9 @@ describe('workforce — departments', () => {
 });
 
 describe('workforce — AI roster seed', () => {
-  it('mirrors the 18-row migration seed with unique agent keys', () => {
-    expect(AI_ROSTER_SEED).toHaveLength(18);
-    expect(new Set(AI_ROSTER_SEED.map((r) => r.agentKey)).size).toBe(18);
+  it('mirrors the 24-row migration seed with unique agent keys', () => {
+    expect(AI_ROSTER_SEED).toHaveLength(24);
+    expect(new Set(AI_ROSTER_SEED.map((r) => r.agentKey)).size).toBe(24);
   });
 
   it('names every agent as a director/manager/analyst with title matching name', () => {

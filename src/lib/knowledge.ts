@@ -76,24 +76,30 @@ export function searchKnowledge(docs: KnowledgeDoc[], query: string): KnowledgeD
     d.tags.some((t) => t.includes(q)));
 }
 
-/** The 8 KB categories map the 14 work departments onto the docs' home areas,
+/** The 8 KB categories map the 20 work departments onto the docs' home areas,
  *  so a decision lands where a teammate would look for it. */
 export function departmentToKbCategory(department: string): KbCategory {
   switch (department) {
-    case 'Creative & Brand': return 'Brand';
+    case 'Creative & Brand':
+    case 'Product Design':
+    case 'Motion Design': return 'Brand';
     case 'Product & Engineering': return 'Engineering';
     case 'Marketing & Growth':
     case 'Social Media':
-    case 'Communications & PR': return 'Marketing';
+    case 'Communications & PR':
+    case 'Email & Customer Communications': return 'Marketing';
     case 'Production':
     case 'Post Production': return 'Design';
     case 'Finance': return 'Finance';
     case 'Operations':
     case 'Customer Success':
-    case 'Trust & Safety': return 'Support';
+    case 'Trust & Safety':
+    case 'Community & Culture': return 'Support';
     case 'Founder Office':
     case 'Strategy & BI':
     case 'Sales & Business Development':
+    case 'Partnerships':
+    case 'Data & Analytics':
     default: return 'Growth';
   }
 }

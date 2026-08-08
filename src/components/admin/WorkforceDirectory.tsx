@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { UsersRound, Bot, User, Plus, X, ArrowRight, Loader2 } from 'lucide-react';
+import { UsersRound, Bot, User, Plus, X, ArrowRight, Loader2, ShieldCheck } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -10,6 +10,7 @@ import {
   type WorkforceMember, type WorkforceKind, type WorkforceStatus, type WorkforceFilters,
 } from '../../lib/workforce';
 import { sectionById } from '../../lib/adminCreator';
+import { jobDescriptionByAgentKey, PERMISSION_LABELS } from '../../lib/jobDescriptions';
 
 // The People front door of the OS (#21, group People): every human and AI
 // agent, with honest statuses from the os_workforce table. When the migration
@@ -299,6 +300,43 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
                   <code className="text-xs text-purple-600 dark:text-purple-300 font-mono">{selected.agent_key}</code>
                 </div>
               )}
+              {selected.kind === 'ai' && (() => {
+                const jd = jobDescriptionByAgentKey(selected.agent_key);
+                if (!jd) return null;
+                return (
+                  <div className="space-y-3 border-t border-gray-100 dark:border-gray-700 pt-3">
+                    <div className="flex items-center justify-between">
+                      <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Digital job description</p>
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${jd.permission >= 3 ? 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400' : 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400'}`}>
+                        <ShieldCheck size={11} /> L{jd.permission} · {PERMISSION_LABELS[jd.permission]}
+                      </span>
+                    </div>
+                    <p className="text-xs text-gray-700 dark:text-gray-300 leading-relaxed">{jd.purpose}</p>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Owns</p>
+                      <ul className="mt-1 space-y-1">
+                        {jd.responsibilities.map((r) => (
+                          <li key={r} className="text-xs text-gray-600 dark:text-gray-300 flex gap-1.5">
+                            <span className="text-purple-400 shrink-0">•</span>{r}
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">KPIs</p>
+                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{jd.kpis.join(' · ')}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Escalates to</p>
+                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300">{jd.escalatesTo}</p>
+                    </div>
+                    <div>
+                      <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Daily rhythm</p>
+                      <p className="mt-1 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">{jd.cadence.daily.join(' ')}</p>
+                    </div>
+                  </div>
+                );
+              })()}
               {selected.owner_user_id && (
                 <div>
                   <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Linked account</p>

@@ -58,7 +58,7 @@ export interface WorkforceMember {
   updated_at?: string;
 }
 
-// The 14 vision departments, each linked to the Admin Creator section that
+// The 20 vision departments, each linked to the Admin Creator section that
 // already powers it (when one exists). Departments without a home yet stay
 // null — they're honest roadmap items, not fake offices.
 export interface WorkforceDepartment {
@@ -82,6 +82,12 @@ export const DEPARTMENTS: WorkforceDepartment[] = [
   { name: 'Product & Engineering', sectionId: 'launch', blurb: 'Roadmap, builds, launches and QA.' },
   { name: 'Customer Success', sectionId: 'community', blurb: 'Onboarding, support and retention.' },
   { name: 'Trust & Safety', sectionId: null, blurb: 'Verification, moderation and abuse — human escalation.' },
+  { name: 'Email & Customer Communications', sectionId: 'content-factory', blurb: 'Retention email, newsletters and customer comms — written, sent and measured.' },
+  { name: 'Community & Culture', sectionId: 'community', blurb: 'The NowOpen community: events, culture and member voice.' },
+  { name: 'Partnerships', sectionId: 'partners', blurb: 'Investors, media, government, creators, agencies, sponsors and universities.' },
+  { name: 'Product Design', sectionId: 'design-system', blurb: 'Product flows, UI, prototypes and the design system.' },
+  { name: 'Motion Design', sectionId: 'motion', blurb: 'Animation, Lottie, motion posters and kinetic type.' },
+  { name: 'Data & Analytics', sectionId: 'analytics-war-room', blurb: 'Every number turned into a decision: funnels, retention and revenue.' },
 ];
 
 export function departmentByName(name: string): WorkforceDepartment | undefined {
@@ -147,6 +153,12 @@ export const AI_ROSTER_SEED: AiRosterSeed[] = [
   { name: 'Product Manager', title: 'Product Manager', department: 'Product & Engineering', agentKey: 'product-manager', currentWork: 'Owns the roadmap, gathers feedback and keeps launches on track.' },
   { name: 'Customer Success Manager', title: 'Customer Success Manager', department: 'Customer Success', agentKey: 'customer-success-manager', currentWork: 'Onboards businesses and watches for drop-off; nudges owners before they churn.' },
   { name: 'Trust & Safety Agent', title: 'Trust & Safety Agent', department: 'Trust & Safety', agentKey: 'trust-safety-agent', currentWork: 'Reviews verification and flags suspicious activity; enforcement escalates to a human.' },
+  { name: 'Email Marketing Manager', title: 'Email Marketing Manager', department: 'Email & Customer Communications', agentKey: 'email-marketing-manager', currentWork: 'Writes, segments and schedules retention email and newsletters; measures opens and clicks.' },
+  { name: 'Community Manager', title: 'Community Manager', department: 'Community & Culture', agentKey: 'community-manager', currentWork: 'Runs events, keeps the community calendar and turns member feedback into action.' },
+  { name: 'Partnerships Manager', title: 'Partnerships Manager', department: 'Partnerships', agentKey: 'partnerships-manager', currentWork: 'Scores partnership leads and prepares sponsorship, media and university proposals.' },
+  { name: 'Product Designer', title: 'Product Designer', department: 'Product Design', agentKey: 'product-designer', currentWork: 'Designs product flows, screens and prototypes against the design system.' },
+  { name: 'Motion Designer', title: 'Motion Designer', department: 'Motion Design', agentKey: 'motion-designer', currentWork: 'Builds Lottie animations, motion posters and kinetic typography.' },
+  { name: 'Data Analyst', title: 'Data Analyst', department: 'Data & Analytics', agentKey: 'data-analyst', currentWork: 'Turns funnels, retention and revenue numbers into recommendations.' },
 ];
 
 export interface WorkforceSummary {

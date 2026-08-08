@@ -2868,3 +2868,38 @@ CREATE POLICY "Admins delete snapshots" ON os_snapshots
   FOR DELETE TO authenticated USING (public.is_admin());
 
 CREATE INDEX IF NOT EXISTS os_snapshots_org_date_idx ON os_snapshots (org_id, snapshot_date);
+
+-- ===== 20260808080000_os_org_model_20.sql =====
+-- OS-15: the org grows from 14 to 20 departments, and six new AI agents join
+-- the roster. Widening an inline CHECK on an existing table means dropping and
+-- recreating the constraint — safe and idempotent because it re-asserts the
+-- full allowed set each time. New agents mirror AI_ROSTER_SEED in src/lib.
+ALTER TABLE os_workforce DROP CONSTRAINT IF EXISTS os_workforce_department_check;
+ALTER TABLE os_workforce ADD CONSTRAINT os_workforce_department_check CHECK (department IN (
+  'Founder Office', 'Strategy & BI', 'Marketing & Growth', 'Social Media',
+  'Communications & PR', 'Creative & Brand', 'Production', 'Post Production',
+  'Sales & Business Development', 'Operations', 'Finance',
+  'Product & Engineering', 'Customer Success', 'Trust & Safety',
+  'Email & Customer Communications', 'Community & Culture', 'Partnerships',
+  'Product Design', 'Motion Design', 'Data & Analytics'
+));
+
+ALTER TABLE os_work_items DROP CONSTRAINT IF EXISTS os_work_items_department_check;
+ALTER TABLE os_work_items ADD CONSTRAINT os_work_items_department_check CHECK (department IN (
+  'Founder Office', 'Strategy & BI', 'Marketing & Growth', 'Social Media',
+  'Communications & PR', 'Creative & Brand', 'Production', 'Post Production',
+  'Sales & Business Development', 'Operations', 'Finance',
+  'Product & Engineering', 'Customer Success', 'Trust & Safety',
+  'Email & Customer Communications', 'Community & Culture', 'Partnerships',
+  'Product Design', 'Motion Design', 'Data & Analytics'
+));
+
+INSERT INTO os_workforce (org_id, kind, name, title, department, status, agent_key, current_work)
+VALUES
+  ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Email Marketing Manager', 'Email Marketing Manager', 'Email & Customer Communications', 'active', 'email-marketing-manager', 'Writes, segments and schedules retention email and newsletters; measures opens and clicks.'),
+  ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Community Manager', 'Community Manager', 'Community & Culture', 'active', 'community-manager', 'Runs events, keeps the community calendar and turns member feedback into action.'),
+  ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Partnerships Manager', 'Partnerships Manager', 'Partnerships', 'active', 'partnerships-manager', 'Scores partnership leads and prepares sponsorship, media and university proposals.'),
+  ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Product Designer', 'Product Designer', 'Product Design', 'active', 'product-designer', 'Designs product flows, screens and prototypes against the design system.'),
+  ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Motion Designer', 'Motion Designer', 'Motion Design', 'active', 'motion-designer', 'Builds Lottie animations, motion posters and kinetic typography.'),
+  ((SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'), 'ai', 'Data Analyst', 'Data Analyst', 'Data & Analytics', 'active', 'data-analyst', 'Turns funnels, retention and revenue numbers into recommendations.')
+ON CONFLICT (org_id, name) DO NOTHING;

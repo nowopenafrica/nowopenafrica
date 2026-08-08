@@ -64,6 +64,15 @@ describe('WorkforceDirectory smoke', () => {
     expect(screen.getByRole('button', { name: /Open Analytics War Room/ })).toBeInTheDocument();
   });
 
+  it('shows the digital job description for an AI agent', async () => {
+    render(<WorkforceDirectory />);
+    fireEvent.click(await screen.findByText('Strategy Director'));
+    expect(screen.getByText('Digital job description')).toBeInTheDocument();
+    expect(screen.getByText(/L3 · Act with approval/)).toBeInTheDocument();
+    expect(screen.getByText(/Watch the market and the five launch KPIs/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Escalates to/).length).toBeGreaterThan(0);
+  });
+
   it('filters the roster by department', async () => {
     render(<WorkforceDirectory />);
     fireEvent.change(await screen.findByLabelText('Department'), { target: { value: 'Strategy & BI' } });
