@@ -50,7 +50,7 @@ export interface AdminSection {
 export const ADMIN_GROUPS: AdminGroup[] = ['Oversight', 'People', 'Create', 'Produce', 'Operate', 'Grow', 'Run'];
 
 export const ADMIN_SECTIONS: AdminSection[] = [
-  { id: 'command', num: 1, group: 'Oversight', status: 'live', label: 'Growth Command Center', blurb: 'Everything happening across NowOpen Africa today — the front door of the internal system, now folding the OS ledgers (team, work, approvals, knowledge) into the briefing.', reuses: ['os_workforce', 'os_work_items', 'os_approvals', 'os_knowledge'] },
+  { id: 'command', num: 1, group: 'Oversight', status: 'live', label: 'Growth Command Center', blurb: 'Everything happening across NowOpen Africa today — the front door of the internal system, now folding all eight os_* ledgers (team, work, approvals, knowledge, launches, partners, press and campaigns) into the briefing and the OS strip.', reuses: ['os_workforce', 'os_work_items', 'os_approvals', 'os_knowledge', 'os_launches', 'os_partners', 'os_press', 'os_campaigns'] },
   { id: 'analytics-war-room', num: 13, group: 'Oversight', status: 'live', label: 'Analytics War Room', blurb: 'Maps, funnels, attribution, retention and revenue — the platform heartbeat.', reuses: ['CampaignAnalytics', 'HealthDashboard'] },
   { id: 'founder', num: 20, group: 'Oversight', status: 'live', label: 'Founder Dashboard', blurb: 'Private executive view: company health score, growth velocity, churn, strategic recommendations and the operating system across all eight os_* ledgers.', reuses: ['os_workforce', 'os_work_items', 'os_approvals', 'os_knowledge', 'os_launches', 'os_partners', 'os_press', 'os_campaigns'] },
 

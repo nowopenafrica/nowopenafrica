@@ -38,6 +38,22 @@ vi.mock('../lib/supabase', () => {
     { id: 'kb-1', org_id: orgId, category: 'Brand', title: 'Brand voice', summary: 'S', body: [], tags: [], source: 'sop' },
     { id: 'kb-2', org_id: orgId, category: 'Finance', title: 'Monthly finance report — approved', summary: 'S', body: [], tags: [], source: 'decision' },
   ];
+  const launches = [
+    { id: 'la-1', org_id: orgId, name: 'AI Video Studio', area: 'Product · Media', target: 'Aug 2026', checklist_done: [true, true, true, true, true, true, true] },
+    { id: 'la-2', org_id: orgId, name: 'Verified Badge', area: 'Trust & Safety', target: 'Mar 2026', checklist_done: [true, false, false, false, false, false, false] },
+  ];
+  const partners = [
+    { id: 'pa-1', org_id: orgId, name: 'TechCabal', type: 'Media', note: 'n', stage: 'Negotiation' },
+    { id: 'pa-2', org_id: orgId, name: 'Lagos Business School', type: 'University', note: 'n', stage: 'Active' },
+  ];
+  const press = [
+    { id: 'pr-1', org_id: orgId, headline: 'NowOpen Africa launches the AI Video Studio', outlet: 'NowOpen Africa', kind: 'release', status: 'published', published_at: '2026-08-01T09:00:00Z', url: 'u', summary: 's' },
+    { id: 'pr-2', org_id: orgId, headline: 'Verified badge rolls out nationwide', outlet: 'NowOpen Africa', kind: 'release', status: 'draft', published_at: null, url: 'u', summary: 's' },
+  ];
+  const campaigns = [
+    { id: 'cp-1', org_id: orgId, slug: 'africa-is-nowopen', name: 'Africa is NowOpen', focus: 'f', audience: 'a', channels: ['Social'], status: 'live', starts_at: '2026-01-15T09:00:00Z', ends_at: null },
+    { id: 'cp-2', org_id: orgId, slug: 'restaurant-week-2026', name: 'Restaurant Week 2026', focus: 'f', audience: 'a', channels: ['Social'], status: 'in_build', starts_at: '2026-09-14T09:00:00Z', ends_at: '2026-09-20T09:00:00Z' },
+  ];
   const q = (data: unknown) => {
     const result = { data, error: null };
     const chain = {
@@ -51,10 +67,14 @@ vi.mock('../lib/supabase', () => {
     };
     return chain;
   };
+  const tables: Record<string, unknown> = {
+    os_workforce: workforce, os_work_items: workItems, os_approvals: approvals,
+    os_knowledge: knowledge, os_launches: launches, os_partners: partners,
+    os_press: press, os_campaigns: campaigns,
+  };
   return {
     supabase: {
-      from: vi.fn((table: string) =>
-        q(table === 'os_workforce' ? workforce : table === 'os_work_items' ? workItems : table === 'os_approvals' ? approvals : table === 'os_knowledge' ? knowledge : [])),
+      from: vi.fn((table: string) => q(tables[table] ?? [])),
     },
   };
 });
@@ -85,6 +105,11 @@ describe('CommandCenter OS strip', () => {
     expect(screen.getByText(/1 work item are blocked on the board/)).toBeInTheDocument();
     expect(screen.getByText(/2 of 3 agents working, 1 waiting for kickoff/)).toBeInTheDocument();
     expect(screen.getByText(/1 decision signed today, 1 in the knowledge base/)).toBeInTheDocument();
+    expect(screen.getByText(/1 launch ready to ship/)).toBeInTheDocument();
+    expect(screen.getByText(/1 active partner, 1 in negotiation/)).toBeInTheDocument();
+    expect(screen.getByText(/1 press story published, 1 pending/)).toBeInTheDocument();
+    expect(screen.getByText(/1 campaign live right now/)).toBeInTheDocument();
+    expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(2);
   });
 
   it('deep-links into the OS sections', async () => {
@@ -98,6 +123,12 @@ describe('CommandCenter OS strip', () => {
     expect(onOpenModule).toHaveBeenCalledWith('workforce');
     fireEvent.click(screen.getByRole('button', { name: /Knowledge Base/ }));
     expect(onOpenModule).toHaveBeenCalledWith('knowledge');
+    fireEvent.click(screen.getByRole('button', { name: /Launch Control/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('launch');
+    fireEvent.click(screen.getByRole('button', { name: /Press Room/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('press-room');
+    fireEvent.click(screen.getByRole('button', { name: /Campaign Factory/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('campaign-factory');
   });
 });
 

@@ -1,6 +1,6 @@
 import { useMemo, useEffect, useCallback, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Sparkles, ShoppingBag, BadgeCheck, Users, Banknote, Inbox, Megaphone, CalendarClock, Rocket, Video, TrendingUp, MessageSquare, Activity, ArrowRight, Loader2, Bot, ClipboardCheck, BookOpen, Kanban } from 'lucide-react';
+import { Sparkles, ShoppingBag, BadgeCheck, Users, Banknote, Inbox, Megaphone, CalendarClock, Rocket, Video, TrendingUp, MessageSquare, Activity, ArrowRight, Loader2, Bot, ClipboardCheck, BookOpen, Kanban, Building2, Newspaper } from 'lucide-react';
 import { aiRecommendations } from '../../lib/adminCreator';
 import { useCommandData } from '../../hooks/useCommandData';
 import { supabase } from '../../lib/supabase';
@@ -9,7 +9,11 @@ import { NOWOPEN_ORG_ID, seedMembers, type WorkforceMember } from '../../lib/wor
 import { WORK_SEED, mapSeedToMembers, type WorkItem } from '../../lib/work';
 import { APPROVALS_SEED, mapSeedToApprovals, type ApprovalRequest } from '../../lib/approvals';
 import { KNOWLEDGE_SEED, type KnowledgeDoc } from '../../lib/knowledge';
-import { summarizeOs, osBriefingLines, type OsBriefing } from '../../lib/commandOs';
+import { LAUNCHES_SEED, mapLaunchRow } from '../../lib/launches';
+import { PARTNERS_SEED, mapPartnerRow } from '../../lib/partners';
+import { PRESS_SEED, mapPressRow } from '../../lib/press';
+import { CAMPAIGNS_SEED, mapCampaignRow } from '../../lib/osCampaigns';
+import { summarizeOsExtended, osExtendedBriefingLines, type OsExtendedBriefing } from '../../lib/commandOs';
 
 // The Growth Command Center — "what's happening today". Pulls the real
 // Supabase tables the admin console uses (published posts now come from the
@@ -17,9 +21,10 @@ import { summarizeOs, osBriefingLines, type OsBriefing } from '../../lib/command
 // localStorage because there is no backend table for it yet). Only falls back
 // to clearly-labelled sample data when the backend itself is unreachable so
 // the dashboard is always alive in dev. The fetch lives in useCommandData so
-// the Founder Dashboard reads the same numbers. Since OS-5 it also reads the
-// four os_* tables and folds the team, work, approvals and knowledge ledgers
-// into the briefing and an "OS at a glance" strip.
+// the Founder Dashboard reads the same numbers. Since OS-5 it reads the os_*
+// tables; OS-12 folds all eight ledgers (team, work, approvals, knowledge,
+// launches, partners, press and campaigns) into the briefing and the
+// "OS at a glance" strip.
 
 const fmtMoney = (n: number): string => n >= 1_000_000 ? `₦${(n / 1_000_000).toFixed(1)}M` : `₦${n.toLocaleString()}`;
 
@@ -31,34 +36,46 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
     [user?.id, user?.email],
   );
 
-  const [osBriefing, setOsBriefing] = useState<OsBriefing | null>(null);
+  const [osBriefing, setOsBriefing] = useState<OsExtendedBriefing | null>(null);
   const [osUsingFallback, setOsUsingFallback] = useState(false);
 
   const loadOs = useCallback(async () => {
     try {
-      const [wf, wk, ap, kb] = await Promise.all([
+      const [wf, wk, ap, kb, ln, pt, pr, ca] = await Promise.all([
         supabase.from('os_workforce').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_work_items').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_approvals').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_knowledge').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_launches').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_partners').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_press').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_campaigns').select('*').eq('org_id', NOWOPEN_ORG_ID),
       ]);
       const members = (wf.data ?? []) as WorkforceMember[];
       const items = (wk.data ?? []) as WorkItem[];
       const approvals = (ap.data ?? []) as ApprovalRequest[];
       const docs = (kb.data ?? []) as KnowledgeDoc[];
-      if (wf.error || wk.error || ap.error || kb.error || members.length === 0 || items.length === 0) {
+      const launches = ((ln.data ?? []) as Parameters<typeof mapLaunchRow>[0][]).map(mapLaunchRow);
+      const partners = ((pt.data ?? []) as Parameters<typeof mapPartnerRow>[0][]).map(mapPartnerRow);
+      const press = ((pr.data ?? []) as Parameters<typeof mapPressRow>[0][]).map(mapPressRow);
+      const campaigns = ((ca.data ?? []) as Parameters<typeof mapCampaignRow>[0][]).map(mapCampaignRow);
+      if (wf.error || wk.error || ap.error || kb.error || ln.error || pt.error || pr.error || ca.error || members.length === 0 || items.length === 0) {
         throw new Error('os tables unavailable');
       }
-      setOsBriefing(summarizeOs({ members, items, approvals, docs }));
+      setOsBriefing(summarizeOsExtended({ members, items, approvals, docs, launches, partners, press, campaigns }));
       setOsUsingFallback(false);
     } catch {
       const fallbackMembers = seedMembers(currentUser);
       const fallbackItems = mapSeedToMembers(WORK_SEED, fallbackMembers);
-      setOsBriefing(summarizeOs({
+      setOsBriefing(summarizeOsExtended({
         members: fallbackMembers,
         items: fallbackItems,
         approvals: mapSeedToApprovals(APPROVALS_SEED, fallbackItems),
         docs: KNOWLEDGE_SEED,
+        launches: LAUNCHES_SEED,
+        partners: PARTNERS_SEED,
+        press: PRESS_SEED,
+        campaigns: CAMPAIGNS_SEED,
       }));
       setOsUsingFallback(true);
     }
@@ -68,7 +85,7 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
 
   const briefing = useMemo(() => {
     const lines = stats ? aiRecommendations(stats) : [];
-    if (osBriefing) lines.push(...osBriefingLines(osBriefing));
+    if (osBriefing) lines.push(...osExtendedBriefingLines(osBriefing));
     return lines;
   }, [stats, osBriefing]);
 
@@ -154,7 +171,7 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
 
         {osBriefing ? (
           <>
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-5 gap-3">
               {[
                 { label: 'Sign-offs waiting', value: osBriefing.pendingSignOffs, icon: ClipboardCheck, tone: 'bg-amber-50 dark:bg-amber-900/20 text-amber-600 dark:text-amber-300' },
                 { label: 'Blocked work', value: osBriefing.blockedItems, icon: Kanban, tone: 'bg-rose-50 dark:bg-rose-900/20 text-rose-600 dark:text-rose-300' },
@@ -162,6 +179,10 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
                 { label: 'Agents working', value: `${osBriefing.agentsWorking}/${osBriefing.agents}`, icon: Bot, tone: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-300' },
                 { label: 'Knowledge docs', value: osBriefing.kbDocs, icon: BookOpen, tone: 'bg-slate-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300' },
                 { label: 'Decisions saved', value: osBriefing.kbDecisions, icon: Users, tone: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300' },
+                { label: 'Launches ready', value: osBriefing.launchesReady, icon: Rocket, tone: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300' },
+                { label: 'Partners active', value: osBriefing.partnersActive, icon: Building2, tone: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-300' },
+                { label: 'Press published', value: osBriefing.pressPublished, icon: Newspaper, tone: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300' },
+                { label: 'Campaigns live', value: osBriefing.campaignsLive, icon: Megaphone, tone: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300' },
               ].map((w) => (
                 <div key={w.label} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3">
                   <div className={`w-7 h-7 rounded-lg flex items-center justify-center mb-2 ${w.tone}`}><w.icon size={14} /></div>
@@ -183,6 +204,12 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
                 </button>
                 <button onClick={() => onOpenModule('knowledge')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                   Knowledge Base <ArrowRight size={12} />
+                </button>
+                <button onClick={() => onOpenModule('launch')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                  Launch Control <ArrowRight size={12} />
+                </button>
+                <button onClick={() => onOpenModule('press-room')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                  Press Room <ArrowRight size={12} />
                 </button>
               </div>
             )}
