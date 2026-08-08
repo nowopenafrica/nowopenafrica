@@ -1,9 +1,14 @@
 import { describe, it, expect } from 'vitest';
-import { summarizeOs, osBriefingLines, type OsState } from './commandOs';
+import {
+  summarizeOs, osBriefingLines, summarizeOsExtended, osExtendedBriefingLines,
+  osHealthScore, type OsState, type OsExtendedInput,
+} from './commandOs';
 import type { WorkforceMember } from './workforce';
 import type { WorkItem } from './work';
 import type { ApprovalRequest } from './approvals';
 import type { KnowledgeDoc } from './knowledge';
+import type { LaunchItem } from './launches';
+import type { PartnerItem } from './partners';
 
 const org = '00000000-0000-4000-8000-00000000a001';
 
@@ -25,6 +30,18 @@ function doc(over: Partial<KnowledgeDoc> = {}): KnowledgeDoc {
 
 function state(over: Partial<OsState> = {}): OsState {
   return { members: [], items: [], approvals: [], docs: [], ...over };
+}
+
+function launch(over: Partial<LaunchItem> = {}): LaunchItem {
+  return { id: 'l1', org_id: org, name: 'Launch', area: 'Product', target: 'Aug 2026', done: [], ...over };
+}
+
+function partner(over: Partial<PartnerItem> = {}): PartnerItem {
+  return { id: 'p1', org_id: org, name: 'Partner', type: 'Media', note: '', stage: 'Proposal', ...over };
+}
+
+function extState(over: Partial<OsExtendedInput> = {}): OsExtendedInput {
+  return { members: [], items: [], approvals: [], docs: [], launches: [], partners: [], ...over };
 }
 
 describe('commandOs lib', () => {
@@ -109,5 +126,64 @@ describe('commandOs lib', () => {
     expect(lines.some((l) => l.includes('1 work item are blocked'))).toBe(true);
     expect(lines.some((l) => l.includes('1 of 3 agents working, 1 blocked, 1 waiting'))).toBe(true);
     expect(lines.some((l) => l.includes('1 decision signed today, 3 in the knowledge base'))).toBe(true);
+  });
+
+  it('extends the summary with the launch board and the partner pipeline', () => {
+    const b = summarizeOsExtended(extState({
+      launches: [
+        launch({ id: 'l1', done: [true, true, true, true, true, true, true] }),
+        launch({ id: 'l2', done: [true, false, false, false, false, false, false] }),
+        launch({ id: 'l3', done: [] }),
+      ],
+      partners: [
+        partner({ id: 'p1', stage: 'Active' }),
+        partner({ id: 'p2', stage: 'Negotiation' }),
+        partner({ id: 'p3', stage: 'Proposal' }),
+      ],
+    }));
+    expect(b.launchesOpen).toBe(3);
+    expect(b.launchesReady).toBe(1);
+    expect(b.partnersActive).toBe(1);
+    expect(b.partnersNegotiation).toBe(1);
+  });
+
+  it('adds launch and partner lines to the executive briefing', () => {
+    const lines = osExtendedBriefingLines({
+      pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 3,
+      agentsBlocked: 0, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
+      totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      launchesOpen: 2, launchesReady: 1, partnersActive: 1, partnersNegotiation: 2,
+    });
+    expect(lines.some((l) => l.includes('1 launch ready to ship'))).toBe(true);
+    expect(lines.some((l) => l.includes('1 active partner, 2 in negotiation'))).toBe(true);
+  });
+
+  it('reports no-ready launches honestly', () => {
+    const lines = osExtendedBriefingLines({
+      pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 3,
+      agentsBlocked: 0, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
+      totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      launchesOpen: 2, launchesReady: 0, partnersActive: 0, partnersNegotiation: 0,
+    });
+    expect(lines.some((l) => l.includes('No launches ready — 2 open on the launch board'))).toBe(true);
+  });
+
+  it('scores a clean OS at 100 and deducts for real blockers', () => {
+    const clean = osHealthScore({
+      pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 4,
+      agentsBlocked: 0, agentsWaiting: 0, decisionsToday: 0, kbDecisions: 2,
+      totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      launchesOpen: 2, launchesReady: 1, partnersActive: 2, partnersNegotiation: 1,
+    });
+    expect(clean).toBe(100);
+
+    const stressed = osHealthScore({
+      pendingSignOffs: 3, blockedItems: 2, openItems: 8, agents: 4, agentsWorking: 1,
+      agentsBlocked: 2, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
+      totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      launchesOpen: 2, launchesReady: 0, partnersActive: 0, partnersNegotiation: 2,
+    });
+    expect(stressed).toBeLessThan(100);
+    expect(stressed).toBeGreaterThanOrEqual(0);
   });
 });
