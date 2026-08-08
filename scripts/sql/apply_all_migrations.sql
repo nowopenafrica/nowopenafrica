@@ -2937,3 +2937,122 @@ WHERE o.slug = 'nowopen-africa'
     (agent.agent_key = 'trust-safety-agent' AND manager.agent_key = 'operations-director') OR
     (agent.agent_key = 'community-manager' AND manager.agent_key = 'operations-director')
   );
+
+-- ===== 20260808100000_os_onboarding.sql =====
+-- OS-20: the Onboarding Command Center backing table. One row per NowOpen
+-- Relationship Profile (employee, partner, volunteer, creative, ...), tracking
+-- which journey steps are genuinely done, which agreements are signed and which
+-- access scopes were granted. Status (invited / in-progress / awaiting
+-- signature / blocked / completed) is NEVER stored — it is derived in the app
+-- from these columns against the journey in src/lib/relationships.ts. Mirrors
+-- ONBOARDING_SEED in src/lib/onboardingProfiles.ts. Idempotent; seeded rows use
+-- fixed ids and conflict on (org_id, email).
+CREATE TABLE IF NOT EXISTS os_onboarding (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES os_orgs(id) ON DELETE CASCADE,
+  full_name text NOT NULL,
+  email text NOT NULL,
+  relationship text NOT NULL CHECK (relationship IN (
+    'employee', 'partner', 'volunteer', 'creative', 'agency',
+    'production-partner', 'strategic-collaborator', 'investor',
+    'media-partner', 'technology-partner', 'other'
+  )),
+  department text,
+  role text,
+  country text,
+  manager text,
+  account_manager text,
+  steps_completed jsonb DEFAULT '[]'::jsonb,
+  signed_agreements jsonb DEFAULT '[]'::jsonb,
+  access_grants jsonb DEFAULT '[]'::jsonb,
+  blocked_at timestamptz,
+  created_at timestamptz DEFAULT now(),
+  updated_at timestamptz DEFAULT now(),
+  UNIQUE (org_id, email)
+);
+
+ALTER TABLE os_onboarding ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins read onboarding" ON os_onboarding;
+CREATE POLICY "Admins read onboarding" ON os_onboarding
+  FOR SELECT TO authenticated USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins write onboarding" ON os_onboarding;
+CREATE POLICY "Admins write onboarding" ON os_onboarding
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins update onboarding" ON os_onboarding;
+CREATE POLICY "Admins update onboarding" ON os_onboarding
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins delete onboarding" ON os_onboarding;
+CREATE POLICY "Admins delete onboarding" ON os_onboarding
+  FOR DELETE TO authenticated USING (public.is_admin());
+
+INSERT INTO os_onboarding
+  (id, org_id, full_name, email, relationship, department, role, country,
+   steps_completed, signed_agreements, access_grants, created_at)
+VALUES
+  ('50000000-0000-4000-8000-000000000001',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Adeyemi Odunaiike', 'founder@nowopen.africa', 'employee', 'Executive', 'Founder & CEO', 'Nigeria',
+   '["personal-information","professional-information","department","role","emergency-contact","employment-documents","nda","ip-confidentiality","code-of-conduct","policies","signature","account-setup","orientation"]'::jsonb,
+   '["NDA","Confidentiality","IP agreement","Code of conduct"]'::jsonb,
+   '["Founder Command Center","Company OS","Strategy","Creative Studio"]'::jsonb,
+   '2026-05-01T09:00:00Z'),
+  ('50000000-0000-4000-8000-000000000002',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Chukwu Emeka', 'chukwu@nowopen.africa', 'employee', 'Creative & Brand', 'Motion Designer', 'Nigeria',
+   '["personal-information","professional-information","department","role","employment-documents","nda","ip-confidentiality","code-of-conduct","policies","orientation"]'::jsonb,
+   '["NDA","IP agreement","Code of conduct"]'::jsonb,
+   '["Creative","Motion Design","Creative Studio","Brand Library"]'::jsonb,
+   '2026-08-01T09:00:00Z'),
+  ('50000000-0000-4000-8000-000000000003',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Meatclub Nigeria', 'ops@meatclub.ng', 'partner', 'Partnerships', 'Strategic / Business partner', 'Nigeria',
+   '["company-information","representative","partnership-type","business-verification","partnership-proposal","nda"]'::jsonb,
+   '["NDA"]'::jsonb,
+   '["Partner portal"]'::jsonb,
+   '2026-08-03T09:00:00Z'),
+  ('50000000-0000-4000-8000-000000000004',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Zainab Bello', 'zainab.b@example.com', 'volunteer', NULL, NULL, 'Nigeria',
+   '["personal-information","skills-interests","availability","location","volunteer-agreement"]'::jsonb,
+   '["Volunteer agreement"]'::jsonb,
+   '[]'::jsonb,
+   '2026-08-06T09:00:00Z'),
+  ('50000000-0000-4000-8000-000000000005',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Lagos Tech Studio', 'hello@lagostech.studio', 'creative', NULL, NULL, 'Nigeria',
+   '["personal-information","creative-briefing","portfolio","nda"]'::jsonb,
+   '["NDA"]'::jsonb,
+   '["Creative workspace"]'::jsonb,
+   '2026-08-07T09:00:00Z'),
+  ('50000000-0000-4000-8000-000000000006',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Kofi Mensah', 'kofi@example.com', 'volunteer', NULL, NULL, 'Ghana',
+   '["personal-information","skills-interests","availability","location","volunteer-agreement","nda-confidentiality","code-of-conduct","consent","orientation"]'::jsonb,
+   '["Volunteer agreement","NDA / confidentiality"]'::jsonb,
+   '["Community portal","Volunteer workspace"]'::jsonb,
+   '2026-07-15T09:00:00Z'),
+  ('50000000-0000-4000-8000-000000000007',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Atlas Capital', 'invest@atlascap.co', 'investor', NULL, NULL, 'United Kingdom',
+   '["contact-information","investor-type","fund-information"]'::jsonb,
+   '[]'::jsonb,
+   '[]'::jsonb,
+   '2026-08-08T09:00:00Z'),
+  ('50000000-0000-4000-8000-000000000008',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   'Nairobi Media House', 'news@nairobi.media', 'media-partner', NULL, NULL, 'Kenya',
+   '["media-information","outlet-details","reach-audience"]'::jsonb,
+   '[]'::jsonb,
+   '[]'::jsonb,
+   '2026-08-04T09:00:00Z')
+ON CONFLICT (org_id, email) DO NOTHING;
+
+-- OS-20: mark the seeded media partner blocked so the command center has a
+-- genuine stuck case, matching the ONBOARDING_SEED row.
+UPDATE os_onboarding
+SET blocked_at = '2026-08-08T12:00:00Z', updated_at = now()
+WHERE email = 'news@nairobi.media' AND blocked_at IS NULL;
