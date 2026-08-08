@@ -11,10 +11,15 @@ import {
 } from '../../lib/workforce';
 import { sectionById } from '../../lib/adminCreator';
 import { jobDescriptionByAgentKey, PERMISSION_LABELS } from '../../lib/jobDescriptions';
+import type { WorkItem } from '../../lib/work';
+import type { ApprovalRequest } from '../../lib/approvals';
 import {
   PERMISSION_MATRIX, permissionForMember, buildOrgChart, reportingChain,
   type OrgNode,
 } from '../../lib/hierarchy';
+import {
+  departmentScorecards, DEPARTMENT_STATUS_LABELS, scorecardNote, scorecardsNeedingAttention,
+} from '../../lib/scorecards';
 
 // The People front door of the OS (#21, group People): every human and AI
 // agent, with honest statuses from the os_workforce table. When the migration
@@ -86,12 +91,14 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
     [user?.id, user?.email],
   );
   const [members, setMembers] = useState<WorkforceMember[]>([]);
+  const [workItems, setWorkItems] = useState<WorkItem[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFallback, setUsingFallback] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [showForm, setShowForm] = useState(false);
   const [filters, setFilters] = useState<WorkforceFilters>({ kind: 'all', department: 'all', status: 'all' });
-  const [view, setView] = useState<'directory' | 'chart' | 'permissions'>('directory');
+  const [view, setView] = useState<'directory' | 'chart' | 'permissions' | 'scorecards'>('directory');
 
   const [formKind, setFormKind] = useState<WorkforceKind>('ai');
   const [formName, setFormName] = useState('');
@@ -102,16 +109,22 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('os_workforce')
-        .select('*')
-        .eq('org_id', NOWOPEN_ORG_ID);
-      const rows = (data ?? []) as WorkforceMember[];
-      if (error || rows.length === 0) throw new Error('os_workforce unavailable');
+      const [wf, wk, ap] = await Promise.all([
+        supabase.from('os_workforce').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_work_items').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_approvals').select('*').eq('org_id', NOWOPEN_ORG_ID),
+      ]);
+      const rows = (wf.data ?? []) as WorkforceMember[];
+      if (wf.error || rows.length === 0) throw new Error('os_workforce unavailable');
       setMembers(rows);
+      setWorkItems((wk.data ?? []) as WorkItem[]);
+      setApprovals((ap.data ?? []) as ApprovalRequest[]);
       setUsingFallback(false);
     } catch {
-      setMembers(seedMembers(currentUser));
+      const fallback = seedMembers(currentUser);
+      setMembers(fallback);
+      setWorkItems([]);
+      setApprovals([]);
       setUsingFallback(true);
     } finally {
       setLoading(false);
@@ -124,6 +137,10 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
   const filtered = useMemo(() => filterWorkforce(members, filters), [members, filters]);
   const selected = members.find((m) => m.id === selectedId) ?? null;
   const chart = useMemo(() => buildOrgChart(members), [members]);
+  const scorecards = useMemo(
+    () => departmentScorecards({ members, items: workItems, approvals }),
+    [members, workItems, approvals],
+  );
 
   const statusOptions: readonly WorkforceStatus[] = useMemo(
     () => (filters.kind === 'all' ? ALL_STATUSES : statusesFor(filters.kind)),
@@ -211,6 +228,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
         {([
           { id: 'directory' as const, label: 'Directory' },
           { id: 'chart' as const, label: 'Org chart' },
+          { id: 'scorecards' as const, label: 'Scorecards' },
           { id: 'permissions' as const, label: 'Permissions' },
         ]).map((v) => (
           <button key={v.id} type="button" onClick={() => setView(v.id)}
@@ -295,6 +313,76 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* OS-18: department scorecards — every number from the real ledgers. */}
+      {view === 'scorecards' && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-gray-900 dark:text-white">Department scorecards</p>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                Scored from real work items and sign-offs — a department with no work gets no score, because there is nothing to score.
+              </p>
+            </div>
+            <span className="text-[10px] font-semibold text-rose-600 dark:text-rose-400 bg-rose-50 dark:bg-rose-900/20 px-2 py-1 rounded-full">
+              {scorecardsNeedingAttention(scorecards)} need{scorecardsNeedingAttention(scorecards) === 1 ? 's' : ''} attention
+            </span>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+            {scorecards.map((c) => {
+              const tone = c.status === 'attention'
+                ? 'border-rose-200 dark:border-rose-800 bg-rose-50/60 dark:bg-rose-900/10'
+                : c.status === 'healthy'
+                  ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50/40 dark:bg-emerald-900/10'
+                  : c.status === 'quiet'
+                    ? 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30'
+                    : 'border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-900';
+              const statusTone = c.status === 'attention'
+                ? 'bg-rose-100 dark:bg-rose-900/40 text-rose-600 dark:text-rose-300'
+                : c.status === 'healthy'
+                  ? 'bg-emerald-100 dark:bg-emerald-900/40 text-emerald-600 dark:text-emerald-300'
+                  : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400';
+              return (
+                <div key={c.department} className={`rounded-lg border p-3 ${tone}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-gray-900 dark:text-white truncate">{c.department}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-gray-500">{c.roles} role{c.roles === 1 ? '' : 's'}</p>
+                    </div>
+                    <span className={`shrink-0 px-2 py-0.5 rounded-full text-[10px] font-semibold ${statusTone}`}>{DEPARTMENT_STATUS_LABELS[c.status]}</span>
+                  </div>
+                  {c.score !== null ? (
+                    <div className="mt-2 flex items-end justify-between">
+                      <div>
+                        <p className="text-2xl font-black text-gray-900 dark:text-white">{c.score}<span className="text-xs font-bold text-gray-400">/100</span></p>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400">ledger score</p>
+                      </div>
+                      <div className="text-right text-[10px] text-gray-500 dark:text-gray-400">
+                        <p><span className="font-bold text-gray-900 dark:text-white">{c.completionRate}%</span> done</p>
+                        <p>{c.done} done · {c.open} open</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">No work to score yet.</p>
+                  )}
+                  <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold">
+                    {c.inFlight > 0 && <span className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{c.inFlight} in flight</span>}
+                    {c.blocked > 0 && <span className="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">{c.blocked} blocked</span>}
+                    {c.awaitingApproval > 0 && <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">{c.awaitingApproval} sign-offs</span>}
+                  </div>
+                  <p className="mt-2 text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">{scorecardNote(c)}</p>
+                  {c.kpis.length > 0 && (
+                    <div className="mt-2 border-t border-gray-100 dark:border-gray-700 pt-2">
+                      <p className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">KPIs</p>
+                      <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">{c.kpis.join(' · ')}</p>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </div>
       )}

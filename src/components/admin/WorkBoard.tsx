@@ -15,6 +15,7 @@ import {
   type WorkItem, type WorkKind, type WorkStatus, type WorkPriority, type WorkFilters,
 } from '../../lib/work';
 import { DAY_BEAT_LABELS, dayBeat, departmentDayCards } from '../../lib/workingDay';
+import { buildActivityStream, groupActivityByDay } from '../../lib/activityStream';
 import type { ApprovalRequest } from '../../lib/approvals';
 
 // The daily work layer (#22, group People): projects, tasks and goals on a
@@ -54,6 +55,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
   const [items, setItems] = useState<WorkItem[]>([]);
   const [members, setMembers] = useState<WorkforceMember[]>([]);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [snapshots, setSnapshots] = useState<{ health: number; snapshot_date?: string; derived_at?: string }[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFallback, setUsingFallback] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -76,24 +78,28 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [wf, wk, ap] = await Promise.all([
+      const [wf, wk, ap, sn] = await Promise.all([
         supabase.from('os_workforce').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_work_items').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_approvals').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_snapshots').select('health, snapshot_date').eq('org_id', NOWOPEN_ORG_ID).order('snapshot_date', { ascending: false }),
       ]);
       const rows = (wk.data ?? []) as WorkItem[];
       const people = (wf.data ?? []) as WorkforceMember[];
       const queue = (ap.data ?? []) as ApprovalRequest[];
+      const history = (sn.data ?? []) as { health: number; snapshot_date?: string }[];
       if (wk.error || wf.error || ap.error || rows.length === 0 || people.length === 0) throw new Error('os tables unavailable');
       setItems(rows);
       setMembers(people);
       setApprovals(queue);
+      setSnapshots(history);
       setUsingFallback(false);
     } catch {
       const fallbackMembers = seedMembers(currentUser);
       setMembers(fallbackMembers);
       setItems(mapSeedToMembers(WORK_SEED, fallbackMembers));
       setApprovals([]);
+      setSnapshots([]);
       setUsingFallback(true);
     } finally {
       setLoading(false);
@@ -126,6 +132,11 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
   const workingDay = useMemo(
     () => departmentDayCards({ members, items, approvals }),
     [members, items, approvals],
+  );
+
+  const activity = useMemo(
+    () => groupActivityByDay(buildActivityStream({ members, items, approvals, snapshots, limit: 40 })),
+    [members, items, approvals, snapshots],
   );
 
   const humans = useMemo(() => members.filter((m) => m.kind === 'human'), [members]);
@@ -331,6 +342,37 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
         {' · '}<span className="font-semibold text-rose-600 dark:text-rose-400">{agentStrip.blocked} blocked</span>
         {' · '}<span className="font-semibold text-amber-600 dark:text-amber-400">{agentStrip.waiting} waiting</span>
         <span className="text-gray-400 dark:text-gray-500"> (derived from open work on this board)</span>
+      </div>
+
+      {/* OS-18: activity stream — every entry stamped with a real ledger time. */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+        <div className="px-4 pt-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Activity stream</p>
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mt-0.5">
+            What actually happened, from the ledgers — no invented activity.
+          </p>
+        </div>
+        <div className="p-4 space-y-4">
+          {activity.length === 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400">Nothing timestamped yet — the stream fills as rows are created and moved.</p>
+          )}
+          {activity.map((group) => (
+            <div key={group.day}>
+              <p className="text-[10px] font-bold uppercase tracking-wider text-gray-400">{group.day}</p>
+              <ul className="mt-1.5 space-y-1">
+                {group.entries.map((e) => (
+                  <li key={e.id} className="flex items-start gap-2 text-xs">
+                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${e.kind === 'health-snapshot' ? 'bg-purple-400' : e.kind === 'approval-decided' ? 'bg-emerald-400' : e.kind === 'work-status' ? 'bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    <span className="text-gray-700 dark:text-gray-300">
+                      <span className="font-semibold text-gray-900 dark:text-white">{e.actor}</span> {e.text}
+                    </span>
+                    <span className="ml-auto shrink-0 text-[10px] text-gray-400 dark:text-gray-500">{e.at.slice(11, 16)}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          ))}
+        </div>
       </div>
 
       {humans.length > 0 && (

@@ -118,4 +118,15 @@ describe('WorkforceDirectory smoke', () => {
     expect(screen.getByText('Reports to')).toBeInTheDocument();
     expect(screen.getByText('Ada Obi · L5')).toBeInTheDocument();
   });
+
+  it('renders honest department scorecards with no invented scores', async () => {
+    render(<WorkforceDirectory />);
+    fireEvent.click(await screen.findByRole('button', { name: 'Scorecards' }));
+    expect(screen.getByText('Department scorecards')).toBeInTheDocument();
+    expect(screen.getAllByText('No work to score yet.').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Quiet day').length).toBeGreaterThan(0);
+    // The mock roster has zero work items, so zero departments get a fake score.
+    expect(screen.queryByText(/\/100/)).not.toBeInTheDocument();
+    expect(screen.getByText('0 need attention')).toBeInTheDocument();
+  });
 });

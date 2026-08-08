@@ -15,9 +15,9 @@ vi.mock('../lib/supabase', () => {
     { id: 'h-1', org_id: orgId, kind: 'human', name: 'Ada Obi', title: 'Operations Lead', department: 'Operations', status: 'clocked-in', current_work: 'Shipping SOP v3' },
   ];
   const workItems = [
-    { id: 'wi-1', org_id: orgId, kind: 'project', title: 'Africa is NowOpen — campaign build', status: 'in_progress', priority: 'high', department: 'Marketing & Growth', assignee_id: 'ai-1', due_at: '2026-08-18T00:00:00.000Z', description: 'Landing page, creative assets, ads and launch email.' },
-    { id: 'wi-2', org_id: orgId, kind: 'task', title: 'August social content calendar', status: 'todo', priority: 'medium', department: 'Social Media', assignee_id: null, due_at: null, description: null },
-    { id: 'wi-3', org_id: orgId, kind: 'task', title: 'Draft Q3 strategy brief', status: 'blocked', priority: 'high', department: 'Strategy & BI', assignee_id: 'ai-1', due_at: '2026-08-01T00:00:00.000Z', description: 'Blocked on market data from the Research Analyst.' },
+    { id: 'wi-1', org_id: orgId, kind: 'project', title: 'Africa is NowOpen — campaign build', status: 'in_progress', priority: 'high', department: 'Marketing & Growth', assignee_id: 'ai-1', due_at: '2026-08-18T00:00:00.000Z', description: 'Landing page, creative assets, ads and launch email.', created_at: '2026-08-06T09:00:00.000Z', updated_at: '2026-08-08T10:00:00.000Z' },
+    { id: 'wi-2', org_id: orgId, kind: 'task', title: 'August social content calendar', status: 'todo', priority: 'medium', department: 'Social Media', assignee_id: null, due_at: null, description: null, created_at: '2026-08-07T09:00:00.000Z' },
+    { id: 'wi-3', org_id: orgId, kind: 'task', title: 'Draft Q3 strategy brief', status: 'blocked', priority: 'high', department: 'Strategy & BI', assignee_id: 'ai-1', due_at: '2026-08-01T00:00:00.000Z', description: 'Blocked on market data from the Research Analyst.', created_at: '2026-08-05T09:00:00.000Z' },
   ];
   const q = (data: unknown) => {
     const result = { data, error: null };
@@ -116,6 +116,18 @@ describe('WorkBoard smoke', () => {
     expect(screen.getByText('1 in flight')).toBeInTheDocument();
     expect(screen.getAllByText('1 blocked').length).toBeGreaterThan(0);
     expect(screen.getAllByText('Strategy & BI').length).toBeGreaterThan(0);
+  });
+
+  it('renders the activity stream grouped by day from real timestamps', async () => {
+    render(<WorkBoard />);
+    expect(await screen.findByText('Activity stream')).toBeInTheDocument();
+    // Only rows carrying real ISO timestamps appear — grouped by calendar day.
+    expect(screen.getByText('2026-08-08')).toBeInTheDocument();
+    expect(screen.getByText('2026-08-07')).toBeInTheDocument();
+    expect(screen.getByText('2026-08-06')).toBeInTheDocument();
+    expect(screen.getByText('2026-08-05')).toBeInTheDocument();
+    expect(screen.getByText(/moved .*Africa is NowOpen.* to in progress/)).toBeInTheDocument();
+    expect(screen.getByText(/opened .*August social content calendar/)).toBeInTheDocument();
   });
 });
 
