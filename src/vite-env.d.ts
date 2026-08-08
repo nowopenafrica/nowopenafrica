@@ -1,7 +1,13 @@
 /// <reference types="vite/client" />
 
 interface ImportMetaEnv {
-  /** Free Pexels API key used to film reels with real stock footage. */
+  /** Supabase project URL (required — src/lib/supabase.ts throws without it). */
+  readonly VITE_SUPABASE_URL: string;
+  /** Supabase anon/publishable key (required). */
+  readonly VITE_SUPABASE_ANON_KEY: string;
+  /** Paystack public key. When unset, checkout captures pre-launch reservations as leads. */
+  readonly VITE_PAYSTACK_PUBLIC_KEY?: string;
+  /** Optional Pexels API key used to film reels with real stock footage. */
   readonly VITE_PEXELS_API_KEY?: string;
 }
 
