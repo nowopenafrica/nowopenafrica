@@ -78,7 +78,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { id: 'trends', num: 14, group: 'Grow', status: 'live', label: 'Trend Discovery', blurb: 'AI scans Google, TikTok, Instagram, YouTube, news and NowOpen searches to say what to make next.', reuses: ['TrendRadarPanel'] },
 
   { id: 'launch', num: 18, group: 'Run', status: 'live', label: 'Launch Control', blurb: 'Every feature launch: checklist, QA, design, marketing, videos, emails, docs, release notes and rollout.' },
-  { id: 'knowledge', num: 19, group: 'Run', status: 'live', label: 'Internal Knowledge Base', blurb: 'Everything documented — brand, engineering, marketing, design, growth, legal, finance and support SOPs.' },
+  { id: 'knowledge', num: 19, group: 'Run', status: 'live', label: 'Internal Knowledge Base', blurb: 'Everything documented — brand, engineering, marketing, design, growth, legal, finance and support SOPs from os_knowledge, with approvals synced in as decisions.', reuses: ['os_knowledge', 'os_approvals'] },
 ];
 
 export function sectionById(id: string): AdminSection | undefined {

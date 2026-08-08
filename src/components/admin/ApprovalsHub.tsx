@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { ClipboardCheck, CheckCircle2, X, Bot, User, Loader2, CalendarClock } from 'lucide-react';
+import { ClipboardCheck, CheckCircle2, X, Bot, User, Loader2, CalendarClock, BookOpen } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,6 +14,7 @@ import {
   DECISION_EFFECTS, APPROVALS_SEED, mapSeedToApprovals,
   type ApprovalRequest, type ApprovalStatus, type ApprovalFilters,
 } from '../../lib/approvals';
+import { decisionDoc } from '../../lib/knowledge';
 
 // Approvals hub (#23, group People): agent-finished work queued for a human to
 // sign off. A decision moves the work item (approved → done, rejected → back to
@@ -149,6 +150,20 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
           supabase.from('os_workforce').update({ status: effects.member, updated_at: now }).eq('id', r.requested_by),
         );
       }
+      // OS-4: every sign-off becomes institutional memory — write the decision
+      // into os_knowledge as a 'decision' doc alongside the ledger updates.
+      calls.push(
+        supabase.from('os_knowledge').insert({
+          org_id: NOWOPEN_ORG_ID,
+          ...decisionDoc({
+            approvalId: r.id,
+            status: outcome,
+            workTitle: item?.title ?? 'work item',
+            department: item?.department ?? 'Founder Office',
+            workItemId: item?.id,
+          }),
+        }),
+      );
       await Promise.all(calls);
       toast.success(outcome === 'approved' ? `Approved — ${title} is done.` : `Sent back to the board — ${title}.`);
       void load();
@@ -334,6 +349,11 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                 <ClipboardCheck size={14} className="shrink-0 text-purple-500 mt-0.5" />
                 <span>Every decision is stored on <span className="font-semibold">os_approvals</span> with who decided and
                   when — nothing is invented client-side.</span>
+              </li>
+              <li className="flex gap-2">
+                <BookOpen size={14} className="shrink-0 text-slate-500 mt-0.5" />
+                <span>Sign-offs also sync to the <span className="font-semibold">Internal Knowledge Base</span> as
+                  decision docs, so approved work becomes institutional memory.</span>
               </li>
             </ul>
           </aside>
