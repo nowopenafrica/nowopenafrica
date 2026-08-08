@@ -5,7 +5,7 @@
 // This file is the IA + data layer only (no React), so the section map and the
 // command-center calculations stay unit-testable like the rest of the app.
 
-export type AdminGroup = 'Oversight' | 'Create' | 'Produce' | 'Operate' | 'Grow' | 'Run';
+export type AdminGroup = 'Oversight' | 'People' | 'Create' | 'Produce' | 'Operate' | 'Grow' | 'Run';
 
 export type AdminSectionStatus = 'live' | 'soon';
 
@@ -47,12 +47,14 @@ export interface AdminSection {
   reuses?: string[];
 }
 
-export const ADMIN_GROUPS: AdminGroup[] = ['Oversight', 'Create', 'Produce', 'Operate', 'Grow', 'Run'];
+export const ADMIN_GROUPS: AdminGroup[] = ['Oversight', 'People', 'Create', 'Produce', 'Operate', 'Grow', 'Run'];
 
 export const ADMIN_SECTIONS: AdminSection[] = [
   { id: 'command', num: 1, group: 'Oversight', status: 'live', label: 'Growth Command Center', blurb: 'Everything happening across NowOpen Africa today — the front door of the internal system.' },
   { id: 'analytics-war-room', num: 13, group: 'Oversight', status: 'live', label: 'Analytics War Room', blurb: 'Maps, funnels, attribution, retention and revenue — the platform heartbeat.', reuses: ['CampaignAnalytics', 'HealthDashboard'] },
   { id: 'founder', num: 20, group: 'Oversight', status: 'live', label: 'Founder Dashboard', blurb: 'Private executive view: company health score, growth velocity, churn and strategic recommendations.' },
+
+  { id: 'workforce', num: 21, group: 'People', status: 'live', label: 'Workforce Directory', blurb: 'The whole team — humans and AI agents — with honest statuses, workload and approvals from os_workforce.', reuses: ['os_workforce', 'AdminCreatorShell'] },
 
   { id: 'creative', num: 2, group: 'Create', status: 'live', label: 'Creative Studio', blurb: 'Internal design department — canvas, layers, artboards, vectors, masks, components and export.', reuses: ['DesignStudio', 'QuickCreatePanel', 'FreeCanvas'] },
   { id: 'motion', num: 3, group: 'Create', status: 'live', label: 'Motion Graphics Studio', blurb: 'Logo reveals, motion posters, lower thirds, kinetic typography and Lottie animations.' },

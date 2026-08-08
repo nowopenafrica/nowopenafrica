@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   LayoutDashboard, PenTool, Clapperboard, Video, Instagram, Rocket, FileText, MessageCircle,
   Boxes, Newspaper, Users, Bot, TrendingUp, Radar, Braces, LayoutTemplate, Component,
-  BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, type LucideIcon,
+  BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, type LucideIcon,
 } from 'lucide-react';
 import {
   ADMIN_SECTIONS, ADMIN_GROUPS, sectionById,
@@ -30,6 +30,7 @@ import PartnershipCrm from './PartnershipCrm';
 import LaunchControl from './LaunchControl';
 import KnowledgeBase from './KnowledgeBase';
 import SectionPlanned from './SectionPlanned';
+import WorkforceDirectory from './WorkforceDirectory';
 
 // One internal frame for the whole team: every department in the sidebar,
 // Command Center as the front door. Sections that are live get a real
@@ -49,6 +50,7 @@ const LIVE_MODULES: Record<string, (open: (id: string) => void) => JSX.Element> 
   trends: (open) => <TrendDiscovery onOpenSection={open} />,
   'analytics-war-room': (open) => <AnalyticsWarRoom onOpenSection={open} />,
   founder: (open) => <FounderDashboard onOpenSection={open} />,
+  workforce: (open) => <WorkforceDirectory onOpenSection={open} />,
   motion: () => <MotionGraphicsStudio />,
   'video-templates': (open) => <VideoTemplateLibrary onOpenSection={open} />,
   'design-system': () => <DesignSystem />,
@@ -67,6 +69,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   command: LayoutDashboard,
   'analytics-war-room': TrendingUp,
   founder: Crown,
+  workforce: UsersRound,
   creative: PenTool,
   motion: Clapperboard,
   'video-studio': Video,
@@ -88,6 +91,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
 
 const GROUP_ICONS: Record<AdminGroup, LucideIcon> = {
   Oversight: LayoutDashboard,
+  People: UsersRound,
   Create: PenTool,
   Produce: Rocket,
   Operate: Users,
