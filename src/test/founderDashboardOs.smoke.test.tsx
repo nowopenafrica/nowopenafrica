@@ -48,6 +48,15 @@ vi.mock('../lib/supabase', () => {
     { id: 'pa-3', org_id: orgId, name: 'Lagos Business School', type: 'University', note: 'n', stage: 'Active' },
     { id: 'pa-4', org_id: orgId, name: 'Magnet Agency', type: 'Agency', note: 'n', stage: 'Alumni' },
   ];
+  const press = [
+    { id: 'pr-1', org_id: orgId, headline: 'NowOpen Africa launches the AI Video Studio', outlet: 'NowOpen Africa', kind: 'release', status: 'published', published_at: '2026-08-01T09:00:00Z', url: 'u', summary: 's' },
+    { id: 'pr-2', org_id: orgId, headline: 'Restaurant Week returns for its biggest run', outlet: 'Restaurant Week', kind: 'coverage', status: 'published', published_at: '2026-06-15T09:00:00Z', url: 'u', summary: 's' },
+    { id: 'pr-3', org_id: orgId, headline: 'Verified badge rolls out nationwide', outlet: 'NowOpen Africa', kind: 'release', status: 'draft', published_at: null, url: 'u', summary: 's' },
+  ];
+  const campaigns = [
+    { id: 'cp-1', org_id: orgId, slug: 'africa-is-nowopen', name: 'Africa is NowOpen', focus: 'f', audience: 'a', channels: ['Social'], status: 'live', starts_at: '2026-01-15T09:00:00Z', ends_at: null },
+    { id: 'cp-2', org_id: orgId, slug: 'restaurant-week-2026', name: 'Restaurant Week 2026', focus: 'f', audience: 'a', channels: ['Social'], status: 'in_build', starts_at: '2026-09-14T09:00:00Z', ends_at: '2026-09-20T09:00:00Z' },
+  ];
   const q = (data: unknown) => {
     const result = { data, error: null };
     const chain = {
@@ -64,6 +73,7 @@ vi.mock('../lib/supabase', () => {
   const tables: Record<string, unknown> = {
     os_workforce: workforce, os_work_items: workItems, os_approvals: approvals,
     os_knowledge: knowledge, os_launches: launches, os_partners: partners,
+    os_press: press, os_campaigns: campaigns,
   };
   return {
     supabase: {
@@ -84,7 +94,7 @@ vi.mock('../contexts/AuthContext', () => ({
 import FounderDashboard from '../components/admin/FounderDashboard';
 
 describe('FounderDashboard OS strip', () => {
-  it('renders the executive view with the OS read from all six ledgers', async () => {
+  it('renders the executive view with the OS read from all eight ledgers', async () => {
     render(<FounderDashboard />);
     expect(await screen.findByText('Sign-offs waiting')).toBeInTheDocument();
     expect(screen.getByText('Company Health Score')).toBeInTheDocument();
@@ -94,6 +104,8 @@ describe('FounderDashboard OS strip', () => {
     expect(screen.getByText('2/3')).toBeInTheDocument();
     expect(screen.getByText('Launches ready')).toBeInTheDocument();
     expect(screen.getByText('Partners active')).toBeInTheDocument();
+    expect(screen.getByText('Press published')).toBeInTheDocument();
+    expect(screen.getByText('Campaigns live')).toBeInTheDocument();
     expect(screen.getAllByText('2').length).toBeGreaterThanOrEqual(2);
     expect(screen.queryByText(/Demo OS/)).not.toBeInTheDocument();
   });
@@ -103,6 +115,8 @@ describe('FounderDashboard OS strip', () => {
     expect(await screen.findByText('Operating system health')).toBeInTheDocument();
     expect(screen.getByText(/2\/3 agents working/)).toBeInTheDocument();
     expect(screen.getByText(/1 sign-offs waiting/)).toBeInTheDocument();
+    expect(screen.getByText(/^2 press stories published$/)).toBeInTheDocument();
+    expect(screen.getByText(/^1 campaign live$/)).toBeInTheDocument();
   });
 
   it('deep-links into the OS sections', async () => {
@@ -114,12 +128,16 @@ describe('FounderDashboard OS strip', () => {
     expect(onOpenSection).toHaveBeenCalledWith('work-board');
     fireEvent.click(screen.getByRole('button', { name: /Partnership CRM/ }));
     expect(onOpenSection).toHaveBeenCalledWith('partners');
+    fireEvent.click(screen.getByRole('button', { name: /Campaign Factory/ }));
+    expect(onOpenSection).toHaveBeenCalledWith('campaign-factory');
   });
 
   it('merges OS lines into the strategic read-out', async () => {
     render(<FounderDashboard />);
     expect(await screen.findByText(/2 launches ready to ship/)).toBeInTheDocument();
     expect(screen.getByText(/1 active partner, 1 in negotiation/)).toBeInTheDocument();
+    expect(screen.getByText(/2 press stories published, 1 pending/)).toBeInTheDocument();
+    expect(screen.getByText(/1 campaign live right now/)).toBeInTheDocument();
   });
 });
 

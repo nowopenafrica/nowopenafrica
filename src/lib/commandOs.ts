@@ -2,11 +2,11 @@
 //
 // Aggregates the four core os_* tables (workforce, work items, approvals,
 // knowledge) into the OS briefing the Command Center front door shows, and the
-// six ledgers (plus launches and partners, OS-6/OS-7) into the executive
-// briefing the Founder Dashboard shows. Every number is derived from the real
-// ledgers — agent states come from the work items they're assigned via
-// deriveAgentStatuses, sign-offs from os_approvals, knowledge from
-// os_knowledge. Nothing is fabricated.
+// eight ledgers (plus launches, partners, press and campaigns, OS-6/OS-7/
+// OS-9/OS-10) into the executive briefing the Founder Dashboard shows. Every
+// number is derived from the real ledgers — agent states come from the work
+// items they're assigned via deriveAgentStatuses, sign-offs from os_approvals,
+// knowledge from os_knowledge. Nothing is fabricated.
 
 import type { WorkforceMember } from './workforce';
 import type { WorkItem } from './work';
@@ -16,6 +16,8 @@ import type { KnowledgeDoc } from './knowledge';
 import type { LaunchItem } from './launches';
 import { launchStatus } from './launches';
 import type { PartnerItem } from './partners';
+import type { PressItem } from './press';
+import type { CampaignItem } from './osCampaigns';
 
 export interface OsState {
   members: WorkforceMember[];
@@ -116,10 +118,13 @@ export function osBriefingLines(b: OsBriefing): string[] {
 }
 
 /** The full OS for the executive view: the four core ledgers plus the launch
- *  board (os_launches) and the partner pipeline (os_partners). */
+ *  board (os_launches), the partner pipeline (os_partners), the press ledger
+ *  (os_press) and the platform campaigns (os_campaigns). */
 export interface OsExtendedInput extends OsState {
   launches: LaunchItem[];
   partners: PartnerItem[];
+  press: PressItem[];
+  campaigns: CampaignItem[];
 }
 
 export interface OsExtendedBriefing extends OsBriefing {
@@ -127,9 +132,13 @@ export interface OsExtendedBriefing extends OsBriefing {
   launchesReady: number;
   partnersActive: number;
   partnersNegotiation: number;
+  pressPublished: number;
+  pressPending: number;
+  campaignsLive: number;
+  campaignsInBuild: number;
 }
 
-export function summarizeOsExtended({ members, items, approvals, docs, launches, partners }: OsExtendedInput, now = new Date()): OsExtendedBriefing {
+export function summarizeOsExtended({ members, items, approvals, docs, launches, partners, press, campaigns }: OsExtendedInput, now = new Date()): OsExtendedBriefing {
   const base = summarizeOs({ members, items, approvals, docs }, now);
   const statuses = launches.map(launchStatus);
   return {
@@ -138,23 +147,30 @@ export function summarizeOsExtended({ members, items, approvals, docs, launches,
     launchesReady: statuses.filter((s) => s === 'ready').length,
     partnersActive: partners.filter((p) => p.stage === 'Active').length,
     partnersNegotiation: partners.filter((p) => p.stage === 'Negotiation').length,
+    pressPublished: press.filter((p) => p.status === 'published').length,
+    pressPending: press.filter((p) => p.status !== 'published').length,
+    campaignsLive: campaigns.filter((c) => c.status === 'live').length,
+    campaignsInBuild: campaigns.filter((c) => c.status === 'in_build').length,
   };
 }
 
 /** An honest 0–100 health read on the operating system itself: a clean base
  *  that drops for a clogged approval queue, blocked work, blocked agents and a
- *  pipeline where deals stall in negotiation with nothing active. */
+ *  pipeline where deals stall in negotiation with nothing active. A live
+ *  campaign with no published press about it also costs the score — something
+ *  is running that nobody can read about. */
 export function osHealthScore(b: OsExtendedBriefing): number {
   let score = 100;
   score -= Math.min(b.pendingSignOffs * 6, 24);
   score -= Math.min(b.blockedItems * 5, 20);
   score -= Math.min(b.agentsBlocked * 4, 12);
   if (b.partnersActive === 0 && b.partnersNegotiation > 0) score -= 5;
+  if (b.campaignsLive > 0 && b.pressPublished === 0) score -= 4;
   return Math.max(0, score);
 }
 
-/** The executive OS briefing: the core lines plus what's on the launch board
- *  and in the partner pipeline. */
+/** The executive OS briefing: the core lines plus what's on the launch board,
+ *  in the partner pipeline, published to press and live on the platform. */
 export function osExtendedBriefingLines(b: OsExtendedBriefing): string[] {
   const lines = osBriefingLines(b);
   if (b.launchesReady > 0) {
@@ -164,6 +180,18 @@ export function osExtendedBriefingLines(b: OsExtendedBriefing): string[] {
   }
   if (b.partnersActive + b.partnersNegotiation > 0) {
     lines.push(`${b.partnersActive} active partner${b.partnersActive === 1 ? '' : 's'}, ${b.partnersNegotiation} in negotiation.`);
+  }
+  if (b.pressPublished > 0) {
+    lines.push(b.pressPending > 0
+      ? `${b.pressPublished} press stor${b.pressPublished === 1 ? 'y' : 'ies'} published, ${b.pressPending} pending.`
+      : `${b.pressPublished} press stor${b.pressPublished === 1 ? 'y' : 'ies'} published.`);
+  } else if (b.pressPending > 0) {
+    lines.push(`${b.pressPending} press item${b.pressPending === 1 ? '' : 's'} pending publication.`);
+  }
+  if (b.campaignsLive > 0) {
+    lines.push(`${b.campaignsLive} campaign${b.campaignsLive === 1 ? '' : 's'} live right now.`);
+  } else if (b.campaignsInBuild > 0) {
+    lines.push(`${b.campaignsInBuild} campaign${b.campaignsInBuild === 1 ? '' : 's'} in build — momentum building.`);
   }
   return lines;
 }

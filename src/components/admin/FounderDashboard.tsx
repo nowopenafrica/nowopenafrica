@@ -2,7 +2,7 @@ import { useMemo, useEffect, useCallback, useState } from 'react';
 import {
   Sparkles, TrendingUp, Activity, Banknote, BadgeCheck, ShoppingBag, Users,
   Megaphone, ArrowRight, Loader2, ShieldCheck, Rocket, BookOpen, Bot,
-  ClipboardCheck, Kanban, UsersRound, Building2,
+  ClipboardCheck, Kanban, UsersRound, Building2, Newspaper, Store,
 } from 'lucide-react';
 import { aiRecommendations } from '../../lib/adminCreator';
 import { useCommandData } from '../../hooks/useCommandData';
@@ -14,6 +14,8 @@ import { APPROVALS_SEED, mapSeedToApprovals, type ApprovalRequest } from '../../
 import { KNOWLEDGE_SEED, type KnowledgeDoc } from '../../lib/knowledge';
 import { LAUNCHES_SEED, mapLaunchRow } from '../../lib/launches';
 import { PARTNERS_SEED, mapPartnerRow } from '../../lib/partners';
+import { PRESS_SEED, mapPressRow } from '../../lib/press';
+import { CAMPAIGNS_SEED, mapCampaignRow } from '../../lib/osCampaigns';
 import {
   summarizeOsExtended, osExtendedBriefingLines, osHealthScore,
   type OsExtendedBriefing,
@@ -22,10 +24,11 @@ import {
 // The Founder Dashboard (#20) — the private executive view. Same real numbers
 // as the Command Center, framed as company health: a health score, growth
 // velocity, revenue, the approval queue and the strategic read-out. Since OS-8
-// it also reads all six os_* ledgers and folds the operating system — team,
-// work, approvals, knowledge, launches and partners — into the health score,
-// the briefing and an "Operating system" strip, with the same honest fallback
-// as the rest of the OS.
+// it reads all six core os_* ledgers and folds the operating system into the
+// health score and briefing; OS-11 folds the press ledger (os_press) and the
+// platform campaigns (os_campaigns) in too — team, work, approvals, knowledge,
+// launches, partners, press and campaigns, with the same honest fallback as
+// the rest of the OS.
 
 const fmtMoney = (n: number): string => n >= 1_000_000 ? `₦${(n / 1_000_000).toFixed(1)}M` : `₦${n.toLocaleString()}`;
 
@@ -46,13 +49,15 @@ export default function FounderDashboard({ onOpenSection }: Props) {
 
   const loadOs = useCallback(async () => {
     try {
-      const [wf, wk, ap, kb, ln, pt] = await Promise.all([
+      const [wf, wk, ap, kb, ln, pt, pr, ca] = await Promise.all([
         supabase.from('os_workforce').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_work_items').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_approvals').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_knowledge').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_launches').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_partners').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_press').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_campaigns').select('*').eq('org_id', NOWOPEN_ORG_ID),
       ]);
       const members = (wf.data ?? []) as WorkforceMember[];
       const items = (wk.data ?? []) as WorkItem[];
@@ -60,10 +65,12 @@ export default function FounderDashboard({ onOpenSection }: Props) {
       const docs = (kb.data ?? []) as KnowledgeDoc[];
       const launches = ((ln.data ?? []) as Parameters<typeof mapLaunchRow>[0][]).map(mapLaunchRow);
       const partners = ((pt.data ?? []) as Parameters<typeof mapPartnerRow>[0][]).map(mapPartnerRow);
-      if (wf.error || wk.error || ap.error || kb.error || ln.error || pt.error || members.length === 0 || items.length === 0) {
+      const press = ((pr.data ?? []) as Parameters<typeof mapPressRow>[0][]).map(mapPressRow);
+      const campaigns = ((ca.data ?? []) as Parameters<typeof mapCampaignRow>[0][]).map(mapCampaignRow);
+      if (wf.error || wk.error || ap.error || kb.error || ln.error || pt.error || pr.error || ca.error || members.length === 0 || items.length === 0) {
         throw new Error('os tables unavailable');
       }
-      setOsBriefing(summarizeOsExtended({ members, items, approvals, docs, launches, partners }));
+      setOsBriefing(summarizeOsExtended({ members, items, approvals, docs, launches, partners, press, campaigns }));
       setOsUsingFallback(false);
     } catch {
       const fallbackMembers = seedMembers(currentUser);
@@ -75,6 +82,8 @@ export default function FounderDashboard({ onOpenSection }: Props) {
         docs: KNOWLEDGE_SEED,
         launches: LAUNCHES_SEED,
         partners: PARTNERS_SEED,
+        press: PRESS_SEED,
+        campaigns: CAMPAIGNS_SEED,
       }));
       setOsUsingFallback(true);
     }
@@ -116,6 +125,7 @@ export default function FounderDashboard({ onOpenSection }: Props) {
     { id: 'analytics-war-room', label: 'Analytics War Room', icon: TrendingUp, tone: 'bg-violet-50 dark:bg-violet-900/20 text-violet-600 dark:text-violet-300' },
     { id: 'launch', label: 'Launch Control', icon: Rocket, tone: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300' },
     { id: 'press-room', label: 'Press Room', icon: BookOpen, tone: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300' },
+    { id: 'campaign-factory', label: 'Campaign Factory', icon: Store, tone: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300' },
     { id: 'brand-director', label: 'AI Brand Director', icon: Bot, tone: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300' },
     { id: 'workforce', label: 'Workforce Directory', icon: UsersRound, tone: 'bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-300' },
     { id: 'work-board', label: 'Work Board', icon: Kanban, tone: 'bg-cyan-50 dark:bg-cyan-900/20 text-cyan-600 dark:text-cyan-300' },
@@ -185,6 +195,8 @@ export default function FounderDashboard({ onOpenSection }: Props) {
                     <span>{osBriefing.pendingSignOffs} sign-offs waiting</span>
                     <span>{osBriefing.launchesReady} launch{osBriefing.launchesReady === 1 ? '' : 'es'} ready</span>
                     <span>{osBriefing.partnersActive} active partner{osBriefing.partnersActive === 1 ? '' : 's'}</span>
+                    <span>{osBriefing.pressPublished} press stor{osBriefing.pressPublished === 1 ? 'y' : 'ies'} published</span>
+                    <span>{osBriefing.campaignsLive} campaign{osBriefing.campaignsLive === 1 ? '' : 's'} live</span>
                   </div>
                 )}
               </div>
@@ -256,6 +268,8 @@ export default function FounderDashboard({ onOpenSection }: Props) {
               { label: 'Decisions saved', value: osBriefing.kbDecisions, icon: Users, tone: 'bg-purple-50 dark:bg-purple-900/20 text-purple-600 dark:text-purple-300' },
               { label: 'Launches ready', value: osBriefing.launchesReady, icon: Rocket, tone: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300' },
               { label: 'Partners active', value: osBriefing.partnersActive, icon: Building2, tone: 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-600 dark:text-emerald-300' },
+              { label: 'Press published', value: osBriefing.pressPublished, icon: Newspaper, tone: 'bg-sky-50 dark:bg-sky-900/20 text-sky-600 dark:text-sky-300' },
+              { label: 'Campaigns live', value: osBriefing.campaignsLive, icon: Megaphone, tone: 'bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300' },
             ].map((w) => (
               <div key={w.label} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3">
                 <div className={`w-7 h-7 rounded-lg flex items-center justify-center mb-2 ${w.tone}`}><w.icon size={14} /></div>

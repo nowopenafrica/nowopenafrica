@@ -9,6 +9,8 @@ import type { ApprovalRequest } from './approvals';
 import type { KnowledgeDoc } from './knowledge';
 import type { LaunchItem } from './launches';
 import type { PartnerItem } from './partners';
+import type { PressItem } from './press';
+import type { CampaignItem } from './osCampaigns';
 
 const org = '00000000-0000-4000-8000-00000000a001';
 
@@ -40,8 +42,16 @@ function partner(over: Partial<PartnerItem> = {}): PartnerItem {
   return { id: 'p1', org_id: org, name: 'Partner', type: 'Media', note: '', stage: 'Proposal', ...over };
 }
 
+function press(over: Partial<PressItem> = {}): PressItem {
+  return { id: 'pr1', org_id: org, headline: 'Story', outlet: 'NowOpen Africa', kind: 'release', status: 'draft', url: '', summary: '', ...over };
+}
+
+function campaign(over: Partial<CampaignItem> = {}): CampaignItem {
+  return { id: 'c1', org_id: org, slug: 'c', name: 'Campaign', focus: 'F', audience: '', channels: [], status: 'idea', ...over };
+}
+
 function extState(over: Partial<OsExtendedInput> = {}): OsExtendedInput {
-  return { members: [], items: [], approvals: [], docs: [], launches: [], partners: [], ...over };
+  return { members: [], items: [], approvals: [], docs: [], launches: [], partners: [], press: [], campaigns: [], ...over };
 }
 
 describe('commandOs lib', () => {
@@ -147,15 +157,37 @@ describe('commandOs lib', () => {
     expect(b.partnersNegotiation).toBe(1);
   });
 
-  it('adds launch and partner lines to the executive briefing', () => {
+  it('folds the press and campaign ledgers into the extended summary', () => {
+    const b = summarizeOsExtended(extState({
+      press: [
+        press({ id: 'pr1', status: 'published' }),
+        press({ id: 'pr2', status: 'published' }),
+        press({ id: 'pr3', status: 'draft' }),
+      ],
+      campaigns: [
+        campaign({ id: 'c1', status: 'live' }),
+        campaign({ id: 'c2', status: 'in_build' }),
+        campaign({ id: 'c3', status: 'planning' }),
+      ],
+    }));
+    expect(b.pressPublished).toBe(2);
+    expect(b.pressPending).toBe(1);
+    expect(b.campaignsLive).toBe(1);
+    expect(b.campaignsInBuild).toBe(1);
+  });
+
+  it('adds launch, partner, press and campaign lines to the executive briefing', () => {
     const lines = osExtendedBriefingLines({
       pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 3,
       agentsBlocked: 0, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
       launchesOpen: 2, launchesReady: 1, partnersActive: 1, partnersNegotiation: 2,
+      pressPublished: 2, pressPending: 1, campaignsLive: 1, campaignsInBuild: 1,
     });
     expect(lines.some((l) => l.includes('1 launch ready to ship'))).toBe(true);
     expect(lines.some((l) => l.includes('1 active partner, 2 in negotiation'))).toBe(true);
+    expect(lines.some((l) => l.includes('2 press stories published, 1 pending'))).toBe(true);
+    expect(lines.some((l) => l.includes('1 campaign live right now'))).toBe(true);
   });
 
   it('reports no-ready launches honestly', () => {
@@ -164,8 +196,11 @@ describe('commandOs lib', () => {
       agentsBlocked: 0, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
       launchesOpen: 2, launchesReady: 0, partnersActive: 0, partnersNegotiation: 0,
+      pressPublished: 0, pressPending: 1, campaignsLive: 0, campaignsInBuild: 1,
     });
     expect(lines.some((l) => l.includes('No launches ready — 2 open on the launch board'))).toBe(true);
+    expect(lines.some((l) => l.includes('1 press item pending publication'))).toBe(true);
+    expect(lines.some((l) => l.includes('1 campaign in build'))).toBe(true);
   });
 
   it('scores a clean OS at 100 and deducts for real blockers', () => {
@@ -174,6 +209,7 @@ describe('commandOs lib', () => {
       agentsBlocked: 0, agentsWaiting: 0, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
       launchesOpen: 2, launchesReady: 1, partnersActive: 2, partnersNegotiation: 1,
+      pressPublished: 1, pressPending: 0, campaignsLive: 1, campaignsInBuild: 0,
     });
     expect(clean).toBe(100);
 
@@ -182,6 +218,7 @@ describe('commandOs lib', () => {
       agentsBlocked: 2, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
       launchesOpen: 2, launchesReady: 0, partnersActive: 0, partnersNegotiation: 2,
+      pressPublished: 0, pressPending: 1, campaignsLive: 1, campaignsInBuild: 0,
     });
     expect(stressed).toBeLessThan(100);
     expect(stressed).toBeGreaterThanOrEqual(0);
