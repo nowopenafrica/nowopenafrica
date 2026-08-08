@@ -41,6 +41,15 @@ export interface Business {
   rating?: number;
   status?: string;
   hours?: string;
+  // Free-text opening hours published by the owner ("Mon–Sat: 9AM–7PM").
+  // Parsed by lib/openingHours; public open/closed is evaluated in `timezone`.
+  opening_hours?: string | null;
+  // IANA timezone the business operates in (e.g. "Africa/Lagos"). When absent,
+  // public status falls back to lib/openingHours' DEFAULT_BUSINESS_TIMEZONE.
+  timezone?: string | null;
+  // Owner's DB-persisted open/closed override (see syncOpenStatus). When set it
+  // wins over the schedule; null/undefined means "derive from the hours".
+  open_status?: 'open' | 'closed' | null;
   // Owner-selected booking module keys (from categoryFeatures). null/undefined
   // = show all of the category's modules (legacy default).
   enabled_modules?: string[] | null;

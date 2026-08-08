@@ -13,9 +13,9 @@ import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import { normalize } from '../lib/search';
 import { BUSINESS_CATEGORY_GROUPS, businessCategories, matchesCategory } from '../data/categories';
 import {
-  resolveBusinessStatus, loadClockConfig, isBusinessOpen, isOrderingCategory,
-  buildBusinessPulse, statusSortRank, parseMinutes, type BusinessStatus,
+  resolvePublicStatus, isOrderingCategory, buildBusinessPulse, statusSortRank,
 } from '../lib/businessStatus';
+import { parseOpeningHours } from '../lib/openingHours';
 
 // Icon + accent + one-liner per business category group (keyed by group label).
 const GROUP_META: Record<string, { icon: LucideIcon; accent: string; description: string }> = {
@@ -40,17 +40,15 @@ const ACCENT: Record<string, { grad: string; text: string }> = {
   pink: { grad: 'from-pink-500 to-pink-600', text: 'text-pink-600 dark:text-pink-400' },
 };
 
-// Live-status quick filters for the directory (spec: search prioritises the
-// open / available / responding / live businesses and exposes these chips).
+// Live-status quick filters for the directory. Open/Open-24 come from each
+// business's own stored hours (honest public status). Busy/Available/Live/
+// Delivery are OWNER-only signals that don't exist for visitors, so they are
+// not offered here — a chip that could never match is a lie wearing a filter.
 const STATUS_CHIPS: { key: string; label: string }[] = [
   { key: 'open', label: 'Open Now' },
   { key: 'open24', label: 'Open 24 Hours' },
-  { key: 'busy', label: 'Busy' },
-  { key: 'available', label: 'Available' },
   { key: 'orders', label: 'Taking Orders' },
-  { key: 'delivery', label: 'Delivery Available' },
   { key: 'book', label: 'Book Now' },
-  { key: 'live', label: 'Live' },
   { key: 'verified', label: 'Verified' },
   { key: 'fast', label: 'Responds Fast' },
   { key: 'near', label: 'Near Me' },
@@ -118,17 +116,21 @@ export default function Businesses() {
   const activeGroupObj = BUSINESS_CATEGORY_GROUPS.find((g) => g.group === activeGroup) ?? null;
   const hasFilters = !!search.trim() || !!location.trim() || !!activeGroup || !!categoryFilter || statusFilter.length > 0;
 
+  // Honest public status per card: each business's OWN stored hours in its OWN
+  // timezone. null means "hours not confirmed" — never a category guess.
   const statusMap = useMemo(() => {
-    const m = new Map<string, BusinessStatus>();
-    for (const b of businesses) m.set(b.id, resolveBusinessStatus(b, loadClockConfig(b), now));
+    const m = new Map<string, 'open' | 'closed' | null>();
+    for (const b of businesses) m.set(b.id, resolvePublicStatus(b, now));
     return m;
   }, [businesses, now]);
 
   const pulse = useMemo(() => buildBusinessPulse(businesses, now), [businesses, now]);
 
   const isOpen24 = (b: any): boolean => {
-    const slot = loadClockConfig(b).autoHours[now.getDay()] || { open: '', close: '', closed: true };
-    return !slot.closed && parseMinutes(slot.open) === 0 && parseMinutes(slot.close) === 1440;
+    const parsed = parseOpeningHours(b.opening_hours || b.hours);
+    if (!parsed) return false;
+    if (parsed.alwaysOpen) return true;
+    return parsed.days.every((d) => d.open === 0 && d.close === 1440);
   };
   const isBookingCategory = (b: any): boolean => BOOKING_CATEGORIES.some((c) => (b.category || '').toLowerCase() === c.toLowerCase());
 
@@ -138,19 +140,15 @@ export default function Businesses() {
 
   const matchStatus = (b: any): boolean => {
     if (statusFilter.length === 0) return true;
-    const st = statusMap.get(b.id) ?? 'closed';
-    const open = isBusinessOpen(st);
+    const st = statusMap.get(b.id) ?? null;
+    const open = st === 'open';
     const orderCapable = isOrderingCategory(b.category);
     return statusFilter.every((k) => {
       switch (k) {
         case 'open': return open;
         case 'open24': return isOpen24(b);
-        case 'busy': return st === 'busy';
-        case 'available': return st === 'available';
-        case 'orders': return st === 'delivery' || (open && orderCapable);
-        case 'delivery': return st === 'delivery';
-        case 'book': return isBookingCategory(b) || st === 'appointment';
-        case 'live': return st === 'live';
+        case 'orders': return open && orderCapable;
+        case 'book': return isBookingCategory(b);
         case 'verified': return !!b.verified;
         case 'fast': return fastScore(b) > 55;
         case 'near': return true;
@@ -202,22 +200,18 @@ export default function Businesses() {
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
             {businesses.length}+ verified businesses across food, retail, tech, health, professional services and more.
           </p>
-          {/* Business Pulse — live rollup of the directory right now */}
+          {/* Business Pulse — honest rollup of the directory right now: open and
+              closed come from each business's own stored hours. No fabricated
+              "busy"/"live" counts — those are owner-only signals. */}
           <div className="mt-6 flex flex-wrap gap-2 text-xs">
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 font-medium">
               <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" /> {pulse.open} open
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 font-medium">
-              <span className="w-2 h-2 rounded-full bg-amber-400" /> {pulse.busy} busy
+              <span className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-500" /> {pulse.closed} closed
             </span>
             <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 font-medium">
-              <span className="w-2 h-2 rounded-full bg-purple-400" /> {pulse.takingOrders} taking orders
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 font-medium">
-              <span className="w-2 h-2 rounded-full bg-red-400 animate-pulse" /> {pulse.live} live now
-            </span>
-            <span className="inline-flex items-center gap-1.5 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 font-medium">
-              <span className="w-2 h-2 rounded-full bg-blue-400" /> {pulse.deliveries} deliveries active
+              <span className="w-2 h-2 rounded-full bg-blue-300" /> {pulse.unconfirmed} hours not confirmed
             </span>
           </div>
         </div>
@@ -357,7 +351,7 @@ export default function Businesses() {
                   <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">{business.description}</p>
 
                   <div className="mb-3">
-                    <BusinessStatusBadge status={statusMap.get(business.id) ?? 'closed'} category={business.category} compact />
+                    <BusinessStatusBadge status={statusMap.get(business.id) ?? null} category={business.category} compact />
                   </div>
 
                   <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">

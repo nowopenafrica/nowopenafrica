@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parseOpeningHours, isOpenAt, nextChange, formatClock } from './openingHours';
+import { parseOpeningHours, isOpenAt, nextChange, formatClock, dayAndMinutesInZone, isOpenAtInZone, nextChangeInZone } from './openingHours';
 
 // Sunday = 0. These are real local times; the parser has no timezone concept.
 const at = (day: number, hhmm: string) => {
@@ -166,5 +166,50 @@ describe('formatClock', () => {
   it('wraps values at or beyond a day', () => {
     expect(formatClock(1440)).toBe('12:00 AM');
     expect(formatClock(-60)).toBe('11:00 PM');
+  });
+});
+
+describe('timezone-aware evaluation', () => {
+  // One instant, different walls: 23:30 UTC on Sunday 9 Aug 2026.
+  // Lagos (UTC+1) is already Monday 00:30; Honolulu (UTC-10) is still Sunday 13:30.
+  const instant = new Date('2026-08-09T23:30:00Z');
+
+  it('resolves the local day and minute for a business timezone', () => {
+    expect(dayAndMinutesInZone(instant, 'Africa/Lagos')).toEqual({ day: 1, minutes: 30 });      // Mon 00:30
+    expect(dayAndMinutesInZone(instant, 'Pacific/Honolulu')).toEqual({ day: 0, minutes: 810 }); // Sun 13:30
+    expect(dayAndMinutesInZone(instant, 'Asia/Tokyo')).toEqual({ day: 1, minutes: 510 });       // Mon 08:30
+  });
+
+  it('is open according to the business wall clock, not the viewer location', () => {
+    // Mon–Sat 9AM–7PM. Lagos says Monday 00:30 -> closed (not open yet).
+    const h = parse('Mon–Sat: 9AM–7PM');
+    expect(isOpenAtInZone(h, instant, 'Africa/Lagos')).toBe(false);
+    // Honolulu says Sunday 13:30 -> closed (Sunday has no hours).
+    expect(isOpenAtInZone(h, instant, 'Pacific/Honolulu')).toBe(false);
+    // At 09:00 UTC Monday, Lagos says Monday 10:00 -> open, while Honolulu is
+    // still Sunday 23:00 -> closed (Sunday has no hours).
+    const openInstant = new Date('2026-08-10T09:00:00Z');
+    expect(isOpenAtInZone(h, openInstant, 'Africa/Lagos')).toBe(true);
+    expect(isOpenAtInZone(h, openInstant, 'Pacific/Honolulu')).toBe(false);
+  });
+
+  it('reports the next change in the business timezone', () => {
+    // Mon–Fri 9AM–6PM. At 08:00 UTC on Monday: Lagos says Monday 09:00 (just
+    // opened, closes 6PM); Honolulu says Sunday 22:00 (opens Monday 9AM).
+    const h = parse('Mon-Fri: 9AM-6PM');
+    const monday = new Date('2026-08-10T08:00:00Z');
+    expect(nextChangeInZone(h, monday, 'Africa/Lagos')).toEqual({ kind: 'closes', minutes: 1080, dayOffset: 0 });
+    expect(nextChangeInZone(h, monday, 'Pacific/Honolulu')).toEqual({ kind: 'opens', minutes: 540, dayOffset: 1 });
+  });
+
+  it('stays timezone-aware for overnight shifts', () => {
+    const bar = parse('Tue–Sun: 4PM–2AM');
+    // Lagos Monday 04:00 (03:00 UTC) — Monday has no shift and Sunday's 4PM–2AM
+    // shift closed at 2AM. Closed.
+    expect(isOpenAtInZone(bar, new Date('2026-08-10T03:00:00Z'), 'Africa/Lagos')).toBe(false);
+    // Lagos Monday 01:00 (00:00 UTC) — still inside Sunday's 4PM–2AM shift. Open.
+    expect(isOpenAtInZone(bar, new Date('2026-08-10T00:00:00Z'), 'Africa/Lagos')).toBe(true);
+    // Honolulu Sunday 13:00 (23:00 UTC Saturday) — before Sunday's 4PM opening. Closed.
+    expect(isOpenAtInZone(bar, new Date('2026-08-09T23:00:00Z'), 'Pacific/Honolulu')).toBe(false);
   });
 });

@@ -17,6 +17,7 @@
 
 import { Business } from '../types';
 import { hashString, mulberry32, pick } from './videoCreator';
+import { parseOpeningHours, isOpenAtInZone, DEFAULT_BUSINESS_TIMEZONE } from './openingHours';
 
 // --- Status model -------------------------------------------------------------
 
@@ -60,6 +61,34 @@ export function isBusinessOpen(status: BusinessStatus): boolean {
 export function statusSortRank(status: BusinessStatus): number {
   const rank: Record<BusinessStatus, number> = { live: 0, open: 1, busy: 2, available: 3, delivery: 4, appointment: 5, closed: 6 };
   return rank[status];
+}
+
+// --- Honest public status -------------------------------------------------------
+//
+// resolveBusinessStatus() above is the OWNER's view: it reads the owner's clock
+// config (localStorage) and reports Busy/Available/Live/etc. That must never run
+// for a visitor — a visitor has no clock config for someone else's business, so
+// it would fall through to defaultAutoHours(category) and INVENT a status from
+// the category ("a restaurant reads Open because restaurants usually are").
+//
+// resolvePublicStatus() is the VISITOR's view: it reads the business's OWN
+// stored opening_hours and evaluates them in the business's OWN timezone. When
+// the text can't be parsed it returns null and callers must say "hours not
+// confirmed" rather than guess — a confidently wrong "Open Now" sends someone to
+// a closed shop.
+
+/** IANA timezone the business operates in; falls back to the platform home. */
+export function businessTimezone(business: Business): string {
+  return business.timezone || DEFAULT_BUSINESS_TIMEZONE;
+}
+
+/** Honest public open/closed, or null when it can't be confirmed. */
+export function resolvePublicStatus(business: Business, now: Date): 'open' | 'closed' | null {
+  // The owner's DB override (if any) is the strongest truth on the public side.
+  if (business.open_status === 'open' || business.open_status === 'closed') return business.open_status;
+  const parsed = parseOpeningHours(business.opening_hours ?? business.hours);
+  if (!parsed) return null;
+  return isOpenAtInZone(parsed, now, businessTimezone(business)) ? 'open' : 'closed';
 }
 
 // --- Time helpers -------------------------------------------------------------
@@ -397,13 +426,9 @@ export function toggleBusinessStatus(business: Business, now: Date): BusinessClo
 export interface BusinessPulse {
   total: number;
   open: number;
-  busy: number;
-  available: number;
-  live: number;
-  deliveries: number;
-  takingOrders: number;
-  appointmentOnly: number;
   closed: number;
+  /** Stored hours unparseable — we can't claim open or closed. */
+  unconfirmed: number;
 }
 
 export function isOrderingCategory(category?: string): boolean {
@@ -411,19 +436,20 @@ export function isOrderingCategory(category?: string): boolean {
   return ['restaurant', 'fast food', 'food vendor', 'suya', 'shawarma', 'food truck', 'bakery', 'café', 'retail', 'supermarket', 'grocery', 'electronics', 'pharmacy', 'boutique', 'clothing', 'jewelry'].some((k) => cat.includes(k));
 }
 
+/**
+ * Directory-level rollup for VISITORS: open/closed come from each business's own
+ * stored hours in its own timezone (resolvePublicStatus), never from a category
+ * guess or the viewer's localStorage. Busy/Available/Live are owner signals and
+ * don't exist on the public side, so they're not fabricated here.
+ */
 export function buildBusinessPulse(businesses: Business[], now: Date): BusinessPulse {
-  const pulse: BusinessPulse = { total: 0, open: 0, busy: 0, available: 0, live: 0, deliveries: 0, takingOrders: 0, appointmentOnly: 0, closed: 0 };
+  const pulse: BusinessPulse = { total: 0, open: 0, closed: 0, unconfirmed: 0 };
   for (const b of businesses) {
-    const status = resolveBusinessStatus(b, defaultClockConfig(b), now);
     pulse.total += 1;
-    if (status === 'closed') pulse.closed += 1;
-    if (status === 'busy') pulse.busy += 1;
-    if (status === 'available') pulse.available += 1;
-    if (status === 'live') pulse.live += 1;
-    if (status === 'delivery') pulse.deliveries += 1;
-    if (status === 'appointment') pulse.appointmentOnly += 1;
-    if (isBusinessOpen(status)) pulse.open += 1;
-    if (status === 'delivery' || (isBusinessOpen(status) && status !== 'live' && isOrderingCategory(b.category))) pulse.takingOrders += 1;
+    const status = resolvePublicStatus(b, now);
+    if (status === 'open') pulse.open += 1;
+    else if (status === 'closed') pulse.closed += 1;
+    else pulse.unconfirmed += 1;
   }
   return pulse;
 }

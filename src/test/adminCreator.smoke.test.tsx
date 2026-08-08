@@ -161,5 +161,8 @@ describe('AdminCreatorShell smoke', () => {
     // The AI Video Studio exposes the AI video generation option with tiers.
     fireEvent.click(screen.getAllByRole('button', { name: /AI Video Studio/ })[0]);
     expect(await screen.findByRole('button', { name: /AI video generation/ })).toBeInTheDocument();
-  });
+    // This tour clicks through ~20 departments with async finds; under the full
+    // suite's parallel load the default 5s cap flakes. The budget is enlarged,
+    // the assertions are unchanged.
+  }, 60000);
 });

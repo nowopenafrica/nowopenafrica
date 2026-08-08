@@ -206,6 +206,106 @@ export function nextChange(h: OpeningHours, now: Date): NextChange | null {
   return null;
 }
 
+// --- Timezone-aware evaluation ---------------------------------------------------
+//
+// A business in Lagos and one in Nairobi share the same instant but not the same
+// local clock. `isOpenAt`/`nextChange` above read the *viewer's* wall clock,
+// which is right for an owner's own dashboard but wrong on the public profile
+// and directory. These functions resolve the business's IANA timezone (e.g.
+// "Africa/Lagos") so "open now" means the local time where the business stands.
+//
+// The platform is Africa-first, so when a business hasn't recorded a timezone we
+// fall back to Lagos — the stated home — rather than the viewer's location.
+export const DEFAULT_BUSINESS_TIMEZONE = 'Africa/Lagos';
+
+const zoneFormatters = new Map<string, Intl.DateTimeFormat>();
+
+function zoneFormatter(timeZone: string): Intl.DateTimeFormat {
+  let fmt = zoneFormatters.get(timeZone);
+  if (!fmt) {
+    fmt = new Intl.DateTimeFormat('en-US', {
+      timeZone,
+      weekday: 'short',
+      hour: '2-digit',
+      minute: '2-digit',
+      hourCycle: 'h23',
+    });
+    zoneFormatters.set(timeZone, fmt);
+  }
+  return fmt;
+}
+
+export interface ZoneTime {
+  /** 0 = Sunday … 6 = Saturday, in the business's own timezone. */
+  day: number;
+  /** Minutes from midnight, in the business's own timezone. */
+  minutes: number;
+}
+
+/** Local day + minutes for `now`, evaluated in `timeZone` (IANA name). */
+export function dayAndMinutesInZone(now: Date, timeZone: string): ZoneTime {
+  let day = 0;
+  let hour = 0;
+  let minute = 0;
+  for (const part of zoneFormatter(timeZone).formatToParts(now)) {
+    if (part.type === 'weekday') day = dayIndex(part.value) ?? 0;
+    else if (part.type === 'hour') hour = Number(part.value);
+    else if (part.type === 'minute') minute = Number(part.value);
+  }
+  return { day, minutes: hour * 60 + minute };
+}
+
+/** Same contract as `isOpenAt`, but the day/minute come from the business's timezone. */
+export function isOpenAtInZone(h: OpeningHours, now: Date, timeZone: string): boolean {
+  if (h.alwaysOpen) return true;
+  const { day, minutes } = dayAndMinutesInZone(now, timeZone);
+  const today = h.days[day];
+  if (today.open !== null && today.close !== null) {
+    if (isOvernight(today)) {
+      if (minutes >= today.open) return true;
+    } else if (minutes >= today.open && minutes < today.close) {
+      return true;
+    }
+  }
+  // Yesterday's overnight shift may still be running in the business's zone.
+  const yesterday = h.days[(day + 6) % 7];
+  if (isOvernight(yesterday) && yesterday.close !== null && minutes < yesterday.close) return true;
+  return false;
+}
+
+/** Same contract as `nextChange`, but for the business's timezone. */
+export function nextChangeInZone(h: OpeningHours, now: Date, timeZone: string): NextChange | null {
+  if (h.alwaysOpen) return null;
+  const { day, minutes } = dayAndMinutesInZone(now, timeZone);
+
+  if (isOpenAtInZone(h, now, timeZone)) {
+    const today = h.days[day];
+    if (today.close !== null && today.open !== null) {
+      if (isOvernight(today) && minutes >= today.open) {
+        return { kind: 'closes', minutes: today.close, dayOffset: 1 };
+      }
+      if (!isOvernight(today) && minutes < today.close) {
+        return { kind: 'closes', minutes: today.close, dayOffset: 0 };
+      }
+    }
+    // Being open on yesterday's overnight shift, in the business's zone.
+    const yesterday = h.days[(day + 6) % 7];
+    if (isOvernight(yesterday) && yesterday.close !== null) {
+      return { kind: 'closes', minutes: yesterday.close, dayOffset: 0 };
+    }
+    return null;
+  }
+
+  // Closed: find the next opening within a week, in the business's zone.
+  for (let offset = 0; offset < 8; offset++) {
+    const d = h.days[(day + offset) % 7];
+    if (d.open === null) continue;
+    if (offset === 0 && d.open <= minutes) continue;
+    return { kind: 'opens', minutes: d.open, dayOffset: offset };
+  }
+  return null;
+}
+
 /** "9:00 AM" from minutes-from-midnight. */
 export function formatClock(minutes: number): string {
   const m = ((minutes % 1440) + 1440) % 1440;

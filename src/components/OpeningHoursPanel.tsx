@@ -1,6 +1,7 @@
 import { Clock, AlertCircle } from 'lucide-react';
 import {
   parseOpeningHours, isOpenAt, nextChange, formatClock, WEEKDAY_FULL,
+  isOpenAtInZone, nextChangeInZone, dayAndMinutesInZone,
 } from '../lib/openingHours';
 
 // The week's opening hours, with today highlighted and the next open/close time.
@@ -8,17 +9,24 @@ import {
 // Reads the business's OWN stored hours. When the text can't be parsed we say so
 // rather than showing a guess — a confident "Open Now" that's wrong sends
 // someone to a closed shop, which costs more trust than an honest blank.
+//
+// When `timeZone` (IANA, e.g. "Africa/Lagos") is supplied, "Open now", today
+// and the next change are all evaluated against the business's local clock
+// instead of the viewer's.
 
 export default function OpeningHoursPanel({
   hours,
+  timeZone,
   className = '',
 }: {
   hours?: string | null;
+  /** IANA timezone of the business — makes "Open now" mean their local clock. */
+  timeZone?: string | null;
   className?: string;
 }) {
   const parsed = parseOpeningHours(hours);
   const now = new Date();
-  const today = now.getDay();
+  const today = timeZone ? dayAndMinutesInZone(now, timeZone).day : now.getDay();
 
   if (!parsed) {
     return (
@@ -43,8 +51,8 @@ export default function OpeningHoursPanel({
     );
   }
 
-  const open = isOpenAt(parsed, now);
-  const change = nextChange(parsed, now);
+  const open = timeZone ? isOpenAtInZone(parsed, now, timeZone) : isOpenAt(parsed, now);
+  const change = timeZone ? nextChangeInZone(parsed, now, timeZone) : nextChange(parsed, now);
 
   const changeLabel = (() => {
     if (parsed.alwaysOpen) return 'Open 24 hours';

@@ -4,6 +4,7 @@ import { ArrowRight, Bell, Power } from 'lucide-react';
 import { Business } from '../../types';
 import { buildMorningBrief } from '../../lib/morningBrief';
 import { toggleBusinessStatus, loadClockConfig, resolveBusinessStatus, getStatusMeta } from '../../lib/businessStatus';
+import { syncOpenStatus } from '../../lib/openStatusSync';
 import { GrowthPlanModule } from '../../lib/growth';
 
 interface Props {
@@ -25,6 +26,7 @@ export default function AiNotificationCenter({ business, onNavigate }: Props) {
 
   const toggle = () => {
     const next = toggleBusinessStatus(business, now);
+    syncOpenStatus(business.id, next.manualOverride ?? null);
     toast.success(`Status updated — ${getStatusMeta(resolveBusinessStatus(business, next, now), business.category).label}`);
     setNow(new Date());
   };

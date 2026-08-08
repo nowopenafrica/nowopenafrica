@@ -6,7 +6,7 @@ import {
   defaultAutoHours, autoStatusForTime,
   defaultClockConfig, loadClockConfig, saveClockConfig, resolveBusinessStatus, getStatusMeta,
   buildBusinessTimeline, loadTimelineEvents, saveTimelineEvents, toggleBusinessStatus,
-  buildBusinessPulse, isOrderingCategory,
+  buildBusinessPulse, isOrderingCategory, businessTimezone, resolvePublicStatus,
   getOpenStreak, getOpeningReliability, getBusinessHealth, healthLabel,
   getSmartReminder, getCoachReminder, getStaffState,
   getAIOpeningAssistant, getOpeningCampaign, getNotificationCopy,
@@ -181,13 +181,65 @@ describe('businessStatus — timeline', () => {
   });
 });
 
+describe('businessStatus — honest public status', () => {
+  // 2026-08-04 is a Tuesday. 12:00 UTC is 13:00 in Lagos and 02:00 in Honolulu.
+  const tuesdayNoonUtc = new Date('2026-08-04T12:00:00Z');
+
+  const lagosShop: Business = {
+    ...biz,
+    opening_hours: 'Mon–Sat: 9AM–7PM',
+    timezone: 'Africa/Lagos',
+  };
+
+  it('derives open/closed from the business own hours in its own timezone', () => {
+    expect(resolvePublicStatus(lagosShop, tuesdayNoonUtc)).toBe('open'); // Tue 13:00 Lagos
+  });
+
+  it('honours the business zone, not the viewer location', () => {
+    // Same instant, Honolulu timezone: 02:00 Tuesday — before the 9AM opening.
+    expect(resolvePublicStatus({ ...lagosShop, timezone: 'Pacific/Honolulu' }, tuesdayNoonUtc)).toBe('closed');
+  });
+
+  it('returns null when the hours cannot be parsed', () => {
+    expect(resolvePublicStatus({ ...biz, opening_hours: 'Call ahead for an appointment' }, tuesdayNoonUtc)).toBeNull();
+    expect(resolvePublicStatus(biz, tuesdayNoonUtc)).toBeNull();
+  });
+
+  it('an owner DB override wins over the schedule', () => {
+    const closedEarly = { ...lagosShop, open_status: 'closed' as const };
+    expect(resolvePublicStatus(closedEarly, tuesdayNoonUtc)).toBe('closed');
+    // Lagos 03:00 — before the 9AM opening, but the owner says open.
+    const openEarly = { ...lagosShop, open_status: 'open' as const };
+    expect(resolvePublicStatus(openEarly, new Date('2026-08-04T02:00:00Z'))).toBe('open');
+  });
+
+  it('businessTimezone falls back to the platform default', () => {
+    expect(businessTimezone(lagosShop)).toBe('Africa/Lagos');
+    expect(businessTimezone(biz)).toBe('Africa/Lagos');
+  });
+});
+
 describe('businessStatus — pulse', () => {
-  it('rolls up a city-wide pulse that accounts for every business', () => {
+  it('rolls up an honest pulse that accounts for every business', () => {
     const pulse = buildBusinessPulse([biz, hotel], nineAM);
     expect(pulse.total).toBe(2);
-    const accounted = pulse.closed + pulse.busy + pulse.available + pulse.live + pulse.deliveries + pulse.appointmentOnly + pulse.open;
+    const accounted = pulse.open + pulse.closed + pulse.unconfirmed;
     expect(accounted).toBe(2);
-    expect(pulse.open).toBeGreaterThan(0);
+  });
+
+  it('counts real opens and never invents them from a category', () => {
+    // 2026-08-04 is a Tuesday. 12:00 UTC = 13:00 Lagos.
+    const tuesdayNoonUtc = new Date('2026-08-04T12:00:00Z');
+    const shop = { ...biz, opening_hours: 'Mon–Sat: 9AM–7PM', timezone: 'Africa/Lagos' as const };
+    // Only open on Monday, so this Tuesday it is closed.
+    const closedTuesday = { ...hotel, opening_hours: 'Mon: 9AM–5PM', timezone: 'Africa/Lagos' as const };
+    // No stored hours — cannot be confirmed either way.
+    const unconfirmed = biz;
+    const pulse = buildBusinessPulse([shop, closedTuesday, unconfirmed], tuesdayNoonUtc);
+    expect(pulse.open).toBe(1);
+    expect(pulse.closed).toBe(1);
+    expect(pulse.unconfirmed).toBe(1);
+    expect(pulse.total).toBe(3);
   });
 
   it('restaurants count as taking orders when open', () => {

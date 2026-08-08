@@ -4,6 +4,7 @@ import { ArrowDown, ArrowRight, ArrowUp, Bell, Minus, Power, Sparkles } from 'lu
 import { Business } from '../../types';
 import { buildDailyBrief } from '../../lib/dailyBrief';
 import { toggleBusinessStatus, loadClockConfig, resolveBusinessStatus, getStatusMeta } from '../../lib/businessStatus';
+import { syncOpenStatus } from '../../lib/openStatusSync';
 import { marketingHealth } from '../../lib/marketingHealth';
 import { buildMorningBrief } from '../../lib/morningBrief';
 import { GrowthPlanModule } from '../../lib/growth';
@@ -39,6 +40,7 @@ export default function DailyGrowthDashboard({ business, onGo }: Props) {
 
   const toggle = () => {
     const next = toggleBusinessStatus(business, now);
+    syncOpenStatus(business.id, next.manualOverride ?? null);
     const nextStatus = getStatusMeta(resolveBusinessStatus(business, next, now), business.category);
     toast.success(`Status updated — ${nextStatus.label}`);
     setNow(new Date());

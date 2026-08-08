@@ -11,6 +11,7 @@ import {
   getStaffState, getAIOpeningAssistant, getOpeningCampaign, getNotificationCopy,
   formatMinutes, parseMinutes, currentMinutes, WEEKDAY_LABELS,
 } from '../../lib/businessStatus';
+import { syncOpenStatus } from '../../lib/openStatusSync';
 
 interface BusinessClockCardProps {
   business: Business;
@@ -84,6 +85,8 @@ export default function BusinessClockCard({ business, businesses, onSelectBusine
   const handleToggle = () => {
     const next = toggleBusinessStatus(business, now);
     setConfigState(next);
+    // Push the owner's choice to the row so the public badge reflects it.
+    syncOpenStatus(business.id, next.manualOverride ?? null);
     if (next.manualOverride === 'open') {
       toast.success(getNotificationCopy('open', business));
     } else {
@@ -94,6 +97,8 @@ export default function BusinessClockCard({ business, businesses, onSelectBusine
   const handleReminder = (value: 'open' | 'later' | 'closed') => {
     const next = applyReminderOption(business, config, value, now);
     setConfigState(next);
+    // "Later" keeps the scheduled opening — no DB override until it fires.
+    syncOpenStatus(business.id, value === 'open' ? 'open' : value === 'closed' ? 'closed' : null);
     if (value === 'open') toast.success(getNotificationCopy('open', business));
     else if (value === 'later') toast.success('Opening scheduled in 30 minutes');
     else toast.success('Marked as closed today');

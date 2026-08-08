@@ -9,7 +9,6 @@ import TrustBadge from '../components/TrustBadge';
 import BusinessTrustPanel from '../components/BusinessTrustPanel';
 import { withDemoTrustAll } from '../data/demoTrust';
 import OpeningHoursPanel from '../components/OpeningHoursPanel';
-import { parseOpeningHours, isOpenAt } from '../lib/openingHours';
 import { deriveTier, TIERS } from '../lib/trust';
 import EnquiryModal from '../components/EnquiryModal';
 import BookingModal from '../components/BookingModal';
@@ -17,7 +16,7 @@ import CartModal, { CartLine } from '../components/CartModal';
 import LiveSection from '../components/live/LiveSection';
 import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import BusinessTimeline from '../components/BusinessTimeline';
-import { resolveBusinessStatus, loadClockConfig } from '../lib/businessStatus';
+import { resolveBusinessStatus, loadClockConfig, resolvePublicStatus } from '../lib/businessStatus';
 import { getActiveFeatures } from '../data/categoryFeatures';
 import { getTabLabel } from '../data/categoryTabLabels';
 import RealEstatePortal from '../components/RealEstatePortal';
@@ -573,22 +572,20 @@ export default function BusinessDetail() {
 
   const clockConfig = loadClockConfig(business);
 
-  // A visitor's open/closed must come from the business's OWN stored hours.
-  // loadClockConfig reads the VIEWER's localStorage, so on someone else's
-  // profile it fell through to defaultAutoHours(category) and invented a status
-  // from the category — a restaurant read "Open" because restaurants usually
-  // are. When the stored text can't be parsed we show no claim at all rather
-  // than a confident guess that could send someone to a closed shop.
-  const publicHours = parseOpeningHours(business.opening_hours || business.hours);
-  const publicOpen = publicHours ? isOpenAt(publicHours, new Date()) : null;
+  // A visitor's open/closed must come from the business's OWN stored hours in
+  // the business's OWN timezone — never from the viewer's localStorage or a
+  // category guess. resolvePublicStatus handles that and returns null when the
+  // stored text can't be parsed, so we show no claim at all rather than a
+  // confident guess that could send someone to a closed shop.
+  const publicStatus = resolvePublicStatus(business, new Date());
   // Owner-side signals (live now, manual override) are still viewer-local, so
   // they only refine a status we already know is real.
   const ownerStatus = resolveBusinessStatus(business, clockConfig, new Date());
-  const liveStatus = publicOpen === null
+  const liveStatus = publicStatus === null
     ? null
     : ownerStatus === 'live'
       ? 'live'
-      : publicOpen ? 'open' : 'closed';
+      : publicStatus;
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -893,7 +890,7 @@ export default function BusinessDetail() {
                         </div>
                       )}
                       <div className="sm:col-span-2">
-                        <OpeningHoursPanel hours={business.opening_hours || business.hours} />
+                        <OpeningHoursPanel hours={business.opening_hours || business.hours} timeZone={business.timezone} />
                       </div>
                     </div>
                   </div>
