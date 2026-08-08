@@ -11,6 +11,11 @@ export type LandingSectionType = 'hero' | 'services' | 'gallery' | 'promo' | 'pr
 
 export type LandingTheme = 'light' | 'dark';
 
+export interface LandingMedia {
+  url: string;
+  type: 'image' | 'video';
+}
+
 export interface LandingSection {
   id: string;
   type: LandingSectionType;
@@ -19,6 +24,7 @@ export interface LandingSection {
   body: string;
   items: string[];
   ctaLabel: string;
+  media?: LandingMedia;
   visible: boolean;
 }
 
@@ -191,12 +197,18 @@ export function renderLandingHtml(business: Business, page: LandingPage): string
     const items = s.items.length
       ? `<ul class="items">${s.items.map((i) => `<li>${i}</li>`).join('')}</ul>`
       : '';
+    const media = s.media
+      ? s.media.type === 'video'
+        ? `<video class="media" src="${s.media.url}" controls preload="metadata"></video>`
+        : `<img class="media" src="${s.media.url}" alt="${s.title}">`
+      : '';
     return `
       <section class="block">
         <h2>${s.title}</h2>
         ${s.subtitle ? `<p class="sub">${s.subtitle}</p>` : ''}
         ${s.body ? `<p class="body">${s.body.replace(/\n/g, '<br>')}</p>` : ''}
         ${items}
+        ${media}
         ${s.ctaLabel ? `<a class="cta" href="${waHref(s)}">${s.ctaLabel}</a>` : ''}
       </section>`;
   }).join('\n');
@@ -215,6 +227,7 @@ main{max-width:44rem;margin:0 auto;padding:1.5rem}
 .block h2{font-size:1.25rem;font-weight:800;color:${page.theme === 'dark' ? '#f9fafb' : '#111827'}}
 .block .sub{color:${page.theme === 'dark' ? '#94a3b8' : '#6b7280'};margin-top:.25rem}
 .block .body{margin-top:.5rem;white-space:pre-line}
+.block .media{width:100%;max-height:340px;object-fit:cover;border-radius:14px;margin-top:.9rem;background:#0f172a}
 .items{list-style:none;padding:0;margin-top:.75rem;display:grid;gap:.5rem}
 .items li{padding:.7rem .9rem;border-radius:12px;background:${page.theme === 'dark' ? '#111c33' : '#faf5ff'}}
 .cta{display:inline-block;margin-top:1rem;padding:.65rem 1.3rem;border-radius:999px;background:var(--accent);color:#fff;font-weight:700;text-decoration:none}

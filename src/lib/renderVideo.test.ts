@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   renderSeed, sceneRenderPlan, buildRenderTimeline, timelineAt,
   pickRenderMime, renderTotalSeconds, renderSceneStill, RENDER_DIMENSIONS, RENDER_FPS,
-  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled } from './renderVideo';
+  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled, RENDER_PALETTES } from './renderVideo';
 import type { DirectorScene } from './creativeDirector';
 
 const base: RenderOptions = {
@@ -73,6 +73,19 @@ describe('renderVideo — scene plans', () => {
     const p1 = sceneRenderPlan(opts(), scenes[1], 1);
     expect(p0.seed).not.toBe(p1.seed);
     expect(p0.gradient).not.toEqual(p1.gradient);
+  });
+
+  it('honours an explicit palette for every scene', () => {
+    const pinned: [string, string, string] = ['#450a0a', '#dc2626', '#fbbf24'];
+    const p0 = sceneRenderPlan({ ...opts(), palette: pinned }, scenes[0], 0);
+    const p1 = sceneRenderPlan({ ...opts(), palette: pinned }, scenes[1], 1);
+    expect(p0.gradient).toEqual(pinned);
+    expect(p1.gradient).toEqual(pinned);
+  });
+
+  it('exposes the selectable palettes', () => {
+    expect(RENDER_PALETTES.length).toBeGreaterThan(0);
+    RENDER_PALETTES.forEach((p) => expect(p).toHaveLength(3));
   });
 });
 

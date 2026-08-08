@@ -27,6 +27,7 @@ const Security = lazy(() => import('./pages/Security'));
 const Studio = lazy(() => import('./pages/Studio'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminCreator = lazy(() => import('./pages/AdminCreator'));
 const DigitalForms = lazy(() => import('./pages/DigitalForms'));
 const Pricing = lazy(() => import('./pages/Pricing'));
 const Waitlist = lazy(() => import('./pages/Waitlist'));
@@ -106,6 +107,8 @@ function App() {
               {/* AdminDashboard does its own gating (role check + access-denied
                   screen), which also enables the dev-only ?preview mode */}
               <Route path="/admin" element={<AdminDashboard />} />
+              {/* Internal growth operating system — same role gating + preview. */}
+              <Route path="/admin-creator" element={<AdminCreator />} />
               {/* Multi-segment unknown URLs land here. Single-segment unknowns
                   match /:username above → BusinessDetail renders NotFound when
                   no business is found. */}

@@ -7,6 +7,7 @@ import { useBrandExports } from '../../hooks/useBrandExports';
 import { useCardSettings } from '../../hooks/useCardSettings';
 import { CARD_ACCENTS, compressImageFile } from '../../lib/cardSettings';
 import { CardExportNode, QrLockupNode, SmartIdNode, SmartIdFrontNode } from './BrandCardNodes';
+import AiGenerateToggle from './AiGenerateToggle';
 
 export default function BrandCardStudio({ business }: { business: Business }) {
   const {
@@ -221,6 +222,12 @@ export default function BrandCardStudio({ business }: { business: Business }) {
                       </button>
                     )}
                   </div>
+                  <AiGenerateToggle
+                    width={512}
+                    height={512}
+                    defaultPrompt={`Professional head-and-shoulders portrait of a ${business.category || 'business'} owner${settings.holderRole ? ` — ${settings.holderRole}` : ''}, warm studio light, neutral background`}
+                    onGenerated={(url) => { update({ holderPhoto: url }); toast.success('AI portrait added to your Smart ID'); }}
+                  />
                 </div>
 
                 <div>

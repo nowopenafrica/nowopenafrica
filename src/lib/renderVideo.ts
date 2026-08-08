@@ -42,6 +42,13 @@ export interface RenderOptions {
   fps?: number;
   logoEmoji?: string;
   /**
+   * Force the motion-graphics palette for every scene. When unset each scene
+   * picks one deterministically from its seed, so the same brief always films
+   * the same way — but a motion studio that wants a chosen brand look can pin
+   * it here.
+   */
+  palette?: [string, string, string];
+  /**
    * Real stock footage per scene index (from stockFootage.resolveFootage).
    * When set, `drawFootageFrame`/`renderVideo` film the scene with the clip
    * (Ken Burns + film grade) under the caption overlay.
@@ -108,11 +115,16 @@ const PALETTES: [string, string, string][] = [
   ['#312e81', '#0ea5e9', '#a3e635'],
 ];
 
+/** The selectable brand palettes (dark base, accent, highlight) exposed to the
+ *  Motion Graphics Studio. Backed by the same list sceneRenderPlan draws from
+ *  when no explicit palette is given. */
+export const RENDER_PALETTES: [string, string, string][] = PALETTES;
+
 export function sceneRenderPlan(opts: RenderOptions, scene: DirectorScene, index: number): SceneRenderPlan {
   const fps = opts.fps ?? RENDER_FPS;
   const seed = renderSeed(opts.businessName, opts.directionLabel, index, scene.text);
   const rng = mulberry32(seed);
-  const palette = PALETTES[Math.floor(rng() * PALETTES.length)];
+  const palette = opts.palette ?? PALETTES[Math.floor(rng() * PALETTES.length)];
 
   const lower = scene.transition.toLowerCase();
   const transition: RenderTransition = lower.includes('fade') ? 'fade' : 'cut';

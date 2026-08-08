@@ -14,6 +14,7 @@ import {
   fetchCapabilities, authorizeUrl, openConnectPopup, getServerConnections,
   disconnectConnection, publishPost, ServerConnection, Capabilities,
 } from '../../lib/socialPublish';
+import AiGenerateToggle from './AiGenerateToggle';
 
 interface Props {
   business: Business;
@@ -348,10 +349,18 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                   </button>
                 </div>
               ) : (
-                <button onClick={() => fileInputRef.current?.click()}
-                  className="w-full inline-flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-500 transition">
-                  <ImagePlus size={15} /> Upload image / video
-                </button>
+                <>
+                  <button onClick={() => fileInputRef.current?.click()}
+                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-500 transition">
+                    <ImagePlus size={15} /> Upload image / video
+                  </button>
+                  <AiGenerateToggle
+                    width={1024}
+                    height={1024}
+                    defaultPrompt={`${business.name} ${business.category ? `— ${business.category}` : ''} social post visual`}
+                    onGenerated={(url, kind) => setMedia({ name: kind === 'video' ? 'ai-video.mp4' : 'ai-image.png', url, type: kind })}
+                  />
+                </>
               )}
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

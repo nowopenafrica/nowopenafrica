@@ -10,6 +10,7 @@ import { getActiveFeatures } from '../../data/categoryFeatures';
 import { getTabLabel } from '../../data/categoryTabLabels';
 import { compressImage } from '../../lib/imageCompression';
 import BusReelCapture from './BusReelCapture';
+import AiGenerateToggle from '../studio/AiGenerateToggle';
 
 interface BusinessContentManagerProps {
   businessId: string;
@@ -978,32 +979,40 @@ export default function BusinessContentManager({ businessId, businessName, categ
                 )}
 
                 {(tab === 'products' || tab === 'gallery' || (tab === 'services' && (isHotel || isFitness || isBeauty || isHealth || isEducation || isPhoto || isEvents || isTravel))) && (
-                  <div className="flex flex-col sm:flex-row gap-2">
-                    <input ref={fileRef} type="file" accept="image/*,video/*" onChange={handleUpload} className="hidden" />
-                    <button
-                      type="button"
-                      onClick={() => fileRef.current?.click()}
-                      disabled={uploading}
-                      className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm disabled:opacity-50 flex-shrink-0"
-                    >
-                      {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                      {uploading ? 'Uploading…' : imageUrl ? 'Replace File' : 'Upload Photo/Video'}
-                    </button>
-                    {tab === 'gallery' && user && (
+                  <>
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <input ref={fileRef} type="file" accept="image/*,video/*" onChange={handleUpload} className="hidden" />
                       <button
                         type="button"
-                        onClick={() => setShowCamera(true)}
-                        className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition text-sm flex-shrink-0"
+                        onClick={() => fileRef.current?.click()}
+                        disabled={uploading}
+                        className="inline-flex items-center justify-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm disabled:opacity-50 flex-shrink-0"
                       >
-                        <Camera size={14} /> BusReel Camera
+                        {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                        {uploading ? 'Uploading…' : imageUrl ? 'Replace File' : 'Upload Photo/Video'}
                       </button>
-                    )}
-                    <input
-                      type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
-                      placeholder="…or paste an image/video URL"
-                      className={inputCls}
+                      {tab === 'gallery' && user && (
+                        <button
+                          type="button"
+                          onClick={() => setShowCamera(true)}
+                          className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition text-sm flex-shrink-0"
+                        >
+                          <Camera size={14} /> BusReel Camera
+                        </button>
+                      )}
+                      <input
+                        type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+                        placeholder="…or paste an image/video URL"
+                        className={inputCls}
+                      />
+                    </div>
+                    <AiGenerateToggle
+                      width={1024}
+                      height={1024}
+                      defaultPrompt={`${businessName} — ${category || 'business'} photo`}
+                      onGenerated={(url) => setImageUrl(url)}
                     />
-                  </div>
+                  </>
                 )}
                 {tab === 'gallery' && (
                   <input

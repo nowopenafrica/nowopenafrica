@@ -48,7 +48,7 @@ export function resolveImageProvider(): ImageProviderConfig {
   const override = env("IMAGE_MODEL");
 
   if (env("HUGGINGFACE_API_KEY")) {
-    return { name: "huggingface", model: override || DEFAULTS.huggingface, label: "Hugging Face · FLUX.1-schnell" };
+    return { name: "huggingface", model: override || DEFAULTS.huggingface, label: "Hugging Face · SD3 Medium" };
   }
   if (env("REPLICATE_API_TOKEN")) {
     return { name: "replicate", model: override || DEFAULTS.replicate, label: "Replicate · FLUX schnell" };
@@ -62,6 +62,32 @@ export interface ImageRequest {
   height: number;
   /** Same seed + prompt must yield the same image, so a re-render is stable. */
   seed?: number;
+  /**
+   * "hf:owner/name" or "replicate:owner/name" picks the provider explicitly;
+   * a bare id uses whichever provider is configured. Lets the Studio's model
+   * dropdown reach a provider the deployment has no default key for, as long
+   * as the person supplies their own.
+   */
+  model?: string;
+  /**
+   * Caller-supplied key, used for this one request and never stored. Someone
+   * can use their own paid account without the platform holding their
+   * credentials — but it does transit this function, which the UI says plainly.
+   */
+  apiKey?: string;
+  kind?: "image" | "video";
+}
+
+/** Split "hf:owner/name" into its provider and model id. */
+export function parseModelRef(ref?: string): { provider?: Exclude<ImageProviderName, "none">; model?: string } {
+  if (!ref) return {};
+  const i = ref.indexOf(":");
+  if (i === -1) return { model: ref };
+  const prefix = ref.slice(0, i);
+  const rest = ref.slice(i + 1);
+  if (prefix === "hf" || prefix === "huggingface") return { provider: "huggingface", model: rest };
+  if (prefix === "replicate") return { provider: "replicate", model: rest };
+  return { model: ref };
 }
 
 export interface ImageResult {
@@ -106,7 +132,7 @@ async function runHuggingFace(cfg: ImageProviderConfig, req: ImageRequest): Prom
   const res = await fetch(`${HF_ROUTER}/${cfg.model}`, {
     method: "POST",
     headers: {
-      Authorization: `Bearer ${Deno.env.get("HUGGINGFACE_API_KEY")}`,
+      Authorization: `Bearer ${req.apiKey || Deno.env.get("HUGGINGFACE_API_KEY")}`,
       "Content-Type": "application/json",
       Accept: "image/png",
     },
@@ -136,25 +162,32 @@ async function runHuggingFace(cfg: ImageProviderConfig, req: ImageRequest): Prom
 
 // --- Replicate --------------------------------------------------------------
 
-const REPLICATE_POLL_MS = 1200;
-const REPLICATE_MAX_POLLS = 40; // ~48s ceiling; schnell usually lands in <10s.
+const REPLICATE_POLL_MS = 1500;
+// Images land in seconds; a video model routinely takes one to three minutes,
+// so a single ceiling would either truncate clips or stall stills for no reason.
+const REPLICATE_MAX_POLLS_IMAGE = 40;   // ~60s
+const REPLICATE_MAX_POLLS_VIDEO = 160;  // ~4min
 
 async function runReplicate(cfg: ImageProviderConfig, req: ImageRequest): Promise<ImageOutcome> {
-  const token = Deno.env.get("REPLICATE_API_TOKEN");
+  const token = req.apiKey || Deno.env.get("REPLICATE_API_TOKEN");
   const headers = { Authorization: `Bearer ${token}`, "Content-Type": "application/json" };
 
   const create = await fetch(`https://api.replicate.com/v1/models/${cfg.model}/predictions`, {
     method: "POST",
     headers: { ...headers, Prefer: "wait" },
     body: JSON.stringify({
-      input: {
-        prompt: req.prompt,
-        width: req.width,
-        height: req.height,
-        seed: req.seed,
-        num_outputs: 1,
-        output_format: "png",
-      },
+      // Video models reject the still-image inputs (num_outputs/output_format),
+      // so only the parameters both kinds understand are sent for a clip.
+      input: req.kind === "video"
+        ? { prompt: req.prompt, seed: req.seed }
+        : {
+            prompt: req.prompt,
+            width: req.width,
+            height: req.height,
+            seed: req.seed,
+            num_outputs: 1,
+            output_format: "png",
+          },
     }),
   });
 
@@ -166,7 +199,8 @@ async function runReplicate(cfg: ImageProviderConfig, req: ImageRequest): Promis
   let prediction = await create.json();
 
   // `Prefer: wait` usually returns a finished prediction, but not always.
-  for (let i = 0; i < REPLICATE_MAX_POLLS && (prediction.status === "starting" || prediction.status === "processing"); i++) {
+  const maxPolls = req.kind === "video" ? REPLICATE_MAX_POLLS_VIDEO : REPLICATE_MAX_POLLS_IMAGE;
+  for (let i = 0; i < maxPolls && (prediction.status === "starting" || prediction.status === "processing"); i++) {
     await new Promise((r) => setTimeout(r, REPLICATE_POLL_MS));
     const poll = await fetch(prediction.urls?.get, { headers });
     if (!poll.ok) return { ok: false, reason: statusToReason(poll.status), status: poll.status };
@@ -197,8 +231,27 @@ async function runReplicate(cfg: ImageProviderConfig, req: ImageRequest): Promis
 // --- entry point ------------------------------------------------------------
 
 export async function generateImage(req: ImageRequest): Promise<ImageOutcome> {
-  const cfg = resolveImageProvider();
-  if (cfg.name === "none") return { ok: false, reason: "no_provider" };
+  const { provider, model } = parseModelRef(req.model);
+
+  // A caller-supplied key can reach a provider this deployment has no key for,
+  // so the chosen provider wins over the configured one.
+  let cfg: ImageProviderConfig;
+  if (provider) {
+    cfg = { name: provider, model: model || DEFAULTS[provider], label: provider };
+    if (!req.apiKey && !Deno.env.get(provider === "huggingface" ? "HUGGINGFACE_API_KEY" : "REPLICATE_API_TOKEN")) {
+      return { ok: false, reason: "no_provider" };
+    }
+  } else {
+    cfg = resolveImageProvider();
+    if (cfg.name === "none") return { ok: false, reason: "no_provider" };
+    if (model) cfg = { ...cfg, model };
+  }
+
+  // Only Replicate runs video models; HF's image route cannot produce a clip.
+  if (req.kind === "video" && cfg.name !== "replicate") {
+    return { ok: false, reason: "error", detail: "Video generation needs a Replicate model (replicate:owner/name)." };
+  }
+
   try {
     return cfg.name === "huggingface" ? await runHuggingFace(cfg, req) : await runReplicate(cfg, req);
   } catch (e) {

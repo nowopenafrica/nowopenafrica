@@ -86,6 +86,17 @@ describe('landing — publish & share', () => {
     expect(html).toContain('wa.me/2348001234567');
     expect(html).not.toContain('Limited offer');
   });
+
+  it('renders an uploaded image and video inside their sections', () => {
+    const page = generateLanding(biz);
+    page.sections = [
+      { ...page.sections[0], media: { url: 'data:image/png;base64,AAAA', type: 'image' } },
+      { ...page.sections[1], media: { url: 'data:video/mp4;base64,BBBB', type: 'video' } },
+    ];
+    const html = renderLandingHtml(biz, page);
+    expect(html).toContain('<img class="media" src="data:image/png;base64,AAAA"');
+    expect(html).toContain('<video class="media" src="data:video/mp4;base64,BBBB"');
+  });
 });
 
 describe('landing — persistence', () => {

@@ -313,12 +313,20 @@ export default function Dashboard() {
                   Manage all users, businesses, adverts, and media services across the platform.
                 </p>
               </div>
-              <Link
-                to="/admin"
-                className="px-6 py-2 bg-white text-purple-600 font-medium rounded-lg hover:bg-gray-100 transition"
-              >
-                Open Admin Panel
-              </Link>
+              <div className="flex items-center gap-2">
+                <Link
+                  to="/admin-creator"
+                  className="px-6 py-2 bg-white text-purple-600 font-medium rounded-lg hover:bg-gray-100 transition"
+                >
+                  Admin Creator
+                </Link>
+                <Link
+                  to="/admin"
+                  className="px-6 py-2 bg-white/20 text-white font-medium rounded-lg hover:bg-white/30 transition"
+                >
+                  Open Admin Panel
+                </Link>
+              </div>
             </div>
           </div>
         )}

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
-import { LayoutTemplate, Eye, Share2, Download, Plus, ChevronDown, ChevronUp, Check, Link2, Smartphone, X } from 'lucide-react';
+import { LayoutTemplate, Eye, Share2, Download, Plus, ChevronDown, ChevronUp, Check, Link2, Smartphone, Upload, X } from 'lucide-react';
 import { Business } from '../../types';
 import {
   LandingPage, LandingSection, LandingTheme,
@@ -9,6 +9,7 @@ import {
   loadLanding, saveLanding, ctaFor,
 } from '../../lib/landing';
 import { downloadText, slugForFile } from '../../lib/studio';
+import AiGenerateToggle from './AiGenerateToggle';
 
 interface Props {
   business: Business;
@@ -36,6 +37,17 @@ export default function LandingPageBuilder({ business }: Props) {
     persist({ ...page, sections: page.sections.map((s) => (s.id === id ? { ...s, ...patch } : s)) });
   };
 
+  // Kept in memory as a data: URL so it survives the page being saved and lands
+  // inside the exported HTML — exactly like the upload path in DesignStudio.
+  const onMedia = (id: string, file: File | undefined) => {
+    if (!file) return;
+    const type = file.type.startsWith('video/') ? 'video' : file.type.startsWith('image/') ? 'image' : null;
+    if (!type) { toast.error('Please upload an image or a video.'); return; }
+    const reader = new FileReader();
+    reader.onload = () => updateSection(id, { media: { url: String(reader.result), type } });
+    reader.readAsDataURL(file);
+  };
+
   const copyLink = () => {
     navigator.clipboard?.writeText(landingUrl(business));
     toast.success('Link copied');
@@ -53,6 +65,9 @@ export default function LandingPageBuilder({ business }: Props) {
 
   const preview = (s: LandingSection) => (
     <section key={s.id} className="px-6 py-5 border-b border-purple-100 dark:border-gray-700/50">
+      {s.media && (s.media.type === 'video'
+        ? <video src={s.media.url} className="w-full h-36 object-cover rounded-xl bg-black mb-3" muted controls playsInline />
+        : <img src={s.media.url} alt={s.title} className="w-full h-36 object-cover rounded-xl bg-black mb-3" />)}
       <h3 className="text-base font-extrabold text-gray-900 dark:text-white" style={{ color: page.theme === 'dark' ? '#f9fafb' : undefined }}>{s.title}</h3>
       {s.subtitle && <p className="text-xs mt-0.5 text-gray-500 dark:text-gray-400">{s.subtitle}</p>}
       {s.body && <p className="text-xs mt-2 text-gray-600 dark:text-gray-300 whitespace-pre-line">{s.body}</p>}
@@ -158,6 +173,33 @@ export default function LandingPageBuilder({ business }: Props) {
                         <label className="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1">Bullet points / list items (one per line)</label>
                         <textarea value={s.items.join('\n')} onChange={(e) => updateSection(s.id, { items: e.target.value.split('\n').filter(Boolean) })} rows={2}
                           className="w-full px-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </div>
+                      <div>
+                        <label className="block text-[10px] font-semibold text-gray-500 dark:text-gray-400 mb-1">Image or video</label>
+                        {s.media ? (
+                          <div className="flex items-center gap-2">
+                            {s.media.type === 'video'
+                              ? <video src={s.media.url} className="w-16 h-12 rounded-lg object-cover bg-black" muted />
+                              : <img src={s.media.url} alt="" className="w-16 h-12 rounded-lg object-cover bg-black" />}
+                            <span className="text-xs text-gray-600 dark:text-gray-300">{s.media.type === 'video' ? 'Video' : 'Image'} added</span>
+                            <button onClick={() => updateSection(s.id, { media: undefined })}
+                              className="text-red-500 hover:text-red-600" aria-label="Remove media">
+                              <X size={14} />
+                            </button>
+                          </div>
+                        ) : (
+                          <label className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 cursor-pointer">
+                            <Upload size={13} /> Upload
+                            <input type="file" accept="image/*,video/*" className="hidden"
+                              onChange={(e) => { onMedia(s.id, e.target.files?.[0]); e.target.value = ''; }} />
+                          </label>
+                        )}
+                        <AiGenerateToggle
+                          width={1024}
+                          height={1024}
+                          defaultPrompt={`${business.category || 'business'} in ${business.location || 'Africa'} — ${s.title.toLowerCase()}`}
+                          onGenerated={(url, kind) => updateSection(s.id, { media: { url, type: kind } })}
+                        />
                       </div>
                       <div className="flex items-center gap-2">
                         <input value={s.ctaLabel} onChange={(e) => updateSection(s.id, { ctaLabel: e.target.value })}

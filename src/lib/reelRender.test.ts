@@ -49,7 +49,7 @@ describe('directorSceneFromReel', () => {
     // generateReel stamps a fresh uid() per scene, so ids legitimately differ
     // between runs. Everything that decides how the video LOOKS must not.
     const treatment = (s: ReturnType<typeof directorScenesFromReel>) =>
-      s.map(({ id, ...rest }) => rest);
+      s.map(({ id: _id, ...rest }) => rest);
 
     expect(treatment(directorScenesFromReel(reel)))
       .toEqual(treatment(directorScenesFromReel(generateReel(business, '15s Reel'))));

@@ -7,6 +7,9 @@ import { renderVideo, RENDER_DIMENSIONS, type RenderAspect } from '../../lib/ren
 import { generateKeyArt, keyArtMessage } from '../../lib/aiKeyArt';
 import { industryByKey, industryKeyForCategory } from '../../lib/videoCreator';
 import { resolveFootage, orientationForAspect } from '../../lib/stockFootage';
+import { buildAiVideoClips, videoGenModelByKey, videoGenModelsForTier, type VideoGenTier } from '../../lib/videoGen';
+import type { AiVideoModel } from '../../lib/pollinations';
+import AiVideoGenPicker from './AiVideoGenPicker';
 
 // Video Studio.
 //
@@ -56,9 +59,11 @@ export default function VideoStudio({ business }: { business: Business }) {
   // Two independent sources of real visuals. Footage wins per scene where both
   // exist — real film beats a generated still — and any scene with neither
   // falls back to the designed graphic.
-  const [visuals, setVisuals] = useState<'graphics' | 'footage' | 'keyart'>('graphics');
+  const [visuals, setVisuals] = useState<'graphics' | 'footage' | 'keyart' | 'aivideo'>('graphics');
+  const [genTier, setGenTier] = useState<VideoGenTier>('free');
+  const [genModel, setGenModel] = useState<AiVideoModel>('wan');
   const [rendering, setRendering] = useState(false);
-  const [stage, setStage] = useState<'idle' | 'art' | 'footage' | 'film'>('idle');
+  const [stage, setStage] = useState<'idle' | 'art' | 'footage' | 'ai' | 'film'>('idle');
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -114,6 +119,22 @@ export default function VideoStudio({ business }: { business: Business }) {
         if (art.reason) setNotice(keyArtMessage(art.reason, art.generated, scenes.length));
       }
 
+      if (visuals === 'aivideo') {
+        setStage('ai');
+        const genModelMeta = videoGenModelByKey(genModel);
+        footage = buildAiVideoClips({
+          businessName: business.name,
+          industryLabel: industry.label,
+          directionLabel: format,
+          scenes,
+          model: genModel,
+          aspect,
+        });
+        setNotice(
+          `Filming over ${genModelMeta?.label ?? genModel} AI clips (${genTier === 'free' ? 'free — open-weight' : 'paid — billed per render'}). Without a configured media key, scenes fall back to designed graphics.`,
+        );
+      }
+
       setStage('film');
       setProgress(0);
       const result = await renderVideo(
@@ -128,7 +149,7 @@ export default function VideoStudio({ business }: { business: Business }) {
           footage,
           // renderVideo gates footage on BOTH the map and this flag, so passing
           // clips alone silently renders gradients instead.
-          footageEnabled: visuals === 'footage',
+          footageEnabled: visuals === 'footage' || visuals === 'aivideo',
         },
         scenes,
         (p) => setProgress(p),
@@ -251,7 +272,9 @@ export default function VideoStudio({ business }: { business: Business }) {
                 ? 'Films real stock clips chosen for your industry, with your captions and timing over them.'
                 : visuals === 'keyart'
                   ? 'Generates a still for each scene with an open-weight image model, then films it with camera motion and your captions on top.'
-                  : 'Renders your script with designed graphics — captions, timing and transitions.'}
+                  : visuals === 'aivideo'
+                    ? 'Generates one AI video clip per scene with a free or paid model, then films your captions and motion over it.'
+                    : 'Renders your script with designed graphics — captions, timing and transitions.'}
             </p>
           </div>
           <button
@@ -265,7 +288,9 @@ export default function VideoStudio({ business }: { business: Business }) {
                 ? `Generating key art ${Math.round(progress * 100)}%`
                 : stage === 'footage'
                   ? 'Finding footage…'
-                  : `Filming ${Math.round(progress * 100)}%`
+                  : stage === 'ai'
+                    ? 'Queuing AI video clips…'
+                    : `Filming ${Math.round(progress * 100)}%`
               : `Render ${seconds}s video`}
           </button>
         </div>
@@ -277,6 +302,7 @@ export default function VideoStudio({ business }: { business: Business }) {
               { key: 'graphics', label: 'Designed graphics', icon: Film, note: 'Instant' },
               { key: 'footage', label: 'Real stock footage', icon: Clapperboard, note: `~${script.scenes.length * 2}s` },
               { key: 'keyart', label: 'Generated key art', icon: Sparkles, note: `~${script.scenes.length * 8}s` },
+              { key: 'aivideo', label: 'AI video generation', icon: Sparkles, note: 'free / paid model' },
             ] as const).map((o) => (
               <button
                 key={o.key}
@@ -298,6 +324,20 @@ export default function VideoStudio({ business }: { business: Business }) {
           <p className="mt-1.5 text-[11px] text-gray-500 dark:text-gray-400">
             Any scene without a clip or an image falls back to designed graphics, so you always get a finished video.
           </p>
+
+          {visuals === 'aivideo' && (
+            <div className="mt-3">
+              <AiVideoGenPicker
+                tier={genTier}
+                onTier={(t) => {
+                  setGenTier(t);
+                  setGenModel(videoGenModelsForTier(t)[0].key);
+                }}
+                model={genModel}
+                onModel={setGenModel}
+              />
+            </div>
+          )}
         </fieldset>
 
         {rendering && (

@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { prompt, width, height, seed } = await req.json();
+    const { prompt, width, height, seed, model, apiKey, kind } = await req.json();
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return new Response(JSON.stringify({ ok: false, reason: "error", detail: "Missing prompt." }), {
@@ -75,6 +75,11 @@ Deno.serve(async (req: Request) => {
       width: clampSide(width, 768),
       height: clampSide(height, 768),
       seed: Number.isFinite(Number(seed)) ? Number(seed) : undefined,
+      model: typeof model === "string" ? model.slice(0, 200) : undefined,
+      // Used for this request only and never written anywhere — not to a table,
+      // not to a secret, not to the logs below.
+      apiKey: typeof apiKey === "string" && apiKey.trim() ? apiKey.trim() : undefined,
+      kind: kind === "video" ? "video" : "image",
     });
 
     if (!result.ok) {

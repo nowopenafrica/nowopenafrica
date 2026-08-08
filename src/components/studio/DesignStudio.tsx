@@ -17,6 +17,7 @@ import NowOpenMark from '../NowOpenMark';
 import { useLiveCanvas } from '../../hooks/useLiveCanvas';
 import { CanvasLayers, CanvasPanel } from './FreeCanvas';
 import InspirationUpload from './InspirationUpload';
+import GeneratePanel from './GeneratePanel';
 import type { InspirationPlan } from '../../lib/designInspiration';
 import { docFromRenderedLayout } from '../../lib/layoutImport';
 import { pickRecorderMime } from '../../lib/renderVideo';
@@ -1647,6 +1648,20 @@ export default function DesignStudio({
               )}
             </div>
             <p className="mt-1 text-[11px] text-gray-400">Any size image or video — used only to make your downloadable materials. Leave empty to use your profile cover.</p>
+
+            {/* Generated media lands in exactly the same place as an upload, so
+                everything downstream (preview, export, opacity) is unchanged. */}
+            <div className="mt-3">
+              <GeneratePanel
+                width={1024}
+                height={1024}
+                defaultPrompt={`${business.category || 'business'} in ${business.location || 'Africa'}, photographed for ${business.name}`}
+                onGenerated={(url, kind) => {
+                  setBg({ url, type: kind === 'video' ? 'video' : 'image' });
+                  toast.success(kind === 'video' ? 'Generated clip added' : 'Generated image added');
+                }}
+              />
+            </div>
           </div>
         </StudioSection>
         )}
