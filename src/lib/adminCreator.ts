@@ -71,7 +71,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
 
   { id: 'community', num: 8, group: 'Operate', status: 'live', label: 'Community Management', blurb: 'Every reply — Facebook, Instagram, TikTok, WhatsApp, chat, email and support — in one inbox.', reuses: ['LiveChat', 'EnquiryModal'] },
   { id: 'brand-assets', num: 9, group: 'Operate', status: 'live', label: 'Brand Asset Manager', blurb: 'Every asset with smart search: logos, videos, photos, music, fonts, templates, Lottie and guidelines.', reuses: ['MediaLibrary'] },
-  { id: 'press-room', num: 10, group: 'Operate', status: 'live', label: 'Press Room', blurb: 'Press kit, founder bio, media photos, news, investor deck and a download centre.' },
+  { id: 'press-room', num: 10, group: 'Operate', status: 'live', label: 'Press Room', blurb: 'Press kit, founder bio, media photos, investor deck, download centre and the news timeline as a press-and-coverage ledger on os_press.', reuses: ['os_press'] },
   { id: 'partners', num: 11, group: 'Operate', status: 'live', label: 'Partnership CRM', blurb: 'Investors, media, government, creators, agencies, sponsors and universities — with pipelines from proposal to active on os_partners.', reuses: ['os_partners', 'CampaignMarketplace'] },
 
   { id: 'brand-director', num: 12, group: 'Grow', status: 'live', label: 'AI Brand Director', blurb: '"Launch our restaurant campaign" → strategy, timeline, flyers, videos, emails, landing page, ads, budget and KPIs.', reuses: ['MarketingDirector'] },
