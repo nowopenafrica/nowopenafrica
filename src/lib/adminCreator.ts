@@ -55,6 +55,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { id: 'founder', num: 20, group: 'Oversight', status: 'live', label: 'Founder Dashboard', blurb: 'Private executive view: company health score, growth velocity, churn and strategic recommendations.' },
 
   { id: 'workforce', num: 21, group: 'People', status: 'live', label: 'Workforce Directory', blurb: 'The whole team — humans and AI agents — with honest statuses, workload and approvals from os_workforce.', reuses: ['os_workforce', 'AdminCreatorShell'] },
+  { id: 'work-board', num: 22, group: 'People', status: 'live', label: 'Work Board', blurb: 'The daily work layer — projects, tasks and goals assigned to the team, with honest statuses from os_work_items.', reuses: ['os_work_items', 'os_workforce'] },
 
   { id: 'creative', num: 2, group: 'Create', status: 'live', label: 'Creative Studio', blurb: 'Internal design department — canvas, layers, artboards, vectors, masks, components and export.', reuses: ['DesignStudio', 'QuickCreatePanel', 'FreeCanvas'] },
   { id: 'motion', num: 3, group: 'Create', status: 'live', label: 'Motion Graphics Studio', blurb: 'Logo reveals, motion posters, lower thirds, kinetic typography and Lottie animations.' },

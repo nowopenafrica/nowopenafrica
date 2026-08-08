@@ -4,8 +4,9 @@ import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
-  NOWOPEN_ORG_ID, DEPARTMENTS, AI_ROSTER_SEED, STATUS_LABELS,
+  NOWOPEN_ORG_ID, DEPARTMENTS, STATUS_LABELS,
   AI_STATUSES, HUMAN_STATUSES, statusesFor, summarizeWorkforce, filterWorkforce, departmentByName,
+  seedMembers,
   type WorkforceMember, type WorkforceKind, type WorkforceStatus, type WorkforceFilters,
 } from '../../lib/workforce';
 import { sectionById } from '../../lib/adminCreator';
@@ -33,32 +34,6 @@ const STATUS_TONE: Record<WorkforceStatus, string> = {
   away: 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
   'clocked-out': 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400',
 };
-
-function seedMembers(user?: { id?: string; email?: string }): WorkforceMember[] {
-  const ai: WorkforceMember[] = AI_ROSTER_SEED.map((r) => ({
-    id: `seed-ai-${r.agentKey}`,
-    org_id: NOWOPEN_ORG_ID,
-    kind: 'ai',
-    name: r.name,
-    title: r.title,
-    department: r.department,
-    status: 'active',
-    current_work: r.currentWork,
-    agent_key: r.agentKey,
-  }));
-  if (!user?.id) return ai;
-  return [{
-    id: `seed-human-${user.id}`,
-    org_id: NOWOPEN_ORG_ID,
-    kind: 'human',
-    name: user.email?.split('@')[0] || 'Owner',
-    title: 'Owner',
-    department: 'Founder Office',
-    status: 'clocked-in',
-    current_work: 'Running NowOpen Africa — this view is you. Clock in from the office.',
-    owner_user_id: user.id,
-  }, ...ai];
-}
 
 export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: (id: string) => void }) {
   const { user } = useAuth();

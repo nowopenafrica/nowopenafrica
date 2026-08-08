@@ -87,6 +87,35 @@ export function departmentByName(name: string): WorkforceDepartment | undefined 
   return DEPARTMENTS.find((d) => d.name === name);
 }
 
+/** The honest dev/fallback roster: the planned AI team plus (when signed in)
+ *  the current user as a clocked-in human owner. Used by the OS modules until
+ *  the os_workforce migration is applied to the project. */
+export function seedMembers(user?: { id?: string; email?: string }): WorkforceMember[] {
+  const ai: WorkforceMember[] = AI_ROSTER_SEED.map((r) => ({
+    id: `seed-ai-${r.agentKey}`,
+    org_id: NOWOPEN_ORG_ID,
+    kind: 'ai',
+    name: r.name,
+    title: r.title,
+    department: r.department,
+    status: 'active',
+    current_work: r.currentWork,
+    agent_key: r.agentKey,
+  }));
+  if (!user?.id) return ai;
+  return [{
+    id: `seed-human-${user.id}`,
+    org_id: NOWOPEN_ORG_ID,
+    kind: 'human',
+    name: user.email?.split('@')[0] || 'Owner',
+    title: 'Owner',
+    department: 'Founder Office',
+    status: 'clocked-in',
+    current_work: 'Running NowOpen Africa — this view is you. Clock in from the office.',
+    owner_user_id: user.id,
+  }, ...ai];
+}
+
 // Planned AI roster, mirrored by the 20260808010000_os_workforce seed. The
 // component uses this as the honest dev/fallback state until the migration is
 // applied to the project. Keep it in sync with the SQL seed.
