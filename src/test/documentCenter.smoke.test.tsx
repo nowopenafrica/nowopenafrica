@@ -41,8 +41,9 @@ describe('DocumentCenter smoke', () => {
     render(<DocumentCenter />);
     expect(await screen.findByText(/7 documents/)).toBeInTheDocument();
     expect(screen.getByText(/Mutual Non-Disclosure Agreement — Atlas Capital/)).toBeInTheDocument();
-    expect(screen.getByText(/Agreement library · 12 templates/)).toBeInTheDocument();
+    expect(screen.getByText(/Agreement library · 13 templates/)).toBeInTheDocument();
     expect(screen.getByText('Employment Agreement')).toBeInTheDocument();
+    expect(screen.getByText('Internship Agreement')).toBeInTheDocument();
   });
 
   it('expands a document into its clauses and rendered text', async () => {

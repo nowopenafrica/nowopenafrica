@@ -66,6 +66,15 @@ export const AGREEMENT_TEMPLATES: readonly AgreementTemplate[] = [
     ],
   },
   {
+    id: 'internship-agreement', title: 'Internship Agreement', kind: 'agreement',
+    description: 'Placement terms for an intern — scope, supervision, stipend and IP.',
+    relationships: ['employee'],
+    clauses: [
+      'Scope of the internship', 'Supervision and mentoring', 'Stipend and benefits',
+      'Confidentiality and IP', 'Term and notice', 'Governing law (Nigeria)',
+    ],
+  },
+  {
     id: 'partnership-agreement', title: 'Partnership Agreement', kind: 'agreement',
     description: 'Business partnership with NowOpen Africa — scope, obligations and term.',
     relationships: ['partner'],

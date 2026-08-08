@@ -26,6 +26,7 @@ describe('documents — agreement library', () => {
     const titles = AGREEMENT_TEMPLATES.map((t) => t.title);
     expect(titles).toContain('Mutual Non-Disclosure Agreement');
     expect(titles).toContain('Employment Agreement');
+    expect(titles).toContain('Internship Agreement');
     expect(titles).toContain('Partnership Agreement');
     expect(titles).toContain('Volunteer Agreement');
     expect(titles).toContain('Creative Collaboration Agreement');
@@ -49,6 +50,11 @@ describe('documents — agreement library', () => {
   it('keeps an employment agreement employee-only', () => {
     expect(templatesForRelationship('employee').some((t) => t.id === 'employment-agreement')).toBe(true);
     expect(templatesForRelationship('volunteer').some((t) => t.id === 'employment-agreement')).toBe(false);
+  });
+
+  it('offers the internship agreement to the team, not to volunteers', () => {
+    expect(templatesForRelationship('employee').some((t) => t.id === 'internship-agreement')).toBe(true);
+    expect(templatesForRelationship('volunteer').some((t) => t.id === 'internship-agreement')).toBe(false);
   });
 });
 
