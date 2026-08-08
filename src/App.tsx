@@ -6,6 +6,7 @@ import Footer from './components/layout/Footer';
 import ScrollToTop from './components/ScrollToTop';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
+import AdminRoute from './components/AdminRoute';
 import ChatBot from './components/ChatBot';
 import TrialPromoModal from './components/TrialPromoModal';
 import CookieConsent from './components/CookieConsent';
@@ -104,11 +105,20 @@ function App() {
                   <Dashboard />
                 </ProtectedRoute>
               } />
-              {/* AdminDashboard does its own gating (role check + access-denied
-                  screen), which also enables the dev-only ?preview mode */}
-              <Route path="/admin" element={<AdminDashboard />} />
+              {/* Route-level gate: requires a signed-in admin (or the dev-only
+                  ?preview mode). The pages still re-check the role and RLS
+                  backs every read — this is defence in depth. */}
+              <Route path="/admin" element={
+                <AdminRoute>
+                  <AdminDashboard />
+                </AdminRoute>
+              } />
               {/* Internal growth operating system — same role gating + preview. */}
-              <Route path="/admin-creator" element={<AdminCreator />} />
+              <Route path="/admin-creator" element={
+                <AdminRoute>
+                  <AdminCreator />
+                </AdminRoute>
+              } />
               {/* Multi-segment unknown URLs land here. Single-segment unknowns
                   match /:username above → BusinessDetail renders NotFound when
                   no business is found. */}

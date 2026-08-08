@@ -500,10 +500,10 @@ Format: **Problem → Reason → Solution → Business impact → Effort → Pri
 - [ ] Rotate the Anthropic API key for the concierge function (flagged in `LAUNCH.md`)
 
 **Security**
-- [ ] Scope the `device_push_tokens` UPDATE policy (C5)
-- [ ] Move the Pexels key behind an edge function (H6)
-- [ ] Rate-limit + Turnstile the 8 anonymous-insert tables (H9)
-- [ ] Wrap `/admin` in `ProtectedRoute` (M7)
+- [x] Scope the `device_push_tokens` UPDATE policy (C5) — migration `20260808000000_device_push_tokens_scoped_update.sql` drops the anonymous UPDATE; updates are now `authenticated` + `user_id = auth.uid()`. Anonymous devices register by INSERT (token is UNIQUE). Mobile clients wanting an idempotent anonymous upsert should use an edge function with the service role.
+- [x] Move the Pexels key behind an edge function (H6) — the `stock-footage` proxy exists and `PEXELS_API_KEY` is a server secret; the last client read of `VITE_PEXELS_API_KEY` was removed (`stockFootage.ts`, `vite-env.d.ts`, `.env.example`). The direct-from-browser path remains only for an owner-pasted localStorage key, which is theirs and never leaves their machine.
+- [ ] Rate-limit + Turnstile the 8 anonymous-insert tables (H9) — DEFERRED: the correct fix is an edge function + revoking direct anon insert, but the mobile app also inserts to these tables directly, so this needs mobile-app coordination (and a Turnstile decision) before anything is revoked; a web-only partial rewrite would create inconsistent behavior. Revisit as a coordinated cross-app pass.
+- [x] Wrap `/admin` in `ProtectedRoute` (M7) — new `src/components/AdminRoute.tsx` gates `/admin` and `/admin-creator` at the route level (signed-in + admin role, or the dev-only `?preview` mode); the pages keep their own role check and RLS backs every read.
 - [ ] Server-side MIME validation on uploads (M10)
 - [ ] Confirm `.env`/`.env.local` are untracked (verified clean today — re-verify before first push)
 

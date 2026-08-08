@@ -2267,3 +2267,13 @@ ON CONFLICT (id) DO NOTHING;
 DROP POLICY IF EXISTS "Public can view social media staging" ON storage.objects;
 CREATE POLICY "Public can view social media staging" ON storage.objects
   FOR SELECT USING (bucket_id = 'social-media');
+
+
+-- ===== 20260808000000_device_push_tokens_scoped_update.sql =====
+-- Scope push-token updates to the owning user (C5). Previously any caller with
+-- the public anon key could PATCH every row; now only an authenticated user may
+-- update their own row. Registration stays open — the token is the opaque
+-- device identifier. Full rationale in supabase/migrations/.
+DROP POLICY IF EXISTS "Anyone can update a push token" ON device_push_tokens;
+CREATE POLICY "Users update their own push token" ON device_push_tokens
+  FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());

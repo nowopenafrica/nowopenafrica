@@ -12,7 +12,7 @@
 ## Getting started
 
 1. `npm install`
-2. Copy `.env.example` → `.env` and fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (required). `VITE_PAYSTACK_PUBLIC_KEY` and `VITE_PEXELS_API_KEY` are optional; checkout and stock footage degrade gracefully until set.
+2. Copy `.env.example` → `.env` and fill in `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY` (required). `VITE_PAYSTACK_PUBLIC_KEY` is optional; checkout degrades gracefully until set. Stock footage is optional too — the Pexels key is a Supabase Edge Function secret (`PEXELS_API_KEY`), never a `VITE_` var, and reels fall back to designed graphics until it's configured.
 3. `npm run dev`
 
 ## Scripts

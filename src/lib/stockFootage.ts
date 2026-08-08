@@ -6,11 +6,12 @@
 // phrases), fetches the free Pexels video API, then deterministically picks
 // one clip per scene so the same brief always maps to the same footage.
 //
-// Requires a free Pexels API key (pexels.com/api). The key is read from the
-// build env (`VITE_PEXELS_API_KEY`) or from a key the owner pastes in the
-// studio (stored only in localStorage, never sent anywhere but Pexels). Every
-// function here is safe to import in jsdom; network calls only happen inside
-// `fetchStockVideos` / `resolveFootage`.
+// Requires a free Pexels API key (pexels.com/api). The platform's key lives on
+// the server as a Supabase Edge Function secret (`PEXELS_API_KEY`), never in
+// the browser bundle — searches go through the stock-footage proxy. A key the
+// owner pastes in the studio is stored only in localStorage and sent only to
+// Pexels. Every function here is safe to import in jsdom; network calls only
+// happen inside `fetchStockVideos` / `resolveFootage`.
 //
 // CORS note: Pexels serves its API and video CDN with permissive CORS headers,
 // so clips can be drawn into the render canvas with `crossOrigin="anonymous"`.
@@ -45,7 +46,7 @@ const KEY_LOCAL = 'nowopen_pexels_key';
 
 export function getStockApiKey(): string {
   try {
-    return (import.meta.env.VITE_PEXELS_API_KEY as string | undefined) || localStorage.getItem(KEY_LOCAL) || '';
+    return localStorage.getItem(KEY_LOCAL) || '';
   } catch {
     return '';
   }
@@ -142,8 +143,8 @@ export interface FetchStockOptions {
  * Prefers the `stock-footage` edge function, which holds the API key as a
  * Supabase secret. The direct-from-browser path is kept only for an owner who
  * pasted their own key into the Studio, because that key is theirs and never
- * leaves their machine — but the platform's key must not ship in the bundle,
- * which is exactly what VITE_PEXELS_API_KEY did.
+ * leaves their machine — the platform's key was removed from the bundle
+ * entirely (it used to ship as `VITE_PEXELS_API_KEY`, inlined by Vite).
  *
  * Only the search is proxied. The clip URLs it returns are public, so the
  * browser still streams video straight from videos.pexels.com to the canvas.

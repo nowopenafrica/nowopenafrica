@@ -7,8 +7,6 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_ANON_KEY: string;
   /** Paystack public key. When unset, checkout captures pre-launch reservations as leads. */
   readonly VITE_PAYSTACK_PUBLIC_KEY?: string;
-  /** Optional Pexels API key used to film reels with real stock footage. */
-  readonly VITE_PEXELS_API_KEY?: string;
 }
 
 interface ImportMeta {
