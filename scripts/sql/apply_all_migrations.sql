@@ -3161,3 +3161,63 @@ VALUES
    '["Definition of Confidential Information","Obligations of the Receiving Party","Permitted disclosures","Term and survival","Return or destruction","Governing law (Nigeria)"]'::jsonb,
    '2026-08-08T09:00:00Z')
 ON CONFLICT (org_id, counterparty_email, title) DO NOTHING;
+
+-- ===== 20260808120000_os_signatures.sql =====
+-- OS-22: the Signing Vault. One row per captured signature — who signed, which
+-- document, when and how (manual / digital). A "sent" document in os_documents
+-- IS the signing request; completing a signature here is what moves it to
+-- signed in the app. Provisioning (OS-20 access grants) is derived in the app
+-- from os_documents + os_onboarding, never stored here. Idempotent; seeded
+-- rows reference the fixed os_documents seed ids.
+CREATE TABLE IF NOT EXISTS os_signatures (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES os_orgs(id) ON DELETE CASCADE,
+  document_id uuid NOT NULL REFERENCES os_documents(id) ON DELETE CASCADE,
+  document_title text NOT NULL,
+  signer_name text NOT NULL,
+  signer_email text NOT NULL,
+  method text NOT NULL CHECK (method IN ('manual', 'digital')),
+  signed_at timestamptz NOT NULL DEFAULT now(),
+  created_at timestamptz DEFAULT now()
+);
+
+ALTER TABLE os_signatures ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins read signatures" ON os_signatures;
+CREATE POLICY "Admins read signatures" ON os_signatures
+  FOR SELECT TO authenticated USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins write signatures" ON os_signatures;
+CREATE POLICY "Admins write signatures" ON os_signatures
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins update signatures" ON os_signatures;
+CREATE POLICY "Admins update signatures" ON os_signatures
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins delete signatures" ON os_signatures;
+CREATE POLICY "Admins delete signatures" ON os_signatures
+  FOR DELETE TO authenticated USING (public.is_admin());
+
+INSERT INTO os_signatures
+  (id, org_id, document_id, document_title, signer_name, signer_email, method, signed_at, created_at)
+VALUES
+  ('70000000-0000-4000-8000-000000000001',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   '60000000-0000-4000-8000-000000000001',
+   'Mutual Non-Disclosure Agreement — Chukwu Emeka',
+   'Chukwu Emeka', 'chukwu@nowopen.africa', 'manual',
+   '2026-08-01T14:00:00Z', '2026-08-01T14:00:00Z'),
+  ('70000000-0000-4000-8000-000000000002',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   '60000000-0000-4000-8000-000000000003',
+   'Mutual Non-Disclosure Agreement — Meatclub Nigeria',
+   'Meatclub Nigeria', 'ops@meatclub.ng', 'digital',
+   '2026-08-03T16:30:00Z', '2026-08-03T16:30:00Z'),
+  ('70000000-0000-4000-8000-000000000003',
+   (SELECT id FROM os_orgs WHERE slug = 'nowopen-africa'),
+   '60000000-0000-4000-8000-000000000005',
+   'Volunteer Agreement — Kofi Mensah',
+   'Kofi Mensah', 'kofi@example.com', 'digital',
+   '2026-07-15T12:00:00Z', '2026-07-15T12:00:00Z')
+ON CONFLICT (id) DO NOTHING;
