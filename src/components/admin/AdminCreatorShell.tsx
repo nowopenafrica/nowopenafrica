@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import {
   LayoutDashboard, PenTool, Clapperboard, Video, Instagram, Rocket, FileText, MessageCircle,
   Boxes, Newspaper, Users, Bot, TrendingUp, Radar, Braces, LayoutTemplate, Component,
-  BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, Kanban, type LucideIcon,
+  BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, Kanban, ClipboardCheck, type LucideIcon,
 } from 'lucide-react';
 import {
   ADMIN_SECTIONS, ADMIN_GROUPS, sectionById,
@@ -32,6 +32,7 @@ import KnowledgeBase from './KnowledgeBase';
 import SectionPlanned from './SectionPlanned';
 import WorkforceDirectory from './WorkforceDirectory';
 import WorkBoard from './WorkBoard';
+import ApprovalsHub from './ApprovalsHub';
 
 // One internal frame for the whole team: every department in the sidebar,
 // Command Center as the front door. Sections that are live get a real
@@ -53,6 +54,7 @@ const LIVE_MODULES: Record<string, (open: (id: string) => void) => JSX.Element> 
   founder: (open) => <FounderDashboard onOpenSection={open} />,
   workforce: (open) => <WorkforceDirectory onOpenSection={open} />,
   'work-board': (open) => <WorkBoard onOpenSection={open} />,
+  approvals: (open) => <ApprovalsHub onOpenSection={open} />,
   motion: () => <MotionGraphicsStudio />,
   'video-templates': (open) => <VideoTemplateLibrary onOpenSection={open} />,
   'design-system': () => <DesignSystem />,
@@ -73,6 +75,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   founder: Crown,
   workforce: UsersRound,
   'work-board': Kanban,
+  approvals: ClipboardCheck,
   creative: PenTool,
   motion: Clapperboard,
   'video-studio': Video,
