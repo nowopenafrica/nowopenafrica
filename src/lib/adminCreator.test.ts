@@ -32,9 +32,9 @@ const raw: CommandRaw = {
 };
 
 describe('adminCreator — section map', () => {
-  it('covers all 23 roadmap sections across the seven groups', () => {
-    expect(ADMIN_SECTIONS).toHaveLength(23);
-    expect(new Set(ADMIN_SECTIONS.map((s) => s.id)).size).toBe(23);
+  it('covers all 24 roadmap sections across the seven groups', () => {
+    expect(ADMIN_SECTIONS).toHaveLength(24);
+    expect(new Set(ADMIN_SECTIONS.map((s) => s.id)).size).toBe(24);
     ADMIN_GROUPS.forEach((g) => expect(ADMIN_SECTIONS.some((s) => s.group === g)).toBe(true));
   });
 

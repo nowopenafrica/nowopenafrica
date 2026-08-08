@@ -57,7 +57,9 @@ export interface WorkforceMember {
   /** The member this role reports to (an os_workforce row id). Seeded by
    *  20260808090000_os_hierarchy.sql; the org chart (OS-17) reads it. */
   reports_to?: string | null;
-  kpis?: Record<string, unknown>;
+  /** KPI names straight from the digital job description. Stored as a jsonb
+   *  array; seeded as a string list by the workforce factory. */
+  kpis?: string[];
   updated_at?: string;
 }
 

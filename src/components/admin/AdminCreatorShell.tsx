@@ -1,9 +1,10 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   LayoutDashboard, PenTool, Clapperboard, Video, Instagram, Rocket, FileText, MessageCircle,
   Boxes, Newspaper, Users, Bot, TrendingUp, Radar, Braces, LayoutTemplate, Component,
-  BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, Kanban, ClipboardCheck, type LucideIcon,
+  BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, Kanban, ClipboardCheck,
+  Factory, Search, type LucideIcon,
 } from 'lucide-react';
 import {
   ADMIN_SECTIONS, ADMIN_GROUPS, sectionById,
@@ -33,6 +34,8 @@ import SectionPlanned from './SectionPlanned';
 import WorkforceDirectory from './WorkforceDirectory';
 import WorkBoard from './WorkBoard';
 import ApprovalsHub from './ApprovalsHub';
+import WorkforceFactory from './WorkforceFactory';
+import AskNowOpenPalette from './AskNowOpenPalette';
 
 // One internal frame for the whole team: every department in the sidebar,
 // Command Center as the front door. Sections that are live get a real
@@ -55,6 +58,7 @@ const LIVE_MODULES: Record<string, (open: (id: string) => void) => JSX.Element> 
   workforce: (open) => <WorkforceDirectory onOpenSection={open} />,
   'work-board': (open) => <WorkBoard onOpenSection={open} />,
   approvals: (open) => <ApprovalsHub onOpenSection={open} />,
+  'workforce-factory': (open) => <WorkforceFactory onOpenSection={open} />,
   motion: () => <MotionGraphicsStudio />,
   'video-templates': (open) => <VideoTemplateLibrary onOpenSection={open} />,
   'design-system': () => <DesignSystem />,
@@ -76,6 +80,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   workforce: UsersRound,
   'work-board': Kanban,
   approvals: ClipboardCheck,
+  'workforce-factory': Factory,
   creative: PenTool,
   motion: Clapperboard,
   'video-studio': Video,
@@ -138,9 +143,22 @@ function ModuleCard({ section, onOpen }: { section: AdminSection; onOpen: (id: s
 
 export default function AdminCreatorShell() {
   const [active, setActive] = useState('command');
+  const [askOpen, setAskOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<AdminGroup, boolean>>(
     () => Object.fromEntries(ADMIN_GROUPS.map((g) => [g, g === 'Oversight'])) as Record<AdminGroup, boolean>,
   );
+
+  // ⌘K / Ctrl+K opens the Ask NowOpen palette from anywhere in the shell.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setAskOpen((o) => !o);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
 
   const section = sectionById(active) ?? sectionById('command')!;
   const LiveModule = LIVE_MODULES[active];
@@ -158,6 +176,11 @@ export default function AdminCreatorShell() {
             <p className="text-sm text-gray-500 dark:text-gray-400 font-medium">The growth operating system for NowOpen Africa · internal team</p>
           </div>
           <div className="ml-auto flex items-center gap-2">
+            <button type="button" onClick={() => setAskOpen(true)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition">
+              <Search size={13} /> Ask NowOpen
+              <span className="text-[9px] font-bold text-purple-400 hidden sm:inline">⌘K</span>
+            </button>
             <Link to="/admin" className="inline-flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
               <ArrowLeft size={15} /> Admin console
             </Link>
@@ -231,6 +254,7 @@ export default function AdminCreatorShell() {
           </section>
         </div>
       </div>
+      <AskNowOpenPalette open={askOpen} onClose={() => setAskOpen(false)} onOpenSection={setActive} />
     </div>
   );
 }
