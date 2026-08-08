@@ -68,7 +68,7 @@ describe('WorkBoard smoke', () => {
     render(<WorkBoard />);
     expect(await screen.findByText('Africa is NowOpen — campaign build')).toBeInTheDocument();
     expect(screen.getByText('0 working')).toBeInTheDocument();
-    expect(screen.getByText('1 blocked')).toBeInTheDocument();
+    expect(screen.getAllByText('1 blocked').length).toBeGreaterThan(0);
     expect(screen.getByText('0 waiting')).toBeInTheDocument();
   });
 
@@ -104,6 +104,18 @@ describe('WorkBoard smoke', () => {
     render(<WorkBoard />);
     expect(await screen.findByText('Human team')).toBeInTheDocument();
     expect(screen.getByText(/Ada Obi · Clocked in/)).toBeInTheDocument();
+  });
+
+  it('reports the AI working day from the real ledger, not fabricated activity', async () => {
+    render(<WorkBoard />);
+    expect(await screen.findByText('The AI working day')).toBeInTheDocument();
+    expect(screen.getByText('Morning plan')).toBeInTheDocument();
+    expect(screen.getByText('Midday check')).toBeInTheDocument();
+    expect(screen.getByText('End of day')).toBeInTheDocument();
+    // The mock board has one in_progress item and one blocked item.
+    expect(screen.getByText('1 in flight')).toBeInTheDocument();
+    expect(screen.getAllByText('1 blocked').length).toBeGreaterThan(0);
+    expect(screen.getAllByText('Strategy & BI').length).toBeGreaterThan(0);
   });
 });
 

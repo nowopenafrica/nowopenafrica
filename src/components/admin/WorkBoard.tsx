@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from 'react';
-import { Kanban, Plus, X, Loader2, CalendarClock, Bot, User, CheckCircle2 } from 'lucide-react';
+import { Kanban, Plus, X, Loader2, CalendarClock, Bot, User, CheckCircle2, Sunrise, Sun, Sunset } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -14,6 +14,8 @@ import {
   WORK_SEED, mapSeedToMembers, summarizeWork, filterWork, deriveAgentStatuses,
   type WorkItem, type WorkKind, type WorkStatus, type WorkPriority, type WorkFilters,
 } from '../../lib/work';
+import { DAY_BEAT_LABELS, dayBeat, departmentDayCards } from '../../lib/workingDay';
+import type { ApprovalRequest } from '../../lib/approvals';
 
 // The daily work layer (#22, group People): projects, tasks and goals on a
 // board, assignable to the workforce, with honest statuses from os_work_items.
@@ -51,6 +53,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
 
   const [items, setItems] = useState<WorkItem[]>([]);
   const [members, setMembers] = useState<WorkforceMember[]>([]);
+  const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFallback, setUsingFallback] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -73,20 +76,24 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [wf, wk] = await Promise.all([
+      const [wf, wk, ap] = await Promise.all([
         supabase.from('os_workforce').select('*').eq('org_id', NOWOPEN_ORG_ID),
         supabase.from('os_work_items').select('*').eq('org_id', NOWOPEN_ORG_ID),
+        supabase.from('os_approvals').select('*').eq('org_id', NOWOPEN_ORG_ID),
       ]);
       const rows = (wk.data ?? []) as WorkItem[];
       const people = (wf.data ?? []) as WorkforceMember[];
-      if (wk.error || wf.error || rows.length === 0 || people.length === 0) throw new Error('os tables unavailable');
+      const queue = (ap.data ?? []) as ApprovalRequest[];
+      if (wk.error || wf.error || ap.error || rows.length === 0 || people.length === 0) throw new Error('os tables unavailable');
       setItems(rows);
       setMembers(people);
+      setApprovals(queue);
       setUsingFallback(false);
     } catch {
       const fallbackMembers = seedMembers(currentUser);
       setMembers(fallbackMembers);
       setItems(mapSeedToMembers(WORK_SEED, fallbackMembers));
+      setApprovals([]);
       setUsingFallback(true);
     } finally {
       setLoading(false);
@@ -115,6 +122,11 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
     });
     return { working, blocked, waiting };
   }, [items, members]);
+
+  const workingDay = useMemo(
+    () => departmentDayCards({ members, items, approvals }),
+    [members, items, approvals],
+  );
 
   const humans = useMemo(() => members.filter((m) => m.kind === 'human'), [members]);
   const humanOwner = useMemo(() => findHumanOwner(members, currentUser?.id), [members, currentUser?.id]);
@@ -265,6 +277,53 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
             <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
           </div>
         ))}
+      </div>
+
+      {/* OS-16: the AI working day — three beats, then one card per department. */}
+      <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+        <div className="px-4 pt-3">
+          <p className="text-xs font-bold uppercase tracking-wider text-gray-400">The AI working day</p>
+        </div>
+        <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 divide-y sm:divide-y-0 sm:divide-x divide-gray-100 dark:divide-gray-700">
+          {(['morning', 'midday', 'eod'] as const).map((beat) => {
+            const Icon = beat === 'morning' ? Sunrise : beat === 'midday' ? Sun : Sunset;
+            const active = dayBeat() === beat;
+            return (
+              <div key={beat} className={`px-4 py-3 ${active ? 'bg-purple-50/60 dark:bg-purple-900/10' : ''}`}>
+                <div className="flex items-center gap-2">
+                  <Icon size={14} className={active ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-gray-500'} />
+                  <p className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">{DAY_BEAT_LABELS[beat]}</p>
+                  {active && <span className="px-1.5 py-0.5 rounded-full bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300 text-[9px] font-bold">Now</span>}
+                </div>
+                <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
+                  {beat === 'morning'
+                    ? 'Every role plans its day from its digital job description.'
+                    : beat === 'midday'
+                      ? 'Departments check the week is on track against real work.'
+                      : 'What actually moved: done, blocked and waiting on sign-off.'}
+                </p>
+              </div>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 p-4 border-t border-gray-100 dark:border-gray-700">
+          {workingDay.length === 0 && (
+            <p className="text-xs text-gray-500 dark:text-gray-400 col-span-full">No departments with roles yet — the day starts when the roster does.</p>
+          )}
+          {workingDay.map((card) => (
+            <div key={card.department} className="rounded-lg border border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30 p-3">
+              <p className="text-xs font-bold text-gray-900 dark:text-white">{card.department}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">{card.roles.join(', ')}</p>
+              <p className="mt-2 text-[11px] text-gray-600 dark:text-gray-300 leading-relaxed">{card.headline}</p>
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px] font-semibold">
+                <span className="px-1.5 py-0.5 rounded bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400">{card.inFlight} in flight</span>
+                {card.blocked > 0 && <span className="px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400">{card.blocked} blocked</span>}
+                {card.awaitingApproval > 0 && <span className="px-1.5 py-0.5 rounded bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400">{card.awaitingApproval} sign-offs</span>}
+                <span className="px-1.5 py-0.5 rounded bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400">{card.done} done</span>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
 
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-2.5 text-xs text-gray-500 dark:text-gray-400">
