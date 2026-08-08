@@ -77,7 +77,7 @@ export const ADMIN_SECTIONS: AdminSection[] = [
   { id: 'brand-director', num: 12, group: 'Grow', status: 'live', label: 'AI Brand Director', blurb: '"Launch our restaurant campaign" → strategy, timeline, flyers, videos, emails, landing page, ads, budget and KPIs.', reuses: ['MarketingDirector'] },
   { id: 'trends', num: 14, group: 'Grow', status: 'live', label: 'Trend Discovery', blurb: 'AI scans Google, TikTok, Instagram, YouTube, news and NowOpen searches to say what to make next.', reuses: ['TrendRadarPanel'] },
 
-  { id: 'launch', num: 18, group: 'Run', status: 'live', label: 'Launch Control', blurb: 'Every feature launch: checklist, QA, design, marketing, videos, emails, docs, release notes and rollout.' },
+  { id: 'launch', num: 18, group: 'Run', status: 'live', label: 'Launch Control', blurb: 'Every feature launch: checklist, QA, design, marketing, videos, emails, docs, release notes and rollout on os_launches.', reuses: ['os_launches'] },
   { id: 'knowledge', num: 19, group: 'Run', status: 'live', label: 'Internal Knowledge Base', blurb: 'Everything documented — brand, engineering, marketing, design, growth, legal, finance and support SOPs from os_knowledge, with approvals synced in as decisions.', reuses: ['os_knowledge', 'os_approvals'] },
 ];
 

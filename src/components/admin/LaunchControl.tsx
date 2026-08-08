@@ -1,69 +1,146 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Rocket, Plus, Trash2, CheckSquare } from 'lucide-react';
+import { Rocket, Plus, Trash2, CheckSquare, Loader2 } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
+import { NOWOPEN_ORG_ID } from '../../lib/workforce';
+import {
+  LAUNCH_CHECKLIST, LAUNCH_STATUS_LABELS, mapLaunchRow,
+  launchProgress, launchStatus, summarizeLaunches, LAUNCHES_SEED,
+  type LaunchItem,
+} from '../../lib/launches';
 
-// Launch Control (#18) — every feature launch on one board. A feature gets a
-// name, an owner area, and the standard checklist (design, QA, marketing,
-// videos, emails, docs, release notes, rollout). Progress persists locally
-// until the launches land in the backend.
-
-const CHECKLIST = [
-  'Design review passed',
-  'QA sign-off',
-  'Marketing assets ready',
-  'Explainer video made',
-  'Launch email drafted',
-  'Docs & release notes written',
-  'Rollout scheduled',
-];
-
-interface Launch {
-  id: string;
-  name: string;
-  area: string;
-  target: string;
-  done: boolean[];
-  createdAt: string;
-}
-
-const KEY = 'nowopen_launches_v1';
-
-const SAMPLE: Launch[] = [
-  { id: 'l1', name: 'AI Video Studio', area: 'Product · Media', target: 'Aug 2026', done: [true, true, true, true, true, true, true], createdAt: '2026-06-01T10:00:00Z' },
-  { id: 'l2', name: 'Verified Badge', area: 'Trust & Safety', target: 'Mar 2026', done: [true, true, true, true, true, true, true], createdAt: '2026-02-01T10:00:00Z' },
-  { id: 'l3', name: 'Restaurant Week 2026', area: 'Growth · Campaigns', target: 'Sep 2026', done: [true, false, false, false, false, false, false], createdAt: '2026-07-15T10:00:00Z' },
-];
+// Launch Control (#18, group Run): every feature launch on one board. A launch
+// gets a name, an owner area, a target and the standard checklist, and its
+// status is derived from the ticks — never stored. Rows live in os_launches;
+// the section falls back to the bundled seed (clearly labelled) until the
+// migration is applied, same honest-fallback pattern as the rest of the OS.
 
 export default function LaunchControl() {
-  const [launches, setLaunches] = useState<Launch[]>(() => {
-    try {
-      const stored = JSON.parse(localStorage.getItem(KEY) ?? 'null') as Launch[] | null;
-      return stored ?? SAMPLE;
-    } catch { return SAMPLE; }
-  });
+  const [launches, setLaunches] = useState<LaunchItem[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [usingFallback, setUsingFallback] = useState(false);
   const [name, setName] = useState('');
   const [area, setArea] = useState('');
   const [target, setTarget] = useState('');
 
-  useEffect(() => { localStorage.setItem(KEY, JSON.stringify(launches)); }, [launches]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('os_launches')
+        .select('*')
+        .eq('org_id', NOWOPEN_ORG_ID);
+      const rows = (data ?? []) as unknown[];
+      if (error || rows.length === 0) throw new Error('os_launches unavailable');
+      setLaunches(rows.map((r) => mapLaunchRow(r as Parameters<typeof mapLaunchRow>[0])));
+      setUsingFallback(false);
+    } catch {
+      setLaunches(LAUNCHES_SEED);
+      setUsingFallback(true);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
-  const add = () => {
+  useEffect(() => { void load(); }, [load]);
+
+  const summary = useMemo(() => summarizeLaunches(launches), [launches]);
+
+  const add = async () => {
     if (!name.trim()) { toast.error('Give the launch a name.'); return; }
-    setLaunches((l) => [{ id: crypto.randomUUID(), name: name.trim(), area: area.trim() || 'Unassigned', target: target.trim() || 'TBA', done: CHECKLIST.map(() => false), createdAt: new Date().toISOString() }, ...l]);
-    setName(''); setArea(''); setTarget('');
-    toast.success(`Launch "${name.trim()}" added to the board.`);
+    const fresh: LaunchItem = {
+      id: usingFallback ? `seed-local-${Date.now()}` : 'pending',
+      org_id: NOWOPEN_ORG_ID,
+      name: name.trim(),
+      area: area.trim() || 'Unassigned',
+      target: target.trim() || 'TBA',
+      done: LAUNCH_CHECKLIST.map(() => false),
+      created_at: new Date().toISOString(),
+    };
+    if (usingFallback) {
+      setLaunches((list) => [fresh, ...list]);
+      setName(''); setArea(''); setTarget('');
+      toast.success(`Launch "${fresh.name}" added for this session. Apply the os_launches migration to persist.`);
+      return;
+    }
+    try {
+      const { error } = await supabase.from('os_launches').insert({
+        org_id: NOWOPEN_ORG_ID,
+        name: fresh.name,
+        area: fresh.area,
+        target: fresh.target,
+        checklist_done: fresh.done,
+      });
+      if (error) throw error;
+      toast.success(`Launch "${fresh.name}" added to the board.`);
+      setName(''); setArea(''); setTarget('');
+      void load();
+    } catch {
+      toast.error('Could not save — os_launches needs admin permissions and the migration to exist.');
+    }
   };
 
-  const toggle = (id: string, i: number) => {
-    setLaunches((list) => list.map((l) => (l.id === id ? { ...l, done: l.done.map((d, di) => (di === i ? !d : d)) } : l)));
+  const toggle = async (id: string, index: number) => {
+    if (usingFallback) {
+      setLaunches((list) => list.map((l) => (l.id === id ? { ...l, done: l.done.map((d, di) => (di === index ? !d : d)) } : l)));
+      return;
+    }
+    try {
+      const targetLaunch = launches.find((l) => l.id === id);
+      if (!targetLaunch) return;
+      const next = targetLaunch.done.map((d, di) => (di === index ? !d : d));
+      const { error } = await supabase.from('os_launches').update({ checklist_done: next, updated_at: new Date().toISOString() }).eq('id', id);
+      if (error) throw error;
+      void load();
+    } catch {
+      toast.error('Could not save the tick — admin permissions needed.');
+    }
   };
 
-  const remove = (id: string) => setLaunches((list) => list.filter((l) => l.id !== id));
+  const remove = async (id: string) => {
+    if (usingFallback) {
+      setLaunches((list) => list.filter((l) => l.id !== id));
+      return;
+    }
+    try {
+      const { error } = await supabase.from('os_launches').delete().eq('id', id);
+      if (error) throw error;
+      void load();
+    } catch {
+      toast.error('Could not delete — admin permissions needed.');
+    }
+  };
 
-  const pct = (l: Launch) => Math.round((l.done.filter(Boolean).length / CHECKLIST.length) * 100);
+  const toneFor = (l: LaunchItem): string => {
+    const s = launchStatus(l);
+    if (s === 'ready') return 'bg-emerald-50 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400';
+    if (s === 'in_progress') return 'bg-orange-50 dark:bg-orange-900/30 text-orange-600 dark:text-orange-400';
+    return 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400';
+  };
 
   return (
     <div className="space-y-5">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { label: 'Open launches', value: summary.total, tone: 'text-gray-900 dark:text-white' },
+          { label: 'Ready', value: summary.ready, tone: 'text-emerald-600 dark:text-emerald-400' },
+          { label: 'In flight', value: summary.inProgress, tone: 'text-orange-600 dark:text-orange-400' },
+          { label: 'Average progress', value: `${summary.avgProgress}%`, tone: 'text-purple-600 dark:text-purple-400' },
+        ].map(({ label, value, tone }) => (
+          <div key={label} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3">
+            <span className={`text-xl font-bold ${tone}`}>{value}</span>
+            <p className="text-[11px] font-medium text-gray-500 dark:text-gray-400 mt-0.5">{label}</p>
+          </div>
+        ))}
+      </div>
+
+      {usingFallback && (
+        <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-xs text-amber-700 dark:text-amber-300">
+          Demo launch board — the os_launches migration isn't applied in this project yet. Changes are kept for this
+          session; once it runs, launches come from the database and ticks persist.
+        </div>
+      )}
+
       <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Open a launch</h3>
         <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr,1fr,auto] gap-2">
@@ -73,43 +150,52 @@ export default function LaunchControl() {
             className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
           <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Target (e.g. Oct 2026)…"
             className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-          <button onClick={add} className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+          <button onClick={() => void add()} className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
             <Plus size={15} /> Add
           </button>
         </div>
       </div>
 
-      <div className="space-y-4">
-        {launches.map((l) => (
-          <div key={l.id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 flex items-center justify-center shrink-0">
-                <Rocket size={16} />
-              </div>
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-bold text-gray-900 dark:text-white">{l.name}</p>
-                <p className="text-[11px] text-gray-500 dark:text-gray-400">{l.area} · target {l.target}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <div className="w-28 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
-                  <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-purple-600 transition-all duration-500" style={{ width: `${pct(l)}%` }} />
+      {loading ? (
+        <div className="flex items-center justify-center py-16 text-gray-400">
+          <Loader2 size={18} className="animate-spin mr-2" /> Loading the launch board…
+        </div>
+      ) : (
+        <div className="space-y-4">
+          {launches.map((l) => (
+            <div key={l.id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="w-9 h-9 rounded-lg bg-orange-50 dark:bg-orange-900/20 text-orange-600 dark:text-orange-300 flex items-center justify-center shrink-0">
+                  <Rocket size={16} />
                 </div>
-                <span className="text-xs font-black text-gray-700 dark:text-gray-200">{pct(l)}%</span>
-                <button onClick={() => remove(l.id)} className="text-gray-300 hover:text-rose-500 transition"><Trash2 size={14} /></button>
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">{l.name}</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">{l.area} · target {l.target}</p>
+                </div>
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${toneFor(l)}`}>
+                  {LAUNCH_STATUS_LABELS[launchStatus(l)]}
+                </span>
+                <div className="flex items-center gap-2">
+                  <div className="w-28 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                    <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-purple-600 transition-all duration-500" style={{ width: `${launchProgress(l)}%` }} />
+                  </div>
+                  <span className="text-xs font-black text-gray-700 dark:text-gray-200">{launchProgress(l)}%</span>
+                  <button aria-label={`Delete ${l.name}`} onClick={() => void remove(l.id)} className="text-gray-300 hover:text-rose-500 transition"><Trash2 size={14} /></button>
+                </div>
+              </div>
+              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                {LAUNCH_CHECKLIST.map((c, i) => (
+                  <button key={c} onClick={() => void toggle(l.id, i)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition ${l.done[i] ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    <CheckSquare size={13} className={l.done[i] ? 'text-emerald-600' : 'text-gray-300 dark:text-gray-600'} />
+                    {c}
+                  </button>
+                ))}
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-              {CHECKLIST.map((c, i) => (
-                <button key={c} onClick={() => toggle(l.id, i)}
-                  className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition ${l.done[i] ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
-                  <CheckSquare size={13} className={l.done[i] ? 'text-emerald-600' : 'text-gray-300 dark:text-gray-600'} />
-                  {c}
-                </button>
-              ))}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
