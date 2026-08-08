@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   summarizeOs, osBriefingLines, summarizeOsExtended, osExtendedBriefingLines,
-  osHealthScore, type OsState, type OsExtendedInput,
+  osHealthScore, osHealthSnapshot, osHealthSnapshotText,
+  type OsState, type OsExtendedInput,
 } from './commandOs';
 import type { WorkforceMember } from './workforce';
 import type { WorkItem } from './work';
@@ -119,6 +120,7 @@ describe('commandOs lib', () => {
       pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 3,
       agentsBlocked: 0, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      workforceTotal: 6, workItemsTotal: 4, approvalsTotal: 2, knowledgeTotal: 12,
     });
     expect(lines[0]).toBe('No sign-offs waiting — the approval queue is clear.');
     expect(lines.some((l) => l.includes('No blocked work — 3 open items'))).toBe(true);
@@ -131,6 +133,7 @@ describe('commandOs lib', () => {
       pendingSignOffs: 2, blockedItems: 1, openItems: 5, agents: 3, agentsWorking: 1,
       agentsBlocked: 1, agentsWaiting: 1, decisionsToday: 1, kbDecisions: 3,
       totalMembers: 5, doneItems: 2, decisionsTotal: 4, kbDocs: 15,
+      workforceTotal: 5, workItemsTotal: 7, approvalsTotal: 5, knowledgeTotal: 15,
     });
     expect(lines.some((l) => l.includes('2 work items waiting for your sign-off'))).toBe(true);
     expect(lines.some((l) => l.includes('1 work item are blocked'))).toBe(true);
@@ -155,6 +158,8 @@ describe('commandOs lib', () => {
     expect(b.launchesReady).toBe(1);
     expect(b.partnersActive).toBe(1);
     expect(b.partnersNegotiation).toBe(1);
+    expect(b.launchesTotal).toBe(3);
+    expect(b.partnersTotal).toBe(3);
   });
 
   it('folds the press and campaign ledgers into the extended summary', () => {
@@ -174,6 +179,21 @@ describe('commandOs lib', () => {
     expect(b.pressPending).toBe(1);
     expect(b.campaignsLive).toBe(1);
     expect(b.campaignsInBuild).toBe(1);
+    expect(b.pressTotal).toBe(3);
+    expect(b.campaignsTotal).toBe(3);
+  });
+
+  it('carries raw ledger totals from the base summary', () => {
+    const b = summarizeOs(state({
+      members: [member(), member()],
+      items: [item(), item(), item()],
+      approvals: [approval()],
+      docs: [doc(), doc()],
+    }));
+    expect(b.workforceTotal).toBe(2);
+    expect(b.workItemsTotal).toBe(3);
+    expect(b.approvalsTotal).toBe(1);
+    expect(b.knowledgeTotal).toBe(2);
   });
 
   it('adds launch, partner, press and campaign lines to the executive briefing', () => {
@@ -181,8 +201,10 @@ describe('commandOs lib', () => {
       pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 3,
       agentsBlocked: 0, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      workforceTotal: 6, workItemsTotal: 4, approvalsTotal: 2, knowledgeTotal: 12,
       launchesOpen: 2, launchesReady: 1, partnersActive: 1, partnersNegotiation: 2,
       pressPublished: 2, pressPending: 1, campaignsLive: 1, campaignsInBuild: 1,
+      launchesTotal: 2, partnersTotal: 3, pressTotal: 3, campaignsTotal: 2,
     });
     expect(lines.some((l) => l.includes('1 launch ready to ship'))).toBe(true);
     expect(lines.some((l) => l.includes('1 active partner, 2 in negotiation'))).toBe(true);
@@ -195,8 +217,10 @@ describe('commandOs lib', () => {
       pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 3,
       agentsBlocked: 0, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      workforceTotal: 6, workItemsTotal: 4, approvalsTotal: 2, knowledgeTotal: 12,
       launchesOpen: 2, launchesReady: 0, partnersActive: 0, partnersNegotiation: 0,
       pressPublished: 0, pressPending: 1, campaignsLive: 0, campaignsInBuild: 1,
+      launchesTotal: 2, partnersTotal: 0, pressTotal: 1, campaignsTotal: 1,
     });
     expect(lines.some((l) => l.includes('No launches ready — 2 open on the launch board'))).toBe(true);
     expect(lines.some((l) => l.includes('1 press item pending publication'))).toBe(true);
@@ -208,8 +232,10 @@ describe('commandOs lib', () => {
       pendingSignOffs: 0, blockedItems: 0, openItems: 3, agents: 4, agentsWorking: 4,
       agentsBlocked: 0, agentsWaiting: 0, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      workforceTotal: 6, workItemsTotal: 4, approvalsTotal: 2, knowledgeTotal: 12,
       launchesOpen: 2, launchesReady: 1, partnersActive: 2, partnersNegotiation: 1,
       pressPublished: 1, pressPending: 0, campaignsLive: 1, campaignsInBuild: 0,
+      launchesTotal: 2, partnersTotal: 3, pressTotal: 1, campaignsTotal: 1,
     });
     expect(clean).toBe(100);
 
@@ -217,10 +243,47 @@ describe('commandOs lib', () => {
       pendingSignOffs: 3, blockedItems: 2, openItems: 8, agents: 4, agentsWorking: 1,
       agentsBlocked: 2, agentsWaiting: 1, decisionsToday: 0, kbDecisions: 2,
       totalMembers: 6, doneItems: 1, decisionsTotal: 2, kbDocs: 12,
+      workforceTotal: 6, workItemsTotal: 10, approvalsTotal: 5, knowledgeTotal: 12,
       launchesOpen: 2, launchesReady: 0, partnersActive: 0, partnersNegotiation: 2,
       pressPublished: 0, pressPending: 1, campaignsLive: 1, campaignsInBuild: 0,
+      launchesTotal: 2, partnersTotal: 2, pressTotal: 1, campaignsTotal: 1,
     });
     expect(stressed).toBeLessThan(100);
     expect(stressed).toBeGreaterThanOrEqual(0);
+  });
+
+  it('builds a deterministic snapshot of the health score and all eight ledgers', () => {
+    const b = summarizeOsExtended(extState({
+      members: [member(), member(), member(), member()],
+      items: [item(), item({ id: 'w2', status: 'blocked' }), item({ id: 'w3', status: 'done' })],
+      approvals: [approval(), approval({ id: 'a2', status: 'approved', decided_at: '2026-08-08T09:00:00Z' })],
+      docs: [doc(), doc({ id: 'k2', source: 'decision' })],
+      launches: [launch({ id: 'l1', done: [true, true, true, true, true, true, true] }), launch({ id: 'l2', done: [] })],
+      partners: [partner({ id: 'p1', stage: 'Active' }), partner({ id: 'p2', stage: 'Proposal' })],
+      press: [press({ id: 'pr1', status: 'published' })],
+      campaigns: [campaign({ id: 'c1', status: 'live' })],
+    }), new Date('2026-08-08T12:00:00Z'));
+
+    const snap = osHealthSnapshot(b, new Date('2026-08-08T12:00:00Z'));
+    expect(snap.derivedAt).toBe('2026-08-08T12:00:00.000Z');
+    expect(snap.health).toBe(osHealthScore(b));
+    expect(snap.ledgers).toEqual({
+      workforce: 4, work_items: 3, approvals: 2, knowledge: 2,
+      launches: 2, partners: 2, press: 1, campaigns: 1,
+    });
+  });
+
+  it('renders a shareable plain-text snapshot', () => {
+    const text = osHealthSnapshotText({
+      health: 88,
+      derivedAt: '2026-08-08T12:00:00.000Z',
+      ledgers: {
+        workforce: 4, work_items: 3, approvals: 2, knowledge: 2,
+        launches: 2, partners: 2, press: 1, campaigns: 1,
+      },
+    });
+    expect(text).toContain('NowOpen OS — health 88/100 (derived 2026-08-08T12:00:00.000Z)');
+    expect(text).toContain('Workforce 4 · Work items 3 · Approvals 2 · Knowledge 2');
+    expect(text).toContain('Launches 2 · Partners 2 · Press 1 · Campaigns 1');
   });
 });

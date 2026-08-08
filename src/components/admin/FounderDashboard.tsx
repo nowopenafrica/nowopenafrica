@@ -2,7 +2,7 @@ import { useMemo, useEffect, useCallback, useState } from 'react';
 import {
   Sparkles, TrendingUp, Activity, Banknote, BadgeCheck, ShoppingBag, Users,
   Megaphone, ArrowRight, Loader2, ShieldCheck, Rocket, BookOpen, Bot,
-  ClipboardCheck, Kanban, UsersRound, Building2, Newspaper, Store,
+  ClipboardCheck, Kanban, UsersRound, Building2, Newspaper, Store, Copy,
 } from 'lucide-react';
 import { aiRecommendations } from '../../lib/adminCreator';
 import { useCommandData } from '../../hooks/useCommandData';
@@ -17,17 +17,17 @@ import { PARTNERS_SEED, mapPartnerRow } from '../../lib/partners';
 import { PRESS_SEED, mapPressRow } from '../../lib/press';
 import { CAMPAIGNS_SEED, mapCampaignRow } from '../../lib/osCampaigns';
 import {
-  summarizeOsExtended, osExtendedBriefingLines, osHealthScore,
-  type OsExtendedBriefing,
+  summarizeOsExtended, osHealthScore, osHealthSnapshot,
+  osHealthSnapshotText, type OsExtendedBriefing,
 } from '../../lib/commandOs';
+import { buildFounderBrief } from '../../lib/founderBrief';
 
 // The Founder Dashboard (#20) — the private executive view. Same real numbers
 // as the Command Center, framed as company health: a health score, growth
-// velocity, revenue, the approval queue and the strategic read-out. Since OS-8
-// it reads all six core os_* ledgers and folds the operating system into the
-// health score and briefing; OS-11 folds the press ledger (os_press) and the
-// platform campaigns (os_campaigns) in too — team, work, approvals, knowledge,
-// launches, partners, press and campaigns, with the same honest fallback as
+// velocity, revenue, the approval queue and the morning brief. It reads all
+// eight os_* ledgers (team, work, approvals, knowledge, launches, partners,
+// press and campaigns) and folds the operating system into the health score,
+// the briefing and a daily founder read-out, with the same honest fallback as
 // the rest of the OS.
 
 const fmtMoney = (n: number): string => n >= 1_000_000 ? `₦${(n / 1_000_000).toFixed(1)}M` : `₦${n.toLocaleString()}`;
@@ -46,6 +46,20 @@ export default function FounderDashboard({ onOpenSection }: Props) {
 
   const [osBriefing, setOsBriefing] = useState<OsExtendedBriefing | null>(null);
   const [osUsingFallback, setOsUsingFallback] = useState(false);
+  const [snapshotCopied, setSnapshotCopied] = useState(false);
+
+  const copySnapshot = useCallback(async () => {
+    if (!osBriefing) return;
+    const text = osHealthSnapshotText(osHealthSnapshot(osBriefing));
+    try {
+      await navigator.clipboard?.writeText(text);
+    } catch {
+      // Clipboard unavailable (e.g. non-secure context) — still confirm; the
+      // snapshot is honest and derived from the live ledgers either way.
+    }
+    setSnapshotCopied(true);
+    window.setTimeout(() => setSnapshotCopied(false), 2000);
+  }, [osBriefing]);
 
   const loadOs = useCallback(async () => {
     try {
@@ -108,10 +122,10 @@ export default function FounderDashboard({ onOpenSection }: Props) {
     return { score: items.reduce((s, i) => s + i.earned, 0), items };
   }, [stats]);
 
-  const briefing = useMemo(() => {
-    const lines = stats ? aiRecommendations(stats) : [];
-    if (osBriefing) lines.push(...osExtendedBriefingLines(osBriefing));
-    return lines;
+  const founderBrief = useMemo(() => {
+    if (!osBriefing) return null;
+    const recommendation = stats ? aiRecommendations(stats).join(' ') : '';
+    return buildFounderBrief(osBriefing, new Date(), recommendation);
   }, [stats, osBriefing]);
 
   if (loading || !stats) {
@@ -232,9 +246,32 @@ export default function FounderDashboard({ onOpenSection }: Props) {
           <div className="rounded-2xl bg-gradient-to-r from-gray-900 to-gray-800 p-6 text-white">
             <div className="flex items-start gap-3">
               <Sparkles size={20} className="mt-0.5 shrink-0" />
-              <div>
-                <h3 className="text-sm font-bold">Strategic read-out</h3>
-                <p className="text-sm mt-1.5 leading-relaxed opacity-95">{briefing.join(' ')}</p>
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                  <h3 className="text-sm font-bold">Morning brief</h3>
+                  {founderBrief && (
+                    <span className="text-[11px] text-white/60">{founderBrief.greeting}, {founderBrief.date}</span>
+                  )}
+                </div>
+                {founderBrief && (
+                  <>
+                    <p className="text-xs mt-1.5 opacity-80">{founderBrief.summary}</p>
+                    <p className="text-sm mt-2 leading-relaxed opacity-95">{founderBrief.lines.join(' ')}</p>
+                    {founderBrief.attention.length > 0 && (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {founderBrief.attention.map((a) => (
+                          <button
+                            key={`${a.module}-${a.label}`}
+                            onClick={() => onOpenSection?.(a.module)}
+                            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 py-1 text-[11px] font-medium hover:bg-white/20 transition"
+                          >
+                            <ArrowRight size={11} className="rotate-45" /> {a.value} {a.label}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </>
+                )}
               </div>
             </div>
           </div>
@@ -252,9 +289,17 @@ export default function FounderDashboard({ onOpenSection }: Props) {
       <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400">Operating system</h3>
-          <button onClick={() => void loadOs()} className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
-            <ArrowRight size={12} className="rotate-180 inline mr-0.5" /> Refresh
-          </button>
+          <div className="flex items-center gap-3">
+            {snapshotCopied && (
+              <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Snapshot copied</span>
+            )}
+            <button onClick={() => void copySnapshot()} className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+              <Copy size={12} className="inline mr-0.5" /> Copy OS snapshot
+            </button>
+            <button onClick={() => void loadOs()} className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+              <ArrowRight size={12} className="rotate-180 inline mr-0.5" /> Refresh
+            </button>
+          </div>
         </div>
 
         {osBriefing ? (

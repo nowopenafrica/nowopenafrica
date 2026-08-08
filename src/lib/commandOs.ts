@@ -1,12 +1,12 @@
 // NowOpen OS — command-center layer (pure, no React / Supabase I/O).
 //
-// Aggregates the four core os_* tables (workforce, work items, approvals,
-// knowledge) into the OS briefing the Command Center front door shows, and the
-// eight ledgers (plus launches, partners, press and campaigns, OS-6/OS-7/
-// OS-9/OS-10) into the executive briefing the Founder Dashboard shows. Every
-// number is derived from the real ledgers — agent states come from the work
-// items they're assigned via deriveAgentStatuses, sign-offs from os_approvals,
-// knowledge from os_knowledge. Nothing is fabricated.
+// Aggregates the eight os_* ledgers (workforce, work items, approvals,
+// knowledge, launches, partners, press and campaigns) into the OS briefing
+// both the Command Center front door and the Founder Dashboard executive view
+// show. Every number is derived from the real ledgers — agent states come from
+// the work items they're assigned via deriveAgentStatuses, sign-offs from
+// os_approvals, knowledge from os_knowledge, launches from os_launches and so
+// on. Nothing is fabricated.
 
 import type { WorkforceMember } from './workforce';
 import type { WorkItem } from './work';
@@ -40,6 +40,11 @@ export interface OsBriefing {
   decisionsTotal: number;
   kbDocs: number;
   kbDecisions: number;
+  /** Raw ledger totals, for snapshots and exports. */
+  workforceTotal: number;
+  workItemsTotal: number;
+  approvalsTotal: number;
+  knowledgeTotal: number;
 }
 
 const isToday = (iso: string | null | undefined, now: Date): boolean => {
@@ -81,6 +86,10 @@ export function summarizeOs({ members, items, approvals, docs }: OsState, now = 
     decisionsTotal: decided.length,
     kbDocs: docs.length,
     kbDecisions: docs.filter((d) => d.source === 'decision').length,
+    workforceTotal: members.length,
+    workItemsTotal: items.length,
+    approvalsTotal: approvals.length,
+    knowledgeTotal: docs.length,
   };
 }
 
@@ -136,6 +145,11 @@ export interface OsExtendedBriefing extends OsBriefing {
   pressPending: number;
   campaignsLive: number;
   campaignsInBuild: number;
+  /** Raw ledger totals for the four extended ledgers, for snapshots. */
+  launchesTotal: number;
+  partnersTotal: number;
+  pressTotal: number;
+  campaignsTotal: number;
 }
 
 export function summarizeOsExtended({ members, items, approvals, docs, launches, partners, press, campaigns }: OsExtendedInput, now = new Date()): OsExtendedBriefing {
@@ -151,6 +165,10 @@ export function summarizeOsExtended({ members, items, approvals, docs, launches,
     pressPending: press.filter((p) => p.status !== 'published').length,
     campaignsLive: campaigns.filter((c) => c.status === 'live').length,
     campaignsInBuild: campaigns.filter((c) => c.status === 'in_build').length,
+    launchesTotal: launches.length,
+    partnersTotal: partners.length,
+    pressTotal: press.length,
+    campaignsTotal: campaigns.length,
   };
 }
 
@@ -194,4 +212,48 @@ export function osExtendedBriefingLines(b: OsExtendedBriefing): string[] {
     lines.push(`${b.campaignsInBuild} campaign${b.campaignsInBuild === 1 ? '' : 's'} in build — momentum building.`);
   }
   return lines;
+}
+
+/** A deterministic, shareable read of the operating system: the health score
+ *  plus the raw count of every one of the eight ledgers it runs on, stamped
+ *  with when it was derived. Derived only — the snapshot is never seeded. */
+export interface OsHealthSnapshot {
+  health: number;
+  derivedAt: string;
+  ledgers: {
+    workforce: number;
+    work_items: number;
+    approvals: number;
+    knowledge: number;
+    launches: number;
+    partners: number;
+    press: number;
+    campaigns: number;
+  };
+}
+
+export function osHealthSnapshot(b: OsExtendedBriefing, now = new Date()): OsHealthSnapshot {
+  return {
+    health: osHealthScore(b),
+    derivedAt: now.toISOString(),
+    ledgers: {
+      workforce: b.workforceTotal,
+      work_items: b.workItemsTotal,
+      approvals: b.approvalsTotal,
+      knowledge: b.knowledgeTotal,
+      launches: b.launchesTotal,
+      partners: b.partnersTotal,
+      press: b.pressTotal,
+      campaigns: b.campaignsTotal,
+    },
+  };
+}
+
+/** Plain-text render of a snapshot, for sharing, emailing or pasting. */
+export function osHealthSnapshotText(s: OsHealthSnapshot): string {
+  return [
+    `NowOpen OS — health ${s.health}/100 (derived ${s.derivedAt})`,
+    `Workforce ${s.ledgers.workforce} · Work items ${s.ledgers.work_items} · Approvals ${s.ledgers.approvals} · Knowledge ${s.ledgers.knowledge}`,
+    `Launches ${s.ledgers.launches} · Partners ${s.ledgers.partners} · Press ${s.ledgers.press} · Campaigns ${s.ledgers.campaigns}`,
+  ].join('\n');
 }

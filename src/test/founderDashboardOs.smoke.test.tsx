@@ -132,12 +132,48 @@ describe('FounderDashboard OS strip', () => {
     expect(onOpenSection).toHaveBeenCalledWith('campaign-factory');
   });
 
-  it('merges OS lines into the strategic read-out', async () => {
+  it('merges OS lines into the founder morning brief', async () => {
     render(<FounderDashboard />);
     expect(await screen.findByText(/2 launches ready to ship/)).toBeInTheDocument();
     expect(screen.getByText(/1 active partner, 1 in negotiation/)).toBeInTheDocument();
     expect(screen.getByText(/2 press stories published, 1 pending/)).toBeInTheDocument();
     expect(screen.getByText(/1 campaign live right now/)).toBeInTheDocument();
+  });
+
+  it('lists the morning brief attention items from the live ledgers', async () => {
+    render(<FounderDashboard />);
+    expect(await screen.findByText('Morning brief')).toBeInTheDocument();
+    const expectedDate = new Date().toLocaleDateString('en-GB', {
+      weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC',
+    });
+    expect(screen.getByText(/Good morning|Good afternoon|Good evening/)).toBeInTheDocument();
+    expect(screen.getAllByText(new RegExp(expectedDate)).length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByRole('button', { name: /1 Sign-offs waiting/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Blocked work items/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /2 Launches ready to ship/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Press stories pending/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Campaigns in build/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Partners in negotiation/ })).toBeInTheDocument();
+  });
+
+  it('deep-links attention items into the OS sections', async () => {
+    const onOpenSection = vi.fn();
+    render(<FounderDashboard onOpenSection={onOpenSection} />);
+    fireEvent.click(await screen.findByRole('button', { name: /2 Launches ready to ship/ }));
+    expect(onOpenSection).toHaveBeenCalledWith('launch');
+    fireEvent.click(screen.getByRole('button', { name: /1 Press stories pending/ }));
+    expect(onOpenSection).toHaveBeenCalledWith('press-room');
+    fireEvent.click(screen.getByRole('button', { name: /1 Campaigns in build/ }));
+    expect(onOpenSection).toHaveBeenCalledWith('campaign-factory');
+    fireEvent.click(screen.getByRole('button', { name: /1 Partners in negotiation/ }));
+    expect(onOpenSection).toHaveBeenCalledWith('partners');
+  });
+
+  it('copies a deterministic OS health snapshot from the live ledgers', async () => {
+    render(<FounderDashboard />);
+    await screen.findByText(/2 launches ready to ship/);
+    fireEvent.click(screen.getByRole('button', { name: /Copy OS snapshot/ }));
+    expect(await screen.findByText('Snapshot copied')).toBeInTheDocument();
   });
 });
 

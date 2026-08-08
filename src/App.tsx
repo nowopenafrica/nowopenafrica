@@ -34,6 +34,7 @@ const Pricing = lazy(() => import('./pages/Pricing'));
 const Waitlist = lazy(() => import('./pages/Waitlist'));
 const Founder = lazy(() => import('./pages/Founder'));
 const Platform = lazy(() => import('./pages/Platform'));
+const NowOpenOs = lazy(() => import('./pages/NowOpenOs'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Terms = lazy(() => import('./pages/Terms'));
@@ -85,6 +86,7 @@ function App() {
               {/* Founder hub. Static path — ranks above the /:username catch-all. */}
               <Route path="/founder" element={<Founder />} />
               <Route path="/platform" element={<Platform />} />
+              <Route path="/os" element={<NowOpenOs />} />
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <Profile />

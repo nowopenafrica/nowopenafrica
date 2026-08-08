@@ -14,6 +14,7 @@ const company = [
   { to: '/about', label: 'About Us' },
   { to: '/waitlist', label: 'Africa is NowOpen' },
   { to: '/founder', label: 'Meet the Founder' },
+  { to: '/os', label: 'The NowOpen OS' },
   { to: '/contact', label: 'Contact' },
   { to: '/register', label: 'Create an Account' },
   { to: '/login', label: 'Sign In' },

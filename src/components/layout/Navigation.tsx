@@ -1,6 +1,6 @@
     import { useState } from 'react';
     import { Link } from 'react-router-dom';
-    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, LayoutGrid, Sparkles, BadgeDollarSign } from 'lucide-react';
+    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, LayoutGrid, Sparkles, BadgeDollarSign, Cpu } from 'lucide-react';
     import { useAuth } from '../../contexts/AuthContext';
     import { useRole } from '../../hooks/useRole';
     import AuthModal from '../auth/AuthModal';
@@ -76,6 +76,13 @@
                             <span>
                               <span className="block text-sm font-medium text-gray-900 dark:text-white">The NowOpen Platform</span>
                               <span className="block text-xs text-gray-500 dark:text-gray-400">Industry operating systems</span>
+                            </span>
+                          </Link>
+                          <Link to="/os" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
+                            <Cpu size={18} className="text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" />
+                            <span>
+                              <span className="block text-sm font-medium text-gray-900 dark:text-white">The NowOpen OS</span>
+                              <span className="block text-xs text-gray-500 dark:text-gray-400">How we run ourselves</span>
                             </span>
                           </Link>
                           <Link to="/waitlist" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
@@ -179,6 +186,9 @@
                   <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">Africa is NowOpen</p>
                   <Link to="/platform" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
                     The NowOpen Platform
+                  </Link>
+                  <Link to="/os" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
+                    The NowOpen OS
                   </Link>
                   <Link to="/waitlist" onClick={closeMenu} className="block px-4 py-2 text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded text-sm">
                     Africa is NowOpen — Join the waitlist
