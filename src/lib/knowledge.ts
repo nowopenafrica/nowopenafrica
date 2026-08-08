@@ -108,9 +108,23 @@ export function decisionDoc(input: {
   workTitle: string;
   department: string;
   workItemId?: string | null;
+  note?: string | null;
 }): Pick<KnowledgeDoc, 'category' | 'title' | 'summary' | 'body' | 'tags' | 'source' | 'linked_work_item_id'> {
   const short = input.approvalId.slice(-6);
   const approved = input.status === 'approved';
+  const note = input.note?.trim();
+  const rejectBody = note
+    ? [
+        `${input.workTitle} was sent back by a human.`,
+        'The work item returns to the Work Board as in progress.',
+        `Reviewer note: ${note}`,
+        `Decision recorded on os_approvals (#${short}).`,
+      ]
+    : [
+        `${input.workTitle} was sent back by a human.`,
+        'The work item returns to the Work Board as in progress.',
+        `Decision recorded on os_approvals (#${short}).`,
+      ];
   return {
     category: departmentToKbCategory(input.department),
     // The short approval ref makes the title unique per sign-off, so re-requests
@@ -118,18 +132,16 @@ export function decisionDoc(input: {
     title: `${input.workTitle} — ${approved ? 'approved' : 'sent back'} · #${short}`,
     summary: approved
       ? 'Sign-off recorded: the work item was approved and moved to done.'
-      : 'Sign-off recorded: the work item was sent back to the board for revision.',
+      : note
+        ? `Sign-off recorded: the work item was sent back with a note — ${note}`
+        : 'Sign-off recorded: the work item was sent back to the board for revision.',
     body: approved
       ? [
           `${input.workTitle} was approved by a human.`,
           'The work item is now done on the Work Board.',
           `Decision recorded on os_approvals (#${short}).`,
         ]
-      : [
-          `${input.workTitle} was sent back by a human.`,
-          'The work item returns to the Work Board as in progress.',
-          `Decision recorded on os_approvals (#${short}).`,
-        ],
+      : rejectBody,
     tags: ['decision', approved ? 'approved' : 'rejected', input.department.toLowerCase().replace(/[^a-z0-9]+/g, '-')],
     source: 'decision',
     linked_work_item_id: input.workItemId ?? null,

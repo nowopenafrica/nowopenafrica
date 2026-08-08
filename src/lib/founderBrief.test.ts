@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
-  buildFounderBrief, greetingFor, type FounderBrief,
+  buildFounderBrief, greetingFor, osAttentionItems, type FounderBrief,
 } from './founderBrief';
-import { summarizeOsExtended, osHealthScore, type OsExtendedInput } from './commandOs';
+import { summarizeOsExtended, osHealthScore, type OsExtendedBriefing, type OsExtendedInput } from './commandOs';
 
 const org = '00000000-0000-4000-8000-00000000a001';
 
-function busyBrief(): FounderBrief {
+function busyExtended(): OsExtendedBriefing {
   const input: OsExtendedInput = {
     members: [{ id: 'm1', org_id: org, kind: 'ai', name: 'A', title: 'A', department: 'D', status: 'active' }],
     items: [
@@ -33,7 +33,11 @@ function busyBrief(): FounderBrief {
       { id: 'c2', org_id: org, slug: 'c2', name: 'C2', focus: 'F', audience: '', channels: [], status: 'in_build' },
     ],
   };
-  return buildFounderBrief(summarizeOsExtended(input), new Date('2026-08-08T09:00:00Z'), 'Ship the verified badge next.');
+  return summarizeOsExtended(input);
+}
+
+function busyBrief(): FounderBrief {
+  return buildFounderBrief(busyExtended(), new Date('2026-08-08T09:00:00Z'), 'Ship the verified badge next.');
 }
 
 describe('founder morning brief', () => {
@@ -88,5 +92,25 @@ describe('founder morning brief', () => {
     expect(b.lines).toContain('No sign-offs waiting — the approval queue is clear.');
     expect(b.summary).toContain('healthy');
     expect(b.health).toBe(osHealthScore(summarizeOsExtended(input)));
+  });
+
+  it('the attention inbox is derived-only and order-stable for the Command Center', () => {
+    const busy = osAttentionItems(busyExtended());
+    expect(busy.length).toBe(6);
+    expect(busy[0].module).toBe('approvals');
+    expect(busy[1].module).toBe('work-board');
+    expect(busy[busy.length - 1].module).toBe('partners');
+    // A healthy briefing yields an empty inbox, not a fabricated signal.
+    const clean: OsExtendedInput = {
+      members: [{ id: 'm1', org_id: org, kind: 'ai', name: 'A', title: 'A', department: 'D', status: 'active' }],
+      items: [{ id: 'w1', org_id: org, kind: 'task', title: 'T1', status: 'in_progress', priority: 'medium', department: 'D', assignee_id: 'm1' }],
+      approvals: [],
+      docs: [],
+      launches: [{ id: 'l1', org_id: org, name: 'L1', area: 'P', target: 'Aug 2026', done: [true, true, true] }],
+      partners: [],
+      press: [],
+      campaigns: [],
+    };
+    expect(osAttentionItems(summarizeOsExtended(clean))).toEqual([]);
   });
 });

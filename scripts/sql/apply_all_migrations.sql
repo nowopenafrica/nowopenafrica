@@ -2440,12 +2440,16 @@ CREATE TABLE IF NOT EXISTS os_approvals (
   requested_by uuid REFERENCES os_workforce(id) ON DELETE SET NULL,
   reason text NOT NULL,
   status text NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'approved', 'rejected')),
+  decision_note text,
   decided_by uuid REFERENCES auth.users(id) ON DELETE SET NULL,
   decided_at timestamptz,
   created_at timestamptz DEFAULT now(),
   updated_at timestamptz DEFAULT now(),
   UNIQUE (org_id, work_item_id)
 );
+
+-- OS-14: reject-with-note — an existing database picks up the new column too.
+ALTER TABLE os_approvals ADD COLUMN IF NOT EXISTS decision_note text;
 
 ALTER TABLE os_approvals ENABLE ROW LEVEL SECURITY;
 
@@ -2830,3 +2834,37 @@ JOIN os_orgs o ON o.slug = 'nowopen-africa'
 ON CONFLICT (org_id, slug) DO NOTHING;
 
 CREATE INDEX IF NOT EXISTS os_campaigns_org_idx ON os_campaigns (org_id, status, starts_at);
+
+-- ===== 20260808070000_os_snapshots.sql =====
+-- NowOpen OS: snapshot history. Rows are derived — the health score and the raw
+-- count of every ledger at a point in time, written by the OS views each time
+-- they load. Never seeded; history only ever records what the ledgers said.
+CREATE TABLE IF NOT EXISTS os_snapshots (
+  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  org_id uuid NOT NULL REFERENCES os_orgs(id) ON DELETE CASCADE,
+  snapshot_date date NOT NULL,
+  health integer NOT NULL CHECK (health >= 0 AND health <= 100),
+  ledgers jsonb NOT NULL,
+  created_at timestamptz NOT NULL DEFAULT now(),
+  UNIQUE (org_id, snapshot_date)
+);
+
+ALTER TABLE os_snapshots ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "Admins read snapshots" ON os_snapshots;
+CREATE POLICY "Admins read snapshots" ON os_snapshots
+  FOR SELECT TO authenticated USING (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins write snapshots" ON os_snapshots;
+CREATE POLICY "Admins write snapshots" ON os_snapshots
+  FOR INSERT TO authenticated WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins update snapshots" ON os_snapshots;
+CREATE POLICY "Admins update snapshots" ON os_snapshots
+  FOR UPDATE TO authenticated USING (public.is_admin()) WITH CHECK (public.is_admin());
+
+DROP POLICY IF EXISTS "Admins delete snapshots" ON os_snapshots;
+CREATE POLICY "Admins delete snapshots" ON os_snapshots
+  FOR DELETE TO authenticated USING (public.is_admin());
+
+CREATE INDEX IF NOT EXISTS os_snapshots_org_date_idx ON os_snapshots (org_id, snapshot_date);

@@ -14,6 +14,7 @@ import { PARTNERS_SEED, mapPartnerRow } from '../../lib/partners';
 import { PRESS_SEED, mapPressRow } from '../../lib/press';
 import { CAMPAIGNS_SEED, mapCampaignRow } from '../../lib/osCampaigns';
 import { summarizeOsExtended, osExtendedBriefingLines, type OsExtendedBriefing } from '../../lib/commandOs';
+import { osAttentionItems } from '../../lib/founderBrief';
 
 // The Growth Command Center — "what's happening today". Pulls the real
 // Supabase tables the admin console uses (published posts now come from the
@@ -89,6 +90,8 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
     return lines;
   }, [stats, osBriefing]);
 
+  const attention = useMemo(() => (osBriefing ? osAttentionItems(osBriefing) : []), [osBriefing]);
+
   if (loading || !stats) {
     return <div className="min-h-[40vh] flex items-center justify-center"><Loader2 className="animate-spin text-gray-400" /></div>;
   }
@@ -137,6 +140,42 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
             )}
           </div>
         </div>
+      </div>
+
+      {/* OS attention inbox — the front door: what the OS is waiting on today */}
+      <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 inline-flex items-center gap-1.5">
+            <Inbox size={13} /> Needs your attention
+          </h3>
+          {osUsingFallback && (
+            <span className="text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">demo OS</span>
+          )}
+        </div>
+
+        {osBriefing ? (
+          attention.length > 0 ? (
+            <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-2">
+              {attention.map((a) => (
+                <button
+                  key={a.label}
+                  onClick={() => onOpenModule?.(a.module)}
+                  disabled={!onOpenModule}
+                  className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2.5 text-left hover:bg-amber-100 dark:hover:bg-amber-900/40 transition disabled:opacity-100"
+                >
+                  <div className="text-lg font-black text-amber-700 dark:text-amber-300">{a.value}</div>
+                  <div className="text-[11px] font-medium text-amber-800 dark:text-amber-200">{a.label}</div>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <p className="mt-3 text-xs text-gray-500 dark:text-gray-400">Nothing needs your attention right now — every ledger is moving.</p>
+          )
+        ) : (
+          <div className="mt-4 flex items-center gap-2 text-xs text-gray-400">
+            <Loader2 size={14} className="animate-spin" /> Reading the OS ledgers…
+          </div>
+        )}
       </div>
 
       {/* Stat grid */}

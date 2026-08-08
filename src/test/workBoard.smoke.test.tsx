@@ -99,4 +99,34 @@ describe('WorkBoard smoke', () => {
     expect(screen.queryByText('Africa is NowOpen — campaign build')).not.toBeInTheDocument();
     expect(screen.queryByText('August social content calendar')).not.toBeInTheDocument();
   });
+
+  it('shows the human roster with their clock status on the board', async () => {
+    render(<WorkBoard />);
+    expect(await screen.findByText('Human team')).toBeInTheDocument();
+    expect(screen.getByText(/Ada Obi · Clocked in/)).toBeInTheDocument();
+  });
+});
+
+describe('WorkBoard human clock-in fallback', () => {
+  it('shows the signed-in owner and lets them clock out for the session', async () => {
+    const chain = {
+      select: vi.fn(() => chain),
+      eq: vi.fn(() => chain),
+      order: vi.fn(() => chain),
+      insert: vi.fn(async () => ({ data: null, error: null })),
+      update: vi.fn(() => chain),
+      then: (onF?: any, onR?: any) => Promise.resolve({ data: [], error: null }).then(onF, onR),
+      catch: (onR?: any) => Promise.resolve({ data: [], error: null }).catch(onR),
+      finally: (onF?: any) => Promise.resolve({ data: [], error: null }).finally(onF),
+    };
+    const { supabase } = await import('../lib/supabase');
+    vi.mocked(supabase.from).mockImplementation(() => chain as never);
+    render(<><Toaster /><WorkBoard /></>);
+    expect(await screen.findByText(/Demo board/)).toBeInTheDocument();
+    expect(screen.getByText('Human team')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Clock out/ })).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Clock out/ }));
+    expect(await screen.findByText(/Clocked out for this session/)).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Clock in/ })).toBeInTheDocument();
+  });
 });

@@ -42,6 +42,19 @@ describe('os_* ledger audit', () => {
     expect(sql).toMatch(/JOIN os_orgs o ON o\.slug = 'nowopen-africa'/);
   });
 
+  it('the os_snapshots history table exists, is admin-only, and is never seeded', () => {
+    // import.meta.url is an http URL under jsdom, so resolve from cwd instead.
+    const sql = readFileSync(resolve(process.cwd(), 'scripts/sql/apply_all_migrations.sql'), 'utf8');
+    expect(sql).toContain('CREATE TABLE IF NOT EXISTS os_snapshots (');
+    expect(sql).toContain('snapshot_date date NOT NULL');
+    expect(sql).toContain('health integer NOT NULL CHECK (health >= 0 AND health <= 100)');
+    expect(sql).toContain('ledgers jsonb NOT NULL');
+    expect(sql).toContain('ENABLE ROW LEVEL SECURITY');
+    expect(sql).toContain('"Admins read snapshots" ON os_snapshots');
+    // History is derived, never seeded: no INSERT may target os_snapshots.
+    expect(sql).not.toMatch(/INSERT INTO os_snapshots/i);
+  });
+
   it('the health snapshot exposes exactly the eight ledger totals, derived only', () => {
     const org = '00000000-0000-4000-8000-00000000a001';
     const input: OsExtendedInput = {

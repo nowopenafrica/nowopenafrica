@@ -31,11 +31,9 @@ export function greetingFor(now = new Date()): string {
   return hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
 }
 
-export function buildFounderBrief(
-  b: OsExtendedBriefing,
-  now = new Date(),
-  recommendation = '',
-): FounderBrief {
+/** The OS attention inbox: signals actually waiting on the founder today,
+ *  derived from the eight ledgers. Nothing is seeded or staged. */
+export function osAttentionItems(b: OsExtendedBriefing): FounderAttentionItem[] {
   const attention: FounderAttentionItem[] = [];
   if (b.pendingSignOffs > 0) attention.push({ label: 'Sign-offs waiting', value: b.pendingSignOffs, module: 'approvals' });
   if (b.blockedItems > 0) attention.push({ label: 'Blocked work items', value: b.blockedItems, module: 'work-board' });
@@ -43,6 +41,15 @@ export function buildFounderBrief(
   if (b.pressPending > 0) attention.push({ label: 'Press stories pending', value: b.pressPending, module: 'press-room' });
   if (b.campaignsInBuild > 0) attention.push({ label: 'Campaigns in build', value: b.campaignsInBuild, module: 'campaign-factory' });
   if (b.partnersNegotiation > 0) attention.push({ label: 'Partners in negotiation', value: b.partnersNegotiation, module: 'partners' });
+  return attention;
+}
+
+export function buildFounderBrief(
+  b: OsExtendedBriefing,
+  now = new Date(),
+  recommendation = '',
+): FounderBrief {
+  const attention = osAttentionItems(b);
 
   const lines = osExtendedBriefingLines(b);
   if (recommendation) lines.push(recommendation);

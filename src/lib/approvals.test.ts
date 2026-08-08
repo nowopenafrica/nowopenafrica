@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   APPROVAL_STATUSES, APPROVAL_STATUS_LABELS,
-  summarizeApprovals, filterApprovals, DECISION_EFFECTS,
+  summarizeApprovals, filterApprovals, DECISION_EFFECTS, decideApproval,
   APPROVALS_SEED, mapSeedToApprovals,
   type ApprovalRequest,
 } from './approvals';
@@ -61,6 +61,24 @@ describe('approvals lib', () => {
   it('maps decisions to ledger effects', () => {
     expect(DECISION_EFFECTS.approved).toEqual({ work: 'done', member: 'active' });
     expect(DECISION_EFFECTS.rejected).toEqual({ work: 'in_progress', member: 'working' });
+  });
+
+  it('records a rejection note with the decision and clears it on approve', () => {
+    const now = new Date('2026-08-08T10:00:00Z');
+    const rejected = decideApproval(req(), 'rejected', { decidedBy: 'u-admin', note: '  Add the August numbers.  ', now });
+    expect(rejected.status).toBe('rejected');
+    expect(rejected.decision_note).toBe('Add the August numbers.');
+    expect(rejected.decided_by).toBe('u-admin');
+    expect(rejected.decided_at).toBe('2026-08-08T10:00:00.000Z');
+    expect(rejected.updated_at).toBe('2026-08-08T10:00:00.000Z');
+
+    const approved = decideApproval(req(), 'approved', { decidedBy: 'u-admin', note: 'ignored', now });
+    expect(approved.status).toBe('approved');
+    expect(approved.decision_note).toBeNull();
+
+    // A rejection with only whitespace leaves no note behind.
+    const bare = decideApproval(req(), 'rejected', { decidedBy: 'u-admin', note: '   ', now });
+    expect(bare.decision_note).toBeNull();
   });
 
   it('maps the seed manifest against work items and their assignees', () => {

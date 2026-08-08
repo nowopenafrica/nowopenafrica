@@ -18,9 +18,12 @@ import { PRESS_SEED, mapPressRow } from '../../lib/press';
 import { CAMPAIGNS_SEED, mapCampaignRow } from '../../lib/osCampaigns';
 import {
   summarizeOsExtended, osHealthScore, osHealthSnapshot,
-  osHealthSnapshotText, type OsExtendedBriefing,
+  osHealthSnapshotText, type OsExtendedBriefing, type OsHealthSnapshot,
 } from '../../lib/commandOs';
 import { buildFounderBrief } from '../../lib/founderBrief';
+import {
+  appendOsSnapshot, loadOsSnapshots, saveOsSnapshots, osHistoryTrend, snapshotDate,
+} from '../../lib/osHistory';
 
 // The Founder Dashboard (#20) — the private executive view. Same real numbers
 // as the Command Center, framed as company health: a health score, growth
@@ -47,6 +50,7 @@ export default function FounderDashboard({ onOpenSection }: Props) {
   const [osBriefing, setOsBriefing] = useState<OsExtendedBriefing | null>(null);
   const [osUsingFallback, setOsUsingFallback] = useState(false);
   const [snapshotCopied, setSnapshotCopied] = useState(false);
+  const [osHistory, setOsHistory] = useState<OsHealthSnapshot[]>([]);
 
   const copySnapshot = useCallback(async () => {
     if (!osBriefing) return;
@@ -84,12 +88,33 @@ export default function FounderDashboard({ onOpenSection }: Props) {
       if (wf.error || wk.error || ap.error || kb.error || ln.error || pt.error || pr.error || ca.error || members.length === 0 || items.length === 0) {
         throw new Error('os tables unavailable');
       }
-      setOsBriefing(summarizeOsExtended({ members, items, approvals, docs, launches, partners, press, campaigns }));
+      const briefing = summarizeOsExtended({ members, items, approvals, docs, launches, partners, press, campaigns });
+      setOsBriefing(briefing);
       setOsUsingFallback(false);
+
+      // Record today's derived snapshot into the history: Supabase is the
+      // source of truth, localStorage is the honest fallback until the
+      // os_snapshots migration is applied.
+      const now = new Date();
+      const snapshot = osHealthSnapshot(briefing, now);
+      const history = await supabase.from('os_snapshots').select('*').order('snapshot_date');
+      const rows = (history.data ?? []) as { snapshot_date: string; health: number; ledgers: OsHealthSnapshot['ledgers'] }[];
+      const base = rows.length > 0
+        ? rows.map((r) => ({ health: r.health, derivedAt: r.snapshot_date, ledgers: r.ledgers }))
+        : loadOsSnapshots();
+      const next = appendOsSnapshot(base, snapshot, now);
+      saveOsSnapshots(next);
+      setOsHistory(next);
+      void supabase.from('os_snapshots').upsert({
+        org_id: NOWOPEN_ORG_ID,
+        snapshot_date: snapshotDate(snapshot, now),
+        health: snapshot.health,
+        ledgers: snapshot.ledgers,
+      });
     } catch {
       const fallbackMembers = seedMembers(currentUser);
       const fallbackItems = mapSeedToMembers(WORK_SEED, fallbackMembers);
-      setOsBriefing(summarizeOsExtended({
+      const briefing = summarizeOsExtended({
         members: fallbackMembers,
         items: fallbackItems,
         approvals: mapSeedToApprovals(APPROVALS_SEED, fallbackItems),
@@ -98,8 +123,12 @@ export default function FounderDashboard({ onOpenSection }: Props) {
         partners: PARTNERS_SEED,
         press: PRESS_SEED,
         campaigns: CAMPAIGNS_SEED,
-      }));
+      });
+      setOsBriefing(briefing);
       setOsUsingFallback(true);
+      // Demo OS — the snapshots are derived from seed data here, so they never
+      // pollute the history. Only prior real (derived) history is shown.
+      setOsHistory(loadOsSnapshots());
     }
   }, [currentUser]);
 
@@ -127,6 +156,8 @@ export default function FounderDashboard({ onOpenSection }: Props) {
     const recommendation = stats ? aiRecommendations(stats).join(' ') : '';
     return buildFounderBrief(osBriefing, new Date(), recommendation);
   }, [stats, osBriefing]);
+
+  const trend = useMemo(() => osHistoryTrend(osHistory), [osHistory]);
 
   if (loading || !stats) {
     return <div className="min-h-[40vh] flex items-center justify-center"><Loader2 className="animate-spin text-gray-400" /></div>;
@@ -217,6 +248,29 @@ export default function FounderDashboard({ onOpenSection }: Props) {
               {osUsingFallback && (
                 <div className="mt-3 rounded-lg border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-[10px] text-amber-700 dark:text-amber-300">
                   Demo OS — the os_* migrations aren't applied here yet. Once they run, this reads the real ledgers.
+                </div>
+              )}
+              {!osUsingFallback && trend.points.length >= 2 && (
+                <div className="mt-4 pt-3 border-t border-gray-100 dark:border-gray-700">
+                  <div className="flex items-center justify-between text-[11px] font-medium text-gray-600 dark:text-gray-300">
+                    <span className="inline-flex items-center gap-1"><TrendingUp size={12} className="text-purple-600 dark:text-purple-400" /> OS health trend</span>
+                    <span className={trend.delta >= 0 ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}>
+                      {trend.delta >= 0 ? '+' : ''}{trend.delta} vs earliest
+                    </span>
+                  </div>
+                  <div className="mt-2 flex items-end gap-1 h-12">
+                    {trend.points.slice(-14).map((p) => (
+                      <div
+                        key={p.date}
+                        title={`${p.date} · ${p.health}/100`}
+                        className="flex-1 rounded-t bg-gradient-to-t from-purple-500 to-blue-500"
+                        style={{ height: `${Math.max(8, p.health)}%` }}
+                      />
+                    ))}
+                  </div>
+                  <div className="mt-1 text-[10px] text-gray-400">
+                    last {Math.min(14, trend.points.length)} days · avg {trend.average} · {trend.min}–{trend.max}
+                  </div>
                 </div>
               )}
             </>

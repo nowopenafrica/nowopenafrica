@@ -11,7 +11,7 @@ import { sectionById } from '../../lib/adminCreator';
 import { WORK_SEED, mapSeedToMembers, type WorkItem } from '../../lib/work';
 import {
   APPROVAL_STATUS_LABELS, APPROVAL_STATUSES, summarizeApprovals, filterApprovals,
-  DECISION_EFFECTS, APPROVALS_SEED, mapSeedToApprovals,
+  DECISION_EFFECTS, decideApproval, APPROVALS_SEED, mapSeedToApprovals,
   type ApprovalRequest, type ApprovalStatus, type ApprovalFilters,
 } from '../../lib/approvals';
 import { decisionDoc } from '../../lib/knowledge';
@@ -44,6 +44,8 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
   const [loading, setLoading] = useState(true);
   const [usingFallback, setUsingFallback] = useState(false);
   const [actioning, setActioning] = useState<string | null>(null);
+  const [rejectingId, setRejectingId] = useState<string | null>(null);
+  const [rejectNote, setRejectNote] = useState('');
   const [filters, setFilters] = useState<ApprovalFilters>({ status: 'pending', department: 'all' });
 
   const load = useCallback(async () => {
@@ -106,42 +108,51 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
     return section ? { id: section.id, label: section.label } : null;
   };
 
-  const patchLocal = (id: string, outcome: Outcome) => {
+  const patchLocal = (id: string, outcome: Outcome, note = '') => {
     const effects = DECISION_EFFECTS[outcome];
-    const now = new Date().toISOString();
     setApprovals((list) => list.map((a) =>
-      a.id === id ? { ...a, status: outcome, decided_by: currentUser?.id ?? null, decided_at: now, updated_at: now } : a));
+      a.id === id ? decideApproval(a, outcome, { decidedBy: currentUser?.id ?? null, note }) : a));
     const target = approvals.find((a) => a.id === id);
     const item = target ? workById.get(target.work_item_id) : undefined;
     if (item) {
-      setItems((list) => list.map((w) => (w.id === item.id ? { ...w, status: effects.work, updated_at: now } : w)));
+      setItems((list) => list.map((w) => (w.id === item.id ? { ...w, status: effects.work, updated_at: new Date().toISOString() } : w)));
       if (item.assignee_id) {
-        setMembers((list) => list.map((m) => (m.id === item.assignee_id ? { ...m, status: effects.member, updated_at: now } : m)));
+        setMembers((list) => list.map((m) => (m.id === item.assignee_id ? { ...m, status: effects.member, updated_at: new Date().toISOString() } : m)));
       }
     }
   };
 
-  const decide = async (r: ApprovalRequest, outcome: Outcome) => {
+  const decide = async (r: ApprovalRequest, outcome: Outcome, note = '') => {
     if (actioning) return;
     setActioning(r.id);
     const item = workById.get(r.work_item_id);
     const title = item?.title ?? 'work item';
     const effects = DECISION_EFFECTS[outcome];
+    const noteOutcome = outcome === 'rejected' ? note.trim() : '';
 
     if (usingFallback) {
-      patchLocal(r.id, outcome);
+      patchLocal(r.id, outcome, noteOutcome);
       setActioning(null);
+      setRejectingId(null);
+      setRejectNote('');
       toast(outcome === 'approved'
         ? `Approved for this session — ${title} is done. Apply the os_approvals migration to persist.`
-        : `Sent back for this session — ${title} returns to the board. Apply the os_approvals migration to persist.`);
+        : noteOutcome
+          ? `Sent back for this session — ${title} returns to the board with your note. Apply the os_approvals migration to persist.`
+          : `Sent back for this session — ${title} returns to the board. Apply the os_approvals migration to persist.`);
       return;
     }
 
     try {
       const now = new Date().toISOString();
+      const decided = decideApproval(r, outcome, { decidedBy: currentUser?.id ?? null, note: noteOutcome, now: new Date() });
       const calls: unknown[] = [
         supabase.from('os_approvals').update({
-          status: outcome, decided_by: currentUser?.id ?? null, decided_at: now, updated_at: now,
+          status: decided.status,
+          decision_note: decided.decision_note,
+          decided_by: decided.decided_by,
+          decided_at: decided.decided_at,
+          updated_at: now,
         }).eq('id', r.id),
         supabase.from('os_work_items').update({ status: effects.work, updated_at: now }).eq('id', r.work_item_id),
       ];
@@ -161,11 +172,14 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
             workTitle: item?.title ?? 'work item',
             department: item?.department ?? 'Founder Office',
             workItemId: item?.id,
+            note: noteOutcome,
           }),
         }),
       );
       await Promise.all(calls);
-      toast.success(outcome === 'approved' ? `Approved — ${title} is done.` : `Sent back to the board — ${title}.`);
+      setRejectingId(null);
+      setRejectNote('');
+      toast.success(outcome === 'approved' ? `Approved — ${title} is done.` : noteOutcome ? `Sent back with your note — ${title}.` : `Sent back to the board — ${title}.`);
       void load();
     } catch {
       toast.error('Could not save the decision — admin permissions needed.');
@@ -285,11 +299,36 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                             {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
                             Approve
                           </button>
-                          <button type="button" disabled={actioning !== null} onClick={() => void decide(r, 'rejected')}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
-                            {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
-                            Reject
-                          </button>
+                          {rejectingId === r.id ? (
+                            <div className="w-full rounded-lg border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/20 p-3">
+                              <p className="text-[11px] font-semibold text-rose-700 dark:text-rose-300 mb-1.5">Send it back with a note so the agent knows what to fix</p>
+                              <textarea
+                                autoFocus
+                                value={rejectNote}
+                                onChange={(e) => setRejectNote(e.target.value)}
+                                placeholder="e.g. Add the August numbers and re-submit."
+                                rows={2}
+                                className="w-full rounded-lg border border-rose-200 dark:border-rose-800 bg-white dark:bg-gray-900 text-xs text-gray-900 dark:text-white px-3 py-2 resize-none"
+                              />
+                              <div className="mt-2 flex items-center gap-2">
+                                <button type="button" disabled={actioning !== null} onClick={() => void decide(r, 'rejected', rejectNote)}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                                  {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                                  Send back with note
+                                </button>
+                                <button type="button" disabled={actioning !== null} onClick={() => { setRejectingId(null); setRejectNote(''); }}
+                                  className="text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition">
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <button type="button" disabled={actioning !== null} onClick={() => { setRejectingId(r.id); setRejectNote(''); }}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                              {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
+                              Reject
+                            </button>
+                          )}
                           {office && (
                             <button type="button" onClick={() => openDepartment(office.id)}
                               className="ml-auto text-xs font-semibold text-purple-600 dark:text-purple-400 hover:text-purple-700 dark:hover:text-purple-300">
@@ -321,6 +360,9 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                         <p className="text-[10px] text-gray-400 dark:text-gray-500">
                           {requesterName(r) ?? 'Agent'} · {r.decided_at ? new Date(r.decided_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : ''}
                         </p>
+                        {r.decision_note && (
+                          <p className="mt-1 text-[11px] text-rose-600 dark:text-rose-400 italic truncate">Note: {r.decision_note}</p>
+                        )}
                       </div>
                       <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide shrink-0 ${STATUS_TONE[r.status]}`}>
                         {APPROVAL_STATUS_LABELS[r.status]}
@@ -343,7 +385,8 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
               <li className="flex gap-2">
                 <X size={14} className="shrink-0 text-rose-500 mt-0.5" />
                 <span><span className="font-semibold text-gray-900 dark:text-white">Reject</span> — the item goes back
-                  to the board as <span className="font-semibold">in progress</span> and the agent returns to <span className="font-semibold">working</span>.</span>
+                  to the board as <span className="font-semibold">in progress</span>, the agent returns to <span className="font-semibold">working</span>,
+                  and your note travels with it so they know what to fix.</span>
               </li>
               <li className="flex gap-2">
                 <ClipboardCheck size={14} className="shrink-0 text-purple-500 mt-0.5" />

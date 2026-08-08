@@ -55,6 +55,7 @@ export interface WorkforceMember {
   owner_user_id?: string | null;
   agent_key?: string | null;
   kpis?: Record<string, unknown>;
+  updated_at?: string;
 }
 
 // The 14 vision departments, each linked to the Admin Creator section that
@@ -192,4 +193,24 @@ export function filterWorkforce(members: WorkforceMember[], filters: WorkforceFi
     if (filters.status !== 'all' && m.status !== filters.status) return false;
     return true;
   });
+}
+
+/** The human roster row that belongs to a signed-in user, if one exists. */
+export function findHumanOwner(
+  members: readonly WorkforceMember[],
+  userId?: string | null,
+): WorkforceMember | undefined {
+  if (!userId) return undefined;
+  return members.find((m) => m.kind === 'human' && m.owner_user_id === userId);
+}
+
+/** Clock a human in from the office. Pure — the board patches the same shape
+ *  it would write to os_workforce, so the fallback session stays honest. */
+export function clockIn(member: WorkforceMember, now = new Date()): WorkforceMember {
+  return { ...member, status: 'clocked-in', updated_at: now.toISOString() };
+}
+
+/** Clock a human out — status only; their assigned work stays on the board. */
+export function clockOut(member: WorkforceMember, now = new Date()): WorkforceMember {
+  return { ...member, status: 'clocked-out', current_work: null, updated_at: now.toISOString() };
 }

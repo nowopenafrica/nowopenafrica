@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   DEPARTMENTS, AI_ROSTER_SEED, statusesFor, isValidStatus, summarizeWorkforce, filterWorkforce,
+  findHumanOwner, clockIn, clockOut,
   type WorkforceMember,
 } from './workforce';
 
@@ -92,5 +93,32 @@ describe('workforce — filtering', () => {
 
   it('returns everything when no filters are applied', () => {
     expect(filterWorkforce(members, { kind: 'all', department: 'all', status: 'all' })).toHaveLength(6);
+  });
+});
+
+describe('workforce — human clock-in', () => {
+  const roster: WorkforceMember[] = [
+    { id: 'h1', org_id: org, kind: 'human', name: 'Temi', title: 'Founder', department: 'Founder Office', status: 'clocked-out', current_work: null, owner_user_id: 'u-admin' },
+    { id: 'h2', org_id: org, kind: 'human', name: 'Ada', title: 'Ops Lead', department: 'Operations', status: 'clocked-in', current_work: 'Shipping SOP v3' },
+  ];
+
+  it('finds the human row owned by the signed-in user', () => {
+    expect(findHumanOwner(roster, 'u-admin')?.id).toBe('h1');
+    expect(findHumanOwner(roster, 'u-other')).toBeUndefined();
+    expect(findHumanOwner(roster, null)).toBeUndefined();
+    expect(findHumanOwner(roster, undefined)).toBeUndefined();
+  });
+
+  it('clocks a human in and out without touching their assigned work', () => {
+    const now = new Date('2026-08-08T10:00:00Z');
+    const punchedIn = clockIn(roster[0], now);
+    expect(punchedIn.status).toBe('clocked-in');
+    expect(punchedIn.current_work).toBeNull();
+    expect(punchedIn.updated_at).toBe('2026-08-08T10:00:00.000Z');
+
+    const punchedOut = clockOut(roster[1], now);
+    expect(punchedOut.status).toBe('clocked-out');
+    expect(punchedOut.current_work).toBeNull();
+    expect(punchedOut.updated_at).toBe('2026-08-08T10:00:00.000Z');
   });
 });

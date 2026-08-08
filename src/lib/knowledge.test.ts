@@ -110,6 +110,29 @@ describe('knowledge lib', () => {
     expect(rejected.linked_work_item_id).toBeNull();
   });
 
+  it('carries a rejection note into the decision doc as memory', () => {
+    const rejected = decisionDoc({
+      approvalId: 'aaaaaaaa-1111-2222-3333-44444444cafe',
+      status: 'rejected',
+      workTitle: 'August social content calendar',
+      department: 'Social Media',
+      note: 'Add the August numbers and re-submit.',
+    });
+    expect(rejected.title).toBe('August social content calendar — sent back · #44cafe');
+    expect(rejected.summary).toContain('with a note');
+    expect(rejected.body).toContain('Reviewer note: Add the August numbers and re-submit.');
+    // An approval never quotes a note, even if one is passed.
+    const approved = decisionDoc({
+      approvalId: 'aaaaaaaa-1111-2222-3333-44444444d00d',
+      status: 'approved',
+      workTitle: 'Monthly finance report',
+      department: 'Finance',
+      note: 'nope',
+    });
+    expect(approved.summary).toBe('Sign-off recorded: the work item was approved and moved to done.');
+    expect(approved.body.some((l) => l.includes('Reviewer note'))).toBe(false);
+  });
+
   it('mirrors the fourteen SOP seed docs, one per playbook', () => {
     expect(KNOWLEDGE_SEED).toHaveLength(14);
     expect(new Set(KNOWLEDGE_SEED.map((d) => d.title)).size).toBe(14);

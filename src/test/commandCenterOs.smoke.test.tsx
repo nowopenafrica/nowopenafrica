@@ -94,7 +94,8 @@ describe('CommandCenter OS strip', () => {
   it('renders the OS at a glance from the real os_* ledgers', async () => {
     render(<MemoryRouter><CommandCenter /></MemoryRouter>);
     expect(await screen.findByText('OS at a glance')).toBeInTheDocument();
-    expect(screen.getByText('Sign-offs waiting')).toBeInTheDocument();
+    // 'Sign-offs waiting' appears both in the glance strip and the inbox chip.
+    expect(screen.getAllByText('Sign-offs waiting').length).toBeGreaterThanOrEqual(1);
     expect(screen.getByText('Blocked work')).toBeInTheDocument();
     expect(screen.getByText('Open items')).toBeInTheDocument();
     expect(screen.getByText('Agents working')).toBeInTheDocument();
@@ -110,6 +111,34 @@ describe('CommandCenter OS strip', () => {
     expect(screen.getByText(/1 press story published, 1 pending/)).toBeInTheDocument();
     expect(screen.getByText(/1 campaign live right now/)).toBeInTheDocument();
     expect(screen.getAllByText('1').length).toBeGreaterThanOrEqual(2);
+  });
+
+  it('puts the OS attention inbox on the front door, derived from the ledgers', async () => {
+    render(<MemoryRouter><CommandCenter /></MemoryRouter>);
+    expect(await screen.findByText('Needs your attention')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Sign-offs waiting/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Blocked work items/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Launches ready to ship/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Press stories pending/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Campaigns in build/ })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /1 Partners in negotiation/ })).toBeInTheDocument();
+  });
+
+  it('deep-links the attention inbox into the OS sections', async () => {
+    const onOpenModule = vi.fn();
+    render(<MemoryRouter><CommandCenter onOpenModule={onOpenModule} /></MemoryRouter>);
+    fireEvent.click(await screen.findByRole('button', { name: /1 Sign-offs waiting/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('approvals');
+    fireEvent.click(screen.getByRole('button', { name: /1 Blocked work items/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('work-board');
+    fireEvent.click(screen.getByRole('button', { name: /1 Launches ready to ship/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('launch');
+    fireEvent.click(screen.getByRole('button', { name: /1 Press stories pending/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('press-room');
+    fireEvent.click(screen.getByRole('button', { name: /1 Campaigns in build/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('campaign-factory');
+    fireEvent.click(screen.getByRole('button', { name: /1 Partners in negotiation/ }));
+    expect(onOpenModule).toHaveBeenCalledWith('partners');
   });
 
   it('deep-links into the OS sections', async () => {

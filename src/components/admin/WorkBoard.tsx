@@ -5,6 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   NOWOPEN_ORG_ID, DEPARTMENTS, departmentByName, seedMembers,
+  STATUS_LABELS, findHumanOwner, clockIn, clockOut,
   type WorkforceMember,
 } from '../../lib/workforce';
 import { sectionById } from '../../lib/adminCreator';
@@ -114,6 +115,37 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
     });
     return { working, blocked, waiting };
   }, [items, members]);
+
+  const humans = useMemo(() => members.filter((m) => m.kind === 'human'), [members]);
+  const humanOwner = useMemo(() => findHumanOwner(members, currentUser?.id), [members, currentUser?.id]);
+
+  const toggleClock = async (clockInNow: boolean) => {
+    if (!humanOwner || saving) return;
+    setSaving(true);
+    const patched = clockInNow ? clockIn(humanOwner) : clockOut(humanOwner);
+    if (usingFallback) {
+      setMembers((list) => list.map((m) => (m.id === humanOwner.id ? patched : m)));
+      setSaving(false);
+      toast(clockInNow
+        ? 'Clocked in for this session — apply the os_workforce migration to persist.'
+        : 'Clocked out for this session — apply the os_workforce migration to persist.');
+      return;
+    }
+    try {
+      const { error } = await supabase.from('os_workforce').update({
+        status: patched.status,
+        current_work: patched.current_work ?? null,
+        updated_at: patched.updated_at,
+      }).eq('id', humanOwner.id);
+      if (error) throw error;
+      setMembers((list) => list.map((m) => (m.id === humanOwner.id ? patched : m)));
+      toast.success(clockInNow ? 'Clocked in — welcome to the board.' : 'Clocked out — see you later.');
+    } catch {
+      toast.error('Could not update your status — admin permissions needed.');
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     setDraftStatus(selected?.status ?? 'todo');
@@ -241,6 +273,35 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
         {' · '}<span className="font-semibold text-amber-600 dark:text-amber-400">{agentStrip.waiting} waiting</span>
         <span className="text-gray-400 dark:text-gray-500"> (derived from open work on this board)</span>
       </div>
+
+      {humans.length > 0 && (
+        <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-gray-400">Human team</p>
+            {humanOwner && (
+              humanOwner.status === 'clocked-in' ? (
+                <button type="button" disabled={saving} onClick={() => void toggleClock(false)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                  {saving ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />} Clock out
+                </button>
+              ) : (
+                <button type="button" disabled={saving} onClick={() => void toggleClock(true)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                  {saving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Clock in
+                </button>
+              )
+            )}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {humans.map((h) => (
+              <span key={h.id} className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 px-3 py-1 text-xs text-gray-600 dark:text-gray-300">
+                <User size={12} />
+                {h.name} · {STATUS_LABELS[h.status]}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
 
       {showForm && (
         <form onSubmit={addItem} className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-3">

@@ -24,6 +24,7 @@ export interface ApprovalRequest {
   requested_by?: string | null;
   reason: string;
   status: ApprovalStatus;
+  decision_note?: string | null;
   decided_by?: string | null;
   decided_at?: string | null;
   created_at?: string;
@@ -78,6 +79,19 @@ export const DECISION_EFFECTS = {
   approved: { work: 'done', member: 'active' as const },
   rejected: { work: 'in_progress', member: 'working' as const },
 } as const;
+
+/** Record a decision on an approval: status, who decided, when, and — for a
+ *  rejection — the note the reviewer leaves so the agent knows what to fix.
+ *  Pure, so the DB write and the session-only fallback patch the same row. */
+export function decideApproval(
+  r: ApprovalRequest,
+  outcome: 'approved' | 'rejected',
+  opts: { decidedBy: string | null; note?: string | null; now?: Date },
+): ApprovalRequest {
+  const now = (opts.now ?? new Date()).toISOString();
+  const note = outcome === 'approved' ? null : opts.note?.trim() || null;
+  return { ...r, status: outcome, decision_note: note, decided_by: opts.decidedBy, decided_at: now, updated_at: now };
+}
 
 // Planned first approvals, mirrored by the 20260808030000_os_approvals seed.
 // Referenced by work item title; ids resolve against the joined work items.

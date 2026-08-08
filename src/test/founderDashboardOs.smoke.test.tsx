@@ -64,6 +64,7 @@ vi.mock('../lib/supabase', () => {
       eq: vi.fn(() => chain),
       order: vi.fn(() => chain),
       insert: vi.fn(async () => ({ data: null, error: null })),
+      upsert: vi.fn(async () => ({ data: null, error: null })),
       then: (onF?: any, onR?: any) => Promise.resolve(result).then(onF, onR),
       catch: (onR?: any) => Promise.resolve(result).catch(onR),
       finally: (onF?: any) => Promise.resolve(result).finally(onF),
@@ -174,6 +175,22 @@ describe('FounderDashboard OS strip', () => {
     await screen.findByText(/2 launches ready to ship/);
     fireEvent.click(screen.getByRole('button', { name: /Copy OS snapshot/ }));
     expect(await screen.findByText('Snapshot copied')).toBeInTheDocument();
+  });
+
+  it('renders the OS health trend from the recorded snapshot history', async () => {
+    localStorage.removeItem('nowopen_os_snapshots');
+    try {
+      localStorage.setItem('nowopen_os_snapshots', JSON.stringify([
+        { health: 82, derivedAt: '2026-08-05T09:00:00.000Z', ledgers: { workforce: 4, work_items: 4, approvals: 2, knowledge: 2, launches: 3, partners: 4, press: 3, campaigns: 2 } },
+        { health: 85, derivedAt: '2026-08-06T09:00:00.000Z', ledgers: { workforce: 4, work_items: 4, approvals: 2, knowledge: 2, launches: 3, partners: 4, press: 3, campaigns: 2 } },
+      ]));
+      render(<FounderDashboard />);
+      expect(await screen.findByText('OS health trend')).toBeInTheDocument();
+      expect(screen.getByText(/\+7 vs earliest/)).toBeInTheDocument();
+      expect(screen.getByText(/last 3 days · avg 85 · 82–89/)).toBeInTheDocument();
+    } finally {
+      localStorage.removeItem('nowopen_os_snapshots');
+    }
   });
 });
 

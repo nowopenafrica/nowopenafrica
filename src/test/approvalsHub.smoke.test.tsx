@@ -80,9 +80,18 @@ describe('ApprovalsHub smoke', () => {
     expect(supabase.from).toHaveBeenCalledWith('os_workforce');
   });
 
-  it('rejects an item and sends it back to the board', async () => {
+  it('rejects an item with a note and sends it back to the board', async () => {
     render(<><Toaster /><ApprovalsHub /></>);
     fireEvent.click((await screen.findAllByRole('button', { name: /^Reject/ }))[0]);
+    fireEvent.change(screen.getByPlaceholderText(/e.g. Add the August numbers and re-submit/), { target: { value: 'Add the August numbers and re-submit.' } });
+    fireEvent.click(screen.getByRole('button', { name: /Send back with note/ }));
+    expect(await screen.findByText(/Sent back with your note — Monthly finance report/)).toBeInTheDocument();
+  });
+
+  it('rejects an item with no note and sends it back without one', async () => {
+    render(<><Toaster /><ApprovalsHub /></>);
+    fireEvent.click((await screen.findAllByRole('button', { name: /^Reject/ }))[0]);
+    fireEvent.click(screen.getByRole('button', { name: /Send back with note/ }));
     expect(await screen.findByText(/Sent back to the board — Monthly finance report/)).toBeInTheDocument();
   });
 
