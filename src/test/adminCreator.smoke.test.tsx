@@ -132,7 +132,7 @@ describe('AdminCreatorShell smoke', () => {
     // The internal departments render their real pages too.
     const internal: Record<string, RegExp> = {
       'Founder Dashboard': /Company Health Score/,
-      'Motion Graphics Studio': /Live preview/,
+      'Motion Studio': /Pick your format/,
       'Video Template Library': /Template library —/,
       'Design System': /Colour/,
       'AI Prompt Library': /Prompt library/,
@@ -146,16 +146,16 @@ describe('AdminCreatorShell smoke', () => {
       expect(await screen.findByText(title)).toBeInTheDocument();
     }
 
-    // Motion Graphics Studio offers the free-canvas ↔ AI video gen choice.
-    fireEvent.click(screen.getAllByRole('button', { name: /Motion Graphics Studio/ })[0]);
+    // Motion Studio: a template in Quick Create opens the shared project in the
+    // Studio editor with the free-canvas ↔ AI video gen choice and live preview.
+    fireEvent.click(screen.getAllByRole('button', { name: /Motion Studio/ })[0]);
+    expect(screen.getByText('Modern template gallery')).toBeInTheDocument();
+    fireEvent.click(screen.getByRole('button', { name: /Neo-Brutalism/ }));
     expect(await screen.findByRole('button', { name: 'Free canvas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AI video gen' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'AI video gen' }));
     expect(await screen.findByRole('button', { name: 'Paid' })).toBeInTheDocument();
-
-    // Its modern template gallery loads a concept into editable fields.
-    expect(screen.getByText('Modern template gallery')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: /Neo-Brutalism/ }));
+    expect(screen.getByText('Live preview')).toBeInTheDocument();
     expect(screen.getByLabelText(/Headline/)).toHaveValue('BIG ENERGY');
 
     // The AI Video Studio exposes the AI video generation option with tiers.
