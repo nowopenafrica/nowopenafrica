@@ -14,7 +14,10 @@
 // (Apple-TV key art), `glass` (frosted panels) or `3d` (parallax depth). The
 // layout itself lives in one place — `sceneLayout` — so `sceneElementRegions`
 // (normalised click targets used by the editable live preview) always hit-test
-// exactly what `drawOverlay` paints.
+// exactly what `drawOverlay` paints. An optional user-uploaded `backdrop`
+// (image or video, session-local, never persisted) replaces the designed
+// gradient in the preview and every export; it steps aside for AI footage or
+// key art when those cover a scene.
 //
 // The module keeps all pure planning math separate from the DOM work so it can
 // be unit-tested in jsdom: `renderSeed`, `sceneRenderPlan`, `buildRenderTimeline`
@@ -86,6 +89,22 @@ export interface RenderOptions {
    * LED brief actually films like a billboard.
    */
   treatment?: MotionTreatment;
+  /**
+   * User-uploaded backdrop for the live preview and every export (video, poster,
+   * contact sheet, still). Session-local only: it rides on the in-memory options,
+   * is never persisted to a project or the database, and is drawn in place of the
+   * designed gradient whenever no AI footage or key art covers a scene. The
+   * preloaded elements live in the caller; the renderer never owns them.
+   */
+  backdrop?: BackgroundMediaElement | null;
+}
+
+/** An uploaded image or video that replaces the designed motion-graphic backdrop. */
+export interface BackgroundMediaElement {
+  kind: 'image' | 'video';
+  url: string;
+  image?: HTMLImageElement | null;
+  video?: HTMLVideoElement | null;
 }
 
 export type RenderTransition = 'cut' | 'fade';
@@ -631,6 +650,7 @@ function drawBackdrop(
   plan: SceneRenderPlan,
   source: FrameSource,
   frame: number,
+  clean = false,
 ): void {
   if (source.kind === 'video' && isVideoReady(source.video)) {
     drawVideoCover(ctx, w, h, source.video);
@@ -645,7 +665,8 @@ function drawBackdrop(
   }
   // Style ambience on top of whatever backdrop won (grid/scanlines/spotlight/
   // shapes). Deterministic per seed+frame, so a brief always films the same.
-  drawTreatmentBackdrop(ctx, w, h, plan, frame);
+  // Skipped for the user's uploaded backdrop — that one should read clean.
+  if (!clean) drawTreatmentBackdrop(ctx, w, h, plan, frame);
 }
 
 function drawSceneContent(
@@ -670,7 +691,7 @@ function drawSceneContent(
   ctx.translate(w / 2 + drift, h / 2);
   ctx.scale(scale, scale);
   ctx.translate(-w / 2, -h / 2);
-  drawBackdrop(ctx, w, h, plan, source, frame);
+  drawBackdrop(ctx, w, h, plan, source, frame, backdropWon(source, opts.backdrop));
   ctx.restore();
 
   drawOverlay(
@@ -906,7 +927,7 @@ function drawTimelineFrame(
   const { scene, t } = timelineAt(timeline, frame);
   const current = scenes[scene.index];
   const plan = sceneRenderPlan(opts, current, scene.index);
-  const source = resolveSource(videos?.[scene.index] ?? null, images?.[scene.index] ?? null);
+  const source = resolveSource(videos?.[scene.index] ?? null, images?.[scene.index] ?? null, opts.backdrop);
 
   drawSceneContent(ctx, w, h, plan, scene.index, current, t, opts, source, frame);
 
@@ -917,7 +938,7 @@ function drawTimelineFrame(
     if (within <= plan.transitionFrames) {
       const blend = 1 - within / plan.transitionFrames;
       const nextPlan = sceneRenderPlan(opts, scenes[nextIndex], nextIndex);
-      const nextSource = resolveSource(videos?.[nextIndex] ?? null, images?.[nextIndex] ?? null);
+      const nextSource = resolveSource(videos?.[nextIndex] ?? null, images?.[nextIndex] ?? null, opts.backdrop);
       ctx.save();
       ctx.globalAlpha = clamp(blend, 0, 1);
       drawSceneContent(ctx, w, h, nextPlan, nextIndex, scenes[nextIndex], 0, opts, nextSource, frame);
@@ -926,11 +947,33 @@ function drawTimelineFrame(
   }
 }
 
-/** Backdrop priority: real footage video, then AI key art, then the gradient. */
-function resolveSource(video: HTMLVideoElement | null, image: HTMLImageElement | null): FrameSource {
+/**
+ * Backdrop priority: real footage video, then AI key art, then the uploaded
+ * backdrop, then the gradient. Pure geometry — no DOM needed, so it is exported
+ * for unit tests.
+ */
+export function resolveSource(
+  video: HTMLVideoElement | null,
+  image: HTMLImageElement | null,
+  backdrop?: BackgroundMediaElement | null,
+): FrameSource {
   if (isVideoReady(video)) return { kind: 'video', video };
   if (isImageReady(image)) return { kind: 'image', image };
+  if (backdrop?.kind === 'video' && isVideoReady(backdrop.video ?? null)) return { kind: 'video', video: backdrop.video ?? null };
+  if (backdrop?.kind === 'image' && isImageReady(backdrop.image ?? null)) return { kind: 'image', image: backdrop.image ?? null };
   return { kind: 'gradient' };
+}
+
+/**
+ * Whether the winning source came from the user's uploaded backdrop. When it
+ * does, the style ambience (scanlines/spotlight/blobs) steps aside so the
+ * upload reads as the background the user actually chose.
+ */
+function backdropWon(source: FrameSource, backdrop?: BackgroundMediaElement | null): boolean {
+  if (!backdrop) return false;
+  if (source.kind === 'video' && backdrop.kind === 'video' && source.video === backdrop.video) return true;
+  if (source.kind === 'image' && backdrop.kind === 'image' && source.image === backdrop.image) return true;
+  return false;
 }
 
 export function drawSceneFrame(
@@ -997,6 +1040,7 @@ export function renderContactSheet(opts: SceneFrameOptions, scenes: DirectorScen
   ctx.textAlign = 'center';
   ctx.fillText(`${opts.businessName} — ${opts.directionLabel} storyboard`, canvas.width / 2, 70);
 
+  const backdropSource = resolveSource(null, null, opts.backdrop);
   scenes.forEach((scene, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -1005,7 +1049,7 @@ export function renderContactSheet(opts: SceneFrameOptions, scenes: DirectorScen
     const plan = sceneRenderPlan(opts, scene, i);
     ctx.save();
     ctx.translate(x, y);
-    drawSceneContent(ctx, cellW, cellH, plan, i, scene, 0.5, opts, { kind: 'gradient' }, 0);
+    drawSceneContent(ctx, cellW, cellH, plan, i, scene, 0.5, opts, backdropSource, 0);
     ctx.restore();
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
     ctx.font = '800 30px system-ui, sans-serif';
@@ -1034,7 +1078,7 @@ export function renderSceneStill(
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   const plan = sceneRenderPlan(opts, scene, index);
-  drawSceneContent(ctx, w, h, plan, index, scene, 0.5, opts, { kind: 'image', image: image ?? null }, 0);
+  drawSceneContent(ctx, w, h, plan, index, scene, 0.5, opts, resolveSource(null, image ?? null, opts.backdrop), 0);
   return { dataUrl: canvas.toDataURL('image/png'), width: w, height: h };
 }
 
@@ -1066,6 +1110,25 @@ function makeFootageVideo(url: string): HTMLVideoElement {
   v.loop = true;
   v.src = url;
   return v;
+}
+
+/**
+ * Start loading an uploaded backdrop video (looping + muted, so it can autoplay
+ * in the live preview). The returned element is session-local and owned by the
+ * caller; the renderer clones its own during an export so the preview never
+ * jumps.
+ */
+export function createBackgroundVideo(url: string): HTMLVideoElement {
+  return makeFootageVideo(url);
+}
+
+/** Start loading an uploaded backdrop image. */
+export function createBackgroundImage(url: string): HTMLImageElement {
+  const img = new Image();
+  img.crossOrigin = 'anonymous';
+  img.decoding = 'async';
+  img.src = url;
+  return img;
 }
 
 /**
@@ -1191,6 +1254,24 @@ export async function renderVideo(
     return Math.floor(rng() * clip.duration);
   });
 
+  // The export films its OWN backdrop video (cloned from the upload URL) so
+  // seeking/playing it never disturbs the element the live preview animates.
+  const exportOpts: SceneFrameOptions =
+    opts.backdrop?.kind === 'video'
+      ? { ...opts, backdrop: { ...opts.backdrop, video: createBackgroundVideo(opts.backdrop.url) } }
+      : opts;
+  const backdropVideo = exportOpts.backdrop?.kind === 'video' ? exportOpts.backdrop.video ?? null : null;
+  if (backdropVideo && !isVideoReady(backdropVideo)) await preloadFootageVideos([backdropVideo]);
+  if (backdropVideo && isVideoReady(backdropVideo)) {
+    const dur = backdropVideo.duration;
+    const offset = isFinite(dur) && dur > 0
+      ? Math.floor(mulberry32(renderSeed('backdrop', opts.businessName))() * dur)
+      : 0;
+    try { backdropVideo.currentTime = offset; } catch { /* stay at 0 */ }
+    const p = backdropVideo.play();
+    if (p) p.catch(() => { /* a stalled backdrop just draws its ready frame */ });
+  }
+
   // Preload AI key art when present; scenes without a ready image fall back to
   // the gradient (or to footage when that wins priority).
   const images = await preloadAiImages(opts.aiImages ?? []);
@@ -1264,7 +1345,7 @@ export async function renderVideo(
           } catch { /* keep rendering */ }
         }
       }
-      drawTimelineFrame(ctx, dims.width, dims.height, opts, scenes, timeline, frame, videos, images);
+      drawTimelineFrame(ctx, dims.width, dims.height, exportOpts, scenes, timeline, frame, videos, images);
       try { track?.requestFrame?.(); } catch { /* older captureStream ignores requestFrame */ }
       onProgress?.(timeline.totalFrames > 0 ? frame / timeline.totalFrames : 0, frame, timeline.totalFrames);
       frame += 1;

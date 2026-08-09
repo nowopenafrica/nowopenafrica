@@ -8,8 +8,9 @@ import type { DirectorScene } from '../../lib/creativeDirector';
 import {
   renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
   sceneElementRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
+  createBackgroundVideo, createBackgroundImage,
   type RenderAspect, type SceneFrameOptions, type MotionTreatment,
-  type SceneElementKey,
+  type SceneElementKey, type BackgroundMediaElement,
 } from '../../lib/renderVideo';
 import {
   motionScenesFromJob, motionTotalSeconds, MOTION_SCENE_COUNTS,
@@ -177,6 +178,13 @@ function MotionPreview({
     let frame = 0;
     let raf = 0;
 
+    // Keep an uploaded video backdrop animating behind the captions.
+    const backdropVideo = opts.backdrop?.kind === 'video' ? opts.backdrop.video ?? null : null;
+    if (backdropVideo) {
+      const p = backdropVideo.play();
+      if (p) p.catch(() => { /* autoplay-blocked — the frame draws whatever is ready */ });
+    }
+
     const paintRegions = (si: number) => {
       const regions = sceneElementRegions(opts, si);
       ctx.save();
@@ -265,6 +273,40 @@ export default function MotionGraphicsStudio() {
   const [editSceneIndex, setEditSceneIndex] = useState(0);
   const [editing, setEditing] = useState<{ key: SceneElementKey; field: MotionField; label: string; value: string } | null>(null);
 
+  // Uploaded backdrop (image/video) that replaces the designed background in the
+  // preview and every export. Session-local: kept in component state as an
+  // object URL, never written to the project or the database.
+  const [backdrop, setBackdrop] = useState<(BackgroundMediaElement & { name: string }) | null>(null);
+  const backdropRef = useRef(backdrop);
+  backdropRef.current = backdrop;
+  useEffect(() => () => {
+    if (backdropRef.current?.url) URL.revokeObjectURL(backdropRef.current.url);
+  }, []);
+
+  const onBackdropFile = (file: File) => {
+    if (!/^(image|video)\//.test(file.type)) {
+      toast.error('Pick an image (PNG/JPG) or a video (MP4/WebM) for the background.');
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const media: BackgroundMediaElement = file.type.startsWith('video/')
+      ? { kind: 'video', url, video: createBackgroundVideo(url) }
+      : { kind: 'image', url, image: createBackgroundImage(url) };
+    setBackdrop((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return { ...media, name: file.name };
+    });
+    toast('Background media applied — shown in the preview and downloads, kept on this device only.');
+  };
+
+  const clearBackdrop = () => {
+    setBackdrop((prev) => {
+      if (prev?.url) URL.revokeObjectURL(prev.url);
+      return null;
+    });
+    toast('Background media removed — back to the designed motion graphic.');
+  };
+
   // Autosave — every edit lands in nowopen_motion_projects.
   useEffect(() => { setProjects(saveMotionProject(project)); }, [project]);
 
@@ -347,9 +389,10 @@ export default function MotionGraphicsStudio() {
       logoEmoji: brief.logoEmoji || '✦',
       palette: project.palette,
       treatment: TREATMENT_FOR_STYLE[brief.style],
+      backdrop: backdrop ? { kind: backdrop.kind, url: backdrop.url, image: backdrop.image, video: backdrop.video } : null,
       scenesCount: scenes.length,
     }),
-    [brief, label, project.palette, scenes.length],
+    [brief, label, project.palette, scenes.length, backdrop],
   );
   const seconds = motionTotalSeconds(brief);
   const renderSource = project.render.source;
@@ -699,6 +742,29 @@ export default function MotionGraphicsStudio() {
                 </div>
                 <div className="mt-3">
                   <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex} onPick={pickElement} />
+                  {renderSource === 'canvas' && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2 max-w-md mx-auto">
+                      <label title="Replace the designed background with your own image or video (preview & downloads only, never saved)"
+                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 cursor-pointer">
+                        <ImageIcon size={12} /> {backdrop ? backdrop.name : 'Upload background (image/video)'}
+                        <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => {
+                          const f = e.target.files?.[0];
+                          if (f) onBackdropFile(f);
+                          e.target.value = '';
+                        }} />
+                      </label>
+                      {backdrop && (
+                        <>
+                          <span className="text-[11px] text-gray-400">
+                            {backdrop.kind === 'video' ? 'Video' : 'Image'} — preview & downloads only, never saved
+                          </span>
+                          <button onClick={clearBackdrop} className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">
+                            <Trash2 size={11} /> Remove
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
                   {editMode && (
                     <div className="mt-2 max-w-md mx-auto">
                       {editing ? (
