@@ -3,7 +3,9 @@ import {
   HUB_RELATIONSHIPS, HUB_RELATIONSHIP_TYPES, hubRelationshipById,
   schemaFor, allFieldsFor, validateForm, hasErrors,
   createFormSubmission, generateReference, pipelineFor, nextStatus,
-  advanceStatus, mapApplicationRow, summarizeApplications,
+  advanceStatus, mapApplicationRow, summarizeApplications, toApplicationRow,
+  advanceApplication, rejectApplication, reopenApplication, canAdvance,
+  nextStatusFor, acknowledgedAgreements, applicationPipeline,
   FORM_APPLICATIONS_SEED, isAllowedUpload, formatFileSize, MAX_UPLOAD_MB,
   type FormApplication, type HubRelationshipType,
 } from './formsEngine';
@@ -135,6 +137,67 @@ describe('formsEngine — pipelines', () => {
   it('terminal statuses do not advance', () => {
     expect(nextStatus('employee', 'archived')).toBeNull();
     expect(advanceStatus('employee', 'archived')).toBe('archived');
+  });
+});
+
+describe('formsEngine — reviewer decisions (OS-24)', () => {
+  const ada: FormApplication = { ...FORM_APPLICATIONS_SEED[1] }; // intern, status new
+
+  it('advances an application along its own pipeline and stamps the change', () => {
+    const next = advanceApplication(ada, new Date('2026-08-14T09:00:00Z'));
+    expect(next.status).toBe('screening');
+    expect(next.updated_at).toBe('2026-08-14T09:00:00.000Z');
+    expect(next.rejected).toBeUndefined();
+  });
+
+  it('partner applications walk the shorter B2B pipeline', () => {
+    const partner = FORM_APPLICATIONS_SEED[3]; // partner, status agreement
+    expect(nextStatusFor(partner)).toBe('approved');
+    expect(advanceApplication(partner, new Date()).status).toBe('approved');
+    expect(applicationPipeline(partner)).toEqual([
+      'new', 'qualification', 'discussion', 'proposal', 'nda', 'agreement', 'approved', 'active',
+    ]);
+  });
+
+  it('terminal and archived applications cannot advance', () => {
+    const archived = { ...ada, status: 'archived' as const };
+    expect(canAdvance(archived)).toBe(false);
+    expect(advanceApplication(archived)).toEqual(archived);
+  });
+
+  it('rejecting archives with an honest note; reopening restores to new', () => {
+    const rejected = rejectApplication(ada, new Date('2026-08-14T10:00:00Z'), 'No budget this quarter');
+    expect(rejected.status).toBe('archived');
+    expect(rejected.rejected).toBe(true);
+    expect(rejected.decision_note).toBe('No budget this quarter');
+    const reopened = reopenApplication(rejected, new Date('2026-08-14T11:00:00Z'));
+    expect(reopened.status).toBe('new');
+    expect(reopened.rejected).toBe(false);
+    expect(reopened.decision_note).toBeUndefined();
+  });
+
+  it('surfaces the agreements an application acknowledged', () => {
+    const a = { ...ada, answers: { full_name: 'Ada', agreed_nda: true, agreed_internship_agreement: true, agreed_privacy: false } };
+    expect(acknowledgedAgreements(a)).toEqual(['nda', 'internship_agreement']);
+  });
+
+  it('decision fields round-trip through row mapping', () => {
+    const row = toApplicationRow({ ...ada, rejected: true, decision_note: 'n/a' });
+    expect(row.rejected).toBe(true);
+    expect(row.decision_note).toBe('n/a');
+    const back = mapApplicationRow(row);
+    expect(back.rejected).toBe(true);
+    expect(back.decision_note).toBe('n/a');
+  });
+
+  it('the summary counts rejected only when a decision recorded one', () => {
+    const s = summarizeApplications([
+      { ...ada, status: 'archived', rejected: true },
+      { ...ada, id: 'x2', status: 'archived' },
+      { ...ada, id: 'x3', status: 'approved' },
+    ], new Date('2026-08-14T12:00:00Z'));
+    expect(s.rejected).toBe(1);
+    expect(s.approved).toBe(1);
   });
 });
 

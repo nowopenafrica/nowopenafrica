@@ -3308,3 +3308,13 @@ VALUES
    '{"platform":["Newsletter","LinkedIn"],"audience_size":"40k"}'::jsonb,
    true, '2026-08-10T08:45:00Z', '2026-08-10T08:45:00Z')
 ON CONFLICT (id) DO NOTHING;
+
+-- ===== 20260814090000_os_form_applications_review.sql =====
+-- OS-24: Applications Review — the admin side of the Forms Hub. Adds the
+-- reviewer decision columns to os_form_applications so an admin can advance an
+-- application honestly (status + updated_at) and record a rejection (archived
+-- + rejected + decision_note). Idempotent and safe on existing rows; the
+-- admin-only RLS from the OS-23 migration already covers UPDATE.
+ALTER TABLE os_form_applications
+  ADD COLUMN IF NOT EXISTS rejected boolean DEFAULT false,
+  ADD COLUMN IF NOT EXISTS decision_note text;

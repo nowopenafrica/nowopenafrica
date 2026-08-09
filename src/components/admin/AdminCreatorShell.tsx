@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PenTool, Clapperboard, Video, Instagram, Rocket, FileText, MessageCircle,
   Boxes, Newspaper, Users, Bot, TrendingUp, Radar, Braces, LayoutTemplate, Component,
   BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, Kanban, ClipboardCheck,
-  Factory, Search, ClipboardList, FolderOpen, FileSignature, type LucideIcon,
+  Factory, Search, ClipboardList, FolderOpen, FileSignature, Inbox, type LucideIcon,
 } from 'lucide-react';
 import {
   ADMIN_SECTIONS, ADMIN_GROUPS, sectionById,
@@ -39,6 +39,7 @@ import AskNowOpenPalette from './AskNowOpenPalette';
 import OnboardingCommandCenter from './OnboardingCommandCenter';
 import DocumentCenter from './DocumentCenter';
 import SigningVault from './SigningVault';
+import ApplicationsReview from './ApplicationsReview';
 
 // One internal frame for the whole team: every department in the sidebar,
 // Command Center as the front door. Sections that are live get a real
@@ -65,6 +66,7 @@ const LIVE_MODULES: Record<string, (open: (id: string) => void) => JSX.Element> 
   onboarding: () => <OnboardingCommandCenter />,
   'document-center': () => <DocumentCenter />,
   'signing-vault': () => <SigningVault />,
+  applications: () => <ApplicationsReview />,
   motion: () => <MotionGraphicsStudio />,
   'video-templates': (open) => <VideoTemplateLibrary onOpenSection={open} />,
   'design-system': () => <DesignSystem />,
@@ -90,6 +92,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   onboarding: ClipboardList,
   'document-center': FolderOpen,
   'signing-vault': FileSignature,
+  applications: Inbox,
   creative: PenTool,
   motion: Clapperboard,
   'video-studio': Video,

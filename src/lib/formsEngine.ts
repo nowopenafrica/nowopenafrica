@@ -782,6 +782,45 @@ export function advanceStatus(
   return nextStatus(relationship, status) ?? status;
 }
 
+/** OS-24 Applications Review: honest reviewer decisions on a submission.
+ *  Advancing moves the application one step along its own relationship
+ *  pipeline; rejecting archives it with a note; reopening puts it back at the
+ *  front of the same pipeline. These only record the decision — nothing else
+ *  happens automatically, and no profile is created until onboarding. */
+
+export function applicationPipeline(app: Pick<FormApplication, 'relationship'>): readonly ApplicationStatus[] {
+  return pipelineFor(app.relationship);
+}
+
+export function nextStatusFor(app: Pick<FormApplication, 'relationship' | 'status'>): ApplicationStatus | null {
+  return nextStatus(app.relationship, app.status);
+}
+
+export function canAdvance(app: Pick<FormApplication, 'relationship' | 'status'>): boolean {
+  return nextStatusFor(app) !== null;
+}
+
+export function advanceApplication(app: FormApplication, at = new Date()): FormApplication {
+  const next = nextStatusFor(app);
+  if (!next) return app;
+  return { ...app, status: next, updated_at: at.toISOString() };
+}
+
+export function rejectApplication(app: FormApplication, at = new Date(), note?: string): FormApplication {
+  return { ...app, status: 'archived', rejected: true, decision_note: note, updated_at: at.toISOString() };
+}
+
+export function reopenApplication(app: FormApplication, at = new Date()): FormApplication {
+  return { ...app, status: 'new', rejected: false, decision_note: undefined, updated_at: at.toISOString() };
+}
+
+/** The agreement ids an application acknowledged (its agreed_* answers). */
+export function acknowledgedAgreements(app: FormApplication): string[] {
+  return Object.entries(app.answers)
+    .filter(([key, v]) => key.startsWith('agreed_') && v === true)
+    .map(([key]) => key.slice('agreed_'.length));
+}
+
 // ---------------------------------------------------------------------------
 // Submissions — stored as rows; references are human-readable but unguessable.
 // ---------------------------------------------------------------------------
@@ -802,6 +841,9 @@ export interface FormApplication {
   submitted_at: string;
   created_at?: string;
   updated_at?: string;
+  /** Reviewer decision fields (OS-24). */
+  rejected?: boolean;
+  decision_note?: string;
 }
 
 export interface ApplicationRow {
@@ -820,6 +862,8 @@ export interface ApplicationRow {
   submitted_at: string;
   created_at?: string;
   updated_at?: string;
+  rejected?: boolean | null;
+  decision_note?: string | null;
 }
 
 const RANDOM_CHARS = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789';
@@ -897,6 +941,8 @@ export function mapApplicationRow(row: ApplicationRow): FormApplication {
     submitted_at: row.submitted_at,
     created_at: row.created_at,
     updated_at: row.updated_at,
+    rejected: row.rejected ?? undefined,
+    decision_note: row.decision_note ?? undefined,
   };
 }
 
@@ -918,6 +964,8 @@ export function toApplicationRow(app: FormApplication): ApplicationRow {
     submitted_at: app.submitted_at,
     created_at: app.created_at,
     updated_at: app.updated_at,
+    rejected: app.rejected ?? null,
+    decision_note: app.decision_note ?? null,
   };
 }
 
@@ -956,7 +1004,7 @@ export function summarizeApplications(apps: FormApplication[], now = new Date())
     if (at && at >= weekAgo) thisWeek += 1;
     if (a.status === 'new' || a.status === 'screening' || a.status === 'under-review' || a.status === 'interview') pendingReview += 1;
     if (a.status === 'approved') approved += 1;
-    if (a.status === 'archived' && (a as { rejected?: boolean }).rejected) rejected += 1;
+    if (a.status === 'archived' && a.rejected === true) rejected += 1;
     if (a.status === 'documents') awaitingDocuments += 1;
     if (a.status === 'agreement') awaitingAgreement += 1;
   }
