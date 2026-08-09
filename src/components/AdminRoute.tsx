@@ -5,12 +5,16 @@ import { useRole } from '../hooks/useRole';
 
 // Route-level gate for the admin console and Admin Creator OS. Keeps the same
 // dev-only ?preview flag as the pages themselves (compiled out of production
-// builds); otherwise it requires a signed-in user with the admin role and
-// redirects elsewhere. The pages still re-check the role and Supabase RLS
-// backs every read — this is defence in depth, so /admin and /admin-creator
-// are never reachable without a session in the first place.
+// builds) and additionally bypasses the login wall while the local dev server
+// is running (mode 'development' only — vitest stays on 'test', production
+// stays on 'production', so the gate is still exercised in tests and builds).
+// Otherwise it requires a signed-in user with the admin role and redirects
+// elsewhere. The pages still re-check the role and Supabase RLS backs every
+// read — this is defence in depth, so /admin and /admin-creator are never
+// reachable without a session in production.
 const DEV_PREVIEW =
-  import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
+  import.meta.env.MODE === 'development' ||
+  (import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview'));
 
 interface AdminRouteProps {
   children: React.ReactNode;

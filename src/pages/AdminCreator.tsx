@@ -5,10 +5,14 @@ import AdminCreatorShell from '../components/admin/AdminCreatorShell';
 import { applySeo } from '../lib/seo';
 
 // Internal-only. Same protection as the admin console: a role check on the
-// users table, RLS backing every read underneath, and a dev-only ?preview flag
-// compiled out of production builds.
+// users table, RLS backing every read underneath, and a dev-only bypass (the
+// local dev server is mode 'development', so admin pages are reachable without
+// signing in; vitest stays on 'test' and production on 'production'). The
+// ?preview flag still works for non-dev previews. All compiled out of
+// production builds.
 const DEV_PREVIEW =
-  import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
+  import.meta.env.MODE === 'development' ||
+  (import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview'));
 
 export default function AdminCreator() {
   const { user: authUser, loading: authLoading } = useAuth();

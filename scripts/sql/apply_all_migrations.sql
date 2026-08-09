@@ -2768,7 +2768,7 @@ CREATE POLICY "Admins delete press" ON os_press
 -- Seed: the stories the press room used to hardcode, matching the launches
 -- already on os_launches. Idempotent.
 INSERT INTO os_press (org_id, headline, outlet, kind, status, published_at, url, summary)
-SELECT o.id, s.headline, s.outlet, s.kind, s.status, s.published_at, s.url, s.summary
+SELECT o.id, s.headline, s.outlet, s.kind, s.status, s.published_at::timestamptz, s.url, s.summary
 FROM (VALUES
   ('NowOpen Africa launches the AI Video Studio', 'NowOpen Africa', 'release', 'published', '2026-08-01T09:00:00Z', 'https://www.nowopen.africa/press/ai-video-studio', 'Businesses now turn one idea into a full video campaign — script, voiceover, captions and export — without leaving the platform.'),
   ('Restaurant Week returns for its biggest run', 'Restaurant Week', 'coverage', 'published', '2026-06-15T09:00:00Z', 'https://www.nowopen.africa/press/restaurant-week-2026', 'Hundreds of restaurants across Nigeria served record footfall through the platform''s launch-week playbook.'),
@@ -2824,7 +2824,7 @@ CREATE POLICY "Admins delete campaigns" ON os_campaigns
 -- Seed: the platform campaigns the section promised in its blurb, mirroring
 -- the Restaurant Week 2026 launch already on os_launches. Idempotent.
 INSERT INTO os_campaigns (org_id, slug, name, focus, audience, channels, status, starts_at, ends_at)
-SELECT o.id, s.slug, s.name, s.focus, s.audience, s.channels, s.status, s.starts_at, s.ends_at
+SELECT o.id, s.slug, s.name, s.focus, s.audience, s.channels, s.status, s.starts_at::timestamptz, s.ends_at::timestamptz
 FROM (VALUES
   ('africa-is-nowopen', 'Africa is NowOpen', 'Open every African business on the map', 'Business owners across Africa', ARRAY['Social', 'Email', 'SMS', 'Press'], 'live', '2026-01-15T09:00:00Z', NULL),
   ('restaurant-week-2026', 'Restaurant Week 2026', 'The biggest restaurant run of the year', 'Restaurants in Nigeria', ARRAY['Social', 'WhatsApp', 'Email'], 'in_build', '2026-09-14T09:00:00Z', '2026-09-20T09:00:00Z'),
