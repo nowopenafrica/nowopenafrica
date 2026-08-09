@@ -154,7 +154,12 @@ function ModuleCard({ section, onOpen }: { section: AdminSection; onOpen: (id: s
 }
 
 export default function AdminCreatorShell() {
-  const [active, setActive] = useState('command');
+  // ?section=<id> deep-links straight to a module (e.g. the admin dashboard's
+  // "Open Applications Review" button); falls back to the command center.
+  const [active, setActive] = useState(() => {
+    const viaUrl = new URLSearchParams(window.location.search).get('section');
+    return viaUrl && sectionById(viaUrl) ? viaUrl : 'command';
+  });
   const [askOpen, setAskOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<AdminGroup, boolean>>(
     () => Object.fromEntries(ADMIN_GROUPS.map((g) => [g, g === 'Oversight'])) as Record<AdminGroup, boolean>,

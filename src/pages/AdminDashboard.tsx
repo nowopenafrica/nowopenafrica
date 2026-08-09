@@ -8,15 +8,17 @@ import { Business, Advertisement, MediaService, User as UserProfile } from '../t
 import {
   Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
   CalendarCheck, CreditCard, ListChecks, FileText, MessageSquare, Upload, Video, LayoutGrid, ShieldCheck,
-  Crown, Eye, Inbox, History,
+  Crown, Eye, Inbox, History, ClipboardList,
 } from 'lucide-react';
+import { APPLICATION_STATUS_LABELS, hubRelationshipById } from '../lib/formsEngine';
+import { NOWOPEN_ORG_ID } from '../lib/workforce';
 import TrustPanel from '../components/dashboard/TrustPanel';
 import TrustBadge from '../components/TrustBadge';
 import { getBusinessTier, BUSINESS_TIERS } from '../data/pricingPlans';
 import { logAudit } from '../lib/audit';
 import { createNotification } from '../lib/notifications';
 
-type AdminTab = 'overview' | 'users' | 'businesses' | 'verification' | 'subscriptions' | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist' | 'registrations' | 'enquiries' | 'audit' | 'hero-videos';
+type AdminTab = 'overview' | 'users' | 'businesses' | 'verification' | 'subscriptions' | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist' | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos';
 
 type DeletableTable = 'users' | 'businesses' | 'advertisements' | 'media_services' | 'business_bookings' | 'payment_intents' | 'waitlist' | 'business_registrations' | 'platform_enquiries';
 
@@ -39,11 +41,13 @@ const moduleLabel = (key?: string | null): string => {
   return MODULE_LABELS[key] ?? key.replace(/[-_]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 };
 
-// Dev-only UI preview (http://localhost:5173/admin?preview). Compiled out of
-// production builds; real protection is Supabase RLS, which still blocks all
-// admin reads/writes for non-admin sessions regardless of this flag.
+// Dev-only UI preview (http://localhost:5173/admin?preview, or the local dev
+// server automatically in mode 'development'). Compiled out of production
+// builds; real protection is Supabase RLS, which still blocks all admin
+// reads/writes for non-admin sessions regardless of these flags.
 const DEV_PREVIEW =
-  import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview');
+  import.meta.env.MODE === 'development' ||
+  (import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview'));
 
 export default function AdminDashboard() {
   const { user: authUser, loading: authLoading } = useAuth();
@@ -73,6 +77,7 @@ export default function AdminDashboard() {
   const [payments, setPayments] = useState<any[]>([]);
   const [waitlistEntries, setWaitlistEntries] = useState<any[]>([]);
   const [registrations, setRegistrations] = useState<any[]>([]);
+  const [applications, setApplications] = useState<any[]>([]);
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [subscriptions, setSubscriptions] = useState<any[]>([]);
   const [verificationDocs, setVerificationDocs] = useState<any[]>([]);
@@ -148,16 +153,20 @@ export default function AdminDashboard() {
       // Newer subsystems — subscriptions & verification. These tables only
       // exist once the latest migrations are applied, so load them separately
       // and fail soft (empty) rather than blocking or nagging the whole panel.
-      const [subsRes, docsRes, reqRes, auditRes] = await Promise.all([
+      const [subsRes, docsRes, reqRes, auditRes, appsRes] = await Promise.all([
         supabase.from('subscriptions').select('*').order('created_at', { ascending: false }),
         supabase.from('verification_documents').select('*').order('created_at', { ascending: false }),
         supabase.from('deletion_requests').select('*').order('created_at', { ascending: false }),
         supabase.from('audit_log').select('*').order('created_at', { ascending: false }).limit(200),
+        supabase.from('os_form_applications').select('*').eq('org_id', NOWOPEN_ORG_ID).order('submitted_at', { ascending: false }),
       ]);
       setSubscriptions(subsRes.data || []);
       setVerificationDocs(docsRes.data || []);
       setDeletionRequests(reqRes.data || []);
       setAuditLog(auditRes.data || []);
+      // OS Forms Hub ledger (applications) — newer OS table, fail soft (empty)
+      // like the other newer subsystems rather than blocking the panel.
+      setApplications(appsRes.data || []);
     } finally {
       setLoading(false);
     }
@@ -412,6 +421,7 @@ export default function AdminDashboard() {
   const filteredPayments = payments.filter(p => match(p.item_title, p.email, p.kind, p.status, p.provider, p.currency));
   const filteredWaitlist = waitlistEntries.filter(w => match(w.name, w.email, w.business_type, w.country));
   const filteredRegistrations = registrations.filter(r => match(r.business_name, r.category, r.location, r.email, r.phone));
+  const filteredApplications = applications.filter(a => match(a.reference, a.applicant_name, a.email, a.relationship, a.status));
   const filteredEnquiries = enquiries.filter(e => match(e.item_title, e.name, e.email, e.kind, e.message));
   const userEmailById = Object.fromEntries(users.map(u => [String(u.id), u.email]));
   const filteredSubscriptions = subscriptions.filter(s => match(userEmailById[s.user_id], s.tier, s.kind, s.status, s.billing_cycle));
@@ -465,6 +475,7 @@ export default function AdminDashboard() {
     { id: 'payments', label: 'Payments', icon: CreditCard, count: payments.length },
     { id: 'waitlist', label: 'Waitlist', icon: ListChecks, count: waitlistEntries.length },
     { id: 'registrations', label: 'Registrations', icon: FileText, count: registrations.length },
+    { id: 'applications', label: 'Applications', icon: ClipboardList, count: applications.length },
     { id: 'enquiries', label: 'Enquiries', icon: MessageSquare, count: enquiries.length },
     { id: 'audit', label: 'Audit Log', icon: History, count: auditLog.length },
     { id: 'hero-videos', label: 'Hero Videos', icon: Video, count: heroVideos.length },
@@ -547,11 +558,14 @@ export default function AdminDashboard() {
           const onTrial = users.filter((u: any) => u.plan_status === 'trialing').length;
           const tieredBusinesses = businesses.filter((b: any) => b.verification_tier && b.verification_tier !== 'none').length;
           const pendingReqs = deletionRequests.filter((r: any) => (r.status || 'pending') === 'pending').length;
+          const pendingApps = applications.filter((a: any) =>
+            ['new', 'screening', 'under-review', 'interview', 'qualification', 'discussion', 'proposal', 'nda', 'documents', 'agreement'].includes(a.status)).length;
           const action = [
             { label: 'Deletion requests', value: pendingReqs, tab: 'requests' as AdminTab, tone: 'rose', icon: Inbox },
             { label: 'Documents to review', value: pendingDocs, tab: 'verification' as AdminTab, tone: 'emerald', icon: ShieldCheck },
             { label: 'Bookings pending', value: pendingBookings, tab: 'bookings' as AdminTab, tone: 'amber', icon: CalendarCheck },
             { label: 'Registrations to review', value: registrations.length, tab: 'registrations' as AdminTab, tone: 'blue', icon: FileText },
+            { label: 'Applications pending', value: pendingApps, tab: 'applications' as AdminTab, tone: 'emerald', icon: ClipboardList },
             { label: 'Enquiries to review', value: enquiries.length, tab: 'enquiries' as AdminTab, tone: 'purple', icon: MessageSquare },
             { label: 'Businesses to verify', value: unverified, tab: 'businesses' as AdminTab, tone: 'rose', icon: BadgeCheck },
           ];
@@ -1252,6 +1266,63 @@ export default function AdminDashboard() {
                     )}
                   </tbody>
                 </table>
+              )}
+
+              {/* OS Applications (Forms Hub submissions) */}
+              {activeTab === 'applications' && (
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between flex-wrap gap-3">
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      OS Forms Hub submissions (<code>os_form_applications</code>). Review and advance each one in the Applications Review module.
+                    </p>
+                    <Link
+                      to="/admin-creator?section=applications"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 transition"
+                    >
+                      <ClipboardList size={14} /> Open Applications Review
+                    </Link>
+                  </div>
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Reference</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Applicant</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Relationship</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Submitted</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {filteredApplications.map(a => (
+                        <tr key={a.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{a.reference || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            <div>{a.applicant_name}</div>
+                            <div className="text-xs text-gray-400">{a.email || '—'}</div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{hubRelationshipById(a.relationship)?.label ?? a.relationship}</td>
+                          <td className="px-4 py-3 text-sm">
+                            <span className={`px-2 py-0.5 rounded text-xs font-medium ${
+                              a.status === 'approved' || a.status === 'active' || a.status === 'onboarding'
+                                ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-300'
+                                : a.status === 'archived'
+                                  ? 'bg-rose-100 dark:bg-rose-900/30 text-rose-700 dark:text-rose-400'
+                                  : 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400'
+                            }`}>
+                              {APPLICATION_STATUS_LABELS[a.status as keyof typeof APPLICATION_STATUS_LABELS] ?? a.status ?? 'New'}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">
+                            {a.submitted_at ? new Date(a.submitted_at).toLocaleDateString() : '—'}
+                          </td>
+                        </tr>
+                      ))}
+                      {filteredApplications.length === 0 && (
+                        <tr><td colSpan={5} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No form applications yet</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
               )}
 
               {/* Platform enquiries (advert & media contact forms) */}
