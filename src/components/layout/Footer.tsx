@@ -12,6 +12,7 @@ const explore = [
 
 const company = [
   { to: '/about', label: 'About Us' },
+  { to: '/forms', label: 'Join NowOpen' },
   { to: '/waitlist', label: 'Africa is NowOpen' },
   { to: '/founder', label: 'Meet the Founder' },
   { to: '/os', label: 'The NowOpen OS' },

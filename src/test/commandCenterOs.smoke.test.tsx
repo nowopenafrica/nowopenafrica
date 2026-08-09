@@ -32,7 +32,7 @@ vi.mock('../lib/supabase', () => {
   ];
   const approvals = [
     { id: 'ap-1', org_id: orgId, work_item_id: 'wi-1', requested_by: 'ai-2', reason: 'Sign off.', status: 'pending' },
-    { id: 'ap-2', org_id: orgId, work_item_id: 'wi-3', requested_by: 'ai-3', reason: 'Sign off.', status: 'approved', decided_at: '2026-08-08T09:00:00Z' },
+    { id: 'ap-2', org_id: orgId, work_item_id: 'wi-3', requested_by: 'ai-3', reason: 'Sign off.', status: 'approved', decided_at: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
   ];
   const knowledge = [
     { id: 'kb-1', org_id: orgId, category: 'Brand', title: 'Brand voice', summary: 'S', body: [], tags: [], source: 'sop' },

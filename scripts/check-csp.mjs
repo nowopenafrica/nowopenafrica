@@ -48,6 +48,7 @@ const NAVIGATION_ONLY = new Set([
   'https://linkedin.com', 'https://www.linkedin.com',
   'https://www.pinterest.com', 'https://www.threads.net',
   'https://wa.me', 'https://web.whatsapp.com', 'https://t.me',
+  'https://github.com', 'https://behance.net', // Forms Hub placeholder examples — never fetched
   'https://nowopenafrica.com', 'https://www.nowopen.africa',
   'http://www.w3.org', // SVG xmlns attribute
   'http://localhost',  // dev-only reference

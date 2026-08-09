@@ -35,6 +35,7 @@ const Waitlist = lazy(() => import('./pages/Waitlist'));
 const Founder = lazy(() => import('./pages/Founder'));
 const Platform = lazy(() => import('./pages/Platform'));
 const NowOpenOs = lazy(() => import('./pages/NowOpenOs'));
+const Forms = lazy(() => import('./pages/Forms'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const Terms = lazy(() => import('./pages/Terms'));
@@ -87,6 +88,9 @@ function App() {
               <Route path="/founder" element={<Founder />} />
               <Route path="/platform" element={<Platform />} />
               <Route path="/os" element={<NowOpenOs />} />
+              {/* Universal Forms Hub — one public URL for every relationship
+                  journey. Static route, ranked above the /:username catch-all. */}
+              <Route path="/forms" element={<Forms />} />
               <Route path="/profile" element={
                 <ProtectedRoute>
                   <Profile />
