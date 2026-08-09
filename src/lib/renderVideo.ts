@@ -3,9 +3,11 @@
 // Replaces the simulated "the generator produced a video" step with an actual
 // in-browser renderer: the storyboard scenes are painted to a <canvas> and
 // captured with MediaRecorder, producing a real, playable, downloadable video
-// file (WebM) plus poster and contact-sheet PNGs. Everything is deterministic
-// (seeded from the business + direction + scene) so the same brief always
-// renders the same way.
+// file (WebM or MP4) plus poster and contact-sheet PNGs. Everything is
+// deterministic (seeded from the business + direction + scene) so the same
+// brief always renders the same way. When the render is filming real footage,
+// the clips' audio rides along (routed through a shared AudioContext into the
+// capture stream), so the export is no longer silent.
 //
 // The module keeps all pure planning math separate from the DOM work so it can
 // be unit-tested in jsdom: `renderSeed`, `sceneRenderPlan`, `buildRenderTimeline`
@@ -777,6 +779,50 @@ async function preloadAiImages(urls: (string | null)[]): Promise<(HTMLImageEleme
   );
 }
 
+/**
+ * Route every footage clip's audio into the canvas capture stream.
+ *
+ * canvas.captureStream() is video-only, so an export is silent no matter what
+ * the clips contain. The same trick DesignStudio uses for its uploaded clip
+ * fixes that: a shared AudioContext pipes each element through
+ * MediaElementSource into one MediaStreamDestination, whose track the renderer
+ * records alongside the canvas.
+ *
+ * Two rules that keep this safe:
+ *  - A media element can only be connected to an AudioContext once, ever, so
+ *    this runs on the fresh elements renderVideo just created, before they
+ *    play, and never on one that already had a source made.
+ *  - `muted` elements deliver silence to MediaElementAudioSourceNode, so the
+ *    clips are un-muted here. That is not audible in the room: creating the
+ *    source re-routes the element's output into the graph, and nothing is ever
+ *    connected to ctx.destination.
+ *
+ * Returns null (a silent, video-only export) when there is no audio support,
+ * no clips to route, or the capture fails for any reason — never throws.
+ */
+function attachFootageAudio(videos: (HTMLVideoElement | null)[]): MediaStreamTrack | null {
+  const used = videos.filter((v): v is HTMLVideoElement => !!v);
+  if (!used.length) return null;
+  if (typeof AudioContext === 'undefined') return null;
+  try {
+    const ctx = new AudioContext();
+    const dest = ctx.createMediaStreamDestination();
+    for (const v of used) {
+      try {
+        const src = ctx.createMediaElementSource(v);
+        src.connect(dest);
+        v.muted = false;
+      } catch {
+        // A clip that refuses a source just stays silent — the others still count.
+      }
+    }
+    return dest.stream.getAudioTracks()[0] ?? null;
+  } catch (e) {
+    console.error('Audio capture failed — exporting without sound.', e);
+    return null;
+  }
+}
+
 export async function renderVideo(
   opts: SceneFrameOptions,
   scenes: DirectorScene[],
@@ -793,7 +839,6 @@ export async function renderVideo(
 
   const timeline = buildRenderTimeline(scenes, opts);
   const fps = timeline.fps;
-  const mimeType = pickRenderMime(RENDER_MIME_CANDIDATES);
 
   const footageOn = footageIsEnabled(opts);
   const videos: (HTMLVideoElement | null)[] = scenes.map((_, i) => {
@@ -813,18 +858,50 @@ export async function renderVideo(
   const images = await preloadAiImages(opts.aiImages ?? []);
 
   const stream = canvas.captureStream(fps);
+  // Film the footage audio too: a silent export of real clips is exactly the
+  // "looks like it failed" failure this pipeline is meant to avoid.
+  const audioTrack = footageOn ? attachFootageAudio(videos) : null;
+  if (audioTrack) stream.addTrack(audioTrack);
+
+  const mimeType = pickRecorderMime(audioTrack !== null);
   const track = stream.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
 
-  const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+  // A codecs= MIME is a complete declaration of the track types, so a stream
+  // that carries audio must be recorded with an audio-capable type — the
+  // isTypeSupported() lie (video-only type accepted, start() throws) is exactly
+  // what pickRecorderMime guards against. Even so, the browser can still refuse
+  // at construction/start: drop the mimeType and let it pick a combination it
+  // can honour rather than losing the whole export.
   const chunks: Blob[] = [];
-  recorder.ondataavailable = (e) => {
-    if (e.data && e.data.size > 0) chunks.push(e.data);
+  const makeRecorder = (withMime: boolean): MediaRecorder => {
+    const rec = withMime && mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+    rec.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+    return rec;
   };
-  const finished = new Promise<Blob>((resolve) => {
+
+  let recorder: MediaRecorder;
+  try {
+    recorder = makeRecorder(true);
+  } catch (e) {
+    console.warn('Renderer rejected', mimeType, '— retrying on the browser default.', e);
+    recorder = makeRecorder(false);
+  }
+  let finished = new Promise<Blob>((resolve) => {
     recorder.onstop = () => resolve(new Blob(chunks, { type: mimeType ?? 'video/webm' }));
   });
 
-  recorder.start(250);
+  try {
+    recorder.start(250);
+  } catch (e) {
+    console.warn('Renderer refused to start with', mimeType, '— retrying on the browser default.', e);
+    recorder = makeRecorder(false);
+    finished = new Promise<Blob>((resolve) => {
+      recorder.onstop = () => resolve(new Blob(chunks, { type: 'video/webm' }));
+    });
+    recorder.start(250);
+  }
 
   await new Promise<void>((resolve, reject) => {
     let frame = 0;
