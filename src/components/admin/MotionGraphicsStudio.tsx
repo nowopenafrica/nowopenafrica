@@ -14,7 +14,7 @@ import {
   motionScenesFromJob, motionTotalSeconds, MOTION_SCENE_COUNTS,
   type MotionConfig, type MotionStyle, type MotionDuration,
 } from '../../lib/motionGraphics';
-import { buildAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
+import { resolveAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
 import AiVideoGenPicker from '../studio/AiVideoGenPicker';
 import { MOTION_TEMPLATES, motionTemplateByKey, type MotionTemplate } from '../../data/motionTemplates';
 import {
@@ -217,7 +217,7 @@ export default function MotionGraphicsStudio() {
     try {
       let footage;
       if (renderSource === 'aivideo') {
-        footage = buildAiVideoClips({
+        footage = await resolveAiVideoClips({
           businessName: brief.business || 'NowOpen',
           industryLabel: 'brand',
           directionLabel: label,
@@ -225,6 +225,12 @@ export default function MotionGraphicsStudio() {
           model: project.render.model,
           aspect: brief.aspect,
         });
+        const got = Object.keys(footage).length;
+        if (got === 0) {
+          toast('No AI clips could be generated — the video uses designed graphics. Connect a media key on the server and try again.');
+        } else if (got < scenes.length) {
+          toast(`${got} of ${scenes.length} AI clips generated; the rest use designed graphics.`);
+        }
       }
       const result = await renderVideo(
         { ...opts, footage, footageEnabled: renderSource === 'aivideo' },

@@ -9,32 +9,22 @@
 //               captions and transitions on top of the AI key art.
 //
 // Everything is deterministic: prompts and seeds are derived from the brief, so
-// the same brief + settings always request the same media. `fetchAiImage` is the
-// only network call and is guarded so importing this module never needs a real
-// browser or network; failures return null and the pipeline falls back to the
-// gradient / Pexels renderer.
+// the same brief + settings always request the same media.
 //
-// ⚠️ NOT KEYLESS ANY MORE — verified 2026-08-05.
-// This module was written against a free, keyless Pollinations API. That is no
-// longer how the service works:
-//   GET https://gen.pollinations.ai/image/<prompt>?model=…  → 401 UNAUTHORIZED
-//     {"error":{"message":"Authentication required. Please provide an API key
-//      via Authorization header (Bearer token) or ?key= query parameter."}}
-//   GET https://image.pollinations.ai/prompt/<prompt>       → 403
-//
-// Consequence: every fetchAiImage() returns null, so the AI Art Director
-// silently produces NO art and the renderer falls back to gradients / Pexels.
-// The failure is invisible — nothing errors, the video just isn't AI-generated.
-//
-// To switch it back on, the key must NOT be a VITE_ var (it would ship in the
-// bundle, the same mistake as VITE_PEXELS_API_KEY). Proxy it through a Supabase
-// edge function holding POLLINATIONS_API_KEY as a secret, and point
-// POLLINATIONS_BASE at that function. Until then, treat the AI Art Director as
-// wired-but-inactive.
+// ⚠️ KEYED NOW — Pollinations stopped being keyless on 2026-08-05 (401 without
+// an API key). The key must NOT be a VITE_ var (it would ship in the bundle,
+// the same mistake as VITE_PEXELS_API_KEY), so `fetchAiImage` no longer talks
+// to gen.pollinations.ai at all — it posts to the `generate-image` Supabase
+// edge function, which holds `POLLINATIONS_API_KEY` as a secret and returns a
+// data: URL. Same for clips (`videoGen.resolveAiVideoClips`). Failures return
+// null and the pipeline falls back to the gradient / Pexels renderer, and
+// `fetchAiImage` is guarded so importing this module never needs a real
+// browser or network.
 
 import type { DirectorScene } from './creativeDirector';
 import { renderSeed } from './renderVideo';
 import type { RenderAspect } from './renderVideo';
+import { dataUrlToBlob } from './studio';
 
 export type AiImageModel = 'flux' | 'turbo' | 'zimage' | 'seedream';
 export type AiVideoModel = 'wan' | 'veo' | 'seedance';
@@ -51,8 +41,6 @@ export const AI_VIDEO_MODELS: { key: AiVideoModel; label: string; note: string }
   { key: 'veo', label: 'Veo', note: 'Google Veo — cinematic, slower' },
   { key: 'seedance', label: 'Seedance', note: 'ByteDance Seedance — the quality bar' },
 ];
-
-const POLLINATIONS_BASE = 'https://gen.pollinations.ai/image';
 
 /** Map a render aspect to generation pixels (kept under `maxSide`). */
 export function aspectDimensions(aspect: RenderAspect, maxSide = 1024): { width: number; height: number } {
@@ -99,38 +87,13 @@ export function aiSeedFor(businessName: string, directionLabel: string, index: n
   return renderSeed('ai-media', businessName, directionLabel, index) >>> 0;
 }
 
-export function pollinationsImageUrl(opts: {
+export interface AiImageFetchOptions {
   prompt: string;
   model: AiImageModel;
   width: number;
   height: number;
   seed: number;
-}): string {
-  const p = new URLSearchParams({
-    model: opts.model,
-    width: String(opts.width),
-    height: String(opts.height),
-    seed: String(opts.seed),
-  });
-  return `${POLLINATIONS_BASE}/${encodeURIComponent(opts.prompt)}?${p.toString()}`;
-}
-
-export function pollinationsVideoUrl(opts: {
-  prompt: string;
-  model: AiVideoModel;
-  width: number;
-  height: number;
-  seed: number;
-  duration: number;
-}): string {
-  const p = new URLSearchParams({
-    model: opts.model,
-    width: String(opts.width),
-    height: String(opts.height),
-    seed: String(opts.seed),
-    duration: String(opts.duration),
-  });
-  return `${POLLINATIONS_BASE}/${encodeURIComponent(opts.prompt)}?${p.toString()}`;
+  signal?: AbortSignal;
 }
 
 // --- Network (guarded, cached) -------------------------------------------------
@@ -138,24 +101,43 @@ export function pollinationsVideoUrl(opts: {
 const aiImageCache = new Map<string, string>();
 
 /**
- * Fetch a generated image and return a same-origin object URL (so the canvas
- * renderer is never tainted). Returns null on any failure — callers fall back
- * to the gradient/stock renderer. Cached by URL so deterministic prompts are
- * fetched once per session.
+ * Generate one key-art frame through the `generate-image` edge function and
+ * return a blob object URL (so the canvas renderer is never tainted). Returns
+ * null on any failure — callers fall back to the gradient/stock renderer.
+ * Cached by the deterministic request so the same brief is fetched once per
+ * session. The Pollinations key stays a Supabase secret; this module never
+ * talks to a provider host.
  */
-export async function fetchAiImage(url: string, signal?: AbortSignal): Promise<string | null> {
-  const hit = aiImageCache.get(url);
+export async function fetchAiImage(opts: AiImageFetchOptions): Promise<string | null> {
+  const cacheKey = `${opts.model}|${opts.prompt}|${opts.width}|${opts.height}|${opts.seed}`;
+  const hit = aiImageCache.get(cacheKey);
   if (hit) return hit;
   // Blob object URLs are what keep the canvas untainted; without support (e.g.
   // jsdom) we skip the network entirely so tests stay hermetic.
   if (typeof fetch === 'undefined' || typeof URL.createObjectURL !== 'function') return null;
   try {
-    const res = await fetch(url, { signal });
-    if (!res.ok) return null;
-    const blob = await res.blob();
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}`,
+      },
+      body: JSON.stringify({
+        prompt: opts.prompt,
+        width: opts.width,
+        height: opts.height,
+        seed: opts.seed,
+        kind: 'image',
+        model: `pollinations:${opts.model}`,
+      }),
+      signal: opts.signal,
+    });
+    const body = await res.json().catch(() => null);
+    if (!body?.ok || typeof body.dataUrl !== 'string') return null;
+    const blob = dataUrlToBlob(body.dataUrl);
     if (!blob.size) return null;
     const objectUrl = URL.createObjectURL(blob);
-    aiImageCache.set(url, objectUrl);
+    aiImageCache.set(cacheKey, objectUrl);
     return objectUrl;
   } catch {
     return null;

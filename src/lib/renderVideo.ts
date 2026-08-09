@@ -58,9 +58,9 @@ export interface RenderOptions {
   footageEnabled?: boolean;
   /**
    * Real AI-generated key art per scene index (object/data URLs from
-   * pollinations.fetchAiImage). When set, scenes with a ready image are filmed
-   * over it (Ken Burns + film grade) instead of the gradient — unless real
-   * footage wins by priority in drawTimelineFrame.
+   * pollinations.fetchAiImage or aiKeyArt.generateKeyArt). When set, scenes
+   * with a ready image are filmed over it (Ken Burns + film grade) instead of
+   * the gradient — unless real footage wins by priority in drawTimelineFrame.
    */
   aiImages?: (string | null)[];
 }

@@ -15,13 +15,17 @@
 //                        first ~20s, which is handled below.
 //   REPLICATE_API_TOKEN  Replicate — same open models, paid but reliable and
 //                        without cold starts. Async: create a prediction, poll.
+//   POLLINATIONS_API_KEY Pollinations — Flux/Z-Image/Seedream stills and
+//                        Wan/Veo/Seedance clips, billed per Pollen. Requires a
+//                        key since it stopped being free; it originally shipped
+//                        keyless here and went inert overnight when that ended.
 //
 // A NOTE ON "FREE", again: the MODELS are open-weight; the hosting is not
 // free-forever. Pollinations was integrated here precisely because it needed no
 // key, and it now returns 401 with the whole AI Art Director inert. The point of
 // this layer is that the next such change costs one secret, not a rewrite.
 
-export type ImageProviderName = "huggingface" | "replicate" | "none";
+export type ImageProviderName = "huggingface" | "replicate" | "pollinations" | "none";
 
 export interface ImageProviderConfig {
   name: ImageProviderName;
@@ -36,6 +40,15 @@ const DEFAULTS: Record<Exclude<ImageProviderName, "none">, string> = {
   // this route 404s. Override with IMAGE_MODEL if you add another provider.
   huggingface: "stabilityai/stable-diffusion-3-medium-diffusers",
   replicate: "black-forest-labs/flux-schnell",
+  // Pollinations model ids are bare names, not owner/name.
+  pollinations: "flux",
+};
+
+/** The secret each provider is configured by, for the no-key check. */
+const SECRETS: Record<Exclude<ImageProviderName, "none">, string> = {
+  huggingface: "HUGGINGFACE_API_KEY",
+  replicate: "REPLICATE_API_TOKEN",
+  pollinations: "POLLINATIONS_API_KEY",
 };
 
 // api-inference.huggingface.co was retired — it no longer resolves in DNS at
@@ -52,6 +65,9 @@ export function resolveImageProvider(): ImageProviderConfig {
   }
   if (env("REPLICATE_API_TOKEN")) {
     return { name: "replicate", model: override || DEFAULTS.replicate, label: "Replicate · FLUX schnell" };
+  }
+  if (env("POLLINATIONS_API_KEY")) {
+    return { name: "pollinations", model: override || DEFAULTS.pollinations, label: "Pollinations · Flux Schnell" };
   }
   return { name: "none", model: "", label: "No image model configured" };
 }
@@ -76,6 +92,8 @@ export interface ImageRequest {
    */
   apiKey?: string;
   kind?: "image" | "video";
+  /** Clip length in seconds; only sent for video requests. */
+  duration?: number;
 }
 
 /** Split "hf:owner/name" into its provider and model id. */
@@ -87,6 +105,7 @@ export function parseModelRef(ref?: string): { provider?: Exclude<ImageProviderN
   const rest = ref.slice(i + 1);
   if (prefix === "hf" || prefix === "huggingface") return { provider: "huggingface", model: rest };
   if (prefix === "replicate") return { provider: "replicate", model: rest };
+  if (prefix === "pol" || prefix === "pollinations") return { provider: "pollinations", model: rest };
   return { model: ref };
 }
 
@@ -228,6 +247,52 @@ async function runReplicate(cfg: ImageProviderConfig, req: ImageRequest): Promis
   };
 }
 
+// --- Pollinations ----------------------------------------------------------
+
+const POLLINATIONS_BASE = "https://gen.pollinations.ai";
+
+/** Map requested pixels to Pollinations' aspectRatio names for clips. */
+function pollinationsAspectRatio(width: number, height: number): string {
+  const ratio = width / height;
+  if (ratio >= 1.4) return "16:9";
+  if (ratio <= 0.7) return "9:16";
+  return "1:1";
+}
+
+async function runPollinations(cfg: ImageProviderConfig, req: ImageRequest): Promise<ImageOutcome> {
+  const key = req.apiKey || Deno.env.get("POLLINATIONS_API_KEY");
+  const video = req.kind === "video";
+
+  const params = new URLSearchParams({ model: cfg.model });
+  if (video) {
+    if (req.duration) params.set("duration", String(Math.max(2, Math.min(12, Math.round(req.duration)))));
+    params.set("aspectRatio", pollinationsAspectRatio(req.width, req.height));
+  } else {
+    params.set("width", String(req.width));
+    params.set("height", String(req.height));
+  }
+  if (req.seed !== undefined) params.set("seed", String(req.seed >>> 0));
+
+  const url = `${POLLINATIONS_BASE}/${video ? "video" : "image"}/${encodeURIComponent(req.prompt)}?${params.toString()}`;
+  const res = await fetch(url, { headers: { Authorization: `Bearer ${key}` } });
+
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 300);
+    return { ok: false, reason: statusToReason(res.status), status: res.status, detail };
+  }
+
+  const contentType = res.headers.get("content-type") || (video ? "video/mp4" : "image/png");
+  // An error can still arrive with 200 and a JSON body rather than media.
+  if (contentType.includes("application/json")) {
+    return { ok: false, reason: "error", status: 200, detail: (await res.text()).slice(0, 300) };
+  }
+
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (!bytes.length) return { ok: false, reason: "error", detail: "Empty media body." };
+
+  return { ok: true, dataUrl: toDataUrl(bytes, contentType), provider: cfg.name, model: cfg.model };
+}
+
 // --- entry point ------------------------------------------------------------
 
 export async function generateImage(req: ImageRequest): Promise<ImageOutcome> {
@@ -238,7 +303,7 @@ export async function generateImage(req: ImageRequest): Promise<ImageOutcome> {
   let cfg: ImageProviderConfig;
   if (provider) {
     cfg = { name: provider, model: model || DEFAULTS[provider], label: provider };
-    if (!req.apiKey && !Deno.env.get(provider === "huggingface" ? "HUGGINGFACE_API_KEY" : "REPLICATE_API_TOKEN")) {
+    if (!req.apiKey && !Deno.env.get(SECRETS[provider])) {
       return { ok: false, reason: "no_provider" };
     }
   } else {
@@ -247,13 +312,20 @@ export async function generateImage(req: ImageRequest): Promise<ImageOutcome> {
     if (model) cfg = { ...cfg, model };
   }
 
-  // Only Replicate runs video models; HF's image route cannot produce a clip.
-  if (req.kind === "video" && cfg.name !== "replicate") {
-    return { ok: false, reason: "error", detail: "Video generation needs a Replicate model (replicate:owner/name)." };
+  // Only Replicate and Pollinations run video models; HF's image route cannot
+  // produce a clip.
+  if (req.kind === "video" && cfg.name !== "replicate" && cfg.name !== "pollinations") {
+    return {
+      ok: false,
+      reason: "error",
+      detail: "Video generation needs a Replicate or Pollinations model (replicate:owner/name or pollinations:model).",
+    };
   }
 
   try {
-    return cfg.name === "huggingface" ? await runHuggingFace(cfg, req) : await runReplicate(cfg, req);
+    if (cfg.name === "huggingface") return await runHuggingFace(cfg, req);
+    if (cfg.name === "replicate") return await runReplicate(cfg, req);
+    return await runPollinations(cfg, req);
   } catch (e) {
     console.error("Image generation threw:", e);
     return { ok: false, reason: "error", detail: String(e).slice(0, 300) };

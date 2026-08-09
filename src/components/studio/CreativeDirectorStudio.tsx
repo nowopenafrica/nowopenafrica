@@ -37,9 +37,10 @@ import {
 import { voiceoverProfile, pickPreviewVoice } from '../../lib/voicePreview';
 import {
   AI_IMAGE_MODELS, AI_VIDEO_MODELS, aspectDimensions, aiPromptForScene,
-  aiSeedFor, pollinationsImageUrl, pollinationsVideoUrl, fetchAiImage,
+  aiSeedFor, fetchAiImage,
   type AiImageModel, type AiVideoModel,
 } from '../../lib/pollinations';
+import { resolveAiVideoClips } from '../../lib/videoGen';
 import { downloadText, downloadUrl, slugForFile } from '../../lib/studio';
 
 const selectClass = 'w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500';
@@ -323,14 +324,14 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
           scene: scenes[i],
           index: i,
         });
-        const url = pollinationsImageUrl({
+        urls.push(await fetchAiImage({
           prompt,
           model: aiImageModel,
           width: dims.width,
           height: dims.height,
           seed: aiSeedFor(business.name, directionLabel, i),
-        });
-        urls.push(await fetchAiImage(url, ctrl.signal));
+          signal: ctrl.signal,
+        }));
         if (!cancelled) setAiImageProgress(i + 1);
       }
       if (!cancelled) {
@@ -378,35 +379,29 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
   const buildAiClips = async () => {
     if (!result || !scenes.length) return;
     const directionLabel = directionByKey(direction).label;
-    const dims = aspectDimensions(aspect);
     const industry = result.plan.industry;
     setAiVideoStatus('loading');
     setAiVideoProgress(0);
-    const clips: Record<number, StockClip> = {};
-    for (let i = 0; i < scenes.length; i++) {
-      const prompt = aiPromptForScene({
-        businessName: business.name,
-        industryLabel: industry.label,
-        directionLabel,
-        scene: scenes[i],
-        index: i,
-        forVideo: true,
-      });
-      const duration = Math.min(6, Math.max(3, Math.round(scenes[i].seconds)));
-      const url = pollinationsVideoUrl({
-        prompt,
-        model: aiVideoModel,
-        width: dims.width,
-        height: dims.height,
-        seed: aiSeedFor(business.name, directionLabel, i),
-        duration,
-      });
-      clips[i] = { id: i + 1, url, preview: url, width: dims.width, height: dims.height, duration };
-      setAiVideoProgress(i + 1);
-    }
+    const clips = await resolveAiVideoClips({
+      businessName: business.name,
+      industryLabel: industry.label,
+      directionLabel,
+      scenes,
+      model: aiVideoModel,
+      aspect,
+      onProgress: (done) => setAiVideoProgress(done),
+    });
     setAiClips(clips);
     setAiVideoStatus('ready');
-    toast.success(`${scenes.length} AI video clip(s) queued — the render films over the ${AI_VIDEO_MODELS.find((m) => m.key === aiVideoModel)?.label ?? aiVideoModel} clips.`);
+    const got = Object.keys(clips).length;
+    const modelLabel = AI_VIDEO_MODELS.find((m) => m.key === aiVideoModel)?.label ?? aiVideoModel;
+    toast.success(
+      got === scenes.length
+        ? `${got} AI video clip(s) generated — the render films over the ${modelLabel} clips.`
+        : got === 0
+          ? 'No AI clips could be generated yet — the render uses designed graphics. Connect a media key on the server and try again.'
+          : `${got} of ${scenes.length} AI clips generated; the rest use designed graphics.`,
+    );
   };
 
   const removeSaved = (id: string) => {

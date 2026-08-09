@@ -2,12 +2,12 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
 import { generateImage, resolveImageProvider } from "../_shared/imagegen.ts";
 
-// Key art generation for Studio's Video Studio.
+// Key art and AI clip generation for Studio.
 //
-// The browser never talks to Hugging Face or Replicate directly: the key stays
-// a Supabase secret, and proxying keeps every provider off the CSP allowlist.
-// The response is a data: URL, which a canvas can draw without tainting — so
-// the rendered video can still be read back by MediaRecorder.
+// The browser never talks to Hugging Face, Replicate or Pollinations directly:
+// the key stays a Supabase secret, and proxying keeps every provider off the
+// CSP allowlist. The response is a data: URL, which a canvas can draw without
+// tainting — so the rendered video can still be read back by MediaRecorder.
 
 const corsHeaders = {
   // Same reasoning as chatbot/index.ts: anon-key only, no credentials, so the
@@ -61,7 +61,7 @@ Deno.serve(async (req: Request) => {
   }
 
   try {
-    const { prompt, width, height, seed, model, apiKey, kind } = await req.json();
+    const { prompt, width, height, seed, model, apiKey, kind, duration } = await req.json();
 
     if (!prompt || typeof prompt !== "string" || !prompt.trim()) {
       return new Response(JSON.stringify({ ok: false, reason: "error", detail: "Missing prompt." }), {
@@ -80,6 +80,8 @@ Deno.serve(async (req: Request) => {
       // not to a secret, not to the logs below.
       apiKey: typeof apiKey === "string" && apiKey.trim() ? apiKey.trim() : undefined,
       kind: kind === "video" ? "video" : "image",
+      // Only meaningful for video; the provider clamps it to its own bounds.
+      duration: Number.isFinite(Number(duration)) ? Number(duration) : undefined,
     });
 
     if (!result.ok) {

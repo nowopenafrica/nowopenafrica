@@ -7,7 +7,7 @@ import { renderVideo, RENDER_DIMENSIONS, type RenderAspect } from '../../lib/ren
 import { generateKeyArt, keyArtMessage } from '../../lib/aiKeyArt';
 import { industryByKey, industryKeyForCategory } from '../../lib/videoCreator';
 import { resolveFootage, orientationForAspect } from '../../lib/stockFootage';
-import { buildAiVideoClips, videoGenModelByKey, videoGenModelsForTier, type VideoGenTier } from '../../lib/videoGen';
+import { resolveAiVideoClips, videoGenModelByKey, videoGenModelsForTier, type VideoGenTier } from '../../lib/videoGen';
 import type { AiVideoModel } from '../../lib/pollinations';
 import AiVideoGenPicker from './AiVideoGenPicker';
 
@@ -122,7 +122,7 @@ export default function VideoStudio({ business }: { business: Business }) {
       if (visuals === 'aivideo') {
         setStage('ai');
         const genModelMeta = videoGenModelByKey(genModel);
-        footage = buildAiVideoClips({
+        footage = await resolveAiVideoClips({
           businessName: business.name,
           industryLabel: industry.label,
           directionLabel: format,
@@ -130,8 +130,13 @@ export default function VideoStudio({ business }: { business: Business }) {
           model: genModel,
           aspect,
         });
+        const got = Object.keys(footage).length;
         setNotice(
-          `Filming over ${genModelMeta?.label ?? genModel} AI clips (${genTier === 'free' ? 'free — open-weight' : 'paid — billed per render'}). Without a configured media key, scenes fall back to designed graphics.`,
+          got === scenes.length
+            ? `Filming over ${genModelMeta?.label ?? genModel} AI clips (${genTier === 'free' ? 'free — open-weight' : 'paid — billed per render'}).`
+            : got === 0
+              ? 'No AI clips could be generated yet — the video uses designed graphics. Connect a media key on the server and try again.'
+              : `Filming over ${got} of ${scenes.length} AI clips; the rest use designed graphics.`,
         );
       }
 
