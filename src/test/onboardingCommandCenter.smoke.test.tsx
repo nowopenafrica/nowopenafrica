@@ -8,6 +8,7 @@ vi.mock('../lib/supabase', () => {
         id: 'r1', org_id: '00000000-0000-4000-8000-00000000a001',
         full_name: 'Ada Obi', email: 'ada@nowopen.africa', relationship: 'employee',
         department: 'Creative & Brand', role: 'Motion Designer', country: 'Nigeria',
+        source_reference: 'NOW-EMP-2026-8K2MZ4',
         steps_completed: ['personal-information', 'nda'],
         signed_agreements: ['NDA'], access_grants: [],
         created_at: new Date().toISOString(),
@@ -68,6 +69,9 @@ describe('OnboardingCommandCenter smoke', () => {
     expect(screen.getByText(/0 blocked/)).toBeInTheDocument();
     expect(screen.getByText('Ada Obi')).toBeInTheDocument();
     expect(screen.getByText('Meatclub Nigeria')).toBeInTheDocument();
+    // The handoff is visible the other way round too: a profile that came from
+    // an approved application shows its source reference, not a guessing game.
+    expect(screen.getByText(/from application NOW-EMP-2026-8K2MZ4/)).toBeInTheDocument();
   });
 
   it('expands a profile into its journey, signature need and document packet', async () => {

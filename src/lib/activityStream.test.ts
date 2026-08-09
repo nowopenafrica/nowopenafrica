@@ -3,6 +3,7 @@ import { buildActivityStream, groupActivityByDay, activityStatuses } from './act
 import type { WorkforceMember } from './workforce';
 import type { WorkItem } from './work';
 import type { ApprovalRequest } from './approvals';
+import type { FormApplication } from './formsEngine';
 
 const members: WorkforceMember[] = [
   { id: 'h1', org_id: 'o', kind: 'human', name: 'Ada Obi', title: 'Owner', department: 'Founder Office', status: 'clocked-in' },
@@ -72,6 +73,67 @@ describe('buildActivityStream', () => {
 
   it('renders an empty feed when there is nothing timestamped', () => {
     expect(buildActivityStream({ members, items: [], approvals: [] })).toEqual([]);
+  });
+});
+
+const application = (overrides: Partial<FormApplication>): FormApplication => ({
+  id: 'app-1',
+  org_id: 'o',
+  reference: 'NOW-EMP-2026-AB12',
+  relationship: 'intern',
+  applicant_name: 'Ada Obi',
+  email: 'ada@nowopen.africa',
+  country: 'Nigeria',
+  status: 'new',
+  answers: {},
+  consent: true,
+  submitted_at: '2026-08-01T09:00:00.000Z',
+  ...overrides,
+});
+
+describe('application decisions in the stream', () => {
+  it('shows a reviewer approving an application, with its reference', () => {
+    const feed = buildActivityStream({
+      members, items: [], approvals: [],
+      applications: [application({ status: 'approved', updated_at: '2026-08-02T10:00:00.000Z' })],
+    });
+    expect(feed).toHaveLength(1);
+    expect(feed[0].kind).toBe('application-decided');
+    expect(feed[0].text).toContain('approved Ada Obi');
+    expect(feed[0].text).toContain('NOW-EMP-2026-AB12');
+  });
+
+  it('shows a rejection with the reviewer note', () => {
+    const feed = buildActivityStream({
+      members, items: [], approvals: [],
+      applications: [application({
+        status: 'archived', rejected: true,
+        decision_note: 'Not the profile we need yet',
+        updated_at: '2026-08-02T10:00:00.000Z',
+      })],
+    });
+    expect(feed[0].kind).toBe('application-decided');
+    expect(feed[0].text).toContain('rejected Ada Obi');
+    expect(feed[0].text).toContain('Not the profile we need yet');
+  });
+
+  it('shows an onboarding handoff as a profile creation', () => {
+    const feed = buildActivityStream({
+      members, items: [], approvals: [],
+      applications: [application({ status: 'onboarding', updated_at: '2026-08-02T10:00:00.000Z' })],
+    });
+    expect(feed[0].text).toContain('onboarded Ada Obi from NOW-EMP-2026-AB12 into a relationship profile');
+  });
+
+  it('never invents a decision for untouched or fresh submissions', () => {
+    const feed = buildActivityStream({
+      members, items: [], approvals: [],
+      applications: [
+        application({ status: 'new' }), // fresh, no reviewer action
+        application({ status: 'approved', updated_at: '2026-08-01T09:00:00.000Z' }), // approved at the same stamp it was submitted — never decided
+      ],
+    });
+    expect(feed).toEqual([]);
   });
 });
 

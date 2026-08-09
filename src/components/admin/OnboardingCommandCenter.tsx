@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import {
-  Loader2, UsersRound, FileSignature, Package, CheckCircle2,
+  Loader2, UsersRound, FileSignature, Package, CheckCircle2, UserPlus,
   Circle, ChevronDown, ArrowRight,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
@@ -157,6 +157,11 @@ export default function OnboardingCommandCenter() {
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 truncate">
                     {p.email}{p.role ? ` · ${p.role}` : ''}{p.department ? ` · ${p.department}` : ''}
                   </p>
+                  {p.source_reference && (
+                    <span className="mt-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-rose-50 dark:bg-rose-900/20 text-[10px] font-semibold text-rose-600 dark:text-rose-400">
+                      <UserPlus size={10} /> from application {p.source_reference}
+                    </span>
+                  )}
                   <div className="mt-1.5 flex items-center gap-2">
                     <div className="h-1.5 flex-1 max-w-[180px] rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
                       <div className="h-full rounded-full bg-purple-500" style={{ width: `${progress}%` }} />

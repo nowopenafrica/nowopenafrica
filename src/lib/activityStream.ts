@@ -2,20 +2,24 @@
 //
 // A chronological feed of what actually happened in the OS, derived strictly
 // from the real ledgers: work items (opened, moved between statuses),
-// approvals (requested, decided) and health snapshots. Nothing is invented —
-// if a row carries a timestamp the stream says what the timestamp means, and
-// rows without timestamps simply don't appear. Newest first.
+// approvals (requested, decided), reviewer decisions on applications (moved,
+// approved, rejected with a note, or onboarded into a profile) and health
+// snapshots. Nothing is invented — if a row carries a timestamp the stream
+// says what the timestamp means, and rows without timestamps simply don't
+// appear. Newest first.
 
 import type { WorkforceMember } from './workforce';
 import type { WorkItem } from './work';
 import { WORK_STATUS_LABELS, type WorkStatus } from './work';
 import type { ApprovalRequest } from './approvals';
+import { APPLICATION_STATUS_LABELS, type FormApplication } from './formsEngine';
 
 export type ActivityKind =
   | 'work-opened'
   | 'work-status'
   | 'approval-requested'
   | 'approval-decided'
+  | 'application-decided'
   | 'health-snapshot';
 
 export interface ActivityEntry {
@@ -33,6 +37,8 @@ export interface ActivityInput {
   approvals: ApprovalRequest[];
   /** Optional health history (os_snapshots rows) — adds health entries. */
   snapshots?: readonly { health: number; snapshot_date?: string; derived_at?: string }[];
+  /** Optional os_form_applications rows — adds reviewer decision + handoff entries. */
+  applications?: readonly FormApplication[];
   /** Cap the feed length. Newest entries win. */
   limit?: number;
 }
@@ -46,7 +52,7 @@ const isValidIso = (iso?: string | null): iso is string =>
 /** Derive the activity feed from the real ledgers. Entries carry no invented
  *  timestamps: only rows that were created or moved show up, in row order. */
 export function buildActivityStream(input: ActivityInput): ActivityEntry[] {
-  const { members, items, approvals, snapshots } = input;
+  const { members, items, approvals, snapshots, applications } = input;
   const limit = input.limit ?? 50;
   const entries: ActivityEntry[] = [];
 
@@ -109,6 +115,34 @@ export function buildActivityStream(input: ActivityInput): ActivityEntry[] {
         text: `recorded OS health ${s.health}/100`,
       });
     }
+  }
+
+  // Reviewer decisions on Forms Hub submissions. Only rows a reviewer actually
+  // acted on appear: the row's updated_at has to exist and differ from the
+  // original submission stamp, and a decision has to be visible in the status.
+  // A fresh or re-opened submission (still `new`) carries no claim.
+  for (const a of applications ?? []) {
+    if (a.status === 'new') continue;
+    if (!isValidIso(a.updated_at)) continue;
+    if (a.updated_at === a.submitted_at) continue;
+    let text: string;
+    if (a.status === 'archived' && a.rejected === true) {
+      text = `rejected ${a.applicant_name}'s application${a.decision_note ? ` — ${a.decision_note}` : ''}`;
+    } else if (a.status === 'onboarding') {
+      text = `onboarded ${a.applicant_name} from ${a.reference} into a relationship profile`;
+    } else if (a.status === 'approved') {
+      text = `approved ${a.applicant_name}'s application (${a.reference})`;
+    } else {
+      text = `moved ${a.applicant_name}'s application to ${(APPLICATION_STATUS_LABELS[a.status] ?? a.status).toLowerCase()} (${a.reference})`;
+    }
+    entries.push({
+      id: `application-decided-${a.id}`,
+      at: a.updated_at as string,
+      kind: 'application-decided',
+      actor: 'The founder',
+      department: 'Founder Office',
+      text,
+    });
   }
 
   return entries.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0)).slice(0, limit);

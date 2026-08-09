@@ -17,6 +17,7 @@ import {
 import { DAY_BEAT_LABELS, dayBeat, departmentDayCards } from '../../lib/workingDay';
 import { buildActivityStream, groupActivityByDay } from '../../lib/activityStream';
 import type { ApprovalRequest } from '../../lib/approvals';
+import { mapApplicationRow, type ApplicationRow, type FormApplication } from '../../lib/formsEngine';
 
 // The daily work layer (#22, group People): projects, tasks and goals on a
 // board, assignable to the workforce, with honest statuses from os_work_items.
@@ -56,6 +57,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
   const [members, setMembers] = useState<WorkforceMember[]>([]);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
   const [snapshots, setSnapshots] = useState<{ health: number; snapshot_date?: string; derived_at?: string }[]>([]);
+  const [applications, setApplications] = useState<FormApplication[]>([]);
   const [loading, setLoading] = useState(true);
   const [usingFallback, setUsingFallback] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -93,6 +95,15 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
       setMembers(people);
       setApprovals(queue);
       setSnapshots(history);
+      // Applications are ancillary to the board: reviewer decisions feed the
+      // activity stream, but an unavailable os_form_applications never knocks
+      // the board into fallback.
+      let appRows: FormApplication[] = [];
+      try {
+        const appsRes = await supabase.from('os_form_applications').select('*').eq('org_id', NOWOPEN_ORG_ID);
+        if (!appsRes.error) appRows = ((appsRes.data ?? []) as ApplicationRow[]).map(mapApplicationRow);
+      } catch { appRows = []; }
+      setApplications(appRows);
       setUsingFallback(false);
     } catch {
       const fallbackMembers = seedMembers(currentUser);
@@ -100,6 +111,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
       setItems(mapSeedToMembers(WORK_SEED, fallbackMembers));
       setApprovals([]);
       setSnapshots([]);
+      setApplications([]);
       setUsingFallback(true);
     } finally {
       setLoading(false);
@@ -135,8 +147,8 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
   );
 
   const activity = useMemo(
-    () => groupActivityByDay(buildActivityStream({ members, items, approvals, snapshots, limit: 40 })),
-    [members, items, approvals, snapshots],
+    () => groupActivityByDay(buildActivityStream({ members, items, approvals, snapshots, applications, limit: 40 })),
+    [members, items, approvals, snapshots, applications],
   );
 
   const humans = useMemo(() => members.filter((m) => m.kind === 'human'), [members]);
@@ -362,7 +374,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
               <ul className="mt-1.5 space-y-1">
                 {group.entries.map((e) => (
                   <li key={e.id} className="flex items-start gap-2 text-xs">
-                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${e.kind === 'health-snapshot' ? 'bg-purple-400' : e.kind === 'approval-decided' ? 'bg-emerald-400' : e.kind === 'work-status' ? 'bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`} />
+                    <span className={`mt-1.5 w-1.5 h-1.5 rounded-full shrink-0 ${e.kind === 'health-snapshot' ? 'bg-purple-400' : e.kind === 'approval-decided' ? 'bg-emerald-400' : e.kind === 'application-decided' ? 'bg-rose-400' : e.kind === 'work-status' ? 'bg-blue-400' : 'bg-gray-300 dark:bg-gray-600'}`} />
                     <span className="text-gray-700 dark:text-gray-300">
                       <span className="font-semibold text-gray-900 dark:text-white">{e.actor}</span> {e.text}
                     </span>
