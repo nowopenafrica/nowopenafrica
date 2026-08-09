@@ -185,6 +185,10 @@ function detectAspect(prompt: string): RenderAspect {
 
 function detectStyle(prompt: string): MotionStyle {
   const p = prompt.toLowerCase();
+  if (/(billboard|led |led$|marquee|roadside|signage|outdoor ad|neon sign)/.test(p)) return 'billboard-led';
+  if (/(apple tv|key art|premium|elegant|luxury|cinematic|sophisticated|classy)/.test(p)) return 'premium-keyart';
+  if (/(glassmorph|glass |frosted|modern card|clean|minimal card)/.test(p)) return 'glassmorphic';
+  if (/(3d|isometric|parallax|depth|floating shapes)/.test(p)) return 'isometric-3d';
   if (/(countdown|coming soon|launch)/.test(p)) return 'countdown';
   if (/(logo|opener|intro|reveal)/.test(p)) return 'logo-reveal';
   if (/(lower third|caption|name|role)/.test(p)) return 'lower-third';

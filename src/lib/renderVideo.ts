@@ -4,10 +4,17 @@
 // in-browser renderer: the storyboard scenes are painted to a <canvas> and
 // captured with MediaRecorder, producing a real, playable, downloadable video
 // file (WebM or MP4) plus poster and contact-sheet PNGs. Everything is
-// deterministic (seeded from the business + direction + scene) so the same
-// brief always renders the same way. When the render is filming real footage,
-// the clips' audio rides along (routed through a shared AudioContext into the
-// capture stream), so the export is no longer silent.
+// deterministic (seeded from the business + direction + scene + treatment) so
+// the same brief always renders the same way. When the render is filming real
+// footage, the clips' audio rides along (routed through a shared AudioContext
+// into the capture stream), so the export is no longer silent.
+//
+// A scene carries a visual treatment on top of the shared layout: `default`
+// (flat gradient look), `led` (billboard scanlines + neon), `premium`
+// (Apple-TV key art), `glass` (frosted panels) or `3d` (parallax depth). The
+// layout itself lives in one place — `sceneLayout` — so `sceneElementRegions`
+// (normalised click targets used by the editable live preview) always hit-test
+// exactly what `drawOverlay` paints.
 //
 // The module keeps all pure planning math separate from the DOM work so it can
 // be unit-tested in jsdom: `renderSeed`, `sceneRenderPlan`, `buildRenderTimeline`
@@ -20,6 +27,14 @@ import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
 
 export type RenderAspect = 'Square' | 'Vertical' | 'Landscape';
+
+/**
+ * Visual treatment applied to a scene on top of the shared layout: backdrop
+ * ambience (grids, scanlines, spotlight, floating shapes) plus typography
+ * flair. Motion Studio maps its styles onto these; every other caller stays on
+ * the default look.
+ */
+export type MotionTreatment = 'default' | 'led' | 'premium' | 'glass' | '3d';
 
 export interface RenderDimensions {
   width: number;
@@ -65,6 +80,12 @@ export interface RenderOptions {
    * the gradient — unless real footage wins by priority in drawTimelineFrame.
    */
   aiImages?: (string | null)[];
+  /**
+   * Style treatment for the renderer. When unset every scene keeps the default
+   * flat look; Motion Studio sets it from the chosen motion style so a billboard
+   * LED brief actually films like a billboard.
+   */
+  treatment?: MotionTreatment;
 }
 
 export type RenderTransition = 'cut' | 'fade';
@@ -81,6 +102,8 @@ export interface SceneRenderPlan {
   transition: RenderTransition;
   transitionFrames: number;
   endCard: boolean;
+  /** The style treatment this scene was planned with (seeds the look). */
+  treatment: MotionTreatment;
 }
 
 export interface RenderSceneTiming {
@@ -124,7 +147,10 @@ export const RENDER_PALETTES: [string, string, string][] = PALETTES;
 
 export function sceneRenderPlan(opts: RenderOptions, scene: DirectorScene, index: number): SceneRenderPlan {
   const fps = opts.fps ?? RENDER_FPS;
-  const seed = renderSeed(opts.businessName, opts.directionLabel, index, scene.text);
+  const treatment = opts.treatment ?? 'default';
+  // The treatment is part of the seed so switching style genuinely re-plans
+  // the scene (palette pick, grain, drift) instead of only re-skinning it.
+  const seed = renderSeed(opts.businessName, opts.directionLabel, index, scene.text, treatment);
   const rng = mulberry32(seed);
   const palette = opts.palette ?? PALETTES[Math.floor(rng() * PALETTES.length)];
 
@@ -148,6 +174,7 @@ export function sceneRenderPlan(opts: RenderOptions, scene: DirectorScene, index
     transition,
     transitionFrames,
     endCard: false,
+    treatment,
   };
 }
 
@@ -251,6 +278,95 @@ function lerp(a: number, b: number, t: number): number {
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+export interface SceneLayoutSpec {
+  isLandscape: boolean;
+  isVertical: boolean;
+  minDim: number;
+  baseTitle: number;
+  brandSize: number;
+  smallSize: number;
+  titleY: number;
+  lineH: number;
+  voY: number;
+  voLineH: number;
+  ctaY: number;
+  chipY: number;
+  brandTop: number;
+  brandBottom: number;
+  titleBlockTop: number;
+  titleBlockH: number;
+  voBlockTop: number;
+  voBlockH: number;
+}
+
+/**
+ * The single source of truth for the caption overlay's geometry. drawOverlay
+ * draws from it and sceneElementRegions hit-tests against it, so an element the
+ * preview lets you click is exactly where it was drawn.
+ */
+export function sceneLayout(w: number, h: number, aspect: RenderAspect): SceneLayoutSpec {
+  const isLandscape = aspect === 'Landscape';
+  const isVertical = aspect === 'Vertical';
+  const minDim = Math.min(w, h);
+  const baseTitle = isLandscape ? Math.round(minDim * 0.085) : isVertical ? Math.round(minDim * 0.075) : Math.round(minDim * 0.07);
+  const brandSize = Math.round(baseTitle * 0.28);
+  const smallSize = Math.round(baseTitle * 0.22);
+  const lineH = baseTitle * 1.18;
+  const voLineH = Math.round(baseTitle * 0.3);
+  return {
+    isLandscape,
+    isVertical,
+    minDim,
+    baseTitle,
+    brandSize,
+    smallSize,
+    titleY: isLandscape ? h * 0.44 : h * 0.4,
+    lineH,
+    voY: h - (isVertical ? 240 : 168),
+    voLineH,
+    ctaY: h - (isVertical ? 170 : 118),
+    chipY: h - (isVertical ? 110 : 76),
+    brandTop: 12,
+    brandBottom: brandSize * 1.6 + 12 + brandSize * 1.3,
+    titleBlockTop: (isLandscape ? h * 0.44 : h * 0.4) - lineH * 1.2,
+    titleBlockH: lineH * 3.2,
+    voBlockTop: h - (isVertical ? 240 : 168) - voLineH * 0.6,
+    voBlockH: voLineH * 2.6,
+  };
+}
+
+/** Which caption element a scene draws, for the editable live preview. */
+export type SceneElementKey = 'brand' | 'title' | 'subline' | 'cta';
+
+export interface SceneElementRegion {
+  key: SceneElementKey;
+  /** Normalised 0..1 against the canvas, so any display size hit-tests the same. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Clickable regions of the current scene, in normalised canvas coordinates.
+ * The brand lockup, headline block and voiceover strip are always there; the
+ * call-to-action only exists on the final card. Used by the editable preview to
+ * turn a click into "edit this element".
+ */
+export function sceneElementRegions(opts: SceneFrameOptions, index: number): SceneElementRegion[] {
+  const { width: w, height: h } = RENDER_DIMENSIONS[opts.aspect];
+  const L = sceneLayout(w, h, opts.aspect);
+  const raw: { key: SceneElementKey; x: number; y: number; w: number; h: number }[] = [
+    { key: 'brand', x: w * 0.16, y: L.brandTop, w: w * 0.68, h: Math.max(28, L.brandBottom - L.brandTop) },
+    { key: 'title', x: w * 0.09, y: L.titleBlockTop, w: w * 0.82, h: L.titleBlockH },
+    { key: 'subline', x: w * 0.11, y: L.voBlockTop, w: w * 0.78, h: L.voBlockH },
+  ];
+  if (index === opts.scenesCount - 1) {
+    raw.push({ key: 'cta', x: w * 0.2, y: L.ctaY - L.baseTitle, w: w * 0.6, h: L.baseTitle * 1.7 });
+  }
+  return raw.map((r) => ({ key: r.key, x: r.x / w, y: r.y / h, w: r.w / w, h: r.h / h }));
 }
 
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -361,6 +477,153 @@ function drawFilmGrain(ctx: CanvasRenderingContext2D, w: number, h: number, seed
   ctx.restore();
 }
 
+/** 6-digit hex + 2-digit alpha → valid 8-digit hex (never re-appends on an 8-digit colour). */
+function alphaHex(hex: string, alpha: string): string {
+  return hex.length === 7 ? `${hex}${alpha}` : hex;
+}
+
+/** Billboard LED — neon glow pools, scanlines and a perspective floor grid. */
+function drawLedBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, plan: SceneRenderPlan): void {
+  const r = Math.min(w, h);
+  const pools = [
+    { x: w * 0.16, y: h * 0.14, r: r * 0.45, c: plan.accentColor },
+    { x: w * 0.86, y: h * 0.84, r: r * 0.4, c: plan.gradient[1] },
+  ];
+  for (const p of pools) {
+    const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+    g.addColorStop(0, alphaHex(p.c, '30'));
+    g.addColorStop(1, alphaHex(p.c, '00'));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
+  ctx.fillStyle = 'rgba(0,0,0,0.10)';
+  for (let y = 0; y < h; y += 4) ctx.fillRect(0, y, w, 2);
+  const horizon = h * 0.72;
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    ctx.beginPath();
+    ctx.moveTo(w / 2 + (t - 0.5) * w * 0.9, horizon);
+    ctx.lineTo(w / 2 + (t - 0.5) * w * 2.2, h);
+    ctx.stroke();
+  }
+  for (let i = 1; i <= 4; i++) {
+    const t = i / 4;
+    const y = horizon + (h - horizon) * t * t;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  }
+}
+
+/** Apple TV standard — a soft spotlight, fine hairline rings and quiet space. */
+function drawPremiumBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, plan: SceneRenderPlan, frame: number): void {
+  const cx = w / 2;
+  const cy = h * 0.42;
+  const spot = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(w, h) * 0.75);
+  spot.addColorStop(0, 'rgba(255,255,255,0.14)');
+  spot.addColorStop(0.5, 'rgba(255,255,255,0.05)');
+  spot.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = spot;
+  ctx.fillRect(0, 0, w, h);
+  const t = (frame % 160) / 160;
+  const dx = Math.sin(t * Math.PI * 2) * w * 0.02;
+  const dy = Math.cos(t * Math.PI * 2) * h * 0.012;
+  const r = Math.min(w, h);
+  ctx.strokeStyle = 'rgba(255,255,255,0.10)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.arc(w * 0.84 + dx, h * 0.2 + dy, r * 0.11, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(w * 0.14 - dx, h * 0.8 - dy, r * 0.07, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = alphaHex(plan.accentColor, '55');
+  ctx.fillRect(0, 0, w, 2);
+}
+
+/** Glassmorphism — drifting colour blobs and a faint dot grid. */
+function drawGlassBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, plan: SceneRenderPlan, frame: number): void {
+  const t = (frame % 220) / 220;
+  const dx = Math.sin(t * Math.PI * 2) * w * 0.015;
+  const r = Math.min(w, h);
+  const blobs = [
+    { x: w * 0.22, y: h * 0.2, r: r * 0.4, c: plan.gradient[1] },
+    { x: w * 0.82, y: h * 0.74, r: r * 0.36, c: plan.gradient[2] },
+    { x: w * 0.58, y: h * 0.32, r: r * 0.26, c: plan.gradient[0] },
+  ];
+  for (const b of blobs) {
+    const g = ctx.createRadialGradient(b.x + dx, b.y - dx, 0, b.x + dx, b.y - dx, b.r);
+    g.addColorStop(0, alphaHex(b.c, '38'));
+    g.addColorStop(1, alphaHex(b.c, '00'));
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  }
+  const step = Math.max(16, Math.round(r * 0.045));
+  ctx.fillStyle = 'rgba(255,255,255,0.08)';
+  for (let x = 0; x < w; x += step) {
+    for (let y = 0; y < h; y += step) ctx.fillRect(x, y, 1, 1);
+  }
+}
+
+/** 3D depth — layered parallax shapes at different speeds plus a ground line. */
+function drawDepthBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, plan: SceneRenderPlan, frame: number): void {
+  const rng = mulberry32((plan.seed + frame * 1009) >>> 0);
+  const r = Math.min(w, h);
+  for (let i = 0; i < 7; i++) {
+    const depth = 0.35 + rng() * 0.65;
+    const speed = (0.5 + rng() * 0.9) * (rng() > 0.5 ? 1 : -1);
+    const baseX = rng() * w;
+    const baseY = h * 0.12 + rng() * h * 0.68;
+    const size = (0.03 + rng() * 0.05) * r;
+    const span = w + size * 2;
+    const x = ((((baseX + speed * (frame % 300) * depth * 0.06) % span) + span) % span) - size;
+    const a = 0.06 + depth * 0.12;
+    const kind = rng();
+    ctx.strokeStyle = `rgba(255,255,255,${a.toFixed(3)})`;
+    ctx.fillStyle = `rgba(255,255,255,${(a * 0.3).toFixed(3)})`;
+    ctx.lineWidth = Math.max(1, Math.round(size * 0.04));
+    if (kind < 0.4) {
+      ctx.beginPath();
+      ctx.arc(x, baseY, size, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    } else if (kind < 0.7) {
+      ctx.save();
+      ctx.translate(x, baseY);
+      ctx.rotate((rng() - 0.5) * 0.7);
+      ctx.strokeRect(-size, -size, size * 2, size * 2);
+      ctx.restore();
+    } else {
+      ctx.beginPath();
+      ctx.moveTo(x, baseY - size);
+      ctx.lineTo(x + size * 1.15, baseY + size * 0.85);
+      ctx.lineTo(x - size * 1.15, baseY + size * 0.85);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    }
+  }
+  ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(0, h * 0.78);
+  ctx.lineTo(w, h * 0.78);
+  ctx.stroke();
+}
+
+function drawTreatmentBackdrop(ctx: CanvasRenderingContext2D, w: number, h: number, plan: SceneRenderPlan, frame: number): void {
+  switch (plan.treatment) {
+    case 'led': return drawLedBackdrop(ctx, w, h, plan);
+    case 'premium': return drawPremiumBackdrop(ctx, w, h, plan, frame);
+    case 'glass': return drawGlassBackdrop(ctx, w, h, plan, frame);
+    case '3d': return drawDepthBackdrop(ctx, w, h, plan, frame);
+    default: return;
+  }
+}
+
 function drawBackdrop(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -380,6 +643,9 @@ function drawBackdrop(
   } else {
     drawBackground(ctx, w, h, plan);
   }
+  // Style ambience on top of whatever backdrop won (grid/scanlines/spotlight/
+  // shapes). Deterministic per seed+frame, so a brief always films the same.
+  drawTreatmentBackdrop(ctx, w, h, plan, frame);
 }
 
 function drawSceneContent(
@@ -408,10 +674,39 @@ function drawSceneContent(
   ctx.restore();
 
   drawOverlay(
-    ctx, w, h, plan, index, scene, t, opts,
+    ctx, w, h, plan, index, scene, t, opts, frame,
     (source.kind === 'video' && isVideoReady(source.video)) ||
       (source.kind === 'image' && isImageReady(source.image)),
   );
+}
+
+/** Billboard LED marquee — the voiceover scrolls across a ticker strip. */
+function drawLedTicker(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  text: string,
+  frame: number,
+  L: SceneLayoutSpec,
+  plan: SceneRenderPlan,
+): void {
+  const tickerH = Math.max(24, Math.round(L.baseTitle * 0.5));
+  const y = L.chipY - tickerH - 8;
+  ctx.save();
+  ctx.fillStyle = 'rgba(0,0,0,0.55)';
+  ctx.fillRect(0, y, w, tickerH);
+  const label = text || 'OPEN FOR BUSINESS';
+  const full = `  ${label}   ${label}   ${label}  `;
+  ctx.fillStyle = plan.accentColor;
+  ctx.font = `800 ${Math.round(tickerH * 0.62)}px system-ui, sans-serif`;
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'middle';
+  const unit = Math.max(1, ctx.measureText(full).width / full.length);
+  const scroll = (frame % 180) / 180;
+  ctx.beginPath();
+  ctx.rect(0, y, w, tickerH);
+  ctx.clip();
+  ctx.fillText(full, -scroll * full.length * unit, y + tickerH / 2 + 1);
+  ctx.restore();
 }
 
 function drawOverlay(
@@ -423,14 +718,18 @@ function drawOverlay(
   scene: DirectorScene,
   t: number,
   opts: SceneFrameOptions,
+  frame: number,
   overVideo: boolean,
 ): void {
-  const isLandscape = opts.aspect === 'Landscape';
-  const isVertical = opts.aspect === 'Vertical';
-  const minDim = Math.min(w, h);
-  const baseTitle = isLandscape ? Math.round(minDim * 0.085) : isVertical ? Math.round(minDim * 0.075) : Math.round(minDim * 0.07);
-  const brandSize = Math.round(baseTitle * 0.28);
-  const smallSize = Math.round(baseTitle * 0.22);
+  const L = sceneLayout(w, h, opts.aspect);
+  const isVertical = L.isVertical;
+  const minDim = L.minDim;
+  const baseTitle = L.baseTitle;
+  const brandSize = L.brandSize;
+  const smallSize = L.smallSize;
+  const titleY = L.titleY;
+  const lineH = L.lineH;
+  const treatment = opts.treatment ?? 'default';
 
   // Soft bottom scrim over real footage so captions always read.
   if (overVideo) {
@@ -453,7 +752,7 @@ function drawOverlay(
   ctx.restore();
 
   // Scene number chip + progress dots.
-  const chipY = h - (isVertical ? 110 : 76);
+  const chipY = L.chipY;
   const chipW = Math.round(brandSize * 4.4);
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.28)';
@@ -465,14 +764,17 @@ function drawOverlay(
   ctx.fillText(`SCENE ${index + 1} · ${scene.camera.toUpperCase()}`, w / 2, chipY + smallSize * 1.35);
   ctx.restore();
 
-  // Voiceover as a small caption strip near the bottom (pill over footage).
-  if (scene.voiceover) {
+  // Voiceover strip: a scrolling LED ticker for billboard work, the standard
+  // caption pill everywhere else.
+  if (treatment === 'led' && scene.voiceover) {
+    drawLedTicker(ctx, w, scene.voiceover, frame, L, plan);
+  } else if (scene.voiceover) {
     ctx.save();
     ctx.textAlign = 'center';
     ctx.font = `500 ${Math.round(baseTitle * 0.24)}px system-ui, sans-serif`;
     const voLines = wrapLines(ctx, scene.voiceover, w * 0.78);
-    const voY = h - (isVertical ? 240 : 168);
-    const voLineH = Math.round(baseTitle * 0.3);
+    const voY = L.voY;
+    const voLineH = L.voLineH;
     if (overVideo) {
       const pillW = w * 0.8;
       const pillH = voLines.length * voLineH + voLineH * 0.7;
@@ -504,22 +806,58 @@ function drawOverlay(
   ctx.restore();
 
   // Main title text.
+  const title = index === 0 ? opts.hook || scene.text : scene.text;
   ctx.save();
   ctx.textAlign = 'center';
-  const titleY = isLandscape ? h * 0.44 : isVertical ? h * 0.4 : h * 0.4;
-  const title = index === 0 ? opts.hook || scene.text : scene.text;
-  ctx.font = `900 ${baseTitle}px system-ui, sans-serif`;
-  ctx.shadowColor = 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = Math.round(baseTitle * 0.35);
-  ctx.fillStyle = plan.textColor;
+  ctx.font = treatment === 'premium' ? `700 ${Math.round(baseTitle * 1.08)}px system-ui, sans-serif` : `900 ${baseTitle}px system-ui, sans-serif`;
+  if (treatment === 'premium') {
+    try { ctx.letterSpacing = '0.04em'; } catch { /* older browsers ignore */ }
+  }
   const titleLines = wrapLines(ctx, title, w * 0.82);
-  const lineH = baseTitle * 1.18;
+  const titleCount = Math.min(3, titleLines.length);
+
+  // Apple TV standard: a small accent kicker + hairline above the headline.
+  if (treatment === 'premium') {
+    ctx.fillStyle = plan.accentColor;
+    ctx.font = `700 ${Math.round(smallSize * 1.1)}px system-ui, sans-serif`;
+    ctx.fillText(opts.directionLabel.toUpperCase(), w / 2, titleY - lineH * 1.55);
+    ctx.fillStyle = 'rgba(255,255,255,0.35)';
+    const ruleW = Math.round(Math.min(140, w * 0.12));
+    ctx.fillRect(w / 2 - ruleW / 2, titleY - lineH * 1.2, ruleW, 2);
+  }
+
+  // Glassmorphism: a frosted panel sits behind the headline block.
+  if (treatment === 'glass') {
+    const panelTop = titleY - lineH * 1.45;
+    const panelH = titleCount * lineH + lineH * 0.9;
+    const panelW = w * 0.88;
+    ctx.save();
+    ctx.fillStyle = 'rgba(255,255,255,0.09)';
+    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, w / 2 - panelW / 2, panelTop, panelW, panelH, Math.round(baseTitle * 0.18));
+    ctx.fill();
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // 3D: the headline drifts a hair against the parallax shapes below it.
+  if (treatment === '3d') {
+    ctx.translate(Math.round(Math.sin((frame * 0.03) % (Math.PI * 2)) * w * 0.006), 0);
+  }
+
+  ctx.shadowColor = treatment === 'led' ? plan.accentColor : 'rgba(0,0,0,0.5)';
+  ctx.shadowBlur = treatment === 'led' ? Math.round(baseTitle * 0.9) : Math.round(baseTitle * 0.35);
+  ctx.fillStyle = plan.textColor;
   titleLines.slice(0, 3).forEach((line, i) => {
-    ctx.fillText(line, w / 2, titleY + (i - (Math.min(3, titleLines.length) - 1) / 2) * lineH);
+    ctx.fillText(line, w / 2, titleY + (i - (titleCount - 1) / 2) * lineH);
   });
   ctx.shadowBlur = 0;
+  if (treatment === 'premium') {
+    try { ctx.letterSpacing = '0px'; } catch { /* older browsers ignore */ }
+  }
 
-  // Accent underline.
+  // Accent underline (parallax with the title on the 3D treatment).
   const accW = Math.round(Math.min(300, w * 0.24));
   ctx.fillStyle = plan.accentColor;
   roundRect(ctx, w / 2 - accW / 2, titleY + lineH * 0.72, accW, Math.max(6, Math.round(baseTitle * 0.09)), Math.round(baseTitle * 0.05));
@@ -534,7 +872,7 @@ function drawOverlay(
     ctx.textAlign = 'center';
     ctx.font = `900 ${Math.round(baseTitle * 0.42)}px system-ui, sans-serif`;
     ctx.fillStyle = plan.accentColor;
-    ctx.fillText((opts.cta ?? 'Tap to order').toUpperCase(), w / 2, h - (isVertical ? 170 : 118));
+    ctx.fillText((opts.cta ?? 'Tap to order').toUpperCase(), w / 2, L.ctaY);
     ctx.restore();
   }
 }

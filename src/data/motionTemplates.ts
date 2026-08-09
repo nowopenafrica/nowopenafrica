@@ -1,12 +1,12 @@
 // Motion Graphics Studio — modern template gallery.
 //
-// A curated set of the latest motion design concepts (glassmorphism, kinetic
-// type, neon noir, neo-brutalism, …). Each template is a starting point, not a
-// finished poster: selecting one loads its concept into the editor — style,
-// palette, words, shape and pace — and the owner can tweak anything after.
-// Because every template maps onto the same pure MotionConfig fields, the
-// existing storyboard builder + canvas renderer consume it exactly like a
-// hand-written brief.
+// A curated set of the latest motion design concepts (billboard LED, Apple TV
+// key art, glassmorphism, 3D depth, kinetic type, neon noir, neo-brutalism, …).
+// Each template is a starting point, not a finished poster: selecting one loads
+// its concept into the editor — style, palette, words, shape and pace — and the
+// owner can tweak anything after. Because every template maps onto the same
+// pure MotionConfig fields, the existing storyboard builder + canvas renderer
+// consume it exactly like a hand-written brief.
 
 import type { MotionStyle, MotionDuration } from '../lib/motionGraphics';
 import type { RenderAspect } from '../lib/renderVideo';
@@ -140,6 +140,60 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     emoji: '💥',
     palette: ['#db2777', '#7c3aed', '#0f172a'],
     preset: { style: 'kinetic-type', aspect: 'Vertical', duration: 'short', headline: 'Say it once', subhead: 'Make it loud', cta: 'Share the reel', logoEmoji: '💥' },
+  },
+  {
+    key: 'led-billboard',
+    name: 'LED Billboard',
+    concept: 'A glowing roadside board — neon type over a scanline grid, with a scrolling marquee.',
+    tags: ['Billboard', 'New'],
+    emoji: '🪧',
+    palette: ['#050014', '#22d3ee', '#f0abfc'],
+    preset: { style: 'billboard-led', aspect: 'Landscape', duration: 'medium', headline: 'GRAND OPENING', subhead: 'Now open for business', cta: 'Come see us today', logoEmoji: '🪧' },
+  },
+  {
+    key: 'apple-keyart',
+    name: 'Apple Key Art',
+    concept: 'Apple TV standard — one elegant title, soft spotlight, generous space.',
+    tags: ['Premium', 'New'],
+    emoji: '🍾',
+    palette: ['#0a0a0f', '#71717a', '#f4f4f5'],
+    preset: { style: 'premium-keyart', aspect: 'Landscape', duration: 'long', headline: 'THE PREMIUM DROP', subhead: 'Experience it first', cta: 'Reserve your seat', logoEmoji: '🍾' },
+  },
+  {
+    key: 'glass-saas',
+    name: 'Glass SaaS',
+    concept: 'Frosted panels over soft colour — a clean, modern business card.',
+    tags: ['Trending', 'New'],
+    emoji: '🪟',
+    palette: ['#1e1b4b', '#7c3aed', '#22d3ee'],
+    preset: { style: 'glassmorphic', aspect: 'Square', duration: 'medium', headline: 'OPEN FOR BUSINESS', subhead: 'Modern, clear, welcoming', cta: 'Visit us today', logoEmoji: '🪟' },
+  },
+  {
+    key: 'depth-3d',
+    name: 'Depth 3D',
+    concept: 'Layered shapes with real parallax depth — the camera moves through the ad.',
+    tags: ['3D', 'New'],
+    emoji: '📐',
+    palette: ['#022c22', '#10b981', '#fde047'],
+    preset: { style: 'isometric-3d', aspect: 'Vertical', duration: 'short', headline: 'NEW DROP', subhead: 'Depth you can feel', cta: 'Shop the drop', logoEmoji: '📐' },
+  },
+  {
+    key: 'led-nightlife',
+    name: 'LED Nightlife',
+    concept: 'A neon marquee for the after-hours crowd — bolder, louder, later.',
+    tags: ['Billboard', 'Trending'],
+    emoji: '🌆',
+    palette: ['#0f0524', '#ec4899', '#22d3ee'],
+    preset: { style: 'billboard-led', aspect: 'Landscape', duration: 'short', headline: 'OPEN TILL LATE', subhead: 'The night is young', cta: 'Come on in', logoEmoji: '🌆' },
+  },
+  {
+    key: 'cinema-3d',
+    name: 'Cinema 3D',
+    concept: 'Wide-screen depth for the big ad — floating panels and a grounded floor.',
+    tags: ['3D', 'Cinema'],
+    emoji: '🎥',
+    palette: ['#111827', '#f97316', '#fef3c7'],
+    preset: { style: 'isometric-3d', aspect: 'Landscape', duration: 'long', headline: 'THE MAIN EVENT', subhead: 'Built for the big screen', cta: 'Get your tickets', logoEmoji: '🎥' },
   },
 ];
 

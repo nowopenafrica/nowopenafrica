@@ -6,7 +6,8 @@
 // card. That IS motion graphics — it just needed motion-shaped inputs.
 //
 // This module turns a motion job (logo reveal, motion poster, kinetic type,
-// countdown, …) into those scenes. Pure, so every mapping is unit-testable:
+// countdown, billboard LED, Apple TV key art, glassmorphic, isometric 3D, …)
+// into those scenes. Pure, so every mapping is unit-testable:
 // the same config always builds the same storyboard, and the render then
 // films it the same way every time.
 
@@ -20,7 +21,11 @@ export type MotionStyle =
   | 'lower-third'
   | 'countdown'
   | 'badge'
-  | 'reveal-title';
+  | 'reveal-title'
+  | 'billboard-led'
+  | 'premium-keyart'
+  | 'glassmorphic'
+  | 'isometric-3d';
 
 export type MotionDuration = 'short' | 'medium' | 'long';
 
@@ -50,6 +55,10 @@ export const MOTION_SCENE_COUNTS: Record<MotionStyle, number> = {
   countdown: 4,
   badge: 2,
   'reveal-title': 2,
+  'billboard-led': 4,
+  'premium-keyart': 3,
+  glassmorphic: 3,
+  'isometric-3d': 4,
 };
 
 function card(i: number, text: string, voiceover: string, seconds: number, total: number): DirectorScene {
@@ -125,6 +134,28 @@ export function motionScenesFromJob(cfg: MotionConfig): DirectorScene[] {
     case 'reveal-title':
       lines.push({ text: cfg.headline, vo: cfg.subhead });
       lines.push({ text: cfg.business.toUpperCase(), vo: cfg.cta });
+      break;
+    case 'billboard-led':
+      lines.push({ text: cfg.headline, vo: cfg.business });
+      lines.push({ text: cfg.subhead, vo: 'Open for business' });
+      lines.push({ text: cfg.business.toUpperCase(), vo: cfg.headline });
+      lines.push({ text: 'ACT NOW', vo: cfg.cta });
+      break;
+    case 'premium-keyart':
+      lines.push({ text: cfg.headline, vo: cfg.subhead });
+      lines.push({ text: cfg.business.toUpperCase(), vo: cfg.headline });
+      lines.push({ text: 'OPEN NOW', vo: cfg.cta });
+      break;
+    case 'glassmorphic':
+      lines.push({ text: cfg.headline, vo: cfg.subhead });
+      lines.push({ text: cfg.subhead, vo: cfg.business });
+      lines.push({ text: `${cfg.logoEmoji} ${cfg.business.toUpperCase()}`, vo: cfg.cta });
+      break;
+    case 'isometric-3d':
+      lines.push({ text: cfg.headline, vo: cfg.subhead });
+      lines.push({ text: cfg.subhead, vo: cfg.headline });
+      lines.push({ text: cfg.business.toUpperCase(), vo: cfg.cta });
+      lines.push({ text: 'SHOP NOW', vo: cfg.cta });
       break;
   }
 

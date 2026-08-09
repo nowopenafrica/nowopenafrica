@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
   renderSeed, sceneRenderPlan, buildRenderTimeline, timelineAt,
   pickRenderMime, renderTotalSeconds, renderSceneStill, RENDER_DIMENSIONS, RENDER_FPS,
-  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled, RENDER_PALETTES } from './renderVideo';
+  RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled, RENDER_PALETTES,
+  sceneLayout, sceneElementRegions } from './renderVideo';
 import type { DirectorScene } from './creativeDirector';
 
 const base: RenderOptions = {
@@ -86,6 +87,59 @@ describe('renderVideo — scene plans', () => {
   it('exposes the selectable palettes', () => {
     expect(RENDER_PALETTES.length).toBeGreaterThan(0);
     RENDER_PALETTES.forEach((p) => expect(p).toHaveLength(3));
+  });
+
+  it('seeds the visual treatment into every plan', () => {
+    const plan = sceneRenderPlan(opts(), scene(), 0);
+    expect(plan.treatment).toBe('default');
+    const led = sceneRenderPlan({ ...opts(), treatment: 'led' }, scene(), 0);
+    expect(led.treatment).toBe('led');
+    // Switching treatment genuinely re-plans the scene (different seed → look).
+    expect(led.seed).not.toBe(plan.seed);
+  });
+});
+
+describe('renderVideo — layout & editable regions', () => {
+  it('lays out both aspects with sane, ordered geometry', () => {
+    for (const aspect of ['Vertical', 'Landscape'] as const) {
+      const { width: w, height: h } = RENDER_DIMENSIONS[aspect];
+      const L = sceneLayout(w, h, aspect);
+      expect(L.minDim).toBe(Math.min(w, h));
+      expect(L.baseTitle).toBeGreaterThan(20);
+      expect(L.brandTop).toBeGreaterThan(0);
+      expect(L.titleBlockTop).toBeGreaterThan(L.brandBottom);
+      expect(L.titleBlockH).toBeGreaterThan(0);
+      expect(L.ctaY).toBeGreaterThan(L.titleBlockTop + L.titleBlockH);
+      expect(L.chipY).toBeGreaterThan(L.ctaY);
+      expect(L.voBlockTop).toBeGreaterThan(0);
+      expect(L.voBlockH).toBeGreaterThan(0);
+    }
+  });
+
+  it('returns normalised regions with the CTA only on the final card', () => {
+    const last = scenes.length - 1;
+    for (const index of [0, last]) {
+      const regions = sceneElementRegions(opts(), index);
+      const keys = new Set(regions.map((r) => r.key));
+      for (const r of regions) {
+        expect(r.x).toBeGreaterThanOrEqual(0);
+        expect(r.y).toBeGreaterThanOrEqual(0);
+        expect(r.w).toBeGreaterThan(0);
+        expect(r.h).toBeGreaterThan(0);
+        expect(r.x + r.w).toBeLessThanOrEqual(1.001);
+        expect(r.y + r.h).toBeLessThanOrEqual(1.001);
+      }
+      expect(keys.has('brand')).toBe(true);
+      expect(keys.has('title')).toBe(true);
+      expect(keys.has('subline')).toBe(true);
+      expect(keys.has('cta')).toBe(index === last);
+    }
+  });
+
+  it('shifts the region boxes with the format so hit-testing matches each size', () => {
+    const vertical = sceneElementRegions(opts(), scenes.length - 1);
+    const landscape = sceneElementRegions({ ...opts(), aspect: 'Landscape' }, scenes.length - 1);
+    expect(vertical).not.toEqual(landscape);
   });
 });
 

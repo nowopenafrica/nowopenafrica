@@ -7,8 +7,9 @@ import {
 import type { DirectorScene } from '../../lib/creativeDirector';
 import {
   renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
-  RENDER_DIMENSIONS, RENDER_PALETTES,
-  type RenderAspect, type SceneFrameOptions,
+  sceneElementRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
+  type RenderAspect, type SceneFrameOptions, type MotionTreatment,
+  type SceneElementKey,
 } from '../../lib/renderVideo';
 import {
   motionScenesFromJob, motionTotalSeconds, MOTION_SCENE_COUNTS,
@@ -73,7 +74,56 @@ const STYLES: StyleMeta[] = [
   { key: 'countdown', label: 'Countdown', emoji: '⏱️', desc: '3…2…1…GO — suspense for a launch or a live stream.', defaults: { headline: 'GO!', subhead: 'The countdown is on', cta: 'Tune in now', logoEmoji: '🚀' } },
   { key: 'badge', label: 'Animated Badge', emoji: '🏷️', desc: 'A looping status stamp — Open Now, Verified, New.', defaults: { headline: 'OPEN NOW', subhead: 'NowOpen Africa', cta: 'Order ahead', logoEmoji: '✅' } },
   { key: 'reveal-title', label: 'Reveal Title', emoji: '🎞️', desc: 'A bold headline wipe for episodes and campaign headers.', defaults: { headline: 'NOWOPEN AFRICA', subhead: 'The platform for local business', cta: 'Launch yours', logoEmoji: '✦' } },
+  { key: 'billboard-led', label: 'Billboard LED', emoji: '🪧', desc: 'Roadside LED energy — neon glow, scanlines and a scrolling marquee.', defaults: { headline: 'GRAND OPENING', subhead: 'Now open for business', cta: 'Come see us today', logoEmoji: '🪧' } },
+  { key: 'premium-keyart', label: 'Apple Key Art', emoji: '🍾', desc: 'Apple TV standard — one elegant title, soft light, generous space.', defaults: { headline: 'THE PREMIUM DROP', subhead: 'Experience it first', cta: 'Reserve your seat', logoEmoji: '🍾' } },
+  { key: 'glassmorphic', label: 'Glassmorphic', emoji: '🪟', desc: 'Frosted glass panels over soft colour — modern and clean.', defaults: { headline: 'OPEN FOR BUSINESS', subhead: 'Modern, clear, welcoming', cta: 'Visit us today', logoEmoji: '🪟' } },
+  { key: 'isometric-3d', label: 'Isometric 3D', emoji: '📐', desc: 'Layered shapes with real parallax depth — the camera moves.', defaults: { headline: 'NEW DROP', subhead: 'Depth you can feel', cta: 'Shop the drop', logoEmoji: '📐' } },
 ];
+
+/** The render engine's treatment for each motion style (default = flat look). */
+const TREATMENT_FOR_STYLE: Record<MotionStyle, MotionTreatment> = {
+  'logo-reveal': 'default',
+  'motion-poster': 'default',
+  'kinetic-type': 'default',
+  'lower-third': 'default',
+  countdown: 'default',
+  badge: 'default',
+  'reveal-title': 'default',
+  'billboard-led': 'led',
+  'premium-keyart': 'premium',
+  glassmorphic: 'glass',
+  'isometric-3d': '3d',
+};
+
+type MotionField = 'business' | 'headline' | 'subhead' | 'cta';
+
+/**
+ * Which brief field an element of a storyboard card edits. Content-based so it
+ * works across every style: the card that draws the headline maps to the
+ * headline, the brand lockup to the business name, and so on.
+ */
+function fieldForElement(key: SceneElementKey, scene: DirectorScene, brief: MotionConfig): { field: MotionField; label: string } {
+  const text = scene.text.toLowerCase();
+  const vo = scene.voiceover.toLowerCase();
+  const inText = (s: string) => s.trim().length > 0 && text.includes(s.toLowerCase());
+  const inVo = (s: string) => s.trim().length > 0 && vo.includes(s.toLowerCase());
+  switch (key) {
+    case 'brand':
+      return { field: 'business', label: 'Brand lockup' };
+    case 'cta':
+      return { field: 'cta', label: 'Call to action' };
+    case 'title':
+      if (inText(brief.headline)) return { field: 'headline', label: 'Headline' };
+      if (inText(brief.business)) return { field: 'business', label: 'Brand lockup' };
+      if (inText(brief.subhead)) return { field: 'subhead', label: 'Sub-line' };
+      return { field: 'headline', label: 'Headline' };
+    case 'subline':
+      if (inVo(brief.subhead)) return { field: 'subhead', label: 'Sub-line' };
+      if (inVo(brief.cta)) return { field: 'cta', label: 'Call to action' };
+      if (inVo(brief.headline)) return { field: 'headline', label: 'Headline' };
+      return { field: 'subhead', label: 'Sub-line' };
+  }
+}
 
 const ASPECTS: { key: RenderAspect; label: string; hint: string }[] = [
   { key: 'Vertical', label: 'Vertical', hint: 'Reels, TikTok, Status' },
@@ -95,8 +145,21 @@ function timeAgo(iso: string): string {
   return `${Math.round(m / 60)}h ago`;
 }
 
-/** Live, looping canvas preview of the motion brief — real frames, real timing. */
-function MotionPreview({ opts, scenes }: { opts: SceneFrameOptions; scenes: DirectorScene[] }) {
+/**
+ * Live, looping canvas preview of the motion brief — real frames, real timing.
+ * In edit mode the loop freezes on a chosen scene, the clickable layout
+ * elements are outlined, and clicking one reports which element was picked so
+ * the parent can open an inline editor for that exact element.
+ */
+function MotionPreview({
+  opts, scenes, editMode, sceneIndex, onPick,
+}: {
+  opts: SceneFrameOptions;
+  scenes: DirectorScene[];
+  editMode: boolean;
+  sceneIndex: number;
+  onPick: (key: SceneElementKey) => void;
+}) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dims = RENDER_DIMENSIONS[opts.aspect];
 
@@ -108,21 +171,76 @@ function MotionPreview({ opts, scenes }: { opts: SceneFrameOptions; scenes: Dire
     // Preview at half resolution; the export renders full 1080p.
     canvas.width = Math.round(dims.width / 2);
     canvas.height = Math.round(dims.height / 2);
+    const cw = canvas.width;
+    const ch = canvas.height;
     const timeline = buildRenderTimeline(scenes, opts);
     let frame = 0;
     let raf = 0;
-    let playing = true;
+
+    const paintRegions = (si: number) => {
+      const regions = sceneElementRegions(opts, si);
+      ctx.save();
+      ctx.lineWidth = 2;
+      ctx.setLineDash([6, 4]);
+      for (const r of regions) {
+        ctx.strokeStyle = 'rgba(244,63,94,0.9)';
+        ctx.fillStyle = 'rgba(244,63,94,0.1)';
+        ctx.beginPath();
+        ctx.rect(r.x * cw, r.y * ch, r.w * cw, r.h * ch);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(244,63,94,0.95)';
+        ctx.font = '700 13px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('✏️', r.x * cw + 6, r.y * ch + 6);
+      }
+      ctx.restore();
+    };
+
+    if (editMode) {
+      // Frozen frame: the scene under edit, outlined and ready to click.
+      const timing = timeline.scenes[Math.min(sceneIndex, timeline.scenes.length - 1)] ?? timeline.scenes[0];
+      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, timing.startFrame);
+      paintRegions(timing.index);
+      return () => window.cancelAnimationFrame(raf);
+    }
+
     const tick = () => {
-      if (!playing) return;
-      drawSceneFrame(ctx, canvas.width, canvas.height, opts, scenes, timeline, frame);
+      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame);
       frame = (frame + 1) % timeline.totalFrames;
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
-    return () => { playing = false; window.cancelAnimationFrame(raf); };
-  }, [opts, scenes, dims.width, dims.height]);
+    return () => { window.cancelAnimationFrame(raf); };
+  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex]);
 
-  return <canvas ref={canvasRef} className="w-full max-w-md mx-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black" />;
+  const onPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!editMode) return;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const rect = canvas.getBoundingClientRect();
+    const nx = (e.clientX - rect.left) / rect.width;
+    const ny = (e.clientY - rect.top) / rect.height;
+    const idx = Math.min(sceneIndex, scenes.length - 1);
+    const hit = sceneElementRegions(opts, idx).find(
+      (r) => nx >= r.x && nx <= r.x + r.w && ny >= r.y && ny <= r.y + r.h,
+    );
+    if (hit) onPick(hit.key);
+  };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      onPointerMove={(e) => {
+        const c = canvasRef.current;
+        if (c) c.style.cursor = editMode ? 'crosshair' : 'default';
+        if (editMode) e.preventDefault();
+      }}
+      onPointerDown={onPointer}
+      className="w-full max-w-md mx-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black"
+    />
+  );
 }
 
 function swatchStyle(palette: [string, string, string]): React.CSSProperties {
@@ -141,6 +259,12 @@ export default function MotionGraphicsStudio() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
+  // Editable preview — toggle freezes the canvas and lets clicks open the
+  // element's field inline (headline, sub-line, brand lockup or call to action).
+  const [editMode, setEditMode] = useState(false);
+  const [editSceneIndex, setEditSceneIndex] = useState(0);
+  const [editing, setEditing] = useState<{ key: SceneElementKey; field: MotionField; label: string; value: string } | null>(null);
+
   // Autosave — every edit lands in nowopen_motion_projects.
   useEffect(() => { setProjects(saveMotionProject(project)); }, [project]);
 
@@ -152,6 +276,26 @@ export default function MotionGraphicsStudio() {
 
   const editRender = (partial: Partial<MotionProject['render']>) =>
     setProject((prev) => (prev ? { ...prev, render: { ...prev.render, ...partial }, updatedAt: new Date().toISOString() } : prev));
+
+  const toggleEdit = () => {
+    if (editMode) {
+      setEditing(null);
+      setEditSceneIndex(0);
+    }
+    setEditMode(!editMode);
+  };
+
+  const pickElement = (key: SceneElementKey) => {
+    const scene = scenes[editSceneIndex] ?? scenes[0];
+    const mapped = fieldForElement(key, scene, brief);
+    setEditing({ key, field: mapped.field, label: mapped.label, value: brief[mapped.field] ?? '' });
+  };
+
+  const commitEdit = () => {
+    if (!editing) return;
+    editBrief({ [editing.field]: editing.value.trim() } as Partial<MotionConfig>);
+    setEditing(null);
+  };
 
   const openProject = (p: MotionProject, nextMode: Mode = 'studio') => {
     setProject(p);
@@ -202,6 +346,7 @@ export default function MotionGraphicsStudio() {
       aspect: brief.aspect,
       logoEmoji: brief.logoEmoji || '✦',
       palette: project.palette,
+      treatment: TREATMENT_FOR_STYLE[brief.style],
       scenesCount: scenes.length,
     }),
     [brief, label, project.palette, scenes.length],
@@ -542,12 +687,39 @@ export default function MotionGraphicsStudio() {
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                     <Film size={15} className="text-purple-500" /> Live preview
                   </h3>
-                  <span className="text-[11px] font-semibold text-gray-400">
-                    {MOTION_SCENE_COUNTS[brief.style]} cards · {seconds}s · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <button onClick={toggleEdit} aria-pressed={editMode} title="Toggle editable preview — click layout elements to change them inline"
+                      className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition ${editMode ? 'bg-purple-600 text-white border-purple-600' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300'}`}>
+                      <Sparkles size={12} /> {editMode ? 'Editing on' : 'Edit preview'}
+                    </button>
+                    <span className="text-[11px] font-semibold text-gray-400">
+                      {MOTION_SCENE_COUNTS[brief.style]} cards · {seconds}s · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}
+                    </span>
+                  </div>
                 </div>
                 <div className="mt-3">
-                  <MotionPreview opts={opts} scenes={scenes} />
+                  <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex} onPick={pickElement} />
+                  {editMode && (
+                    <div className="mt-2 max-w-md mx-auto">
+                      {editing ? (
+                        <div className="rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 p-2 space-y-2">
+                          <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
+                            Editing {editing.label} — scene {editSceneIndex + 1}
+                          </div>
+                          <input autoFocus value={editing.value}
+                            onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                            onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null); }}
+                            className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                          <div className="flex gap-2 justify-end">
+                            <button onClick={() => setEditing(null)} className="px-2.5 py-1 text-[11px] font-semibold rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300">Cancel</button>
+                            <button onClick={commitEdit} className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-purple-600 text-white">Save</button>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-center text-[11px] text-gray-400">Edit mode: click any outlined element to change it inline.</p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </section>
 
@@ -559,7 +731,9 @@ export default function MotionGraphicsStudio() {
                 </div>
                 <ol className="divide-y divide-gray-100 dark:divide-gray-700">
                   {scenes.map((s, i) => (
-                    <li key={s.id} className="flex gap-3 p-3.5">
+                    <li key={s.id}
+                      onClick={() => { if (editMode) { setEditing(null); setEditSceneIndex(i); } }}
+                      className={`flex gap-3 p-3.5 transition ${editMode ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/10' : ''} ${editMode && editSceneIndex === i ? 'bg-purple-50 dark:bg-purple-900/10' : ''}`}>
                       <span className="shrink-0 w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-bold flex items-center justify-center">{i + 1}</span>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm font-semibold text-gray-900 dark:text-white">{s.text}</p>
