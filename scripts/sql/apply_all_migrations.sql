@@ -3318,3 +3318,12 @@ ON CONFLICT (id) DO NOTHING;
 ALTER TABLE os_form_applications
   ADD COLUMN IF NOT EXISTS rejected boolean DEFAULT false,
   ADD COLUMN IF NOT EXISTS decision_note text;
+
+-- ===== 20260815090000_os_onboarding_handoff.sql =====
+-- OS-25: Onboarding handoff — an approved application in Applications Review
+-- can be onboarded into a real relationship profile on os_onboarding. The
+-- source_reference column keeps that handoff traceable back to the
+-- os_form_applications row it came from. Idempotent; the UNIQUE (org_id, email)
+-- constraint already refuses duplicate onboards.
+ALTER TABLE os_onboarding
+  ADD COLUMN IF NOT EXISTS source_reference text;

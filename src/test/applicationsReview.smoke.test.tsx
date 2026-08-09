@@ -112,4 +112,18 @@ describe('Applications Review smoke', () => {
     expect(screen.getByText('Computer Science')).toBeInTheDocument();
     expect(screen.getAllByText('Reference')).toBeDefined();
   });
+
+  it('onboards an approved application into a relationship profile', async () => {
+    renderReview();
+    await screen.findByText(/5 applications/);
+
+    const chukwuRow = screen.getByText('Chukwu Emeka').closest('.rounded-xl') as HTMLElement;
+    expect(within(chukwuRow).getByRole('button', { name: /Onboard/ })).toBeInTheDocument();
+
+    fireEvent.click(within(chukwuRow).getByRole('button', { name: /Onboard/ }));
+
+    expect(await within(chukwuRow).findByText('Onboarding')).toBeInTheDocument();
+    expect(within(chukwuRow).queryByRole('button', { name: /Onboard/ })).not.toBeInTheDocument();
+    expect(within(chukwuRow).getByRole('button', { name: /Advance to Active/ })).toBeInTheDocument();
+  });
 });

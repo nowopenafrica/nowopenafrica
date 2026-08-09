@@ -6,6 +6,7 @@ import {
   advanceStatus, mapApplicationRow, summarizeApplications, toApplicationRow,
   advanceApplication, rejectApplication, reopenApplication, canAdvance,
   nextStatusFor, acknowledgedAgreements, applicationPipeline,
+  onboardingRelationshipFor, onboardingProfileFromApplication,
   FORM_APPLICATIONS_SEED, isAllowedUpload, formatFileSize, MAX_UPLOAD_MB,
   type FormApplication, type HubRelationshipType,
 } from './formsEngine';
@@ -198,6 +199,43 @@ describe('formsEngine — reviewer decisions (OS-24)', () => {
     ], new Date('2026-08-14T12:00:00Z'));
     expect(s.rejected).toBe(1);
     expect(s.approved).toBe(1);
+  });
+});
+
+describe('formsEngine — onboarding handoff (OS-25)', () => {
+  it('maps every hub relationship to the onboarding journey it walks', () => {
+    expect(onboardingRelationshipFor('employee')).toBe('employee');
+    expect(onboardingRelationshipFor('intern')).toBe('employee');
+    expect(onboardingRelationshipFor('volunteer')).toBe('volunteer');
+    expect(onboardingRelationshipFor('partner')).toBe('partner');
+    expect(onboardingRelationshipFor('collaborator')).toBe('creative');
+    expect(onboardingRelationshipFor('business')).toBe('partner');
+    expect(onboardingRelationshipFor('advisor')).toBe('investor');
+    expect(onboardingRelationshipFor('media')).toBe('media-partner');
+    expect(onboardingRelationshipFor('other')).toBe('other');
+  });
+
+  it('builds a relationship profile from an approved employee application', () => {
+    const p = onboardingProfileFromApplication(FORM_APPLICATIONS_SEED[0]); // Chukwu Emeka, approved
+    expect(p.full_name).toBe('Chukwu Emeka');
+    expect(p.email).toBe('chukwu@nowopen.africa');
+    expect(p.relationship).toBe('employee');
+    expect(p.department).toBe('Creative & Brand');
+    expect(p.role).toBe('Senior Motion Designer');
+    expect(p.country).toBe('Nigeria');
+    expect(p.source_reference).toBe('NOW-EMP-2026-8K2MZ4');
+    expect(p.steps_completed).toEqual(['personal-information']);
+    expect(p.signed_agreements).toEqual([]);
+    expect(p.access_grants).toEqual([]);
+  });
+
+  it('starts an intern on the employee journey and a partner on the partner journey', () => {
+    const intern = onboardingProfileFromApplication(FORM_APPLICATIONS_SEED[1]);
+    expect(intern.relationship).toBe('employee');
+    expect(intern.steps_completed).toEqual(['personal-information']);
+    const partner = onboardingProfileFromApplication(FORM_APPLICATIONS_SEED[3]);
+    expect(partner.relationship).toBe('partner');
+    expect(partner.steps_completed).toEqual(['company-information']);
   });
 });
 

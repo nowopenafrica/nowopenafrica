@@ -2,17 +2,18 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   Loader2, Inbox, ClipboardList, CheckCircle2, XCircle, CalendarClock,
-  ArrowRight, RotateCcw, Search, ChevronDown, X,
+  ArrowRight, RotateCcw, Search, ChevronDown, X, UserPlus,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { NOWOPEN_ORG_ID } from '../../lib/workforce';
+import type { OnboardingProfile } from '../../lib/onboardingProfiles';
 import {
   HUB_RELATIONSHIP_TYPES, hubRelationshipById,
   schemaFor, APPLICATION_STATUSES, APPLICATION_STATUS_LABELS,
   mapApplicationRow, toApplicationRow, summarizeApplications,
   FORM_APPLICATIONS_SEED, advanceApplication, rejectApplication,
   reopenApplication, canAdvance, nextStatusFor, applicationPipeline,
-  acknowledgedAgreements, formatFileSize,
+  acknowledgedAgreements, formatFileSize, onboardingProfileFromApplication,
   type FormApplication, type ApplicationRow, type ApplicationStatus,
   type HubRelationshipType,
 } from '../../lib/formsEngine';
@@ -22,8 +23,8 @@ import {
 // and status, walked through its own pipeline one honest step at a time, or
 // rejected with a note (which leaves it on the ledger, reopenable any time).
 // Reviewing records the decision on os_form_applications — nothing else happens
-// automatically, and approved applicants continue in the Onboarding Command
-// Center.
+// automatically. An approved application can be handed off into a real
+// os_onboarding relationship profile, which advances it to onboarding.
 
 function answerValue(v: unknown): string {
   if (v === null || v === undefined) return '';
@@ -129,6 +130,32 @@ export default function ApplicationsReview() {
     }
   };
 
+  const persistProfile = async (profile: OnboardingProfile) => {
+    if (usingFallback) return true;
+    const { error } = await supabase.from('os_onboarding').insert(profile);
+    return !error;
+  };
+
+  const onboard = async (app: FormApplication) => {
+    if (app.status !== 'approved') return;
+    const profile = onboardingProfileFromApplication(app);
+    const next = advanceApplication(app);
+    setBusy(true);
+    try {
+      const profOk = await persistProfile(profile);
+      const appOk = profOk ? await persistApplication(next) : false;
+      if (profOk && appOk) {
+        toast.success(`${app.reference} onboarded — ${profile.full_name} now has a relationship profile and the application moved to onboarding.`);
+      } else if (profOk) {
+        toast.error('Profile created, but the application status could not be saved.');
+      } else {
+        toast.error('Could not create the onboarding profile — they may already be onboarded.');
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const summary = useMemo(() => summarizeApplications(applications), [applications]);
 
   const visible = useMemo(() => {
@@ -202,7 +229,7 @@ export default function ApplicationsReview() {
           </div>
         </div>
         <p className="mt-2 text-[11px] text-gray-400 dark:text-gray-500">
-          Every submission from the public Forms Hub, reviewed honestly. Advancing moves an application one step along its own relationship pipeline; rejecting records the reason on the ledger without deleting it. No email is sent and no profile is created by a decision here — approved applicants continue in the Onboarding Command Center.
+          Every submission from the public Forms Hub, reviewed honestly. Advancing moves an application one step along its own relationship pipeline; rejecting records the reason on the ledger without deleting it. No email is sent by a decision here — and nothing else happens automatically until you choose to onboard an approved application into a relationship profile, which moves it to onboarding in the Onboarding Command Center.
         </p>
       </div>
 
@@ -301,7 +328,12 @@ export default function ApplicationsReview() {
                     <span className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-500 dark:text-gray-400">via {a.source}</span>
                   )}
                   <span className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-500 dark:text-gray-400">{a.country}</span>
-                  {canAdvance(a) && next && (
+                  {a.status === 'approved' ? (
+                    <button type="button" onClick={() => onboard(a)} disabled={busy}
+                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition">
+                      <UserPlus size={10} /> Onboard
+                    </button>
+                  ) : canAdvance(a) && next && (
                     <button type="button" onClick={() => advance(a)} disabled={busy}
                       className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition">
                       <ArrowRight size={10} /> Advance to {APPLICATION_STATUS_LABELS[next]}

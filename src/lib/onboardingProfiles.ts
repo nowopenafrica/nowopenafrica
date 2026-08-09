@@ -47,6 +47,8 @@ export interface OnboardingProfile {
   signed_agreements: string[];
   /** Access scopes granted once onboarding finishes (role-based). */
   access_grants: string[];
+  /** The os_form_applications reference this profile was created from (OS-25). */
+  source_reference?: string | null;
   blocked_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -67,6 +69,7 @@ export interface OnboardingRow {
   steps_completed?: unknown;
   signed_agreements?: unknown;
   access_grants?: unknown;
+  source_reference?: string | null;
   blocked_at?: string | null;
   created_at?: string;
   updated_at?: string;
@@ -98,6 +101,7 @@ export function mapOnboardingRow(row: OnboardingRow): OnboardingProfile {
     steps_completed: asStringList(row.steps_completed),
     signed_agreements: asStringList(row.signed_agreements),
     access_grants: asStringList(row.access_grants),
+    source_reference: row.source_reference,
     blocked_at: row.blocked_at,
     created_at: row.created_at,
     updated_at: row.updated_at,

@@ -11,6 +11,8 @@
 // local storage until the migration is applied.
 
 import { NOWOPEN_ORG_ID } from './workforce';
+import { journeyFor, type RelationshipType } from './relationships';
+import type { OnboardingProfile } from './onboardingProfiles';
 
 export type HubRelationshipType =
   | 'employee'
@@ -819,6 +821,55 @@ export function acknowledgedAgreements(app: FormApplication): string[] {
   return Object.entries(app.answers)
     .filter(([key, v]) => key.startsWith('agreed_') && v === true)
     .map(([key]) => key.slice('agreed_'.length));
+}
+
+// ---------------------------------------------------------------------------
+// OS-25 Onboarding handoff: turning an approved application into a real
+// NowOpen Relationship Profile on os_onboarding. The hub relationship maps to
+// the onboarding journey it walks (interns onboard through the employee
+// journey, advisors through the investor journey, and so on), and the profile
+// is created from what the application genuinely proved — identity, contact,
+// country, and the first journey step already behind them. source_reference
+// keeps the handoff traceable back to the application.
+
+const HUB_TO_ONBOARDING: Record<HubRelationshipType, RelationshipType> = {
+  employee: 'employee',
+  intern: 'employee',
+  volunteer: 'volunteer',
+  partner: 'partner',
+  collaborator: 'creative',
+  business: 'partner',
+  advisor: 'investor',
+  media: 'media-partner',
+  other: 'other',
+};
+
+export function onboardingRelationshipFor(rel: HubRelationshipType): RelationshipType {
+  return HUB_TO_ONBOARDING[rel] ?? 'other';
+}
+
+export function onboardingProfileFromApplication(app: FormApplication): OnboardingProfile {
+  const relationship = onboardingRelationshipFor(app.relationship);
+  const journey = journeyFor(relationship);
+  const role = typeof app.answers.desired_role === 'string' ? app.answers.desired_role : undefined;
+  const department = typeof app.answers.desired_department === 'string'
+    ? app.answers.desired_department
+    : undefined;
+  return {
+    id: crypto.randomUUID?.() ?? `obo-${Date.now()}-${Math.floor(Math.random() * 100000)}`,
+    org_id: app.org_id,
+    full_name: app.applicant_name,
+    email: app.email,
+    relationship,
+    department,
+    role,
+    country: app.country,
+    steps_completed: journey.length > 0 ? [journey[0].id] : [],
+    signed_agreements: [],
+    access_grants: [],
+    source_reference: app.reference,
+    created_at: new Date().toISOString(),
+  };
 }
 
 // ---------------------------------------------------------------------------
