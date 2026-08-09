@@ -14,9 +14,9 @@
 // (Apple-TV key art), `glass` (frosted panels) or `3d` (parallax depth). The
 // layout itself lives in one place — `sceneLayout` — so `sceneElementRegions`
 // (normalised click targets used by the editable live preview) always hit-test
-// exactly what `drawOverlay` paints. An optional user-uploaded `backdrop`
-// (image or video, session-local, never persisted) replaces the designed
-// gradient in the preview and every export; it steps aside for AI footage or
+// exactly what `drawOverlay` paints. Session-local user-uploaded `layers`
+// (images/videos, never persisted) stack bottom-to-top in place of the designed
+// gradient in the preview and every export; they step aside for AI footage or
 // key art when those cover a scene.
 //
 // The module keeps all pure planning math separate from the DOM work so it can
@@ -90,19 +90,29 @@ export interface RenderOptions {
    */
   treatment?: MotionTreatment;
   /**
-   * User-uploaded backdrop for the live preview and every export (video, poster,
-   * contact sheet, still). Session-local only: it rides on the in-memory options,
-   * is never persisted to a project or the database, and is drawn in place of the
-   * designed gradient whenever no AI footage or key art covers a scene. The
-   * preloaded elements live in the caller; the renderer never owns them.
+   * User-uploaded layers for the live preview and every export (video, poster,
+   * contact sheet, still). Session-local only: they ride on the in-memory options,
+   * are never persisted to a project or the database, and are drawn in place of the
+   * designed gradient whenever no AI footage or key art covers a scene. Layer 0 is
+   * the base (full-bleed cover); extra layers stack on top at their own opacity,
+   * always under the caption overlay. The preloaded elements live in the caller;
+   * the renderer never owns them.
    */
-  backdrop?: BackgroundMediaElement | null;
+  layers?: MotionLayer[] | null;
 }
 
-/** An uploaded image or video that replaces the designed motion-graphic backdrop. */
-export interface BackgroundMediaElement {
+/**
+ * An uploaded image or video used to compose the film. Layer 0 acts as the base
+ * backdrop (or steps aside for AI footage/key art); further layers composite on
+ * top of it at `opacity` (0..1), under the captions. Object URLs only — the
+ * renderer never persists or clones ownership beyond its own export film.
+ */
+export interface MotionLayer {
   kind: 'image' | 'video';
   url: string;
+  /** 0..1 composite opacity; 1 for the base layer. */
+  opacity?: number;
+  name?: string;
   image?: HTMLImageElement | null;
   video?: HTMLVideoElement | null;
 }
@@ -147,6 +157,8 @@ export function renderSeed(...parts: (string | number)[]): number {
 }
 
 const PALETTES: [string, string, string][] = [
+  // NowOpen Africa signature: deep violet → purple → blue (#9333ea → #2563eb).
+  ['#2e1065', '#9333ea', '#2563eb'],
   ['#0f172a', '#7c3aed', '#ec4899'],
   ['#1e1b4b', '#4f46e5', '#22d3ee'],
   ['#0c4a6e', '#0891b2', '#f59e0b'],
@@ -650,6 +662,7 @@ function drawBackdrop(
   plan: SceneRenderPlan,
   source: FrameSource,
   frame: number,
+  layers?: MotionLayer[] | null,
   clean = false,
 ): void {
   if (source.kind === 'video' && isVideoReady(source.video)) {
@@ -665,8 +678,28 @@ function drawBackdrop(
   }
   // Style ambience on top of whatever backdrop won (grid/scanlines/spotlight/
   // shapes). Deterministic per seed+frame, so a brief always films the same.
-  // Skipped for the user's uploaded backdrop — that one should read clean.
+  // Skipped when the user composed uploads — those should read clean.
   if (!clean) drawTreatmentBackdrop(ctx, w, h, plan, frame);
+  // Composite the user's uploads. The base layer is already the winning source
+  // (or it steps aside for AI media); extra layers stack above it at their own
+  // opacity — a simple bottom-to-top compositor under the captions.
+  if (layers) {
+    const baseWon = layerIsSource(source, layers[0]);
+    for (let i = 0; i < layers.length; i++) {
+      const layer = layers[i];
+      if (i === 0 && baseWon) continue;
+      const alpha = clamp(layer.opacity ?? 1, 0, 1);
+      if (alpha <= 0) continue;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      if (layer.kind === 'video' && layer.video && isVideoReady(layer.video)) {
+        drawVideoCover(ctx, w, h, layer.video);
+      } else if (layer.kind === 'image' && layer.image && isImageReady(layer.image)) {
+        drawImageCover(ctx, w, h, layer.image);
+      }
+      ctx.restore();
+    }
+  }
 }
 
 function drawSceneContent(
@@ -691,7 +724,8 @@ function drawSceneContent(
   ctx.translate(w / 2 + drift, h / 2);
   ctx.scale(scale, scale);
   ctx.translate(-w / 2, -h / 2);
-  drawBackdrop(ctx, w, h, plan, source, frame, backdropWon(source, opts.backdrop));
+  const hasUploads = !!opts.layers?.length;
+  drawBackdrop(ctx, w, h, plan, source, frame, opts.layers, hasUploads);
   ctx.restore();
 
   drawOverlay(
@@ -896,6 +930,16 @@ function drawOverlay(
     ctx.fillText((opts.cta ?? 'Tap to order').toUpperCase(), w / 2, L.ctaY);
     ctx.restore();
   }
+
+  // NowOpen Africa platform mark — a subtle bottom-corner watermark on every
+  // scene so every design style carries the house brand next to the business's.
+  ctx.save();
+  ctx.textAlign = 'left';
+  ctx.font = `800 ${Math.round(smallSize * 0.78)}px system-ui, sans-serif`;
+  try { ctx.letterSpacing = '0.14em'; } catch { /* older browsers ignore */ }
+  ctx.fillStyle = 'rgba(255,255,255,0.34)';
+  ctx.fillText('✦ NOWOPEN AFRICA', Math.round(w * 0.035), h - (isVertical ? 22 : 18));
+  ctx.restore();
 }
 
 function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number): void {
@@ -927,7 +971,7 @@ function drawTimelineFrame(
   const { scene, t } = timelineAt(timeline, frame);
   const current = scenes[scene.index];
   const plan = sceneRenderPlan(opts, current, scene.index);
-  const source = resolveSource(videos?.[scene.index] ?? null, images?.[scene.index] ?? null, opts.backdrop);
+  const source = resolveSource(videos?.[scene.index] ?? null, images?.[scene.index] ?? null, opts.layers);
 
   drawSceneContent(ctx, w, h, plan, scene.index, current, t, opts, source, frame);
 
@@ -938,7 +982,7 @@ function drawTimelineFrame(
     if (within <= plan.transitionFrames) {
       const blend = 1 - within / plan.transitionFrames;
       const nextPlan = sceneRenderPlan(opts, scenes[nextIndex], nextIndex);
-      const nextSource = resolveSource(videos?.[nextIndex] ?? null, images?.[nextIndex] ?? null, opts.backdrop);
+      const nextSource = resolveSource(videos?.[nextIndex] ?? null, images?.[nextIndex] ?? null, opts.layers);
       ctx.save();
       ctx.globalAlpha = clamp(blend, 0, 1);
       drawSceneContent(ctx, w, h, nextPlan, nextIndex, scenes[nextIndex], 0, opts, nextSource, frame);
@@ -948,31 +992,32 @@ function drawTimelineFrame(
 }
 
 /**
- * Backdrop priority: real footage video, then AI key art, then the uploaded
- * backdrop, then the gradient. Pure geometry — no DOM needed, so it is exported
- * for unit tests.
+ * Backdrop priority: real footage video, then AI key art, then the first
+ * uploaded layer, then the gradient. Pure geometry — no DOM needed, so it is
+ * exported for unit tests.
  */
 export function resolveSource(
   video: HTMLVideoElement | null,
   image: HTMLImageElement | null,
-  backdrop?: BackgroundMediaElement | null,
+  layers?: MotionLayer[] | null,
 ): FrameSource {
+  const base = layers?.[0] ?? null;
   if (isVideoReady(video)) return { kind: 'video', video };
   if (isImageReady(image)) return { kind: 'image', image };
-  if (backdrop?.kind === 'video' && isVideoReady(backdrop.video ?? null)) return { kind: 'video', video: backdrop.video ?? null };
-  if (backdrop?.kind === 'image' && isImageReady(backdrop.image ?? null)) return { kind: 'image', image: backdrop.image ?? null };
+  if (base?.kind === 'video' && isVideoReady(base.video ?? null)) return { kind: 'video', video: base.video ?? null };
+  if (base?.kind === 'image' && isImageReady(base.image ?? null)) return { kind: 'image', image: base.image ?? null };
   return { kind: 'gradient' };
 }
 
 /**
- * Whether the winning source came from the user's uploaded backdrop. When it
- * does, the style ambience (scanlines/spotlight/blobs) steps aside so the
+ * Whether the winning source came from a user-uploaded layer. When the base
+ * layer wins, the style ambience (scanlines/spotlight/blobs) steps aside so the
  * upload reads as the background the user actually chose.
  */
-function backdropWon(source: FrameSource, backdrop?: BackgroundMediaElement | null): boolean {
-  if (!backdrop) return false;
-  if (source.kind === 'video' && backdrop.kind === 'video' && source.video === backdrop.video) return true;
-  if (source.kind === 'image' && backdrop.kind === 'image' && source.image === backdrop.image) return true;
+function layerIsSource(source: FrameSource, layer?: MotionLayer | null): boolean {
+  if (!layer) return false;
+  if (source.kind === 'video' && layer.kind === 'video' && source.video === layer.video) return true;
+  if (source.kind === 'image' && layer.kind === 'image' && source.image === layer.image) return true;
   return false;
 }
 
@@ -1040,7 +1085,7 @@ export function renderContactSheet(opts: SceneFrameOptions, scenes: DirectorScen
   ctx.textAlign = 'center';
   ctx.fillText(`${opts.businessName} — ${opts.directionLabel} storyboard`, canvas.width / 2, 70);
 
-  const backdropSource = resolveSource(null, null, opts.backdrop);
+  const backdropSource = resolveSource(null, null, opts.layers);
   scenes.forEach((scene, i) => {
     const col = i % cols;
     const row = Math.floor(i / cols);
@@ -1078,7 +1123,7 @@ export function renderSceneStill(
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   const plan = sceneRenderPlan(opts, scene, index);
-  drawSceneContent(ctx, w, h, plan, index, scene, 0.5, opts, resolveSource(null, image ?? null, opts.backdrop), 0);
+  drawSceneContent(ctx, w, h, plan, index, scene, 0.5, opts, resolveSource(null, image ?? null, opts.layers), 0);
   return { dataUrl: canvas.toDataURL('image/png'), width: w, height: h };
 }
 
@@ -1254,22 +1299,33 @@ export async function renderVideo(
     return Math.floor(rng() * clip.duration);
   });
 
-  // The export films its OWN backdrop video (cloned from the upload URL) so
-  // seeking/playing it never disturbs the element the live preview animates.
+  // The export films its OWN layer videos (cloned from the upload URLs) so
+  // seeking/playing them never disturbs the elements the live preview animates.
   const exportOpts: SceneFrameOptions =
-    opts.backdrop?.kind === 'video'
-      ? { ...opts, backdrop: { ...opts.backdrop, video: createBackgroundVideo(opts.backdrop.url) } }
+    (opts.layers ?? []).some((l) => l.kind === 'video')
+      ? {
+          ...opts,
+          layers: (opts.layers ?? []).map((l) =>
+            l.kind === 'video' ? { ...l, video: createBackgroundVideo(l.url) } : l,
+          ),
+        }
       : opts;
-  const backdropVideo = exportOpts.backdrop?.kind === 'video' ? exportOpts.backdrop.video ?? null : null;
-  if (backdropVideo && !isVideoReady(backdropVideo)) await preloadFootageVideos([backdropVideo]);
-  if (backdropVideo && isVideoReady(backdropVideo)) {
-    const dur = backdropVideo.duration;
-    const offset = isFinite(dur) && dur > 0
-      ? Math.floor(mulberry32(renderSeed('backdrop', opts.businessName))() * dur)
-      : 0;
-    try { backdropVideo.currentTime = offset; } catch { /* stay at 0 */ }
-    const p = backdropVideo.play();
-    if (p) p.catch(() => { /* a stalled backdrop just draws its ready frame */ });
+  const exportLayerVideos: HTMLVideoElement[] = [];
+  (exportOpts.layers ?? []).forEach((l) => {
+    if (l.kind === 'video' && l.video) exportLayerVideos.push(l.video);
+  });
+  if (exportLayerVideos.length > 0) {
+    await preloadFootageVideos(exportLayerVideos.filter((v) => !isVideoReady(v)));
+    exportLayerVideos.forEach((v, i) => {
+      if (!isVideoReady(v)) return;
+      const dur = v.duration;
+      const offset = isFinite(dur) && dur > 0
+        ? Math.floor(mulberry32(renderSeed('layer', opts.businessName, i))() * dur)
+        : 0;
+      try { v.currentTime = offset; } catch { /* stay at 0 */ }
+      const p = v.play();
+      if (p) p.catch(() => { /* a stalled layer just draws its ready frame */ });
+    });
   }
 
   // Preload AI key art when present; scenes without a ready image fall back to

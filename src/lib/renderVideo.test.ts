@@ -3,7 +3,7 @@ import {
   renderSeed, sceneRenderPlan, buildRenderTimeline, timelineAt,
   pickRenderMime, renderTotalSeconds, renderSceneStill, RENDER_DIMENSIONS, RENDER_FPS,
   RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled, RENDER_PALETTES,
-  sceneLayout, sceneElementRegions, resolveSource, type BackgroundMediaElement } from './renderVideo';
+  sceneLayout, sceneElementRegions, resolveSource, type MotionLayer } from './renderVideo';
 import type { DirectorScene } from './creativeDirector';
 
 const base: RenderOptions = {
@@ -143,29 +143,37 @@ describe('renderVideo — layout & editable regions', () => {
   });
 });
 
-describe('renderVideo — uploaded backdrop priority', () => {
+describe('renderVideo — uploaded layer priority', () => {
   const fakeVideo = (ready: boolean): HTMLVideoElement =>
     ({ readyState: ready ? 4 : 0, videoWidth: ready ? 1920 : 0, videoHeight: ready ? 1080 : 0 }) as unknown as HTMLVideoElement;
   const fakeImage = (ready: boolean): HTMLImageElement =>
     ({ complete: ready, naturalWidth: ready ? 1920 : 0, naturalHeight: ready ? 1080 : 0 }) as unknown as HTMLImageElement;
 
-  const backdropImage: BackgroundMediaElement = { kind: 'image', url: 'blob:img', image: fakeImage(true) };
-  const backdropVideo: BackgroundMediaElement = { kind: 'video', url: 'blob:vid', video: fakeVideo(true) };
+  const layersImage: MotionLayer[] = [{ kind: 'image', url: 'blob:img', image: fakeImage(true) }];
+  const layersVideo: MotionLayer[] = [{ kind: 'video', url: 'blob:vid', video: fakeVideo(true) }];
 
-  it('shows the uploaded backdrop instead of the gradient', () => {
-    expect(resolveSource(null, null, backdropImage).kind).toBe('image');
-    expect(resolveSource(null, null, backdropVideo).kind).toBe('video');
+  it('shows the base uploaded layer instead of the gradient', () => {
+    expect(resolveSource(null, null, layersImage).kind).toBe('image');
+    expect(resolveSource(null, null, layersVideo).kind).toBe('video');
   });
 
-  it('keeps a not-yet-loaded backdrop falling back to the gradient', () => {
-    expect(resolveSource(null, null, { kind: 'image', url: 'blob:img', image: fakeImage(false) }).kind).toBe('gradient');
-    expect(resolveSource(null, null, { kind: 'video', url: 'blob:vid', video: fakeVideo(false) }).kind).toBe('gradient');
+  it('keeps a not-yet-loaded layer falling back to the gradient', () => {
+    expect(resolveSource(null, null, [{ kind: 'image', url: 'blob:img', image: fakeImage(false) }]).kind).toBe('gradient');
+    expect(resolveSource(null, null, [{ kind: 'video', url: 'blob:vid', video: fakeVideo(false) }]).kind).toBe('gradient');
   });
 
-  it('lets AI footage and key art cover the backdrop (never overrides the film)', () => {
-    expect(resolveSource(fakeVideo(true), null, backdropImage).kind).toBe('video');
-    expect(resolveSource(null, fakeImage(true), backdropImage).kind).toBe('image');
+  it('lets AI footage and key art cover the base layer (never overrides the film)', () => {
+    expect(resolveSource(fakeVideo(true), null, layersImage).kind).toBe('video');
+    expect(resolveSource(null, fakeImage(true), layersImage).kind).toBe('image');
     expect(resolveSource(null, null, undefined).kind).toBe('gradient');
+  });
+
+  it('keeps the first layer as the base when extra layers stack on top', () => {
+    const stacked: MotionLayer[] = [
+      { kind: 'image', url: 'blob:bg', image: fakeImage(true) },
+      { kind: 'video', url: 'blob:overlay', video: fakeVideo(true) },
+    ];
+    expect(resolveSource(null, null, stacked).kind).toBe('image');
   });
 });
 

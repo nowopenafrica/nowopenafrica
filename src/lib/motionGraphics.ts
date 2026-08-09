@@ -27,7 +27,7 @@ export type MotionStyle =
   | 'glassmorphic'
   | 'isometric-3d';
 
-export type MotionDuration = 'short' | 'medium' | 'long';
+export type MotionDuration = 'short' | 'medium' | 'long' | 'extended' | 'cinematic';
 
 export interface MotionConfig {
   business: string;
@@ -41,7 +41,13 @@ export interface MotionConfig {
 }
 
 /** Seconds per card scene for the chosen pacing. */
-export const MOTION_SECONDS: Record<MotionDuration, number> = { short: 2, medium: 3, long: 4 };
+export const MOTION_SECONDS: Record<MotionDuration, number> = {
+  short: 2,
+  medium: 3,
+  long: 4,
+  extended: 5,
+  cinematic: 6,
+};
 
 const CAMERAS = ['Punch-in zoom', 'Slow push-in', 'Tracking shot', 'Rack focus', 'Static tripod'];
 const MOTIONS = ['Energetic', 'Steady', 'Gentle', 'Hold'];

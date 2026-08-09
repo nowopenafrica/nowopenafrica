@@ -129,10 +129,15 @@ describe('motionProject — AI Director (local, deterministic)', () => {
   });
 
   it('maps long form to long duration and landscape sizes', () => {
-    const p = motionProjectFromPrompt('A 30 second YouTube opener for a fashion boutique.');
+    const p = motionProjectFromPrompt('A 20 second YouTube opener for a fashion boutique.');
     expect(p.brief.duration).toBe('long');
     expect(p.brief.aspect).toBe('Landscape');
     expect(p.brief.logoEmoji).toBe('🛍️');
+  });
+
+  it('scales up to extended and cinematic durations for longer briefs', () => {
+    expect(motionProjectFromPrompt('A 30 second brand film for a restaurant.').brief.duration).toBe('extended');
+    expect(motionProjectFromPrompt('A 40 second documentary opener for an agency.').brief.duration).toBe('cinematic');
   });
 
   it('falls back to NowOpen defaults for a vague prompt', () => {

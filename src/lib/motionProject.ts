@@ -203,11 +203,16 @@ function detectDuration(prompt: string): MotionDuration {
   if (m) {
     const n = parseInt(m[1], 10);
     if (n <= 10) return 'short';
-    if (n <= 20) return 'medium';
-    return 'long';
+    if (n <= 15) return 'medium';
+    if (n <= 20) return 'long';
+    if (n <= 30) return 'extended';
+    return 'cinematic';
   }
-  if (/short/.test(prompt.toLowerCase())) return 'short';
-  if (/long|cinematic/.test(prompt.toLowerCase())) return 'long';
+  const p = prompt.toLowerCase();
+  if (/short/.test(p)) return 'short';
+  if (/cinematic/.test(p)) return 'cinematic';
+  if (/extended|slow|relaxed/.test(p)) return 'extended';
+  if (/long/.test(p)) return 'long';
   return 'medium';
 }
 

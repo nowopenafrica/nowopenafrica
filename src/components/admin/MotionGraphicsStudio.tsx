@@ -3,6 +3,7 @@ import toast from 'react-hot-toast';
 import {
   Film, Download, ImageIcon, LayoutGrid, Loader2, Sparkles, ListVideo,
   LayoutTemplate, Check, Plus, Copy, Trash2, FolderOpen, Wand2, Clapperboard,
+  Layers, ChevronUp, ChevronDown,
 } from 'lucide-react';
 import type { DirectorScene } from '../../lib/creativeDirector';
 import {
@@ -10,7 +11,7 @@ import {
   sceneElementRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
   createBackgroundVideo, createBackgroundImage,
   type RenderAspect, type SceneFrameOptions, type MotionTreatment,
-  type SceneElementKey, type BackgroundMediaElement,
+  type SceneElementKey, type MotionLayer,
 } from '../../lib/renderVideo';
 import {
   motionScenesFromJob, motionTotalSeconds, MOTION_SCENE_COUNTS,
@@ -136,6 +137,8 @@ const DURATIONS: { key: MotionDuration; label: string; hint: string }[] = [
   { key: 'short', label: 'Short', hint: '2s / card' },
   { key: 'medium', label: 'Medium', hint: '3s / card' },
   { key: 'long', label: 'Long', hint: '4s / card' },
+  { key: 'extended', label: 'Extended', hint: '5s / card' },
+  { key: 'cinematic', label: 'Cinematic', hint: '6s / card' },
 ];
 
 function timeAgo(iso: string): string {
@@ -178,12 +181,14 @@ function MotionPreview({
     let frame = 0;
     let raf = 0;
 
-    // Keep an uploaded video backdrop animating behind the captions.
-    const backdropVideo = opts.backdrop?.kind === 'video' ? opts.backdrop.video ?? null : null;
-    if (backdropVideo) {
-      const p = backdropVideo.play();
-      if (p) p.catch(() => { /* autoplay-blocked — the frame draws whatever is ready */ });
-    }
+    // Keep uploaded video layers animating behind the captions.
+    (opts.layers ?? [])
+      .filter((l) => l.kind === 'video')
+      .forEach((l) => {
+        if (!l.video) return;
+        const p = l.video.play();
+        if (p) p.catch(() => { /* autoplay-blocked — the frame draws whatever is ready */ });
+      });
 
     const paintRegions = (si: number) => {
       const regions = sceneElementRegions(opts, si);
@@ -273,38 +278,61 @@ export default function MotionGraphicsStudio() {
   const [editSceneIndex, setEditSceneIndex] = useState(0);
   const [editing, setEditing] = useState<{ key: SceneElementKey; field: MotionField; label: string; value: string } | null>(null);
 
-  // Uploaded backdrop (image/video) that replaces the designed background in the
-  // preview and every export. Session-local: kept in component state as an
-  // object URL, never written to the project or the database.
-  const [backdrop, setBackdrop] = useState<(BackgroundMediaElement & { name: string }) | null>(null);
-  const backdropRef = useRef(backdrop);
-  backdropRef.current = backdrop;
+  // User-uploaded layers (images/videos) that compose the film bottom-to-top in
+  // the preview and every export. Session-local: kept in component state as
+  // object URLs, never written to the project or the database.
+  const [layers, setLayers] = useState<(MotionLayer & { name: string })[]>([]);
+  const layersRef = useRef(layers);
+  layersRef.current = layers;
   useEffect(() => () => {
-    if (backdropRef.current?.url) URL.revokeObjectURL(backdropRef.current.url);
+    layersRef.current.forEach((l) => { if (l.url) URL.revokeObjectURL(l.url); });
   }, []);
 
-  const onBackdropFile = (file: File) => {
-    if (!/^(image|video)\//.test(file.type)) {
-      toast.error('Pick an image (PNG/JPG) or a video (MP4/WebM) for the background.');
+  const addLayerFiles = (files: FileList | File[]) => {
+    const fileList = Array.from(files);
+    if (fileList.length === 0) return;
+    const accepted = fileList.filter((f) => /^(image|video)\//.test(f.type));
+    if (accepted.length === 0) {
+      toast.error('Pick images (PNG/JPG) or videos (MP4/WebM) for the layers.');
       return;
     }
-    const url = URL.createObjectURL(file);
-    const media: BackgroundMediaElement = file.type.startsWith('video/')
-      ? { kind: 'video', url, video: createBackgroundVideo(url) }
-      : { kind: 'image', url, image: createBackgroundImage(url) };
-    setBackdrop((prev) => {
-      if (prev?.url) URL.revokeObjectURL(prev.url);
+    const next: (MotionLayer & { name: string })[] = accepted.map((file) => {
+      const url = URL.createObjectURL(file);
+      const media: MotionLayer = file.type.startsWith('video/')
+        ? { kind: 'video', url, video: createBackgroundVideo(url) }
+        : { kind: 'image', url, image: createBackgroundImage(url) };
       return { ...media, name: file.name };
     });
-    toast('Background media applied — shown in the preview and downloads, kept on this device only.');
+    setLayers((prev) => [...prev, ...next]);
+    toast(`Added ${accepted.length} layer${accepted.length > 1 ? 's' : ''} — composed in the preview & downloads, kept on this device only.`);
   };
 
-  const clearBackdrop = () => {
-    setBackdrop((prev) => {
-      if (prev?.url) URL.revokeObjectURL(prev.url);
-      return null;
+  const moveLayer = (i: number, dir: -1 | 1) => {
+    setLayers((prev) => {
+      const j = i + dir;
+      if (j < 0 || j >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(i, 1);
+      next.splice(j, 0, moved);
+      return next;
     });
-    toast('Background media removed — back to the designed motion graphic.');
+  };
+
+  const setLayerOpacity = (i: number, v: number) => {
+    setLayers((prev) => prev.map((l, idx) => (idx === i ? { ...l, opacity: v } : l)));
+  };
+
+  const removeLayer = (i: number) => {
+    const target = layers[i];
+    if (target?.url) URL.revokeObjectURL(target.url);
+    setLayers((prev) => prev.filter((_, idx) => idx !== i));
+    if (layers.length <= 1) toast('Layers removed — back to the designed motion graphic.');
+  };
+
+  const clearLayers = () => {
+    layers.forEach((l) => { if (l.url) URL.revokeObjectURL(l.url); });
+    setLayers([]);
+    toast('Layers removed — back to the designed motion graphic.');
   };
 
   // Autosave — every edit lands in nowopen_motion_projects.
@@ -389,10 +417,10 @@ export default function MotionGraphicsStudio() {
       logoEmoji: brief.logoEmoji || '✦',
       palette: project.palette,
       treatment: TREATMENT_FOR_STYLE[brief.style],
-      backdrop: backdrop ? { kind: backdrop.kind, url: backdrop.url, image: backdrop.image, video: backdrop.video } : null,
+      layers: layers.length > 0 ? layers : null,
       scenesCount: scenes.length,
     }),
-    [brief, label, project.palette, scenes.length, backdrop],
+    [brief, label, project.palette, scenes.length, layers],
   );
   const seconds = motionTotalSeconds(brief);
   const renderSource = project.render.source;
@@ -743,25 +771,43 @@ export default function MotionGraphicsStudio() {
                 <div className="mt-3">
                   <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex} onPick={pickElement} />
                   {renderSource === 'canvas' && (
-                    <div className="mt-2 flex flex-wrap items-center gap-2 max-w-md mx-auto">
-                      <label title="Replace the designed background with your own image or video (preview & downloads only, never saved)"
+                    <div className="mt-2 max-w-md mx-auto">
+                      <label title="Compose your film: the first layer is the background, extra layers stack on top under the captions (preview & downloads only, never saved)"
                         className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 cursor-pointer">
-                        <ImageIcon size={12} /> {backdrop ? backdrop.name : 'Upload background (image/video)'}
-                        <input type="file" accept="image/*,video/*" className="hidden" onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) onBackdropFile(f);
+                        <Layers size={12} /> {layers.length === 0 ? 'Add layers (image/video)' : 'Add another layer'}
+                        <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => {
+                          if (e.target.files) addLayerFiles(e.target.files);
                           e.target.value = '';
                         }} />
                       </label>
-                      {backdrop && (
-                        <>
-                          <span className="text-[11px] text-gray-400">
-                            {backdrop.kind === 'video' ? 'Video' : 'Image'} — preview & downloads only, never saved
-                          </span>
-                          <button onClick={clearBackdrop} className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">
-                            <Trash2 size={11} /> Remove
-                          </button>
-                        </>
+                      {layers.length === 0 ? (
+                        <p className="mt-1.5 text-[11px] text-gray-400">
+                          First layer = background; extra layers stack on top. Preview & downloads only, never saved.
+                        </p>
+                      ) : (
+                        <ul className="mt-2 space-y-1.5">
+                          {layers.map((l, i) => (
+                            <li key={l.url} className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1.5">
+                              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${l.kind === 'video' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'}`}>
+                                {i === 0 ? 'BG' : `L${i + 1}`} · {l.kind}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-gray-700 dark:text-gray-200">{l.name}</span>
+                              <input type="range" min={0} max={100} value={Math.round((l.opacity ?? 1) * 100)}
+                                onChange={(e) => setLayerOpacity(i, Number(e.target.value) / 100)}
+                                title={`Opacity ${Math.round((l.opacity ?? 1) * 100)}%`} className="w-16" />
+                              <div className="flex items-center gap-0.5">
+                                <button onClick={() => moveLayer(i, -1)} disabled={i === 0} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={13} /></button>
+                                <button onClick={() => moveLayer(i, 1)} disabled={i === layers.length - 1} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={13} /></button>
+                                <button onClick={() => removeLayer(i)} className="p-0.5 rounded text-red-400 hover:text-red-600"><Trash2 size={13} /></button>
+                              </div>
+                            </li>
+                          ))}
+                          <li className="flex justify-end">
+                            <button onClick={clearLayers} className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">
+                              <Trash2 size={11} /> Clear layers
+                            </button>
+                          </li>
+                        </ul>
                       )}
                     </div>
                   )}
