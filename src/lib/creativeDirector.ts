@@ -127,7 +127,48 @@ export interface TextElementStyle {
   dx?: number;
   /** Normalised vertical shift (-0.5..0.5) of the canvas height. */
   dy?: number;
+  /** Entrance animation played as the scene appears; defaults to none. */
+  animation?: TextAnimationKey;
+  /** Persistent visual effect layered over the text; defaults to none. */
+  effect?: TextEffectKey;
 }
+
+/** Entrance animations a caption element can play when its scene appears. */
+export type TextAnimationKey = 'pop' | 'rise' | 'slide' | 'fade' | 'letters' | 'zoom';
+
+/** Persistent visual treatments layered over a caption element's text. */
+export type TextEffectKey = 'glow' | 'shadow' | 'outline' | 'neon' | 'sparkle';
+
+export interface TextAnimationPreset {
+  key: TextAnimationKey;
+  label: string;
+  desc: string;
+}
+
+export interface TextEffectPreset {
+  key: TextEffectKey;
+  label: string;
+  desc: string;
+}
+
+/** The entrance animations offered by the Motion Studio per text element. */
+export const TEXT_ANIMATIONS: TextAnimationPreset[] = [
+  { key: 'pop', label: 'Pop', desc: 'Scales in with a springy overshoot.' },
+  { key: 'rise', label: 'Rise', desc: 'Lifts up and fades in from below.' },
+  { key: 'slide', label: 'Slide', desc: 'Slides in from the left.' },
+  { key: 'fade', label: 'Fade', desc: 'A gentle opacity fade in.' },
+  { key: 'letters', label: 'Letters', desc: 'Letter-spacing eases open wide.' },
+  { key: 'zoom', label: 'Zoom', desc: 'A quick, confident zoom in.' },
+];
+
+/** The per-element text effects offered by the Motion Studio. */
+export const TEXT_EFFECTS: TextEffectPreset[] = [
+  { key: 'glow', label: 'Glow', desc: 'A soft ambient halo around the text.' },
+  { key: 'shadow', label: 'Shadow', desc: 'A clean drop shadow that lifts the text.' },
+  { key: 'outline', label: 'Outline', desc: 'A contrasting outline around every glyph.' },
+  { key: 'neon', label: 'Neon', desc: 'Accent-coloured neon glow for LED energy.' },
+  { key: 'sparkle', label: 'Sparkle', desc: 'A subtle animated shimmer across the text.' },
+];
 
 export interface DirectorScene {
   id: string;

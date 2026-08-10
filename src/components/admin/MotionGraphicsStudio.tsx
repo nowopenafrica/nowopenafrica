@@ -8,6 +8,7 @@ import {
   HelpCircle, Settings, Eye, EyeOff,
 } from 'lucide-react';
 import type { DirectorScene, TextElementStyle } from '../../lib/creativeDirector';
+import { TEXT_ANIMATIONS, TEXT_EFFECTS } from '../../lib/creativeDirector';
 import {
   renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
   sceneElementRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
@@ -281,9 +282,15 @@ function MotionPreview({
     };
 
     if (editMode) {
-      // Frozen frame: the scene under edit, outlined and ready to click.
+      // Frozen frame: the scene under edit, outlined and ready to click. Freeze
+      // mid-scene so entrance animations have settled and every element is
+      // visible exactly where the hit-test regions say it is.
       const timing = timeline.scenes[Math.min(sceneIndex, timeline.scenes.length - 1)] ?? timeline.scenes[0];
-      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, timing.startFrame);
+      const settle = Math.min(
+        timing.startFrame + Math.round(timing.frames * 0.5),
+        Math.max(timing.startFrame, timing.endFrame - 1),
+      );
+      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, settle);
       paintRegions(timing.index);
       return () => window.cancelAnimationFrame(raf);
     }
@@ -596,6 +603,34 @@ function ElementInspector({
                       />
                     ))}
                   </div>
+                </div>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-xs text-gray-600 dark:text-gray-300">
+                    Animation
+                    <select
+                      value={st.animation ?? ''}
+                      onChange={(e) => onSet(key, { animation: (e.target.value || undefined) as TextElementStyle['animation'] })}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+                    >
+                      <option value="">Designed</option>
+                      {TEXT_ANIMATIONS.map((a) => (
+                        <option key={a.key} value={a.key}>{a.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-xs text-gray-600 dark:text-gray-300">
+                    Effect
+                    <select
+                      value={st.effect ?? ''}
+                      onChange={(e) => onSet(key, { effect: (e.target.value || undefined) as TextElementStyle['effect'] })}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+                    >
+                      <option value="">Designed</option>
+                      {TEXT_EFFECTS.map((f) => (
+                        <option key={f.key} value={f.key}>{f.label}</option>
+                      ))}
+                    </select>
+                  </label>
                 </div>
                 <label className="block text-xs text-gray-600 dark:text-gray-300">
                   Size <span className="text-gray-400">{(st.scale ?? 1).toFixed(2)}×</span>
@@ -1311,8 +1346,8 @@ export default function MotionGraphicsStudio() {
               </div>
             </div>
 
-            {/* Workspace: rail · drawer · canvas · properties */}
-            <div className="grid grid-cols-[52px_260px_minmax(0,1fr)_280px] min-h-[540px]">
+            {/* Workspace: rail · drawer · canvas */}
+            <div className="grid grid-cols-[52px_240px_minmax(0,1fr)] min-h-[540px]">
               {/* Left rail */}
               <div className="border-r border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 py-2 flex flex-col items-center gap-1">
                 {([
@@ -1412,6 +1447,79 @@ export default function MotionGraphicsStudio() {
                           </li>
                         </ul>
                       )}
+                    </section>
+                    <section className="space-y-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Timer size={13} className="text-purple-500" /> Inspector
+                      </h4>
+                      {editMode && selScene ? (
+                        <div className="space-y-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">Clip {editSceneIndex + 1}</span>
+                            <span className="text-[10px] text-gray-400 tabular-nums">{selScene.seconds}s</span>
+                          </div>
+                          <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">“{selScene.text}”</p>
+                          <ElementInspector
+                            scene={selScene}
+                            opts={opts}
+                            brief={brief}
+                            index={editSceneIndex}
+                            onSet={onSetElement}
+                            onReset={onResetElement}
+                          />
+                          <p className="text-[10px] text-gray-400 italic">Voiceover: “{selScene.voiceover}”</p>
+                          <div>
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Trim duration</span>
+                            <div className="mt-1 flex items-center gap-2">
+                              <input type="range" min={CLIP_SECONDS_MIN} max={CLIP_SECONDS_MAX} step={0.5} value={selScene.seconds}
+                                onChange={(e) => onTrimClip(selScene.id, Number(e.target.value))} className="flex-1" />
+                              <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{selScene.seconds}s</span>
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            <button onClick={() => onAddClip()} title="Add a new clip after the selected one"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                              <Plus size={12} /> Add clip
+                            </button>
+                            <button onClick={() => onSplitClip(selScene.id)} title="Split this clip in two"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                              <Scissors size={12} /> Split
+                            </button>
+                            <button onClick={() => onDuplicateClip(selScene.id)} title="Duplicate this clip"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                              <Copy size={12} /> Duplicate
+                            </button>
+                            <button onClick={() => onRemoveClip(selScene.id)} title="Remove this clip"
+                              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition">
+                              <Trash2 size={12} /> Remove
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                            Select a clip on the timeline below — or in the Storyboard drawer — to edit its words, elements, timing and clip actions.
+                          </p>
+                          <dl className="text-[11px] space-y-1">
+                            <div className="flex justify-between gap-2"><dt className="text-gray-400">Style</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{label}</dd></div>
+                            <div className="flex justify-between gap-2"><dt className="text-gray-400">Format</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{formatChip} · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}</dd></div>
+                            <div className="flex justify-between gap-2"><dt className="text-gray-400">Clips</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{scenes.length} · {seconds}s</dd></div>
+                            <div className="flex justify-between gap-2"><dt className="text-gray-400">Render</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{renderSource === 'aivideo' ? 'AI video gen' : 'Free canvas'}</dd></div>
+                          </dl>
+                        </div>
+                      )}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-gray-900 dark:text-white">Pace</h4>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Target length per clip; the film scales its captions to fit.</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {DURATIONS.map((d) => (
+                            <button key={d.key} onClick={() => editBrief({ duration: d.key })} aria-pressed={brief.duration === d.key}
+                              className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                              {d.label}<span className="ml-1 font-normal opacity-70">{d.hint}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </section>
                     <section className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700">
                       <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
@@ -1607,7 +1715,7 @@ export default function MotionGraphicsStudio() {
                 )}
               </div>
 
-              {/* Central canvas */}
+              {/* Central canvas — the full remaining width, now the star of the workspace */}
               <div className="min-w-0 flex flex-col">
                 <div className="px-3 pt-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
@@ -1668,87 +1776,6 @@ export default function MotionGraphicsStudio() {
                   </div>
                 </div>
               </div>
-
-              {/* Right properties panel */}
-              <aside className="border-l border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
-                <div className="p-3 space-y-3">
-                  {editMode && selScene ? (
-                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2.5">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-                          <Timer size={13} className="text-purple-500" /> Clip {editSceneIndex + 1}
-                        </h4>
-                        <span className="text-[10px] text-gray-400 tabular-nums">{selScene.seconds}s</span>
-                      </div>
-                      <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">“{selScene.text}”</p>
-                      <ElementInspector
-                        scene={selScene}
-                        opts={opts}
-                        brief={brief}
-                        index={editSceneIndex}
-                        onSet={onSetElement}
-                        onReset={onResetElement}
-                      />
-                      <p className="text-[10px] text-gray-400 italic">Voiceover: “{selScene.voiceover}”</p>
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Trim duration</span>
-                        <div className="mt-1 flex items-center gap-2">
-                          <input type="range" min={CLIP_SECONDS_MIN} max={CLIP_SECONDS_MAX} step={0.5} value={selScene.seconds}
-                            onChange={(e) => onTrimClip(selScene.id, Number(e.target.value))} className="flex-1" />
-                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{selScene.seconds}s</span>
-                        </div>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5">
-                        <button onClick={() => onAddClip()} title="Add a new clip after the selected one"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                          <Plus size={12} /> Add clip
-                        </button>
-                        <button onClick={() => onSplitClip(selScene.id)} title="Split this clip in two"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                          <Scissors size={12} /> Split
-                        </button>
-                        <button onClick={() => onDuplicateClip(selScene.id)} title="Duplicate this clip"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                          <Copy size={12} /> Duplicate
-                        </button>
-                        <button onClick={() => onRemoveClip(selScene.id)} title="Remove this clip"
-                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition">
-                          <Trash2 size={12} /> Remove
-                        </button>
-                      </div>
-                    </section>
-                  ) : (
-                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2">
-                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-                        <Film size={13} className="text-purple-500" /> Inspector
-                      </h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
-                        Select a clip on the timeline below — or in the Storyboard drawer — to edit its words, elements, timing and clip actions.
-                      </p>
-                      <dl className="text-[11px] space-y-1">
-                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Style</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{label}</dd></div>
-                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Format</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{formatChip} · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}</dd></div>
-                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Clips</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{scenes.length} · {seconds}s</dd></div>
-                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Render</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{renderSource === 'aivideo' ? 'AI video gen' : 'Free canvas'}</dd></div>
-                      </dl>
-                    </section>
-                  )}
-
-                  {/* Pace — always available */}
-                  <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2.5">
-                    <h4 className="text-xs font-bold text-gray-900 dark:text-white">Pace</h4>
-                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Target length per clip; the film scales its captions to fit.</p>
-                    <div className="flex flex-wrap gap-1.5">
-                      {DURATIONS.map((d) => (
-                        <button key={d.key} onClick={() => editBrief({ duration: d.key })} aria-pressed={brief.duration === d.key}
-                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                          {d.label}<span className="ml-1 font-normal opacity-70">{d.hint}</span>
-                        </button>
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              </aside>
             </div>
 
             {/* Bottom timeline — scene-card strip */}

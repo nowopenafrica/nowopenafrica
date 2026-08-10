@@ -25,7 +25,7 @@
 // `renderContactSheet` and `renderVideo` touch the canvas/MediaRecorder and are
 // guarded so importing the module never needs a real browser.
 
-import type { DirectorScene, SceneTextElement } from './creativeDirector';
+import type { DirectorScene, SceneTextElement, TextAnimationKey, TextEffectKey } from './creativeDirector';
 import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
 
@@ -312,12 +312,68 @@ function easeInOut(t: number): number {
   return t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
 }
 
+function easeOutCubic(t: number): number {
+  return 1 - Math.pow(1 - t, 3);
+}
+
+function easeOutBack(t: number): number {
+  const c1 = 1.70158;
+  const c3 = c1 + 1;
+  return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+}
+
 function lerp(a: number, b: number, t: number): number {
   return a + (b - a) * t;
 }
 
 function clamp(v: number, lo: number, hi: number): number {
   return Math.max(lo, Math.min(hi, v));
+}
+
+/** The entrance state of one caption element at the current scene time. */
+export interface ElementEntrance {
+  /** 0..1 opacity multiplier (1 = fully visible). */
+  alpha: number;
+  /** Horizontal pixel offset from the designed position. */
+  dx: number;
+  /** Vertical pixel offset from the designed position. */
+  dy: number;
+  /** Scale multiplier around the element's anchor. */
+  scale: number;
+  /** Extra letter-spacing (in em) applied while the entrance plays. */
+  letters: number;
+}
+
+/** Play the entrance animation for a caption element across the first ~40% of a
+ *  scene. No animation keyed means a settled element (alpha 1, no offset). */
+export function elementEntrance(
+  key: TextAnimationKey | undefined,
+  t: number,
+  w: number,
+  h: number,
+): ElementEntrance {
+  const p = clamp((t - 0.04) / 0.36, 0, 1);
+  const e = easeOutCubic(p);
+  switch (key) {
+    case 'pop': {
+      const s = 1 - (1 - easeOutBack(p)) * 0.45;
+      return { alpha: 1, dx: 0, dy: 0, scale: s, letters: 0 };
+    }
+    case 'rise':
+      return { alpha: e, dx: 0, dy: (1 - e) * h * 0.07, scale: 1, letters: 0 };
+    case 'slide':
+      return { alpha: e, dx: (1 - e) * -w * 0.12, dy: 0, scale: 1, letters: 0 };
+    case 'fade':
+      return { alpha: e, dx: 0, dy: 0, scale: 1, letters: 0 };
+    case 'letters':
+      return { alpha: e, dx: 0, dy: 0, scale: 1, letters: (1 - e) * 0.45 };
+    case 'zoom': {
+      const s = 1 + (1 - e) * 0.3;
+      return { alpha: e, dx: 0, dy: 0, scale: s, letters: 0 };
+    }
+    default:
+      return { alpha: 1, dx: 0, dy: 0, scale: 1, letters: 0 };
+  }
 }
 
 export interface SceneLayoutSpec {
@@ -824,6 +880,55 @@ function drawOverlay(
   const font = (s: { size: number; weight: number; family: string }) => `${s.weight} ${s.size}px ${s.family}`;
   const colorOf = (key: SceneElementKey, fallback: string) => el(key)?.color ?? fallback;
 
+  // Entrance animation + persistent text effect per element. Both are optional;
+  // no animation = the settled design, no effect = the treatment's own shadow.
+  const animationOf = (key: SceneElementKey): TextAnimationKey | undefined => el(key)?.animation;
+  const effectOf = (key: SceneElementKey): TextEffectKey | undefined => el(key)?.effect;
+
+  /** A gentle per-frame shimmer for the sparkle effect (1 = no modulation). */
+  const sparkle = (key: SceneElementKey): number => {
+    if (effectOf(key) !== 'sparkle') return 1;
+    return 0.82 + 0.18 * Math.sin(frame * 0.3 + renderSeed('sparkle', index, key));
+  };
+
+  /** The shadow a text effect wants, or the treatment's default shadow. */
+  const effectShadow = (key: SceneElementKey, fallbackColor: string, fallbackBlur: number) => {
+    switch (effectOf(key)) {
+      case 'glow': return { color: '#ffffff', blur: Math.round(baseTitle * 0.9), oy: 0 };
+      case 'shadow': return { color: 'rgba(0,0,0,0.65)', blur: Math.round(baseTitle * 0.25), oy: Math.round(baseTitle * 0.14) };
+      case 'neon': return { color: colorOf(key, plan.accentColor), blur: Math.round(baseTitle * 1.3), oy: 0 };
+      case 'outline': return { color: 'rgba(0,0,0,0)', blur: 0, oy: 0 };
+      default: return { color: fallbackColor, blur: fallbackBlur, oy: 0 };
+    }
+  };
+
+  /** Open a save(), apply the element's entrance + sparkle, and return it. */
+  const enter = (key: SceneElementKey, cx: number, cy: number): ElementEntrance => {
+    const st = elementEntrance(animationOf(key), t, w, h);
+    ctx.save();
+    ctx.globalAlpha = st.alpha * sparkle(key);
+    ctx.translate(st.dx, st.dy);
+    if (st.scale !== 1) {
+      ctx.translate(cx, cy);
+      ctx.scale(st.scale, st.scale);
+      ctx.translate(-cx, -cy);
+    }
+    return st;
+  };
+
+  /** Fill text, with the outline effect stroking the glyphs first. */
+  const paintText = (text: string, x: number, y: number, key: SceneElementKey) => {
+    if (effectOf(key) === 'outline') {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(0,0,0,0.9)';
+      ctx.lineWidth = Math.max(2, Math.round(baseTitle * 0.03));
+      ctx.lineJoin = 'round';
+      ctx.strokeText(text, x, y);
+      ctx.restore();
+    }
+    ctx.fillText(text, x, y);
+  };
+
   // Soft bottom scrim over real footage so captions always read.
   if (overVideo) {
     const scrim = ctx.createLinearGradient(0, h * 0.45, 0, h);
@@ -834,18 +939,25 @@ function drawOverlay(
   }
 
   // Brand lockup, top.
-  ctx.save();
-  ctx.textAlign = 'center';
   if (!hidden('brand')) {
     const brandPos = shifted('brand', w / 2, brandSize * 1.6 + 12);
+    enter('brand', brandPos.x, brandPos.y);
+    ctx.textAlign = 'center';
+    const sh = effectShadow('brand', 'rgba(0,0,0,0.5)', Math.round(brandSize * 0.3));
+    ctx.shadowColor = sh.color;
+    ctx.shadowBlur = sh.blur;
+    if (sh.oy) ctx.shadowOffsetY = sh.oy;
     ctx.fillStyle = colorOf('brand', 'rgba(255,255,255,0.9)');
     ctx.font = font(styled('brand', brandSize, 900));
-    ctx.fillText(textOf('brand', `${opts.logoEmoji ?? '✦'} ${opts.businessName.toUpperCase()}`), brandPos.x, brandPos.y);
+    paintText(textOf('brand', `${opts.logoEmoji ?? '✦'} ${opts.businessName.toUpperCase()}`), brandPos.x, brandPos.y, 'brand');
+    ctx.shadowColor = 'rgba(0,0,0,0)';
+    ctx.shadowBlur = 0;
+    ctx.shadowOffsetY = 0;
     ctx.fillStyle = colorOf('brand', 'rgba(255,255,255,0.45)');
     ctx.font = font(styled('brand', Math.round(brandSize * 0.7), 700));
     ctx.fillText(opts.directionLabel.toUpperCase(), brandPos.x, brandPos.y + brandSize);
+    ctx.restore();
   }
-  ctx.restore();
 
   // Scene number chip + progress dots.
   const chipY = L.chipY;
@@ -868,7 +980,7 @@ function drawOverlay(
     if (treatment === 'led' && sublineText) {
       drawLedTicker(ctx, w, sublineText, frame, L, plan, (el('subline')?.dy ?? 0) * h);
     } else if (sublineText) {
-      ctx.save();
+      enter('subline', subPos.x, subPos.y);
       ctx.textAlign = 'center';
       ctx.font = font(styled('subline', Math.round(baseTitle * 0.24), 500));
       const voLines = wrapLines(ctx, sublineText, w * 0.78);
@@ -881,9 +993,13 @@ function drawOverlay(
         roundRect(ctx, subPos.x - pillW / 2, voY - voLineH * 0.6, pillW, pillH, Math.round(baseTitle * 0.12));
         ctx.fill();
       }
+      const sh = effectShadow('subline', 'rgba(0,0,0,0)', 0);
+      ctx.shadowColor = sh.color;
+      ctx.shadowBlur = sh.blur;
+      if (sh.oy) ctx.shadowOffsetY = sh.oy;
       ctx.fillStyle = colorOf('subline', overVideo ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.75)');
       voLines.forEach((line, i) => {
-        ctx.fillText(line, subPos.x, voY + i * voLineH);
+        paintText(line, subPos.x, voY + i * voLineH, 'subline');
       });
       ctx.restore();
     }
@@ -909,10 +1025,12 @@ function drawOverlay(
   const title = textOf('title', index === 0 ? opts.hook || scene.text : scene.text);
   const titlePos = shifted('title', w / 2, titleY);
   if (!hidden('title')) {
-    ctx.save();
+    const st = enter('title', titlePos.x, titlePos.y);
     ctx.textAlign = 'center';
     ctx.font = font(styled('title', treatment === 'premium' ? Math.round(baseTitle * 1.08) : baseTitle, treatment === 'premium' ? 700 : 900));
-    if (treatment === 'premium') {
+    if (st.letters > 0) {
+      try { ctx.letterSpacing = `${st.letters.toFixed(3)}em`; } catch { /* older browsers ignore */ }
+    } else if (treatment === 'premium') {
       try { ctx.letterSpacing = '0.04em'; } catch { /* older browsers ignore */ }
     }
     const titleLines = wrapLines(ctx, title, w * 0.82);
@@ -948,14 +1066,20 @@ function drawOverlay(
       ctx.translate(Math.round(Math.sin((frame * 0.03) % (Math.PI * 2)) * w * 0.006), 0);
     }
 
-    ctx.shadowColor = treatment === 'led' ? plan.accentColor : 'rgba(0,0,0,0.5)';
-    ctx.shadowBlur = treatment === 'led' ? Math.round(baseTitle * 0.9) : Math.round(baseTitle * 0.35);
+    const sh = effectShadow('title',
+      treatment === 'led' ? plan.accentColor : 'rgba(0,0,0,0.5)',
+      treatment === 'led' ? Math.round(baseTitle * 0.9) : Math.round(baseTitle * 0.35));
+    ctx.shadowColor = sh.color;
+    ctx.shadowBlur = sh.blur;
+    if (sh.oy) ctx.shadowOffsetY = sh.oy;
     ctx.fillStyle = colorOf('title', plan.textColor);
     titleLines.slice(0, 3).forEach((line, i) => {
-      ctx.fillText(line, titlePos.x, titlePos.y + (i - (titleCount - 1) / 2) * lineH);
+      paintText(line, titlePos.x, titlePos.y + (i - (titleCount - 1) / 2) * lineH, 'title');
     });
+    ctx.shadowColor = 'rgba(0,0,0,0)';
     ctx.shadowBlur = 0;
-    if (treatment === 'premium') {
+    ctx.shadowOffsetY = 0;
+    if (st.letters > 0 || treatment === 'premium') {
       try { ctx.letterSpacing = '0px'; } catch { /* older browsers ignore */ }
     }
 
@@ -971,12 +1095,16 @@ function drawOverlay(
   if (index === opts.scenesCount - 1 && t > 0.62 && !hidden('cta')) {
     const fadeIn = clamp((t - 0.62) / 0.18, 0, 1);
     const ctaPos = shifted('cta', w / 2, L.ctaY);
-    ctx.save();
-    ctx.globalAlpha = fadeIn;
+    const st = enter('cta', ctaPos.x, ctaPos.y);
+    ctx.globalAlpha = fadeIn * st.alpha * sparkle('cta');
+    const sh = effectShadow('cta', 'rgba(0,0,0,0)', 0);
+    ctx.shadowColor = sh.color;
+    ctx.shadowBlur = sh.blur;
+    if (sh.oy) ctx.shadowOffsetY = sh.oy;
     ctx.textAlign = 'center';
     ctx.font = font(styled('cta', Math.round(baseTitle * 0.42), 900));
     ctx.fillStyle = colorOf('cta', plan.accentColor);
-    ctx.fillText(textOf('cta', opts.cta ?? 'Tap to order').toUpperCase(), ctaPos.x, ctaPos.y);
+    paintText(textOf('cta', opts.cta ?? 'Tap to order').toUpperCase(), ctaPos.x, ctaPos.y, 'cta');
     ctx.restore();
   }
 
@@ -1113,7 +1241,12 @@ export function renderPoster(opts: SceneFrameOptions, scenes: DirectorScene[], f
   const ctx = canvas.getContext('2d');
   if (!ctx) return null;
   const timeline = buildRenderTimeline(scenes, opts);
-  drawSceneFrame(ctx, dims.width, dims.height, opts, scenes, timeline, clamp(frame, 0, timeline.totalFrames - 1));
+  // Default to the first scene mid-way so entrance animations have settled and
+  // every caption element is fully visible in the still.
+  const settled = timeline.scenes.length > 0
+    ? timeline.scenes[0].startFrame + Math.round(timeline.scenes[0].frames * 0.5)
+    : 0;
+  drawSceneFrame(ctx, dims.width, dims.height, opts, scenes, timeline, frame > 0 ? clamp(frame, 0, timeline.totalFrames - 1) : Math.min(settled, timeline.totalFrames - 1));
   return { dataUrl: canvas.toDataURL('image/png'), width: dims.width, height: dims.height };
 }
 

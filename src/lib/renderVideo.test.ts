@@ -3,8 +3,9 @@ import {
   renderSeed, sceneRenderPlan, buildRenderTimeline, timelineAt,
   pickRenderMime, renderTotalSeconds, renderSceneStill, RENDER_DIMENSIONS, RENDER_FPS,
   RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled, RENDER_PALETTES,
-  sceneLayout, sceneElementRegions, resolveSource, type MotionLayer } from './renderVideo';
+  sceneLayout, sceneElementRegions, resolveSource, elementEntrance, type MotionLayer } from './renderVideo';
 import type { DirectorScene } from './creativeDirector';
+import { TEXT_ANIMATIONS, TEXT_EFFECTS } from './creativeDirector';
 
 const base: RenderOptions = {
   businessName: 'Meat Club',
@@ -290,6 +291,57 @@ describe('renderVideo — dimensions', () => {
     expect(RENDER_DIMENSIONS.Ratio4x5.height).toBe(1350);
     expect(RENDER_DIMENSIONS.Ratio16x9.width).toBe(1920);
     expect(RENDER_DIMENSIONS.Ratio16x9.height).toBe(1080);
+  });
+});
+
+describe('renderVideo — text animation & effect presets', () => {
+  it('exposes every entrance animation and effect with a label', () => {
+    expect(TEXT_ANIMATIONS.map((a) => a.key)).toEqual(['pop', 'rise', 'slide', 'fade', 'letters', 'zoom']);
+    expect(TEXT_EFFECTS.map((f) => f.key)).toEqual(['glow', 'shadow', 'outline', 'neon', 'sparkle']);
+    for (const a of TEXT_ANIMATIONS) expect(a.label.length).toBeGreaterThan(0);
+    for (const f of TEXT_EFFECTS) expect(f.label.length).toBeGreaterThan(0);
+  });
+
+  it('settles instantly when no animation is keyed', () => {
+    const st = elementEntrance(undefined, 0, 1080, 1920);
+    expect(st.alpha).toBe(1);
+    expect(st.dx).toBe(0);
+    expect(st.dy).toBe(0);
+    expect(st.scale).toBe(1);
+    expect(st.letters).toBe(0);
+  });
+
+  it('plays rise from hidden below to settled on screen', () => {
+    const start = elementEntrance('rise', 0, 1080, 1920);
+    expect(start.alpha).toBe(0);
+    expect(start.dy).toBeGreaterThan(0);
+    const end = elementEntrance('rise', 1, 1080, 1920);
+    expect(end.alpha).toBe(1);
+    expect(end.dy).toBe(0);
+  });
+
+  it('pops in with an overshooting scale and settles to 1', () => {
+    const start = elementEntrance('pop', 0, 1080, 1920);
+    expect(start.scale).toBeLessThan(1);
+    expect(start.alpha).toBe(1);
+    const end = elementEntrance('pop', 1, 1080, 1920);
+    expect(end.scale).toBe(1);
+  });
+
+  it('spreads letter-spacing on the letters entrance', () => {
+    const start = elementEntrance('letters', 0, 1080, 1920);
+    expect(start.letters).toBeGreaterThan(0);
+    expect(elementEntrance('letters', 1, 1080, 1920).letters).toBe(0);
+  });
+
+  it('keeps animated elements hit-testable in their settled place', () => {
+    const regions = sceneElementRegions(opts(), {
+      ...scenes[0],
+      elements: { title: { animation: 'pop', effect: 'neon' }, subline: { animation: 'rise' } },
+    }, 0);
+    const keys = new Set(regions.map((r) => r.key));
+    expect(keys.has('title')).toBe(true);
+    expect(keys.has('subline')).toBe(true);
   });
 });
 
