@@ -119,7 +119,7 @@ describe('renderVideo — layout & editable regions', () => {
   it('returns normalised regions with the CTA only on the final card', () => {
     const last = scenes.length - 1;
     for (const index of [0, last]) {
-      const regions = sceneElementRegions(opts(), index);
+      const regions = sceneElementRegions(opts(), scenes[index], index);
       const keys = new Set(regions.map((r) => r.key));
       for (const r of regions) {
         expect(r.x).toBeGreaterThanOrEqual(0);
@@ -137,9 +137,24 @@ describe('renderVideo — layout & editable regions', () => {
   });
 
   it('shifts the region boxes with the format so hit-testing matches each size', () => {
-    const vertical = sceneElementRegions(opts(), scenes.length - 1);
-    const landscape = sceneElementRegions({ ...opts(), aspect: 'Landscape' }, scenes.length - 1);
+    const vertical = sceneElementRegions(opts(), scenes[scenes.length - 1], scenes.length - 1);
+    const landscape = sceneElementRegions({ ...opts(), aspect: 'Landscape' }, scenes[scenes.length - 1], scenes.length - 1);
     expect(vertical).not.toEqual(landscape);
+  });
+
+  it('honours per-clip element overrides when hit-testing', () => {
+    const scene = scenes[0];
+    const hidden = sceneElementRegions(opts(), { ...scene, elements: { subline: { hidden: true } } }, 0);
+    expect(hidden.some((r) => r.key === 'subline')).toBe(false);
+    const base = sceneElementRegions(opts(), scene, 0).find((r) => r.key === 'title');
+    const moved = sceneElementRegions(opts(), { ...scene, elements: { title: { dx: 0.1, dy: -0.2 } } }, 0)
+      .find((r) => r.key === 'title');
+    expect(base).toBeTruthy();
+    expect(moved).toBeTruthy();
+    if (base && moved) {
+      expect(moved.x - base.x).toBeCloseTo(0.1, 5);
+      expect(moved.y - base.y).toBeCloseTo(-0.2, 5);
+    }
   });
 });
 

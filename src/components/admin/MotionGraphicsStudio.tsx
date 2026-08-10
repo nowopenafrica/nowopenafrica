@@ -5,8 +5,9 @@ import {
   LayoutTemplate, Check, Plus, Copy, Trash2, FolderOpen, Wand2, Clapperboard,
   Layers, ChevronUp, ChevronDown, ArrowLeft, Undo2, Redo2, Play, Pause, Save,
   Type, Music, Palette, Shapes, Scissors, RotateCcw, Timer, GripVertical,
+  Eye, EyeOff,
 } from 'lucide-react';
-import type { DirectorScene } from '../../lib/creativeDirector';
+import type { DirectorScene, TextElementStyle } from '../../lib/creativeDirector';
 import {
   renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
   sceneElementRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
@@ -18,6 +19,7 @@ import {
   motionScenesFromJob, applyMotionTimeline, emptyMotionTimeline,
   timelineMoveClip, timelineSetSeconds,
   timelineDuplicate, timelineSplit, timelineRemove,
+  timelineSetElement, timelineResetElement, timelineAppendClip,
   CLIP_SECONDS_MIN, CLIP_SECONDS_MAX, MOTION_SCENE_COUNTS,
   type MotionConfig, type MotionStyle, type MotionDuration, type MotionTimeline,
 } from '../../lib/motionGraphics';
@@ -102,33 +104,54 @@ const TREATMENT_FOR_STYLE: Record<MotionStyle, MotionTreatment> = {
   'isometric-3d': '3d',
 };
 
-type MotionField = 'business' | 'headline' | 'subhead' | 'cta';
+const ELEMENT_LABELS: Record<SceneElementKey, string> = {
+  brand: 'Brand lockup',
+  title: 'Headline',
+  subline: 'Sub-line',
+  cta: 'Call to action',
+};
 
-/**
- * Which brief field an element of a storyboard card edits. Content-based so it
- * works across every style: the card that draws the headline maps to the
- * headline, the brand lockup to the business name, and so on.
- */
-function fieldForElement(key: SceneElementKey, scene: DirectorScene, brief: MotionConfig): { field: MotionField; label: string } {
-  const text = scene.text.toLowerCase();
-  const vo = scene.voiceover.toLowerCase();
-  const inText = (s: string) => s.trim().length > 0 && text.includes(s.toLowerCase());
-  const inVo = (s: string) => s.trim().length > 0 && vo.includes(s.toLowerCase());
-  switch (key) {
-    case 'brand':
-      return { field: 'business', label: 'Brand lockup' };
-    case 'cta':
-      return { field: 'cta', label: 'Call to action' };
-    case 'title':
-      if (inText(brief.headline)) return { field: 'headline', label: 'Headline' };
-      if (inText(brief.business)) return { field: 'business', label: 'Brand lockup' };
-      if (inText(brief.subhead)) return { field: 'subhead', label: 'Sub-line' };
-      return { field: 'headline', label: 'Headline' };
-    case 'subline':
-      if (inVo(brief.subhead)) return { field: 'subhead', label: 'Sub-line' };
-      if (inVo(brief.cta)) return { field: 'cta', label: 'Call to action' };
-      if (inVo(brief.headline)) return { field: 'headline', label: 'Headline' };
-      return { field: 'subhead', label: 'Sub-line' };
+const ELEMENT_KEYS: SceneElementKey[] = ['brand', 'title', 'subline', 'cta'];
+
+const ELEMENT_COLORS: { swatch: string; value?: string }[] = [
+  { swatch: '#ffffff' },
+  { swatch: '#000000' },
+  { swatch: '#f8fafc' },
+  { swatch: '#fde047' },
+  { swatch: '#4ade80' },
+  { swatch: '#22d3ee' },
+  { swatch: '#60a5fa' },
+  { swatch: '#a78bfa' },
+  { swatch: '#f472b6' },
+  { swatch: '#fb7185' },
+  { swatch: '#fb923c' },
+  { swatch: '#facc15' },
+];
+
+const FONT_FAMILY_OPTIONS: { label: string; value?: string }[] = [
+  { label: 'System default' },
+  { label: 'Inter', value: 'Inter, system-ui, sans-serif' },
+  { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
+  { label: 'Sans', value: 'Impact, "Arial Black", sans-serif' },
+  { label: 'Mono', value: '"Courier New", monospace' },
+];
+
+const WEIGHT_OPTIONS: { label: string; value?: number }[] = [
+  { label: 'Regular', value: 400 },
+  { label: 'Medium', value: 500 },
+  { label: 'Semi-bold', value: 600 },
+  { label: 'Bold', value: 700 },
+  { label: 'Heavy', value: 900 },
+];
+
+/** The designed (pre-customisation) caption for an element of a scene. */
+function briefTextFor(scene: DirectorScene, brief: MotionConfig): string {
+  switch (scene.text) {
+    case 'brand': return brief.business ?? '';
+    case 'title': return brief.headline ?? '';
+    case 'subline': return scene.voiceover ?? '';
+    case 'cta': return brief.cta ?? '';
+    default: return '';
   }
 }
 
@@ -159,11 +182,12 @@ function timeAgo(iso: string): string {
  * The parent owns the transport: when `playing` is true it loops and reports
  * progress so the timeline marker can follow; when paused it freezes on the
  * `playhead` fraction (or the last scene). In edit mode the loop freezes on a
- * chosen scene, the clickable layout elements are outlined, and clicking one
- * reports which element was picked so the parent can open an inline editor.
+ * chosen scene, the clickable layout elements are outlined; dragging one moves
+ * it (reporting the normalised delta) and clicking one without a drag reports
+ * the picked element so the parent can open an inline editor.
  */
 function MotionPreview({
-  opts, scenes, editMode, sceneIndex, playing, playhead, onProgress, onPick, className,
+  opts, scenes, editMode, sceneIndex, playing, playhead, onProgress, onPick, onMoveElement, className,
 }: {
   opts: SceneFrameOptions;
   scenes: DirectorScene[];
@@ -173,9 +197,12 @@ function MotionPreview({
   playhead: number | null;
   onProgress?: (fraction: number) => void;
   onPick?: (key: SceneElementKey) => void;
+  /** Called while dragging an outlined element, with the cumulative normalised delta. */
+  onMoveElement?: (key: SceneElementKey, dx: number, dy: number) => void;
   className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const dragRef = useRef<{ key: SceneElementKey; startX: number; startY: number; dx: number; dy: number; moved: boolean } | null>(null);
   const dims = RENDER_DIMENSIONS[opts.aspect];
   // Keep the latest progress callback without re-running the drawing loop.
   const onProgressRef = useRef(onProgress);
@@ -206,7 +233,7 @@ function MotionPreview({
       });
 
     const paintRegions = (si: number) => {
-      const regions = sceneElementRegions(opts, si);
+      const regions = sceneElementRegions(opts, scenes[si] ?? scenes[0], si);
       ctx.save();
       ctx.lineWidth = 2;
       ctx.setLineDash([6, 4]);
@@ -253,29 +280,63 @@ function MotionPreview({
     return () => { window.cancelAnimationFrame(raf); };
   }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead]);
 
-  const onPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
-    if (!editMode) return;
+  const regionAt = (e: React.PointerEvent<HTMLCanvasElement>): SceneElementKey | null => {
     const canvas = canvasRef.current;
-    if (!canvas) return;
+    if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return null;
     const nx = (e.clientX - rect.left) / rect.width;
     const ny = (e.clientY - rect.top) / rect.height;
     const idx = Math.min(sceneIndex, scenes.length - 1);
-    const hit = sceneElementRegions(opts, idx).find(
+    const scene = scenes[idx];
+    if (!scene) return null;
+    return sceneElementRegions(opts, scene, idx).find(
       (r) => nx >= r.x && nx <= r.x + r.w && ny >= r.y && ny <= r.y + r.h,
-    );
-    if (hit && onPick) onPick(hit.key);
+    )?.key ?? null;
+  };
+
+  const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    if (!editMode) return;
+    const key = regionAt(e);
+    if (!key) return;
+    const scene = scenes[Math.min(sceneIndex, scenes.length - 1)];
+    const style = scene?.elements?.[key] ?? {};
+    dragRef.current = { key, startX: e.clientX, startY: e.clientY, dx: style.dx ?? 0, dy: style.dy ?? 0, moved: false };
+    e.currentTarget.setPointerCapture(e.pointerId);
+  };
+
+  const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const canvas = canvasRef.current;
+    if (canvas) canvas.style.cursor = editMode ? 'crosshair' : 'default';
+    const drag = dragRef.current;
+    if (!drag || !canvas) return;
+    if (!editMode) return;
+    const rect = canvas.getBoundingClientRect();
+    if (rect.width <= 0 || rect.height <= 0) return;
+    const nw = (e.clientX - drag.startX) / rect.width;
+    const nh = (e.clientY - drag.startY) / rect.height;
+    if (!drag.moved && Math.abs(nw) + Math.abs(nh) < 0.02) return; // still a click
+    drag.moved = true;
+    const nextDx = Math.max(-0.5, Math.min(0.5, drag.dx + nw));
+    const nextDy = Math.max(-0.5, Math.min(0.5, drag.dy + nh));
+    if (onMoveElement) onMoveElement(drag.key, nextDx, nextDy);
+  };
+
+  const onPointerUp = () => {
+    const drag = dragRef.current;
+    if (!drag) return;
+    dragRef.current = null;
+    if (drag.moved) return;
+    if (onPick) onPick(drag.key);
   };
 
   return (
     <canvas
       ref={canvasRef}
-      onPointerMove={(e) => {
-        const c = canvasRef.current;
-        if (c) c.style.cursor = editMode ? 'crosshair' : 'default';
-        if (editMode) e.preventDefault();
-      }}
-      onPointerDown={onPointer}
+      onPointerMove={onPointerMove}
+      onPointerDown={onPointerDown}
+      onPointerUp={onPointerUp}
+      onPointerCancel={() => { dragRef.current = null; }}
       className={className ?? 'w-full max-w-md mx-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black'}
     />
   );
@@ -504,6 +565,171 @@ function swatchStyle(palette: [string, string, string]): React.CSSProperties {
   return { background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]} 55%, ${palette[2]})` };
 }
 
+/**
+ * Per-clip text element editor. Mirrors the designed layout by reading the same
+ * hit-test the canvas uses, so every slider/toggle matches the live frame. Each
+ * element row can be opened to restyle, move, hide or override the text; reset
+ * restores the designed value.
+ */
+function ElementInspector({
+  scene, opts, brief, index, onSet, onReset,
+}: {
+  scene: DirectorScene;
+  opts: SceneFrameOptions;
+  brief: MotionConfig;
+  index: number;
+  onSet: (key: SceneElementKey, style: TextElementStyle) => void;
+  onReset: (key: SceneElementKey) => void;
+}) {
+  const [selected, setSelected] = useState<SceneElementKey | null>(null);
+  const regions = useMemo(() => sceneElementRegions(opts, scene, index), [opts, scene, index]);
+
+  const styleOf = (key: SceneElementKey): TextElementStyle => scene.elements?.[key] ?? {};
+  const custom = (key: SceneElementKey) => Boolean(scene.elements?.[key]);
+
+  return (
+    <div className="space-y-2">
+      {ELEMENT_KEYS.map((key) => {
+        const st = styleOf(key);
+        const isOpen = selected === key;
+        const isCustom = custom(key);
+        const hasRegion = regions.some((r) => r.key === key);
+        return (
+          <div key={key} className="rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <button
+              type="button"
+              onClick={() => setSelected(isOpen ? null : key)}
+              className="w-full flex items-center justify-between px-3 py-2 text-left text-sm"
+            >
+              <span className="flex items-center gap-2 min-w-0">
+                <span
+                  className={`w-2 h-2 rounded-full shrink-0 ${hasRegion ? 'bg-rose-500' : 'bg-gray-300 dark:bg-gray-600'}`}
+                />
+                <span className="truncate">{ELEMENT_LABELS[key]}</span>
+                {isCustom && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 dark:bg-rose-500/20 dark:text-rose-300 shrink-0">custom</span>
+                )}
+                {st.hidden && (
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-gray-100 text-gray-500 dark:bg-gray-800 dark:text-gray-400 shrink-0">hidden</span>
+                )}
+              </span>
+              <ChevronDown className={`w-4 h-4 text-gray-400 shrink-0 transition-transform ${isOpen ? 'rotate-180' : ''}`} />
+            </button>
+            {isOpen && (
+              <div className="space-y-3 px-3 pb-3">
+                <label className="block text-xs text-gray-600 dark:text-gray-300">
+                  Text
+                  <input
+                    type="text"
+                    defaultValue={st.text ?? briefTextFor(scene, brief)}
+                    onBlur={(e) => onSet(key, { text: e.target.value.trim() === briefTextFor(scene, brief) ? undefined : e.target.value.trim() })}
+                    className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+                  />
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  <label className="block text-xs text-gray-600 dark:text-gray-300">
+                    Font
+                    <select
+                      value={st.fontFamily ?? ''}
+                      onChange={(e) => onSet(key, { fontFamily: e.target.value || undefined })}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+                    >
+                      {FONT_FAMILY_OPTIONS.map((f) => (
+                        <option key={f.label} value={f.value ?? ''}>{f.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-xs text-gray-600 dark:text-gray-300">
+                    Weight
+                    <select
+                      value={st.fontWeight ?? 700}
+                      onChange={(e) => onSet(key, { fontWeight: Number(e.target.value) || undefined })}
+                      className="mt-1 w-full rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 py-1 text-sm"
+                    >
+                      {WEIGHT_OPTIONS.map((w) => (
+                        <option key={w.label} value={w.value ?? 400}>{w.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+                <div>
+                  <span className="block text-xs text-gray-600 dark:text-gray-300">Colour</span>
+                  <div className="mt-1 flex flex-wrap gap-1.5">
+                    {ELEMENT_COLORS.map((c) => (
+                      <button
+                        key={c.swatch}
+                        type="button"
+                        title={c.swatch}
+                        onClick={() => onSet(key, { color: c.swatch })}
+                        className={`w-5 h-5 rounded-full border border-black/10 ${st.color === c.swatch ? 'ring-2 ring-rose-500 ring-offset-1 dark:ring-offset-gray-900' : ''}`}
+                        style={{ background: c.swatch }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <label className="block text-xs text-gray-600 dark:text-gray-300">
+                  Size <span className="text-gray-400">{(st.scale ?? 1).toFixed(2)}×</span>
+                  <input
+                    type="range"
+                    min={0.6}
+                    max={1.8}
+                    step={0.05}
+                    value={st.scale ?? 1}
+                    onChange={(e) => onSet(key, { scale: Number(e.target.value) })}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="block text-xs text-gray-600 dark:text-gray-300">
+                  Position X <span className="text-gray-400">{Math.round((st.dx ?? 0) * 100)}%</span>
+                  <input
+                    type="range"
+                    min={-0.5}
+                    max={0.5}
+                    step={0.01}
+                    value={st.dx ?? 0}
+                    onChange={(e) => onSet(key, { dx: Number(e.target.value) })}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="block text-xs text-gray-600 dark:text-gray-300">
+                  Position Y <span className="text-gray-400">{Math.round((st.dy ?? 0) * 100)}%</span>
+                  <input
+                    type="range"
+                    min={-0.5}
+                    max={0.5}
+                    step={0.01}
+                    value={st.dy ?? 0}
+                    onChange={(e) => onSet(key, { dy: Number(e.target.value) })}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => onSet(key, { hidden: !st.hidden })}
+                    className="flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs"
+                  >
+                    {st.hidden ? <Eye className="w-3.5 h-3.5" /> : <EyeOff className="w-3.5 h-3.5" />}
+                    {st.hidden ? 'Show' : 'Hide'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onReset(key)}
+                    className="flex items-center gap-1.5 rounded-md border border-gray-300 dark:border-gray-600 px-2 py-1 text-xs"
+                  >
+                    <RotateCcw className="w-3.5 h-3.5" />
+                    Reset
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function MotionGraphicsStudio() {
   const [mode, setMode] = useState<Mode>('quick');
   const [project, setProject] = useState<MotionProject>(() => loadMotionProjects()[0] ?? blankMotionProject());
@@ -520,7 +746,7 @@ export default function MotionGraphicsStudio() {
   // the element's field inline (headline, sub-line, brand lockup or call to action).
   const [editMode, setEditMode] = useState(false);
   const [editSceneIndex, setEditSceneIndex] = useState(0);
-  const [editing, setEditing] = useState<{ key: SceneElementKey; field: MotionField; label: string; value: string } | null>(null);
+  const [editing, setEditing] = useState<{ key: SceneElementKey; label: string; value: string } | null>(null);
 
   // Editor workspace transport + toolbar.
   const [playing, setPlaying] = useState(false);
@@ -659,6 +885,33 @@ export default function MotionGraphicsStudio() {
 
   const onRemoveClip = (id: string) => {
     patch({ timeline: timelineRemove(project.timeline ?? emptyMotionTimeline(baseScenes), id) });
+    if (editing) setEditing(null);
+    if (scenes[editSceneIndex]?.id === id) setEditSceneIndex(Math.max(0, editSceneIndex - 1));
+  };
+
+  const onAddClip = () => {
+    const base = scenes[editSceneIndex] ?? scenes[scenes.length - 1] ?? scenes[0];
+    if (!base) return;
+    const next = timelineAppendClip(project.timeline ?? emptyMotionTimeline(baseScenes), base);
+    patch({ timeline: next });
+    setEditSceneIndex(scenes.length);
+    toast('Clip added — adjust the elements, then preview.');
+  };
+
+  const onSetElement = (key: SceneElementKey, style: TextElementStyle) => {
+    const id = scenes[editSceneIndex]?.id;
+    if (!id) return;
+    applyTimelineOp((tl) => timelineSetElement(tl, id, key, style));
+  };
+
+  const onResetElement = (key: SceneElementKey) => {
+    const id = scenes[editSceneIndex]?.id;
+    if (!id) return;
+    applyTimelineOp((tl) => timelineResetElement(tl, id, key));
+  };
+
+  const onMoveElement = (key: SceneElementKey, dx: number, dy: number) => {
+    onSetElement(key, { dx, dy });
   };
 
   const onResetTimeline = () => {
@@ -732,13 +985,16 @@ export default function MotionGraphicsStudio() {
 
   const pickElement = (key: SceneElementKey) => {
     const scene = scenes[editSceneIndex] ?? scenes[0];
-    const mapped = fieldForElement(key, scene, brief);
-    setEditing({ key, field: mapped.field, label: mapped.label, value: brief[mapped.field] ?? '' });
+    const value = scene?.elements?.[key]?.text ?? '';
+    setEditing({ key, label: ELEMENT_LABELS[key], value });
   };
 
   const commitEdit = () => {
     if (!editing) return;
-    editBrief({ [editing.field]: editing.value.trim() } as Partial<MotionConfig>);
+    const scene = scenes[editSceneIndex];
+    const base = scene ? briefTextFor(scene, brief) : '';
+    const text = editing.value.trim();
+    onSetElement(editing.key, { text: text === base ? undefined : text });
     setEditing(null);
   };
 
@@ -808,7 +1064,6 @@ export default function MotionGraphicsStudio() {
   const renderSource = project.render.source;
   const templateName = project.templateKey ? motionTemplateByKey(project.templateKey)?.name : null;
   const selScene = scenes.length > 0 ? scenes[Math.min(editSceneIndex, scenes.length - 1)] : null;
-  const mapped = selScene ? fieldForElement('title', selScene, brief) : null;
 
   const downloadVideo = async () => {
     setRendering(true);
@@ -1136,17 +1391,18 @@ export default function MotionGraphicsStudio() {
                 <div className="flex-1 flex items-center justify-center min-h-[380px] bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 p-3">
                   <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex}
                     playing={playing} playhead={playhead} onProgress={onProgress} onPick={pickElement}
+                    onMoveElement={onMoveElement}
                     className="max-w-full max-h-[68vh] w-auto h-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black shadow-xl" />
                 </div>
                 {editMode && (
                   <div className="space-y-2">
                     <p className="text-center text-[11px] text-gray-400">
-                      Clip {editSceneIndex + 1} selected — click any outlined element on the canvas to edit it inline.
+                      Clip {editSceneIndex + 1} selected — click an outlined element to edit it, or drag it to move.
                     </p>
                     {editing ? (
                       <div className="rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 p-2 space-y-2 max-w-md mx-auto">
                         <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
-                          Editing {editing.label} — scene {editSceneIndex + 1}
+                          Custom text for {editing.label} — scene {editSceneIndex + 1}
                         </div>
                         <input autoFocus value={editing.value}
                           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
@@ -1176,13 +1432,14 @@ export default function MotionGraphicsStudio() {
                         <span className="text-[10px] text-gray-400 tabular-nums">{selScene.seconds}s</span>
                       </div>
                       <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">“{selScene.text}”</p>
-                      {mapped && (
-                        <label className="block">
-                          <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Editing {mapped.label}</span>
-                          <input value={brief[mapped.field] ?? ''} onChange={(e) => editBrief({ [mapped.field]: e.target.value } as Partial<MotionConfig>)}
-                            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                        </label>
-                      )}
+                      <ElementInspector
+                        scene={selScene}
+                        opts={opts}
+                        brief={brief}
+                        index={editSceneIndex}
+                        onSet={onSetElement}
+                        onReset={onResetElement}
+                      />
                       <p className="text-[10px] text-gray-400 italic">Voiceover: “{selScene.voiceover}”</p>
                       <div>
                         <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Trim duration</span>
@@ -1193,6 +1450,10 @@ export default function MotionGraphicsStudio() {
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-1.5">
+                        <button onClick={() => onAddClip()} title="Add a new clip after the selected one"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                          <Plus size={12} /> Add clip
+                        </button>
                         <button onClick={() => onSplitClip(selScene.id)} title="Split this clip in two"
                           className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                           <Scissors size={12} /> Split

@@ -97,6 +97,38 @@ export const directionLetter = (k: CreativeDirection): string =>
 
 // --- Scene enrichment ----------------------------------------------------------
 
+/**
+ * The caption elements a scene can draw. These are the clickable/draggable
+ * targets of the editable live preview and the per-clip customization keys the
+ * Motion Studio timeline stores overrides for.
+ */
+export type SceneTextElement = 'brand' | 'title' | 'subline' | 'cta';
+
+/**
+ * Per-clip customization of one caption element. Every field is optional so a
+ * half-set override still falls back to the designed layout/style. Positions
+ * are normalised deltas (fractions of the canvas), so a move survives aspect
+ * changes even though the designed layout does not.
+ */
+export interface TextElementStyle {
+  /** Text override — replaces the designed copy for this element. */
+  text?: string;
+  /** Full CSS font-family stack, e.g. `'Georgia, "Times New Roman", serif'`. */
+  fontFamily?: string;
+  /** Font weight (100..900); defaults to the element's design weight. */
+  fontWeight?: number;
+  /** Size multiplier (0.6..1.8) of the element's design size. */
+  scale?: number;
+  /** Text colour (any CSS colour); defaults to the designed colour. */
+  color?: string;
+  /** Hidden — the element is not drawn and not hit-testable. */
+  hidden?: boolean;
+  /** Normalised horizontal shift (-0.5..0.5) of the canvas width. */
+  dx?: number;
+  /** Normalised vertical shift (-0.5..0.5) of the canvas height. */
+  dy?: number;
+}
+
 export interface DirectorScene {
   id: string;
   order: number;
@@ -108,6 +140,8 @@ export interface DirectorScene {
   transition: string;
   grading: string;
   motion: string;
+  /** Per-element caption overrides applied by the renderer and hit-testing. */
+  elements?: Partial<Record<SceneTextElement, TextElementStyle>>;
 }
 
 const CAMERA_MOVES = [

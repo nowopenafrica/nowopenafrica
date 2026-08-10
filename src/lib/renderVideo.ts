@@ -25,7 +25,7 @@
 // `renderContactSheet` and `renderVideo` touch the canvas/MediaRecorder and are
 // guarded so importing the module never needs a real browser.
 
-import type { DirectorScene } from './creativeDirector';
+import type { DirectorScene, SceneTextElement } from './creativeDirector';
 import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
 
@@ -369,7 +369,7 @@ export function sceneLayout(w: number, h: number, aspect: RenderAspect): SceneLa
 }
 
 /** Which caption element a scene draws, for the editable live preview. */
-export type SceneElementKey = 'brand' | 'title' | 'subline' | 'cta';
+export type SceneElementKey = SceneTextElement;
 
 export interface SceneElementRegion {
   key: SceneElementKey;
@@ -383,12 +383,15 @@ export interface SceneElementRegion {
 /**
  * Clickable regions of the current scene, in normalised canvas coordinates.
  * The brand lockup, headline block and voiceover strip are always there; the
- * call-to-action only exists on the final card. Used by the editable preview to
+ * call-to-action only exists on the final card. Per-clip element overrides are
+ * honoured: hidden elements are dropped and moved elements shift their boxes so
+ * the hit-test always matches what was drawn. Used by the editable preview to
  * turn a click into "edit this element".
  */
-export function sceneElementRegions(opts: SceneFrameOptions, index: number): SceneElementRegion[] {
+export function sceneElementRegions(opts: SceneFrameOptions, scene: DirectorScene, index: number): SceneElementRegion[] {
   const { width: w, height: h } = RENDER_DIMENSIONS[opts.aspect];
   const L = sceneLayout(w, h, opts.aspect);
+  const el = (key: SceneElementKey) => scene.elements?.[key];
   const raw: { key: SceneElementKey; x: number; y: number; w: number; h: number }[] = [
     { key: 'brand', x: w * 0.16, y: L.brandTop, w: w * 0.68, h: Math.max(28, L.brandBottom - L.brandTop) },
     { key: 'title', x: w * 0.09, y: L.titleBlockTop, w: w * 0.82, h: L.titleBlockH },
@@ -397,7 +400,15 @@ export function sceneElementRegions(opts: SceneFrameOptions, index: number): Sce
   if (index === opts.scenesCount - 1) {
     raw.push({ key: 'cta', x: w * 0.2, y: L.ctaY - L.baseTitle, w: w * 0.6, h: L.baseTitle * 1.7 });
   }
-  return raw.map((r) => ({ key: r.key, x: r.x / w, y: r.y / h, w: r.w / w, h: r.h / h }));
+  return raw
+    .filter((r) => el(r.key)?.hidden !== true)
+    .map((r) => ({
+      key: r.key,
+      x: (r.x + (el(r.key)?.dx ?? 0) * w) / w,
+      y: (r.y + (el(r.key)?.dy ?? 0) * h) / h,
+      w: r.w / w,
+      h: r.h / h,
+    }));
 }
 
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
@@ -743,9 +754,10 @@ function drawLedTicker(
   frame: number,
   L: SceneLayoutSpec,
   plan: SceneRenderPlan,
+  shiftY = 0,
 ): void {
   const tickerH = Math.max(24, Math.round(L.baseTitle * 0.5));
-  const y = L.chipY - tickerH - 8;
+  const y = L.chipY - tickerH - 8 + shiftY;
   ctx.save();
   ctx.fillStyle = 'rgba(0,0,0,0.55)';
   ctx.fillRect(0, y, w, tickerH);
@@ -786,6 +798,23 @@ function drawOverlay(
   const lineH = L.lineH;
   const treatment = opts.treatment ?? 'default';
 
+  // Per-clip caption overrides. Every element reads through these helpers so the
+  // designed look stays the default and an override only nudges what it touches.
+  const el = (key: SceneElementKey) => scene.elements?.[key];
+  const hidden = (key: SceneElementKey) => el(key)?.hidden === true;
+  const textOf = (key: SceneElementKey, fallback: string) => el(key)?.text ?? fallback;
+  const shifted = (key: SceneElementKey, x: number, y: number) => ({
+    x: x + (el(key)?.dx ?? 0) * w,
+    y: y + (el(key)?.dy ?? 0) * h,
+  });
+  const styled = (key: SceneElementKey, size: number, weight: number) => ({
+    size: Math.max(8, Math.round(size * (el(key)?.scale ?? 1))),
+    weight: el(key)?.fontWeight ?? weight,
+    family: el(key)?.fontFamily ?? 'system-ui, sans-serif',
+  });
+  const font = (s: { size: number; weight: number; family: string }) => `${s.weight} ${s.size}px ${s.family}`;
+  const colorOf = (key: SceneElementKey, fallback: string) => el(key)?.color ?? fallback;
+
   // Soft bottom scrim over real footage so captions always read.
   if (overVideo) {
     const scrim = ctx.createLinearGradient(0, h * 0.45, 0, h);
@@ -798,12 +827,15 @@ function drawOverlay(
   // Brand lockup, top.
   ctx.save();
   ctx.textAlign = 'center';
-  ctx.fillStyle = 'rgba(255,255,255,0.9)';
-  ctx.font = `900 ${brandSize}px system-ui, sans-serif`;
-  ctx.fillText(`${opts.logoEmoji ?? '✦'} ${opts.businessName.toUpperCase()}`, w / 2, brandSize * 1.6 + 12);
-  ctx.fillStyle = 'rgba(255,255,255,0.45)';
-  ctx.font = `700 ${Math.round(brandSize * 0.7)}px system-ui, sans-serif`;
-  ctx.fillText(opts.directionLabel.toUpperCase(), w / 2, brandSize * 1.6 + 12 + brandSize);
+  if (!hidden('brand')) {
+    const brandPos = shifted('brand', w / 2, brandSize * 1.6 + 12);
+    ctx.fillStyle = colorOf('brand', 'rgba(255,255,255,0.9)');
+    ctx.font = font(styled('brand', brandSize, 900));
+    ctx.fillText(textOf('brand', `${opts.logoEmoji ?? '✦'} ${opts.businessName.toUpperCase()}`), brandPos.x, brandPos.y);
+    ctx.fillStyle = colorOf('brand', 'rgba(255,255,255,0.45)');
+    ctx.font = font(styled('brand', Math.round(brandSize * 0.7), 700));
+    ctx.fillText(opts.directionLabel.toUpperCase(), brandPos.x, brandPos.y + brandSize);
+  }
   ctx.restore();
 
   // Scene number chip + progress dots.
@@ -821,27 +853,31 @@ function drawOverlay(
 
   // Voiceover strip: a scrolling LED ticker for billboard work, the standard
   // caption pill everywhere else.
-  if (treatment === 'led' && scene.voiceover) {
-    drawLedTicker(ctx, w, scene.voiceover, frame, L, plan);
-  } else if (scene.voiceover) {
-    ctx.save();
-    ctx.textAlign = 'center';
-    ctx.font = `500 ${Math.round(baseTitle * 0.24)}px system-ui, sans-serif`;
-    const voLines = wrapLines(ctx, scene.voiceover, w * 0.78);
-    const voY = L.voY;
-    const voLineH = L.voLineH;
-    if (overVideo) {
-      const pillW = w * 0.8;
-      const pillH = voLines.length * voLineH + voLineH * 0.7;
-      ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      roundRect(ctx, w / 2 - pillW / 2, voY - voLineH * 0.6, pillW, pillH, Math.round(baseTitle * 0.12));
-      ctx.fill();
+  if (!hidden('subline')) {
+    const sublineText = textOf('subline', scene.voiceover);
+    const subPos = shifted('subline', w / 2, L.voY);
+    if (treatment === 'led' && sublineText) {
+      drawLedTicker(ctx, w, sublineText, frame, L, plan, (el('subline')?.dy ?? 0) * h);
+    } else if (sublineText) {
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.font = font(styled('subline', Math.round(baseTitle * 0.24), 500));
+      const voLines = wrapLines(ctx, sublineText, w * 0.78);
+      const voY = subPos.y;
+      const voLineH = L.voLineH;
+      if (overVideo) {
+        const pillW = w * 0.8;
+        const pillH = voLines.length * voLineH + voLineH * 0.7;
+        ctx.fillStyle = 'rgba(0,0,0,0.35)';
+        roundRect(ctx, subPos.x - pillW / 2, voY - voLineH * 0.6, pillW, pillH, Math.round(baseTitle * 0.12));
+        ctx.fill();
+      }
+      ctx.fillStyle = colorOf('subline', overVideo ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.75)');
+      voLines.forEach((line, i) => {
+        ctx.fillText(line, subPos.x, voY + i * voLineH);
+      });
+      ctx.restore();
     }
-    ctx.fillStyle = overVideo ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.75)';
-    voLines.forEach((line, i) => {
-      ctx.fillText(line, w / 2, voY + i * voLineH);
-    });
-    ctx.restore();
   }
 
   // Progress dots.
@@ -861,73 +897,77 @@ function drawOverlay(
   ctx.restore();
 
   // Main title text.
-  const title = index === 0 ? opts.hook || scene.text : scene.text;
-  ctx.save();
-  ctx.textAlign = 'center';
-  ctx.font = treatment === 'premium' ? `700 ${Math.round(baseTitle * 1.08)}px system-ui, sans-serif` : `900 ${baseTitle}px system-ui, sans-serif`;
-  if (treatment === 'premium') {
-    try { ctx.letterSpacing = '0.04em'; } catch { /* older browsers ignore */ }
-  }
-  const titleLines = wrapLines(ctx, title, w * 0.82);
-  const titleCount = Math.min(3, titleLines.length);
-
-  // Apple TV standard: a small accent kicker + hairline above the headline.
-  if (treatment === 'premium') {
-    ctx.fillStyle = plan.accentColor;
-    ctx.font = `700 ${Math.round(smallSize * 1.1)}px system-ui, sans-serif`;
-    ctx.fillText(opts.directionLabel.toUpperCase(), w / 2, titleY - lineH * 1.55);
-    ctx.fillStyle = 'rgba(255,255,255,0.35)';
-    const ruleW = Math.round(Math.min(140, w * 0.12));
-    ctx.fillRect(w / 2 - ruleW / 2, titleY - lineH * 1.2, ruleW, 2);
-  }
-
-  // Glassmorphism: a frosted panel sits behind the headline block.
-  if (treatment === 'glass') {
-    const panelTop = titleY - lineH * 1.45;
-    const panelH = titleCount * lineH + lineH * 0.9;
-    const panelW = w * 0.88;
+  const title = textOf('title', index === 0 ? opts.hook || scene.text : scene.text);
+  const titlePos = shifted('title', w / 2, titleY);
+  if (!hidden('title')) {
     ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.09)';
-    ctx.strokeStyle = 'rgba(255,255,255,0.22)';
-    ctx.lineWidth = 1.5;
-    roundRect(ctx, w / 2 - panelW / 2, panelTop, panelW, panelH, Math.round(baseTitle * 0.18));
+    ctx.textAlign = 'center';
+    ctx.font = font(styled('title', treatment === 'premium' ? Math.round(baseTitle * 1.08) : baseTitle, treatment === 'premium' ? 700 : 900));
+    if (treatment === 'premium') {
+      try { ctx.letterSpacing = '0.04em'; } catch { /* older browsers ignore */ }
+    }
+    const titleLines = wrapLines(ctx, title, w * 0.82);
+    const titleCount = Math.min(3, titleLines.length);
+
+    // Apple TV standard: a small accent kicker + hairline above the headline.
+    if (treatment === 'premium') {
+      ctx.fillStyle = plan.accentColor;
+      ctx.font = `700 ${Math.round(smallSize * 1.1)}px system-ui, sans-serif`;
+      ctx.fillText(opts.directionLabel.toUpperCase(), titlePos.x, titlePos.y - lineH * 1.55);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      const ruleW = Math.round(Math.min(140, w * 0.12));
+      ctx.fillRect(titlePos.x - ruleW / 2, titlePos.y - lineH * 1.2, ruleW, 2);
+    }
+
+    // Glassmorphism: a frosted panel sits behind the headline block.
+    if (treatment === 'glass') {
+      const panelTop = titlePos.y - lineH * 1.45;
+      const panelH = titleCount * lineH + lineH * 0.9;
+      const panelW = w * 0.88;
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,255,255,0.09)';
+      ctx.strokeStyle = 'rgba(255,255,255,0.22)';
+      ctx.lineWidth = 1.5;
+      roundRect(ctx, titlePos.x - panelW / 2, panelTop, panelW, panelH, Math.round(baseTitle * 0.18));
+      ctx.fill();
+      ctx.stroke();
+      ctx.restore();
+    }
+
+    // 3D: the headline drifts a hair against the parallax shapes below it.
+    if (treatment === '3d') {
+      ctx.translate(Math.round(Math.sin((frame * 0.03) % (Math.PI * 2)) * w * 0.006), 0);
+    }
+
+    ctx.shadowColor = treatment === 'led' ? plan.accentColor : 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = treatment === 'led' ? Math.round(baseTitle * 0.9) : Math.round(baseTitle * 0.35);
+    ctx.fillStyle = colorOf('title', plan.textColor);
+    titleLines.slice(0, 3).forEach((line, i) => {
+      ctx.fillText(line, titlePos.x, titlePos.y + (i - (titleCount - 1) / 2) * lineH);
+    });
+    ctx.shadowBlur = 0;
+    if (treatment === 'premium') {
+      try { ctx.letterSpacing = '0px'; } catch { /* older browsers ignore */ }
+    }
+
+    // Accent underline (parallax with the title on the 3D treatment).
+    const accW = Math.round(Math.min(300, w * 0.24));
+    ctx.fillStyle = plan.accentColor;
+    roundRect(ctx, titlePos.x - accW / 2, titlePos.y + lineH * 0.72, accW, Math.max(6, Math.round(baseTitle * 0.09)), Math.round(baseTitle * 0.05));
     ctx.fill();
-    ctx.stroke();
     ctx.restore();
   }
 
-  // 3D: the headline drifts a hair against the parallax shapes below it.
-  if (treatment === '3d') {
-    ctx.translate(Math.round(Math.sin((frame * 0.03) % (Math.PI * 2)) * w * 0.006), 0);
-  }
-
-  ctx.shadowColor = treatment === 'led' ? plan.accentColor : 'rgba(0,0,0,0.5)';
-  ctx.shadowBlur = treatment === 'led' ? Math.round(baseTitle * 0.9) : Math.round(baseTitle * 0.35);
-  ctx.fillStyle = plan.textColor;
-  titleLines.slice(0, 3).forEach((line, i) => {
-    ctx.fillText(line, w / 2, titleY + (i - (titleCount - 1) / 2) * lineH);
-  });
-  ctx.shadowBlur = 0;
-  if (treatment === 'premium') {
-    try { ctx.letterSpacing = '0px'; } catch { /* older browsers ignore */ }
-  }
-
-  // Accent underline (parallax with the title on the 3D treatment).
-  const accW = Math.round(Math.min(300, w * 0.24));
-  ctx.fillStyle = plan.accentColor;
-  roundRect(ctx, w / 2 - accW / 2, titleY + lineH * 0.72, accW, Math.max(6, Math.round(baseTitle * 0.09)), Math.round(baseTitle * 0.05));
-  ctx.fill();
-  ctx.restore();
-
   // CTA + phone end card on the final scene.
-  if (index === opts.scenesCount - 1 && t > 0.62) {
+  if (index === opts.scenesCount - 1 && t > 0.62 && !hidden('cta')) {
     const fadeIn = clamp((t - 0.62) / 0.18, 0, 1);
+    const ctaPos = shifted('cta', w / 2, L.ctaY);
     ctx.save();
     ctx.globalAlpha = fadeIn;
     ctx.textAlign = 'center';
-    ctx.font = `900 ${Math.round(baseTitle * 0.42)}px system-ui, sans-serif`;
-    ctx.fillStyle = plan.accentColor;
-    ctx.fillText((opts.cta ?? 'Tap to order').toUpperCase(), w / 2, L.ctaY);
+    ctx.font = font(styled('cta', Math.round(baseTitle * 0.42), 900));
+    ctx.fillStyle = colorOf('cta', plan.accentColor);
+    ctx.fillText(textOf('cta', opts.cta ?? 'Tap to order').toUpperCase(), ctaPos.x, ctaPos.y);
     ctx.restore();
   }
 

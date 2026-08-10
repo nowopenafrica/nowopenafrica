@@ -3,6 +3,7 @@ import {
   motionScenesFromJob, motionTotalSeconds, MOTION_SECONDS, MOTION_SCENE_COUNTS,
   applyMotionTimeline, emptyMotionTimeline, timelineMoveClip, timelineSetSeconds,
   timelineResetSeconds, timelineDuplicate, timelineSplit, timelineRemove,
+  timelineSetElement, timelineResetElement, timelineAppendClip,
   type MotionConfig, type MotionTimeline,
 } from './motionGraphics';
 
@@ -135,5 +136,33 @@ describe('motionGraphics — editor timeline overlay', () => {
     const tl: MotionTimeline = { order: ['ghost-1'], seconds: {}, custom: {}, removed: [] };
     const out = applyMotionTimeline(scenes, tl);
     expect(out.map((s) => s.id)).toEqual(scenes.map((s) => s.id)); // ghost skipped, all base kept
+  });
+
+  it('overrides and resets a caption element per clip', () => {
+    let tl = emptyMotionTimeline(scenes);
+    tl = timelineSetElement(tl, scenes[0].id, 'title', { text: 'Custom headline', color: '#fde047' });
+    tl = timelineSetElement(tl, scenes[0].id, 'title', { scale: 1.4 });
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out[0].elements?.title).toMatchObject({ text: 'Custom headline', color: '#fde047', scale: 1.4 });
+    expect(out[1].elements?.title).toBeUndefined(); // other clips untouched
+    const reset = timelineResetElement(tl, scenes[0].id, 'title');
+    expect(applyMotionTimeline(scenes, reset)[0].elements).toBeUndefined();
+  });
+
+  it('hides an element and drops its overlay when the clip is removed', () => {
+    let tl = timelineSetElement(emptyMotionTimeline(scenes), scenes[0].id, 'cta', { hidden: true });
+    expect(applyMotionTimeline(scenes, tl)[0].elements?.cta?.hidden).toBe(true);
+    tl = timelineRemove(tl, scenes[0].id);
+    expect(tl.elements?.[scenes[0].id]).toBeUndefined();
+  });
+
+  it('appends a brand-new clip cloned from a base scene', () => {
+    const tl = timelineAppendClip(emptyMotionTimeline(scenes), scenes[0]);
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out).toHaveLength(scenes.length + 1);
+    const added = out[out.length - 1];
+    expect(added.id).not.toBe(scenes[0].id);
+    expect(added.text).toBe(scenes[0].text);
+    expect(added.transition).toBe('fade');
   });
 });

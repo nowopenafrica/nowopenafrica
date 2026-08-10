@@ -11,7 +11,7 @@
 // the same config always builds the same storyboard, and the render then
 // films it the same way every time.
 
-import type { DirectorScene } from './creativeDirector';
+import type { DirectorScene, SceneTextElement, TextElementStyle } from './creativeDirector';
 import type { RenderAspect } from './renderVideo';
 
 export type MotionStyle =
@@ -195,6 +195,12 @@ export interface MotionTimeline {
   custom: Record<string, DirectorScene>;
   /** Base scene ids the user deleted — kept out of the timeline even after the brief regenerates them. */
   removed: string[];
+  /**
+   * Per-clip caption element overrides (move / hide / restyle / reword), keyed
+   * by clip id. Merged onto the drawn scene by applyMotionTimeline so a stale
+   * id (after a style change) is simply ignored.
+   */
+  elements?: Record<string, Partial<Record<SceneTextElement, TextElementStyle>>>;
 }
 
 export function emptyMotionTimeline(scenes: DirectorScene[]): MotionTimeline {
@@ -219,6 +225,18 @@ export function applyMotionTimeline(
   const custom = timeline.custom ?? {};
   const removed = timeline.removed ?? [];
   const baseById = new Map(scenes.map((s) => [s.id, s]));
+  const elementOverrides = timeline.elements ?? {};
+  const mergeElements = (
+    base?: Partial<Record<SceneTextElement, TextElementStyle>>,
+    overrides?: Partial<Record<SceneTextElement, TextElementStyle>>,
+  ): Partial<Record<SceneTextElement, TextElementStyle>> | undefined => {
+    if (!overrides) return base;
+    const merged: Partial<Record<SceneTextElement, TextElementStyle>> = { ...(base ?? {}) };
+    (Object.keys(overrides) as SceneTextElement[]).forEach((k) => {
+      merged[k] = { ...merged[k], ...overrides[k] };
+    });
+    return merged;
+  };
   const placed = new Set<string>();
   const out: DirectorScene[] = [];
   const push = (id: string) => {
@@ -227,7 +245,7 @@ export function applyMotionTimeline(
     if (!src) return;
     placed.add(id);
     const clipSeconds = seconds[id] != null ? clampClipSeconds(seconds[id]) : src.seconds;
-    out.push({ ...src, order: out.length, seconds: clipSeconds });
+    out.push({ ...src, order: out.length, seconds: clipSeconds, elements: mergeElements(src.elements, elementOverrides[id]) });
   };
   for (const id of order) push(id);
   // Anything the brief grew that the timeline does not mention appends at the
@@ -262,6 +280,41 @@ export function timelineResetSeconds(tl: MotionTimeline, id: string): MotionTime
   const seconds = { ...tl.seconds };
   delete seconds[id];
   return { ...tl, seconds };
+}
+
+/** Override one caption element of a clip (text, font, weight, size, colour, position, visibility). */
+export function timelineSetElement(
+  tl: MotionTimeline,
+  id: string,
+  key: SceneTextElement,
+  patch: Partial<TextElementStyle>,
+): MotionTimeline {
+  const elements = { ...(tl.elements ?? {}) };
+  const current = elements[id] ?? {};
+  elements[id] = { ...current, [key]: { ...current[key], ...patch } };
+  return { ...tl, elements };
+}
+
+/** Drop every override for one caption element of a clip (back to the designed look). */
+export function timelineResetElement(
+  tl: MotionTimeline,
+  id: string,
+  key: SceneTextElement,
+): MotionTimeline {
+  const elements = { ...(tl.elements ?? {}) };
+  const current = { ...(elements[id] ?? {}) };
+  delete current[key];
+  if (Object.keys(current).length === 0) delete elements[id];
+  else elements[id] = current;
+  return { ...tl, elements };
+}
+
+/** Append a brand-new clip to the end of the timeline, cloned from `base`. */
+export function timelineAppendClip(tl: MotionTimeline, base: DirectorScene): MotionTimeline {
+  const newId = nextClipId('clip', tl);
+  const order = [...tl.order, newId];
+  const custom = { ...tl.custom, [newId]: { ...base, id: newId, order: tl.order.length, transition: 'fade' } };
+  return { ...tl, order, custom, seconds: { ...tl.seconds, [newId]: clampClipSeconds(base.seconds) } };
 }
 
 export function timelineDuplicate(scenes: DirectorScene[], tl: MotionTimeline, id: string): MotionTimeline {
@@ -299,7 +352,9 @@ export function timelineRemove(tl: MotionTimeline, id: string): MotionTimeline {
   delete custom[id];
   const seconds = { ...tl.seconds };
   delete seconds[id];
+  const elements = { ...(tl.elements ?? {}) };
+  delete elements[id];
   const removed = [...tl.removed];
   if (!removed.includes(id)) removed.push(id);
-  return { ...tl, order, custom, seconds, removed };
+  return { ...tl, order, custom, seconds, removed, elements };
 }
