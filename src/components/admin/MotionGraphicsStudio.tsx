@@ -11,7 +11,7 @@ import type { DirectorScene, TextElementStyle } from '../../lib/creativeDirector
 import {
   renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
   sceneElementRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
-  createBackgroundVideo, createBackgroundImage,
+  createBackgroundVideo, createBackgroundImage, MOTION_FONT_DEFAULT,
   type RenderAspect, type SceneFrameOptions, type MotionTreatment,
   type SceneElementKey, type MotionLayer,
 } from '../../lib/renderVideo';
@@ -129,7 +129,7 @@ const ELEMENT_COLORS: { swatch: string; value?: string }[] = [
 ];
 
 const FONT_FAMILY_OPTIONS: { label: string; value?: string }[] = [
-  { label: 'System default' },
+  { label: 'NowOpen Africa' },
   { label: 'Inter', value: 'Inter, system-ui, sans-serif' },
   { label: 'Serif', value: 'Georgia, "Times New Roman", serif' },
   { label: 'Sans', value: 'Impact, "Arial Black", sans-serif' },
@@ -222,6 +222,11 @@ function MotionPreview({
     const totalFrames = Math.max(1, timeline.totalFrames);
     let frame = 0;
     let raf = 0;
+
+    // Warm the brand webfont so captions render in it rather than the fallback.
+    if (typeof document !== 'undefined' && typeof document.fonts !== 'undefined' && document.fonts.load) {
+      void document.fonts.load(`700 16px ${MOTION_FONT_DEFAULT}`).catch(() => { /* fallback stays in the stack */ });
+    }
 
     // Keep uploaded video layers animating behind the captions.
     (opts.layers ?? [])

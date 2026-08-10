@@ -39,6 +39,13 @@ export type RenderAspect = 'Square' | 'Vertical' | 'Landscape';
  */
 export type MotionTreatment = 'default' | 'led' | 'premium' | 'glass' | '3d';
 
+/**
+ * House typeface for the motion renders — the self-hosted Coolvetica webfont
+ * (see `src/index.css` @font-face) with a system-ui fallback so the canvas
+ * always resolves a face, even before the webfont finishes loading.
+ */
+export const MOTION_FONT_DEFAULT = 'Coolvetica, system-ui, sans-serif';
+
 export interface RenderDimensions {
   width: number;
   height: number;
@@ -764,7 +771,7 @@ function drawLedTicker(
   const label = text || 'OPEN FOR BUSINESS';
   const full = `  ${label}   ${label}   ${label}  `;
   ctx.fillStyle = plan.accentColor;
-  ctx.font = `800 ${Math.round(tickerH * 0.62)}px system-ui, sans-serif`;
+  ctx.font = `800 ${Math.round(tickerH * 0.62)}px ${MOTION_FONT_DEFAULT}`;
   ctx.textAlign = 'left';
   ctx.textBaseline = 'middle';
   const unit = Math.max(1, ctx.measureText(full).width / full.length);
@@ -810,7 +817,7 @@ function drawOverlay(
   const styled = (key: SceneElementKey, size: number, weight: number) => ({
     size: Math.max(8, Math.round(size * (el(key)?.scale ?? 1))),
     weight: el(key)?.fontWeight ?? weight,
-    family: el(key)?.fontFamily ?? 'system-ui, sans-serif',
+    family: el(key)?.fontFamily ?? MOTION_FONT_DEFAULT,
   });
   const font = (s: { size: number; weight: number; family: string }) => `${s.weight} ${s.size}px ${s.family}`;
   const colorOf = (key: SceneElementKey, fallback: string) => el(key)?.color ?? fallback;
@@ -846,7 +853,7 @@ function drawOverlay(
   roundRect(ctx, w / 2 - chipW / 2, chipY, chipW, Math.round(brandSize * 1.5), Math.round(brandSize * 0.35));
   ctx.fill();
   ctx.fillStyle = '#ffffff';
-  ctx.font = `800 ${smallSize}px system-ui, sans-serif`;
+  ctx.font = `800 ${smallSize}px ${MOTION_FONT_DEFAULT}`;
   ctx.textAlign = 'center';
   ctx.fillText(`SCENE ${index + 1} · ${scene.camera.toUpperCase()}`, w / 2, chipY + smallSize * 1.35);
   ctx.restore();
@@ -886,7 +893,7 @@ function drawOverlay(
   const gap = Math.round(dotR * 4);
   const startX = w / 2 - ((opts.scenesCount - 1) * gap) / 2;
   ctx.fillStyle = 'rgba(255,255,255,0.3)';
-  ctx.font = `${Math.round(brandSize * 0.9)}px system-ui, sans-serif`;
+  ctx.font = `${Math.round(brandSize * 0.9)}px ${MOTION_FONT_DEFAULT}`;
   ctx.textAlign = 'center';
   for (let i = 0; i < opts.scenesCount; i++) {
     ctx.beginPath();
@@ -912,7 +919,7 @@ function drawOverlay(
     // Apple TV standard: a small accent kicker + hairline above the headline.
     if (treatment === 'premium') {
       ctx.fillStyle = plan.accentColor;
-      ctx.font = `700 ${Math.round(smallSize * 1.1)}px system-ui, sans-serif`;
+      ctx.font = `700 ${Math.round(smallSize * 1.1)}px ${MOTION_FONT_DEFAULT}`;
       ctx.fillText(opts.directionLabel.toUpperCase(), titlePos.x, titlePos.y - lineH * 1.55);
       ctx.fillStyle = 'rgba(255,255,255,0.35)';
       const ruleW = Math.round(Math.min(140, w * 0.12));
@@ -975,7 +982,7 @@ function drawOverlay(
   // scene so every design style carries the house brand next to the business's.
   ctx.save();
   ctx.textAlign = 'left';
-  ctx.font = `800 ${Math.round(smallSize * 0.78)}px system-ui, sans-serif`;
+  ctx.font = `800 ${Math.round(smallSize * 0.78)}px ${MOTION_FONT_DEFAULT}`;
   try { ctx.letterSpacing = '0.14em'; } catch { /* older browsers ignore */ }
   ctx.fillStyle = 'rgba(255,255,255,0.34)';
   ctx.fillText('✦ NOWOPEN AFRICA', Math.round(w * 0.035), h - (isVertical ? 22 : 18));
@@ -1121,7 +1128,7 @@ export function renderContactSheet(opts: SceneFrameOptions, scenes: DirectorScen
   ctx.fillStyle = '#0f172a';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.fillStyle = '#ffffff';
-  ctx.font = '900 44px system-ui, sans-serif';
+  ctx.font = `900 44px ${MOTION_FONT_DEFAULT}`;
   ctx.textAlign = 'center';
   ctx.fillText(`${opts.businessName} — ${opts.directionLabel} storyboard`, canvas.width / 2, 70);
 
@@ -1137,7 +1144,7 @@ export function renderContactSheet(opts: SceneFrameOptions, scenes: DirectorScen
     drawSceneContent(ctx, cellW, cellH, plan, i, scene, 0.5, opts, backdropSource, 0);
     ctx.restore();
     ctx.fillStyle = 'rgba(255,255,255,0.9)';
-    ctx.font = '800 30px system-ui, sans-serif';
+    ctx.font = `800 30px ${MOTION_FONT_DEFAULT}`;
     ctx.textAlign = 'left';
     ctx.fillText(`S${i + 1} · ${scene.seconds}s · ${scene.camera}`, x + 16, y + cellH - 20);
     ctx.strokeStyle = 'rgba(255,255,255,0.2)';
