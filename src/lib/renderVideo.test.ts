@@ -3,7 +3,7 @@ import {
   renderSeed, sceneRenderPlan, buildRenderTimeline, timelineAt,
   pickRenderMime, renderTotalSeconds, renderSceneStill, RENDER_DIMENSIONS, RENDER_FPS,
   RENDER_MIME_CANDIDATES, type RenderOptions, type SceneFrameOptions, pickRecorderMime, RENDER_MIME_CANDIDATES_WITH_AUDIO, footageIsEnabled, RENDER_PALETTES,
-  sceneLayout, sceneElementRegions, resolveSource, elementEntrance, type MotionLayer } from './renderVideo';
+  sceneLayout, sceneElementRegions, resolveSource, elementEntrance, sceneLayerRegions, type MotionLayer } from './renderVideo';
 import type { DirectorScene } from './creativeDirector';
 import { TEXT_ANIMATIONS, TEXT_EFFECTS } from './creativeDirector';
 
@@ -190,6 +190,51 @@ describe('renderVideo — uploaded layer priority', () => {
       { kind: 'video', url: 'blob:overlay', video: fakeVideo(true) },
     ];
     expect(resolveSource(null, null, stacked).kind).toBe('image');
+  });
+});
+
+describe('renderVideo — editable layer regions & transforms', () => {
+  const fakeImage = (ready: boolean): HTMLImageElement =>
+    ({ complete: ready, naturalWidth: ready ? 1920 : 0, naturalHeight: ready ? 1080 : 0 }) as unknown as HTMLImageElement;
+  const layer = (over: Partial<MotionLayer> = {}): MotionLayer => ({ kind: 'image', url: 'blob:img', image: fakeImage(true), ...over });
+
+  it('starts every visible layer full-canvas and centred', () => {
+    const r = sceneLayerRegions(opts(), [layer()]);
+    expect(r).toHaveLength(1);
+    expect(r[0]).toEqual({ index: 0, x: 0, y: 0, w: 1, h: 1 });
+  });
+
+  it('scales the cover rect up around the canvas centre', () => {
+    const r = sceneLayerRegions(opts(), [layer({ scale: 2 })]);
+    expect(r[0].x).toBeCloseTo(-0.5, 5);
+    expect(r[0].y).toBeCloseTo(-0.5, 5);
+    expect(r[0].w).toBeCloseTo(2, 5);
+    expect(r[0].h).toBeCloseTo(2, 5);
+  });
+
+  it('moves the rect by dx/dy in canvas units', () => {
+    const r = sceneLayerRegions(opts(), [layer({ dx: 0.25, dy: -0.25 })]);
+    expect(r[0].x).toBeCloseTo(0.25, 5);
+    expect(r[0].y).toBeCloseTo(-0.25, 5);
+    expect(r[0].w).toBeCloseTo(1, 5);
+  });
+
+  it('combines offset and scale into the cover-fit region', () => {
+    const r = sceneLayerRegions(opts(), [layer({ dx: 0.1, dy: 0.2, scale: 1.5 })]);
+    expect(r[0].x).toBeCloseTo(-0.15, 5);
+    expect(r[0].y).toBeCloseTo(-0.05, 5);
+    expect(r[0].w).toBeCloseTo(1.5, 5);
+  });
+
+  it('drops invisible (opacity 0) layers but keeps the indices of the rest', () => {
+    const r = sceneLayerRegions(opts(), [layer({ opacity: 0 }), layer({ scale: 2 })]);
+    expect(r).toHaveLength(1);
+    expect(r[0].index).toBe(1);
+  });
+
+  it('returns nothing when there are no layers', () => {
+    expect(sceneLayerRegions(opts())).toEqual([]);
+    expect(sceneLayerRegions(opts(), [])).toEqual([]);
   });
 });
 

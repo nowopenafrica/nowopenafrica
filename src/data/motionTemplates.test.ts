@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  MOTION_TEMPLATES, motionTemplateByKey,
+  MOTION_TEMPLATES, motionTemplateByKey, DESIGN_STYLES,
 } from './motionTemplates';
 import { MOTION_SCENE_COUNTS, MOTION_SECONDS, motionScenesFromJob, type MotionConfig } from '../lib/motionGraphics';
 import type { RenderAspect } from '../lib/renderVideo';
@@ -45,5 +45,26 @@ describe('motionTemplates — modern gallery', () => {
   it('looks templates up by key', () => {
     expect(motionTemplateByKey('aurora-glass')?.name).toBe('Aurora Glass');
     expect(motionTemplateByKey('nope')).toBeUndefined();
+  });
+
+  it('tags every template with a known design style', () => {
+    const known = new Set(DESIGN_STYLES.map((s) => s.key));
+    for (const t of MOTION_TEMPLATES) {
+      expect(known.has(t.designStyle)).toBe(true);
+    }
+  });
+
+  it('gives every design style at least one template to browse', () => {
+    for (const style of DESIGN_STYLES) {
+      expect(MOTION_TEMPLATES.some((t) => t.designStyle === style.key)).toBe(true);
+    }
+  });
+
+  it('describes each design style for the gallery header', () => {
+    for (const style of DESIGN_STYLES) {
+      expect(style.label.trim().length).toBeGreaterThan(0);
+      expect(style.blurb.trim().length).toBeGreaterThan(0);
+      expect(style.emoji.length).toBeGreaterThan(0);
+    }
   });
 });

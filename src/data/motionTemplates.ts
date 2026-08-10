@@ -11,6 +11,30 @@
 import type { MotionStyle, MotionDuration } from '../lib/motionGraphics';
 import type { RenderAspect } from '../lib/renderVideo';
 
+/**
+ * The design language of a template. Templates are grouped by these styles in
+ * the gallery, so a creator who knows they want "retro" or "corporate" can find
+ * a starting point at a glance instead of reading concepts. Each style is a
+ * full, editable MotionProject once loaded — nothing here is a fixed colour mix.
+ */
+export type DesignStyle = 'minimal' | 'retro' | 'corporate' | 'fun' | 'tech' | '3d';
+
+export interface DesignStyleMeta {
+  key: DesignStyle;
+  label: string;
+  emoji: string;
+  blurb: string;
+}
+
+export const DESIGN_STYLES: DesignStyleMeta[] = [
+  { key: 'minimal', label: 'Minimal', emoji: '◽', blurb: 'Quiet, lots of air, one strong statement.' },
+  { key: 'retro', label: 'Retro', emoji: '📼', blurb: 'Vintage warmth — neon, chrome and old-school charm.' },
+  { key: 'corporate', label: 'Corporate', emoji: '💼', blurb: 'Trustworthy, refined, built for business.' },
+  { key: 'fun', label: 'Fun', emoji: '🎈', blurb: 'Bold, loud and playful — made to be shared.' },
+  { key: 'tech', label: 'Tech', emoji: '⚡', blurb: 'Sleek gradients, glass and future energy.' },
+  { key: '3d', label: '3D', emoji: '🧊', blurb: 'Layered depth and parallax that pops.' },
+];
+
 export interface MotionTemplatePreset {
   style: MotionStyle;
   aspect: RenderAspect;
@@ -29,6 +53,8 @@ export interface MotionTemplate {
   tags: string[];
   emoji: string;
   palette: [string, string, string];
+  /** The design language this template belongs to (groups the gallery). */
+  designStyle: DesignStyle;
   preset: MotionTemplatePreset;
 }
 
@@ -40,6 +66,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Trending', 'New'],
     emoji: '🧊',
     palette: ['#1e3a8a', '#7c3aed', '#ec4899'],
+    designStyle: 'tech',
     preset: { style: 'motion-poster', aspect: 'Vertical', duration: 'short', headline: 'AURORA DROP', subhead: 'Cold, clear, refreshing', cta: 'Taste the moment', logoEmoji: '❄️' },
   },
   {
@@ -49,6 +76,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Trending'],
     emoji: '🟨',
     palette: ['#facc15', '#f43f5e', '#0f172a'],
+    designStyle: 'fun',
     preset: { style: 'motion-poster', aspect: 'Square', duration: 'medium', headline: 'BIG ENERGY', subhead: 'Loud. Bold. Unmissable.', cta: 'Claim yours today', logoEmoji: '🟥' },
   },
   {
@@ -58,6 +86,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Viral', 'New'],
     emoji: '🌀',
     palette: ['#0ea5e9', '#22d3ee', '#ffffff'],
+    designStyle: 'fun',
     preset: { style: 'kinetic-type', aspect: 'Vertical', duration: 'medium', headline: 'Drop the hook first', subhead: 'Words that hit on the beat', cta: 'Follow the series', logoEmoji: '⚡' },
   },
   {
@@ -67,6 +96,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['New'],
     emoji: '🌃',
     palette: ['#020617', '#22d3ee', '#f0abfc'],
+    designStyle: 'retro',
     preset: { style: 'logo-reveal', aspect: 'Vertical', duration: 'long', headline: 'AFTER DARK', subhead: 'The city that never sleeps', cta: 'Open till late', logoEmoji: '🌙' },
   },
   {
@@ -76,6 +106,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Classic', 'Editorial'],
     emoji: '◾',
     palette: ['#0f0f0f', '#525252', '#fafafa'],
+    designStyle: 'minimal',
     preset: { style: 'reveal-title', aspect: 'Landscape', duration: 'long', headline: 'LESS IS MORE', subhead: 'The quiet statement', cta: 'Read the story', logoEmoji: '◆' },
   },
   {
@@ -85,6 +116,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Trending'],
     emoji: '🎨',
     palette: ['#111827', '#fb7185', '#34d399'],
+    designStyle: 'fun',
     preset: { style: 'motion-poster', aspect: 'Square', duration: 'short', headline: 'TWO TONES, ONE MOOD', subhead: 'High contrast, high energy', cta: 'Get the look', logoEmoji: '🟣' },
   },
   {
@@ -94,6 +126,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Retro', 'New'],
     emoji: '💿',
     palette: ['#7dd3fc', '#d8b4fe', '#f0abfc'],
+    designStyle: 'retro',
     preset: { style: 'badge', aspect: 'Square', duration: 'medium', headline: 'FRESH DROP', subhead: 'Glossy, shiny, futuristic', cta: 'Shop the drop', logoEmoji: '💿' },
   },
   {
@@ -103,6 +136,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Viral'],
     emoji: '🚀',
     palette: ['#7c3aed', '#f97316', '#fde047'],
+    designStyle: 'fun',
     preset: { style: 'countdown', aspect: 'Vertical', duration: 'short', headline: 'GO!', subhead: 'Launching in seconds', cta: 'Notify me on launch', logoEmoji: '🚀' },
   },
   {
@@ -112,6 +146,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Classic'],
     emoji: '📺',
     palette: ['#164e63', '#0ea5e9', '#f8fafc'],
+    designStyle: 'corporate',
     preset: { style: 'lower-third', aspect: 'Landscape', duration: 'medium', headline: 'Chief Editor', subhead: 'The Voice of NowOpen Africa', cta: '', logoEmoji: '🎙️' },
   },
   {
@@ -121,6 +156,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Trending'],
     emoji: '🍧',
     palette: ['#fbcfe8', '#c7d2fe', '#e0f2fe'],
+    designStyle: 'minimal',
     preset: { style: 'logo-reveal', aspect: 'Square', duration: 'long', headline: 'SOFT HOUR', subhead: 'Calm colours, slow mornings', cta: 'Start your morning', logoEmoji: '☁️' },
   },
   {
@@ -130,6 +166,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['New'],
     emoji: '🔥',
     palette: ['#1c1917', '#f59e0b', '#fef3c7'],
+    designStyle: 'corporate',
     preset: { style: 'reveal-title', aspect: 'Landscape', duration: 'long', headline: 'GOLD STANDARD', subhead: 'Refined. Rare. Yours.', cta: 'Reserve your seat', logoEmoji: '👑' },
   },
   {
@@ -139,6 +176,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Viral'],
     emoji: '💥',
     palette: ['#db2777', '#7c3aed', '#0f172a'],
+    designStyle: 'fun',
     preset: { style: 'kinetic-type', aspect: 'Vertical', duration: 'short', headline: 'Say it once', subhead: 'Make it loud', cta: 'Share the reel', logoEmoji: '💥' },
   },
   {
@@ -148,6 +186,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Billboard', 'New'],
     emoji: '🪧',
     palette: ['#050014', '#22d3ee', '#f0abfc'],
+    designStyle: 'tech',
     preset: { style: 'billboard-led', aspect: 'Landscape', duration: 'medium', headline: 'GRAND OPENING', subhead: 'Now open for business', cta: 'Come see us today', logoEmoji: '🪧' },
   },
   {
@@ -157,6 +196,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Premium', 'New'],
     emoji: '🍾',
     palette: ['#0a0a0f', '#71717a', '#f4f4f5'],
+    designStyle: 'minimal',
     preset: { style: 'premium-keyart', aspect: 'Landscape', duration: 'long', headline: 'THE PREMIUM DROP', subhead: 'Experience it first', cta: 'Reserve your seat', logoEmoji: '🍾' },
   },
   {
@@ -166,6 +206,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Trending', 'New'],
     emoji: '🪟',
     palette: ['#1e1b4b', '#7c3aed', '#22d3ee'],
+    designStyle: 'corporate',
     preset: { style: 'glassmorphic', aspect: 'Square', duration: 'medium', headline: 'OPEN FOR BUSINESS', subhead: 'Modern, clear, welcoming', cta: 'Visit us today', logoEmoji: '🪟' },
   },
   {
@@ -175,6 +216,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['3D', 'New'],
     emoji: '📐',
     palette: ['#022c22', '#10b981', '#fde047'],
+    designStyle: '3d',
     preset: { style: 'isometric-3d', aspect: 'Vertical', duration: 'short', headline: 'NEW DROP', subhead: 'Depth you can feel', cta: 'Shop the drop', logoEmoji: '📐' },
   },
   {
@@ -184,6 +226,7 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['Billboard', 'Trending'],
     emoji: '🌆',
     palette: ['#0f0524', '#ec4899', '#22d3ee'],
+    designStyle: 'tech',
     preset: { style: 'billboard-led', aspect: 'Landscape', duration: 'short', headline: 'OPEN TILL LATE', subhead: 'The night is young', cta: 'Come on in', logoEmoji: '🌆' },
   },
   {
@@ -193,7 +236,48 @@ export const MOTION_TEMPLATES: MotionTemplate[] = [
     tags: ['3D', 'Cinema'],
     emoji: '🎥',
     palette: ['#111827', '#f97316', '#fef3c7'],
+    designStyle: '3d',
     preset: { style: 'isometric-3d', aspect: 'Landscape', duration: 'long', headline: 'THE MAIN EVENT', subhead: 'Built for the big screen', cta: 'Get your tickets', logoEmoji: '🎥' },
+  },
+  {
+    key: 'timeless-serif',
+    name: 'Timeless Serif',
+    concept: 'One elegant serif line on quiet paper — classic editorial calm.',
+    tags: ['Minimal', 'Classic'],
+    emoji: '🕊️',
+    palette: ['#1c1917', '#a8a29e', '#fafaf9'],
+    designStyle: 'minimal',
+    preset: { style: 'reveal-title', aspect: 'Landscape', duration: 'long', headline: 'SIMPLY REFINED', subhead: 'The art of understatement', cta: 'Discover more', logoEmoji: '🕊️' },
+  },
+  {
+    key: 'retro-vinyl',
+    name: 'Retro Vinyl',
+    concept: 'Warm 70s record sleeve — cream, burnt orange and a bold sunburst.',
+    tags: ['Retro', 'Vintage'],
+    emoji: '💽',
+    palette: ['#1c0a00', '#ea580c', '#fde68a'],
+    designStyle: 'retro',
+    preset: { style: 'badge', aspect: 'Square', duration: 'medium', headline: 'RETRO NIGHTS', subhead: 'Spin it back', cta: 'Get the vinyl', logoEmoji: '💽' },
+  },
+  {
+    key: 'corporate-blue',
+    name: 'Corporate Blue',
+    concept: 'Trustworthy deep-blue gradients with clean white type — boardroom ready.',
+    tags: ['Corporate', 'Trusted'],
+    emoji: '💼',
+    palette: ['#0c2340', '#1d4ed8', '#93c5fd'],
+    designStyle: 'corporate',
+    preset: { style: 'motion-poster', aspect: 'Landscape', duration: 'medium', headline: 'BUILT ON TRUST', subhead: 'Enterprise-grade, human-first', cta: 'Book a demo', logoEmoji: '💼' },
+  },
+  {
+    key: 'cyber-grid',
+    name: 'Cyber Grid',
+    concept: 'Holographic teal on near-black with a glowing data grid — future ready.',
+    tags: ['Tech', 'Cyber'],
+    emoji: '🔷',
+    palette: ['#050914', '#06b6d4', '#f472b6'],
+    designStyle: 'tech',
+    preset: { style: 'billboard-led', aspect: 'Vertical', duration: 'short', headline: 'NEXT GEN', subhead: 'Built for what is next', cta: 'Get early access', logoEmoji: '🔷' },
   },
 ];
 

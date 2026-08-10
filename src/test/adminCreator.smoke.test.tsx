@@ -149,7 +149,7 @@ describe('AdminCreatorShell smoke', () => {
     // Motion Studio: a template in Quick Create opens the shared project in the
     // Studio editor with the free-canvas ↔ AI video gen choice and live preview.
     fireEvent.click(screen.getAllByRole('button', { name: /Motion Studio/ })[0]);
-    expect(screen.getByText('Modern template gallery')).toBeInTheDocument();
+    expect(screen.getByText('Template gallery')).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: /Neo-Brutalism/ }));
     expect(await screen.findByRole('button', { name: 'Free canvas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AI video gen' })).toBeInTheDocument();

@@ -5,13 +5,13 @@ import {
   LayoutTemplate, Check, Plus, Copy, Trash2, FolderOpen, Wand2, Clapperboard,
   Layers, ChevronUp, ChevronDown, ArrowLeft, Undo2, Redo2, Play, Pause, Save,
   Type, Music, Palette, Shapes, Scissors, RotateCcw, Timer, Share2,
-  HelpCircle, Settings, Eye, EyeOff,
+  HelpCircle, Settings, Eye, EyeOff, Zap,
 } from 'lucide-react';
-import type { DirectorScene, TextElementStyle } from '../../lib/creativeDirector';
+import type { DirectorScene, TextElementStyle, TextAnimationKey, TextEffectKey } from '../../lib/creativeDirector';
 import { TEXT_ANIMATIONS, TEXT_EFFECTS } from '../../lib/creativeDirector';
 import {
   renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
-  sceneElementRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
+  sceneElementRegions, sceneLayerRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
   createBackgroundVideo, createBackgroundImage, MOTION_FONT_DEFAULT,
   type RenderAspect, type SceneFrameOptions, type MotionTreatment,
   type SceneElementKey, type MotionLayer,
@@ -26,7 +26,7 @@ import {
 } from '../../lib/motionGraphics';
 import { resolveAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
 import AiVideoGenPicker from '../studio/AiVideoGenPicker';
-import { MOTION_TEMPLATES, motionTemplateByKey, type MotionTemplate } from '../../data/motionTemplates';
+import { MOTION_TEMPLATES, DESIGN_STYLES, motionTemplateByKey, type MotionTemplate } from '../../data/motionTemplates';
 import { pickPreviewVoice } from '../../lib/voicePreview';
 import {
   blankMotionProject, motionProjectFromTemplate, motionProjectFromPrompt,
@@ -210,7 +210,8 @@ function timeAgo(iso: string): string {
  * the picked element so the parent can open an inline editor.
  */
 function MotionPreview({
-  opts, scenes, editMode, sceneIndex, playing, playhead, onProgress, onPick, onMoveElement, className,
+  opts, scenes, editMode, sceneIndex, playing, playhead, selectedLayer,
+  onProgress, onPick, onMoveElement, onSelectLayer, onMoveLayer, className,
 }: {
   opts: SceneFrameOptions;
   scenes: DirectorScene[];
@@ -218,14 +219,24 @@ function MotionPreview({
   sceneIndex: number;
   playing: boolean;
   playhead: number | null;
+  selectedLayer?: number | null;
   onProgress?: (fraction: number) => void;
   onPick?: (key: SceneElementKey) => void;
   /** Called while dragging an outlined element, with the cumulative normalised delta. */
   onMoveElement?: (key: SceneElementKey, dx: number, dy: number) => void;
+  /** Called when a layer region is clicked (without dragging) so the drawer can open it. */
+  onSelectLayer?: (i: number) => void;
+  /** Called while dragging a layer, with the cumulative normalised delta. */
+  onMoveLayer?: (i: number, dx: number, dy: number) => void;
   className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const dragRef = useRef<{ key: SceneElementKey; startX: number; startY: number; dx: number; dy: number; moved: boolean } | null>(null);
+  const dragRef = useRef<{
+    kind: 'element' | 'layer';
+    key?: SceneElementKey;
+    layerIndex?: number;
+    startX: number; startY: number; dx: number; dy: number; moved: boolean;
+  } | null>(null);
   const dims = RENDER_DIMENSIONS[opts.aspect];
   // Keep the latest progress callback without re-running the drawing loop.
   const onProgressRef = useRef(onProgress);
@@ -278,6 +289,21 @@ function MotionPreview({
         ctx.textBaseline = 'top';
         ctx.fillText('✏️', r.x * cw + 6, r.y * ch + 6);
       }
+      for (const r of sceneLayerRegions(opts, opts.layers)) {
+        const isSel = r.index === selectedLayer;
+        ctx.strokeStyle = isSel ? 'rgba(34,211,238,1)' : 'rgba(34,211,238,0.6)';
+        ctx.fillStyle = isSel ? 'rgba(34,211,238,0.12)' : 'rgba(34,211,238,0.05)';
+        ctx.lineWidth = isSel ? 3 : 2;
+        ctx.beginPath();
+        ctx.rect(r.x * cw, r.y * ch, r.w * cw, r.h * ch);
+        ctx.fill();
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(34,211,238,0.95)';
+        ctx.font = '700 13px system-ui, sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        ctx.fillText('🧲', r.x * cw + 6, r.y * ch + 6);
+      }
       ctx.restore();
     };
 
@@ -312,9 +338,9 @@ function MotionPreview({
     };
     raf = window.requestAnimationFrame(tick);
     return () => { window.cancelAnimationFrame(raf); };
-  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead]);
+  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead, selectedLayer]);
 
-  const regionAt = (e: React.PointerEvent<HTMLCanvasElement>): SceneElementKey | null => {
+  const pickAt = (e: React.PointerEvent<HTMLCanvasElement>): { kind: 'element' | 'layer'; key?: SceneElementKey; layerIndex?: number } | null => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
@@ -323,19 +349,39 @@ function MotionPreview({
     const ny = (e.clientY - rect.top) / rect.height;
     const idx = Math.min(sceneIndex, scenes.length - 1);
     const scene = scenes[idx];
-    if (!scene) return null;
-    return sceneElementRegions(opts, scene, idx).find(
+    if (scene) {
+      const hit = sceneElementRegions(opts, scene, idx).find(
+        (r) => nx >= r.x && nx <= r.x + r.w && ny >= r.y && ny <= r.y + r.h,
+      );
+      if (hit) return { kind: 'element', key: hit.key };
+    }
+    const layerHit = sceneLayerRegions(opts, opts.layers).find(
       (r) => nx >= r.x && nx <= r.x + r.w && ny >= r.y && ny <= r.y + r.h,
-    )?.key ?? null;
+    );
+    if (layerHit) return { kind: 'layer', layerIndex: layerHit.index };
+    return null;
   };
 
   const onPointerDown = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!editMode) return;
-    const key = regionAt(e);
-    if (!key) return;
-    const scene = scenes[Math.min(sceneIndex, scenes.length - 1)];
-    const style = scene?.elements?.[key] ?? {};
-    dragRef.current = { key, startX: e.clientX, startY: e.clientY, dx: style.dx ?? 0, dy: style.dy ?? 0, moved: false };
+    const hit = pickAt(e);
+    if (!hit) return;
+    if (hit.kind === 'layer' && hit.layerIndex != null) {
+      const layer = opts.layers?.[hit.layerIndex];
+      dragRef.current = {
+        kind: 'layer', layerIndex: hit.layerIndex,
+        startX: e.clientX, startY: e.clientY,
+        dx: layer?.dx ?? 0, dy: layer?.dy ?? 0, moved: false,
+      };
+    } else if (hit.kind === 'element' && hit.key) {
+      const scene = scenes[Math.min(sceneIndex, scenes.length - 1)];
+      const style = scene?.elements?.[hit.key] ?? {};
+      dragRef.current = {
+        kind: 'element', key: hit.key,
+        startX: e.clientX, startY: e.clientY,
+        dx: style.dx ?? 0, dy: style.dy ?? 0, moved: false,
+      };
+    }
     e.currentTarget.setPointerCapture(e.pointerId);
   };
 
@@ -353,7 +399,11 @@ function MotionPreview({
     drag.moved = true;
     const nextDx = Math.max(-0.5, Math.min(0.5, drag.dx + nw));
     const nextDy = Math.max(-0.5, Math.min(0.5, drag.dy + nh));
-    if (onMoveElement) onMoveElement(drag.key, nextDx, nextDy);
+    if (drag.kind === 'layer' && drag.layerIndex != null) {
+      if (onMoveLayer) onMoveLayer(drag.layerIndex, nextDx, nextDy);
+    } else if (drag.kind === 'element' && drag.key) {
+      if (onMoveElement) onMoveElement(drag.key, nextDx, nextDy);
+    }
   };
 
   const onPointerUp = () => {
@@ -361,7 +411,11 @@ function MotionPreview({
     if (!drag) return;
     dragRef.current = null;
     if (drag.moved) return;
-    if (onPick) onPick(drag.key);
+    if (drag.kind === 'layer' && drag.layerIndex != null) {
+      if (onSelectLayer) onSelectLayer(drag.layerIndex);
+    } else if (drag.kind === 'element' && drag.key) {
+      if (onPick) onPick(drag.key);
+    }
   };
 
   return (
@@ -734,6 +788,11 @@ export default function MotionGraphicsStudio() {
   const [layers, setLayers] = useState<(MotionLayer & { name: string })[]>([]);
   const layersRef = useRef(layers);
   layersRef.current = layers;
+  // The layer whose transform controls the Media drawer edits (and the preview
+  // highlights). Mirrored in a ref so canvas drags never need a re-render.
+  const [selectedLayer, setSelectedLayer] = useState<number | null>(null);
+  const selectedLayerRef = useRef(selectedLayer);
+  selectedLayerRef.current = selectedLayer;
   useEffect(() => () => {
     layersRef.current.forEach((l) => { if (l.url) URL.revokeObjectURL(l.url); });
   }, []);
@@ -772,16 +831,31 @@ export default function MotionGraphicsStudio() {
     setLayers((prev) => prev.map((l, idx) => (idx === i ? { ...l, opacity: v } : l)));
   };
 
+  const setLayerPosition = (i: number, dx: number, dy: number) => {
+    setLayers((prev) => prev.map((l, idx) => (idx === i ? { ...l, dx, dy } : l)));
+  };
+
+  const setLayerScale = (i: number, scale: number) => {
+    setLayers((prev) => prev.map((l, idx) => (idx === i ? { ...l, scale } : l)));
+  };
+
+  const resetLayerTransform = (i: number) => {
+    setLayers((prev) => prev.map((l, idx) => (idx === i ? { ...l, dx: 0, dy: 0, scale: 1 } : l)));
+  };
+
   const removeLayer = (i: number) => {
     const target = layers[i];
     if (target?.url) URL.revokeObjectURL(target.url);
     setLayers((prev) => prev.filter((_, idx) => idx !== i));
+    if (selectedLayer === i) setSelectedLayer(null);
+    else if (selectedLayer != null && selectedLayer > i) setSelectedLayer(selectedLayer - 1);
     if (layers.length <= 1) toast('Layers removed — back to the designed motion graphic.');
   };
 
   const clearLayers = () => {
     layers.forEach((l) => { if (l.url) URL.revokeObjectURL(l.url); });
     setLayers([]);
+    setSelectedLayer(null);
     toast('Layers removed — back to the designed motion graphic.');
   };
 
@@ -1048,6 +1122,28 @@ export default function MotionGraphicsStudio() {
   const templateName = project.templateKey ? motionTemplateByKey(project.templateKey)?.name : null;
   const selScene = scenes.length > 0 ? scenes[Math.min(editSceneIndex, scenes.length - 1)] : null;
 
+  // Clip-wide motion presets: one entrance + one effect applied to every caption
+  // of the selected clip at once. Reads back to a single value only when the
+  // whole clip agrees (so the selects stay honest about a per-caption mix).
+  const clipMotion = useMemo(() => {
+    if (!selScene) return { animation: '', effect: '' };
+    const anims = new Set<string>();
+    const effs = new Set<string>();
+    ELEMENT_KEYS.forEach((k) => {
+      anims.add(selScene.elements?.[k]?.animation ?? '');
+      effs.add(selScene.elements?.[k]?.effect ?? '');
+    });
+    return {
+      animation: anims.size === 1 ? [...anims][0] : '',
+      effect: effs.size === 1 ? [...effs][0] : '',
+    };
+  }, [selScene]);
+
+  const applyClipMotion = (partial: Partial<TextElementStyle>) => {
+    ELEMENT_KEYS.forEach((k) => onSetElement(k, partial));
+    toast('Motion applied to every caption of this clip.');
+  };
+
   const downloadVideo = async () => {
     setRendering(true);
     setError(null);
@@ -1186,30 +1282,48 @@ export default function MotionGraphicsStudio() {
           <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
             <div>
               <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                <LayoutTemplate size={15} className="text-purple-500" /> Modern template gallery
+                <LayoutTemplate size={15} className="text-purple-500" /> Template gallery
               </h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
-                The latest motion design concepts, ready to film. Each one becomes a real project you can keep editing in Studio.
+                Six design styles, grouped for a quick match — every card becomes a real project you keep editing in Studio.
               </p>
             </div>
-            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
-              {MOTION_TEMPLATES.map((t) => (
-                <button key={t.key} onClick={() => startFromTemplate(t)} title={`${t.name} — ${t.concept}`}
-                  className="text-left rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-300 transition overflow-hidden">
-                  <div className="relative h-20" style={swatchStyle(t.palette)}>
-                    <span className="absolute inset-0 flex items-center justify-center text-3xl drop-shadow">{t.emoji}</span>
-                  </div>
-                  <div className="p-2.5">
-                    <span className="block text-xs font-bold text-gray-900 dark:text-white">{t.name}</span>
-                    <p className="mt-0.5 text-[10px] leading-snug text-gray-500 dark:text-gray-400 line-clamp-2">{t.concept}</p>
-                    <div className="mt-1.5 flex flex-wrap gap-1">
-                      {t.tags.map((tag) => (
-                        <span key={tag} className="px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-900/30 text-[9px] font-bold text-purple-600 dark:text-purple-300">{tag}</span>
+            <div className="mt-4 space-y-5">
+              {DESIGN_STYLES.map((style) => {
+                const items = MOTION_TEMPLATES.filter((t) => t.designStyle === style.key);
+                if (items.length === 0) return null;
+                return (
+                  <section key={style.key}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-base">{style.emoji}</span>
+                      <div>
+                        <h4 className="text-xs font-bold text-gray-900 dark:text-white">{style.label}</h4>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400">{style.blurb}</p>
+                      </div>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+                      {items.map((t) => (
+                        <button key={t.key} onClick={() => startFromTemplate(t)} title={`${t.name} — ${t.concept}`}
+                          className="text-left rounded-xl border-2 border-gray-200 dark:border-gray-700 hover:border-purple-300 transition overflow-hidden">
+                          <div className="relative h-20" style={swatchStyle(t.palette)}>
+                            <span className="absolute inset-0 flex items-center justify-center text-3xl drop-shadow">{t.emoji}</span>
+                          </div>
+                          <div className="p-2.5">
+                            <span className="block text-xs font-bold text-gray-900 dark:text-white">{t.name}</span>
+                            <p className="mt-0.5 text-[10px] leading-snug text-gray-500 dark:text-gray-400 line-clamp-2">{t.concept}</p>
+                            <div className="mt-1.5 flex flex-wrap gap-1">
+                              <span className="px-1.5 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-600 dark:text-gray-300">{style.label}</span>
+                              {t.tags.map((tag) => (
+                                <span key={tag} className="px-1.5 py-0.5 rounded-md bg-purple-50 dark:bg-purple-900/30 text-[9px] font-bold text-purple-600 dark:text-purple-300">{tag}</span>
+                              ))}
+                            </div>
+                          </div>
+                        </button>
                       ))}
                     </div>
-                  </div>
-                </button>
-              ))}
+                  </section>
+                );
+              })}
             </div>
             <button onClick={() => startBlank(quickAspect)}
               className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold transition">
@@ -1383,21 +1497,34 @@ export default function MotionGraphicsStudio() {
                   <div className="space-y-2.5">
                     <div>
                       <h4 className="text-xs font-bold text-gray-900 dark:text-white">Templates</h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">Modern designs — each starts a new project you keep editing.</p>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">Browse by design style — every card loads a full, editable project, not just a colour mix.</p>
                     </div>
-                    <div className="grid grid-cols-2 gap-1.5">
-                      {MOTION_TEMPLATES.map((t) => (
-                        <button key={t.key} onClick={() => startFromTemplate(t)} title={`${t.name} — ${t.concept}`}
-                          className="text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-300 transition overflow-hidden">
-                          <div className="relative h-12" style={swatchStyle(t.palette)}>
-                            <span className="absolute inset-0 flex items-center justify-center text-xl drop-shadow">{t.emoji}</span>
+                    {DESIGN_STYLES.map((style) => {
+                      const items = MOTION_TEMPLATES.filter((t) => t.designStyle === style.key);
+                      if (items.length === 0) return null;
+                      return (
+                        <section key={style.key} className="space-y-1">
+                          <div className="flex items-baseline gap-1.5">
+                            <span className="text-[11px]">{style.emoji}</span>
+                            <h5 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">{style.label}</h5>
+                            <span className="text-[9px] text-gray-400 dark:text-gray-500 truncate">{style.blurb}</span>
                           </div>
-                          <div className="p-1.5">
-                            <span className="block truncate text-[10px] font-bold text-gray-900 dark:text-white">{t.name}</span>
+                          <div className="grid grid-cols-2 gap-1.5">
+                            {items.map((t) => (
+                              <button key={t.key} onClick={() => startFromTemplate(t)} title={`${t.name} — ${t.concept}`}
+                                className="text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-300 transition overflow-hidden">
+                                <div className="relative h-12" style={swatchStyle(t.palette)}>
+                                  <span className="absolute inset-0 flex items-center justify-center text-xl drop-shadow">{t.emoji}</span>
+                                </div>
+                                <div className="p-1.5">
+                                  <span className="block truncate text-[10px] font-bold text-gray-900 dark:text-white">{t.name}</span>
+                                </div>
+                              </button>
+                            ))}
                           </div>
-                        </button>
-                      ))}
-                    </div>
+                        </section>
+                      );
+                    })}
                     <button onClick={() => startBlank(brief.aspect)}
                       className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
                       <Plus size={12} /> New blank project
@@ -1412,7 +1539,7 @@ export default function MotionGraphicsStudio() {
                         <Layers size={13} className="text-purple-500" /> Media layers
                       </h4>
                       <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
-                        Images/videos compose behind the captions. First layer = background; extra layers stack on top. Preview & downloads only, never saved.
+                        Images/videos compose behind the captions. First layer = background; extra layers stack on top. Click a layer to select it, then drag it on the canvas or scale it here. Preview & downloads only, never saved.
                       </p>
                       <label title="Compose your film: the first layer is the background, extra layers stack on top under the captions (preview & downloads only, never saved)"
                         className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 cursor-pointer">
@@ -1425,18 +1552,22 @@ export default function MotionGraphicsStudio() {
                       {layers.length > 0 && (
                         <ul className="space-y-1.5">
                           {layers.map((l, i) => (
-                            <li key={l.url} className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1.5">
+                            <li key={l.url}
+                              onClick={() => setSelectedLayer(selectedLayer === i ? null : i)}
+                              className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 cursor-pointer transition ${selectedLayer === i
+                                ? 'border-cyan-400 bg-cyan-50 dark:bg-cyan-900/10'
+                                : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 hover:border-cyan-300'}`}>
                               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${l.kind === 'video' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'}`}>
                                 {i === 0 ? 'BG' : `L${i + 1}`} · {l.kind}
                               </span>
                               <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-gray-700 dark:text-gray-200">{l.name}</span>
-                              <input type="range" min={0} max={100} value={Math.round((l.opacity ?? 1) * 100)}
-                                onChange={(e) => setLayerOpacity(i, Number(e.target.value) / 100)}
-                                title={`Opacity ${Math.round((l.opacity ?? 1) * 100)}%`} className="w-14" />
+                              <span className="text-[9px] text-gray-400 tabular-nums">
+                                {(l.scale ?? 1).toFixed(2)}×{l.dx != null || l.dy != null ? ' · moved' : ''}
+                              </span>
                               <div className="flex items-center gap-0.5">
-                                <button onClick={() => moveLayer(i, -1)} disabled={i === 0} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={12} /></button>
-                                <button onClick={() => moveLayer(i, 1)} disabled={i === layers.length - 1} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={12} /></button>
-                                <button onClick={() => removeLayer(i)} className="p-0.5 rounded text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); moveLayer(i, -1); }} disabled={i === 0} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={12} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); moveLayer(i, 1); }} disabled={i === layers.length - 1} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={12} /></button>
+                                <button onClick={(e) => { e.stopPropagation(); removeLayer(i); }} className="p-0.5 rounded text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
                               </div>
                             </li>
                           ))}
@@ -1446,6 +1577,43 @@ export default function MotionGraphicsStudio() {
                             </button>
                           </li>
                         </ul>
+                      )}
+                      {selectedLayer != null && layers[selectedLayer] && (
+                        <div className="space-y-2.5 rounded-lg border border-cyan-200 dark:border-cyan-900 bg-cyan-50/50 dark:bg-cyan-950/10 p-2.5">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
+                              Layer {selectedLayer + 1} transform
+                            </span>
+                            <button onClick={() => resetLayerTransform(selectedLayer)} title="Reset position & scale"
+                              className="flex items-center gap-1 px-2 py-1 text-[10px] font-semibold rounded-md border border-cyan-200 dark:border-cyan-900 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-100 dark:hover:bg-cyan-900/30">
+                              <RotateCcw size={10} /> Reset
+                            </button>
+                          </div>
+                          <label className="block text-[11px] text-gray-600 dark:text-gray-300">
+                            Position X <span className="text-gray-400 tabular-nums">{Math.round((layers[selectedLayer].dx ?? 0) * 100)}%</span>
+                            <input type="range" min={-0.5} max={0.5} step={0.01} value={layers[selectedLayer].dx ?? 0}
+                              onChange={(e) => setLayerPosition(selectedLayer, Number(e.target.value), layers[selectedLayer].dy ?? 0)}
+                              className="mt-0.5 w-full" />
+                          </label>
+                          <label className="block text-[11px] text-gray-600 dark:text-gray-300">
+                            Position Y <span className="text-gray-400 tabular-nums">{Math.round((layers[selectedLayer].dy ?? 0) * 100)}%</span>
+                            <input type="range" min={-0.5} max={0.5} step={0.01} value={layers[selectedLayer].dy ?? 0}
+                              onChange={(e) => setLayerPosition(selectedLayer, layers[selectedLayer].dx ?? 0, Number(e.target.value))}
+                              className="mt-0.5 w-full" />
+                          </label>
+                          <label className="block text-[11px] text-gray-600 dark:text-gray-300">
+                            Scale <span className="text-gray-400 tabular-nums">{(layers[selectedLayer].scale ?? 1).toFixed(2)}×</span>
+                            <input type="range" min={0.3} max={3} step={0.05} value={layers[selectedLayer].scale ?? 1}
+                              onChange={(e) => setLayerScale(selectedLayer, Number(e.target.value))}
+                              className="mt-0.5 w-full" />
+                          </label>
+                          <label className="block text-[11px] text-gray-600 dark:text-gray-300">
+                            Opacity <span className="text-gray-400 tabular-nums">{Math.round((layers[selectedLayer].opacity ?? 1) * 100)}%</span>
+                            <input type="range" min={0} max={100} value={Math.round((layers[selectedLayer].opacity ?? 1) * 100)}
+                              onChange={(e) => setLayerOpacity(selectedLayer, Number(e.target.value) / 100)}
+                              className="mt-0.5 w-full" />
+                          </label>
+                        </div>
                       )}
                     </section>
                     <section className="space-y-2.5 pt-2 border-t border-gray-100 dark:border-gray-700">
@@ -1550,6 +1718,44 @@ export default function MotionGraphicsStudio() {
                         These are your caption cards. They sync with the brief — edit once, every matching card updates.
                       </p>
                     </div>
+                    <section className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
+                      <h5 className="text-[11px] font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Zap size={12} className="text-purple-500" /> Animate this clip
+                      </h5>
+                      {selScene ? (
+                        <>
+                          <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                            Clip {editSceneIndex + 1} “{selScene.text}” — one entrance + one effect applied to every caption of this clip. Fine-tune per caption in the Inspector (Media tab).
+                          </p>
+                          <label className="block">
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Entrance</span>
+                            <select value={clipMotion.animation} onChange={(e) => applyClipMotion({ animation: (e.target.value || undefined) as TextAnimationKey })}
+                              className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500">
+                              <option value="">Designed (or per-caption mix)</option>
+                              {TEXT_ANIMATIONS.map((a) => (
+                                <option key={a.key} value={a.key}>{a.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <label className="block">
+                            <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Effect</span>
+                            <select value={clipMotion.effect} onChange={(e) => applyClipMotion({ effect: (e.target.value || undefined) as TextEffectKey })}
+                              className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500">
+                              <option value="">Designed (or per-caption mix)</option>
+                              {TEXT_EFFECTS.map((f) => (
+                                <option key={f.key} value={f.key}>{f.label}</option>
+                              ))}
+                            </select>
+                          </label>
+                          <button onClick={() => applyClipMotion({ animation: undefined, effect: undefined })}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                            <RotateCcw size={12} /> Clear clip motion
+                          </button>
+                        </>
+                      ) : (
+                        <p className="text-[10px] text-gray-400">Select a clip on the timeline below to animate it.</p>
+                      )}
+                    </section>
                     <label className="block">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Brand lockup</span>
                       <input value={brief.business} onChange={(e) => editBrief({ business: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
@@ -1728,15 +1934,18 @@ export default function MotionGraphicsStudio() {
                 <div className="flex-1 flex items-center justify-center min-h-[380px] bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 mx-3 my-2 p-3">
                   <div className="flex justify-center items-center" style={{ width: zoom === 'fit' ? '100%' : `${zoom}%`, height: '100%' }}>
                     <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex}
-                      playing={playing} playhead={playhead} onProgress={onProgress} onPick={pickElement}
+                      playing={playing} playhead={playhead} selectedLayer={selectedLayer}
+                      onProgress={onProgress} onPick={pickElement}
                       onMoveElement={onMoveElement}
+                      onSelectLayer={setSelectedLayer}
+                      onMoveLayer={setLayerPosition}
                       className="max-w-full max-h-[68vh] w-auto h-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black shadow-xl" />
                   </div>
                 </div>
                 {editMode && (
                   <div className="space-y-2">
                     <p className="text-center text-[11px] text-gray-400">
-                      Clip {editSceneIndex + 1} selected — click an outlined element to edit it, or drag it to move.
+                      Clip {editSceneIndex + 1} selected — click an outlined caption to edit it, or drag it to move. Drag an outlined media layer (cyan) to reposition it.
                     </p>
                     {editing ? (
                       <div className="rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 p-2 space-y-2 max-w-md mx-auto">

@@ -115,6 +115,12 @@ export interface RenderOptions {
  * backdrop (or steps aside for AI footage/key art); further layers composite on
  * top of it at `opacity` (0..1), under the captions. Object URLs only — the
  * renderer never persists or clones ownership beyond its own export film.
+ *
+ * Every layer is editable like a caption element: `dx`/`dy` shift it around the
+ * canvas and `scale` grows/shrinks its cover-fit rect around the centre, so a
+ * user can place a logo, product shot or watermark anywhere they like. All
+ * transforms are normalised/relative, so a move or scale survives aspect
+ * changes the same way caption moves do.
  */
 export interface MotionLayer {
   kind: 'image' | 'video';
@@ -124,6 +130,12 @@ export interface MotionLayer {
   name?: string;
   image?: HTMLImageElement | null;
   video?: HTMLVideoElement | null;
+  /** Normalised horizontal shift (-0.5..0.5) of the canvas width. */
+  dx?: number;
+  /** Normalised vertical shift (-0.5..0.5) of the canvas height. */
+  dy?: number;
+  /** Size multiplier (0.3..3) of the cover-fit rect around the canvas centre. */
+  scale?: number;
 }
 
 export type RenderTransition = 'cut' | 'fade';
@@ -476,6 +488,46 @@ export function sceneElementRegions(opts: SceneFrameOptions, scene: DirectorScen
     }));
 }
 
+export interface SceneLayerRegion {
+  /** The index into the layers array this region hit-tests. */
+  index: number;
+  /** Normalised 0..1 against the canvas, so any display size hit-tests the same. */
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+}
+
+/**
+ * Clickable/draggable regions of the uploaded layers, in normalised canvas
+ * coordinates. Every visible layer is centred on the canvas by default; its
+ * cover-fit rect is scaled by `scale` and shifted by `dx`/`dy`, so this mirrors
+ * exactly what drawBackdrop paints. Hidden layers (opacity 0) are dropped so
+ * the preview only picks things you can see. Used by the editable preview to
+ * turn a click into "select this layer" and a drag into "move this layer".
+ */
+export function sceneLayerRegions(opts: SceneFrameOptions, layers?: MotionLayer[] | null): SceneLayerRegion[] {
+  if (!layers || layers.length === 0) return [];
+  const { width: w, height: h } = RENDER_DIMENSIONS[opts.aspect];
+  const out: SceneLayerRegion[] = [];
+  layers.forEach((layer, i) => {
+    if ((layer.opacity ?? 1) <= 0) return;
+    const scale = layer.scale ?? 1;
+    const dx = (layer.dx ?? 0) * w;
+    const dy = (layer.dy ?? 0) * h;
+    const sw = Math.max(1, w * scale);
+    const sh = Math.max(1, h * scale);
+    out.push({
+      index: i,
+      x: (w / 2 + dx - sw / 2) / w,
+      y: (h / 2 + dy - sh / 2) / h,
+      w: sw / w,
+      h: sh / h,
+    });
+  });
+  return out;
+}
+
 function wrapLines(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
   const words = text.split(/\s+/).filter(Boolean);
   const lines: string[] = [];
@@ -731,6 +783,33 @@ function drawTreatmentBackdrop(ctx: CanvasRenderingContext2D, w: number, h: numb
   }
 }
 
+/**
+ * Apply a layer's editable transform (dx/dy shift + scale around the canvas
+ * center), then let the caller draw its cover-fit content. Untransformed layers
+ * short-circuit so the common case keeps its exact current rendering.
+ */
+function drawLayerCover(
+  ctx: CanvasRenderingContext2D,
+  w: number,
+  h: number,
+  layer: MotionLayer,
+  draw: () => void,
+): void {
+  const scale = layer.scale ?? 1;
+  const dx = (layer.dx ?? 0) * w;
+  const dy = (layer.dy ?? 0) * h;
+  if (scale === 1 && dx === 0 && dy === 0) {
+    draw();
+    return;
+  }
+  ctx.save();
+  ctx.translate(w / 2 + dx, h / 2 + dy);
+  ctx.scale(scale, scale);
+  ctx.translate(-w / 2, -h / 2);
+  draw();
+  ctx.restore();
+}
+
 function drawBackdrop(
   ctx: CanvasRenderingContext2D,
   w: number,
@@ -741,12 +820,24 @@ function drawBackdrop(
   layers?: MotionLayer[] | null,
   clean = false,
 ): void {
-  if (source.kind === 'video' && isVideoReady(source.video)) {
-    drawVideoCover(ctx, w, h, source.video);
+  if (source.kind === 'video' && source.video && isVideoReady(source.video)) {
+    const vid = source.video;
+    const base = layers?.[0];
+    if (base && layerIsSource(source, base)) {
+      drawLayerCover(ctx, w, h, base, () => drawVideoCover(ctx, w, h, vid));
+    } else {
+      drawVideoCover(ctx, w, h, vid);
+    }
     drawVignette(ctx, w, h);
     drawFilmGrain(ctx, w, h, plan.seed, frame);
-  } else if (source.kind === 'image' && isImageReady(source.image)) {
-    drawImageCover(ctx, w, h, source.image);
+  } else if (source.kind === 'image' && source.image && isImageReady(source.image)) {
+    const img = source.image;
+    const base = layers?.[0];
+    if (base && layerIsSource(source, base)) {
+      drawLayerCover(ctx, w, h, base, () => drawImageCover(ctx, w, h, img));
+    } else {
+      drawImageCover(ctx, w, h, img);
+    }
     drawVignette(ctx, w, h);
     drawFilmGrain(ctx, w, h, plan.seed, frame);
   } else {
@@ -758,7 +849,7 @@ function drawBackdrop(
   if (!clean) drawTreatmentBackdrop(ctx, w, h, plan, frame);
   // Composite the user's uploads. The base layer is already the winning source
   // (or it steps aside for AI media); extra layers stack above it at their own
-  // opacity — a simple bottom-to-top compositor under the captions.
+  // opacity and transform — a simple bottom-to-top compositor under the captions.
   if (layers) {
     const baseWon = layerIsSource(source, layers[0]);
     for (let i = 0; i < layers.length; i++) {
@@ -769,9 +860,9 @@ function drawBackdrop(
       ctx.save();
       ctx.globalAlpha = alpha;
       if (layer.kind === 'video' && layer.video && isVideoReady(layer.video)) {
-        drawVideoCover(ctx, w, h, layer.video);
+        drawLayerCover(ctx, w, h, layer, () => drawVideoCover(ctx, w, h, layer.video as HTMLVideoElement));
       } else if (layer.kind === 'image' && layer.image && isImageReady(layer.image)) {
-        drawImageCover(ctx, w, h, layer.image);
+        drawLayerCover(ctx, w, h, layer, () => drawImageCover(ctx, w, h, layer.image as HTMLImageElement));
       }
       ctx.restore();
     }
