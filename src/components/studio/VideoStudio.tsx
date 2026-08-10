@@ -6,7 +6,7 @@ import { directorScenesFromReel, voiceoverScript, shotList } from '../../lib/ree
 import { renderVideo, RENDER_DIMENSIONS, type RenderAspect } from '../../lib/renderVideo';
 import { generateKeyArt, keyArtMessage } from '../../lib/aiKeyArt';
 import { industryByKey, industryKeyForCategory } from '../../lib/videoCreator';
-import { resolveFootage, orientationForAspect } from '../../lib/stockFootage';
+import { resolveFootage } from '../../lib/stockFootage';
 import { resolveAiVideoClips, videoGenModelByKey, videoGenModelsForTier, type VideoGenTier } from '../../lib/videoGen';
 import type { AiVideoModel } from '../../lib/pollinations';
 import AiVideoGenPicker from './AiVideoGenPicker';
@@ -92,8 +92,8 @@ export default function VideoStudio({ business }: { business: Business }) {
           industry,
           scenes,
           directionLabel: format,
-          aspect: orientationForAspect(aspect) === 'portrait' ? 'Vertical'
-            : orientationForAspect(aspect) === 'landscape' ? 'Landscape' : 'Square',
+          aspect: aspect === 'Vertical' || aspect === 'Ratio4x5' ? 'Vertical'
+            : aspect === 'Landscape' || aspect === 'Ratio16x9' ? 'Landscape' : 'Square',
         });
         const found = Object.keys(footage).length;
         if (found < scenes.length) {

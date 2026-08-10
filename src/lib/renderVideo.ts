@@ -29,7 +29,7 @@ import type { DirectorScene, SceneTextElement } from './creativeDirector';
 import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
 
-export type RenderAspect = 'Square' | 'Vertical' | 'Landscape';
+export type RenderAspect = 'Square' | 'Vertical' | 'Landscape' | 'Ratio4x5' | 'Ratio16x9';
 
 /**
  * Visual treatment applied to a scene on top of the shared layout: backdrop
@@ -55,6 +55,8 @@ export const RENDER_DIMENSIONS: Record<RenderAspect, RenderDimensions> = {
   Square: { width: 1080, height: 1080 },
   Vertical: { width: 1080, height: 1920 },
   Landscape: { width: 1920, height: 1080 },
+  Ratio4x5: { width: 1080, height: 1350 },
+  Ratio16x9: { width: 1920, height: 1080 },
 };
 
 export const RENDER_FPS = 30;
@@ -345,8 +347,8 @@ export interface SceneLayoutSpec {
  * preview lets you click is exactly where it was drawn.
  */
 export function sceneLayout(w: number, h: number, aspect: RenderAspect): SceneLayoutSpec {
-  const isLandscape = aspect === 'Landscape';
-  const isVertical = aspect === 'Vertical';
+  const isLandscape = aspect === 'Landscape' || aspect === 'Ratio16x9';
+  const isVertical = aspect === 'Vertical' || aspect === 'Ratio4x5';
   const minDim = Math.min(w, h);
   const baseTitle = isLandscape ? Math.round(minDim * 0.085) : isVertical ? Math.round(minDim * 0.075) : Math.round(minDim * 0.07);
   const brandSize = Math.round(baseTitle * 0.28);

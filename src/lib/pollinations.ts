@@ -47,7 +47,10 @@ export function aspectDimensions(aspect: RenderAspect, maxSide = 1024): { width:
   if (aspect === 'Vertical') {
     return { width: Math.round((maxSide * 9) / 16), height: maxSide };
   }
-  if (aspect === 'Landscape') {
+  if (aspect === 'Ratio4x5') {
+    return { width: Math.round((maxSide * 4) / 5), height: maxSide };
+  }
+  if (aspect === 'Landscape' || aspect === 'Ratio16x9') {
     return { width: maxSide, height: Math.round((maxSide * 9) / 16) };
   }
   return { width: maxSide, height: maxSide };

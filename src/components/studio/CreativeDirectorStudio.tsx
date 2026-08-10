@@ -22,7 +22,7 @@ import {
 } from '../../lib/videoCreator';
 import {
   renderVideo, renderPoster, renderContactSheet, renderSceneStill,
-  type RenderAspect, type SceneFrameOptions,
+  type SceneFrameOptions,
 } from '../../lib/renderVideo';
 import { publishPost, type PublishOutcome, type PublishMedia } from '../../lib/socialPublish';
 import { SOCIAL_CHANNELS, channelLabel } from '../../lib/publisher';
@@ -363,7 +363,8 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
     setQuality(record.settings.quality);
     setLength(record.settings.length);
     setContainer(record.settings.container as 'MP4' | 'MOV');
-    setAspect(record.settings.aspect as RenderAspect);
+    const savedAspect = record.settings.aspect;
+    setAspect(savedAspect === 'Square' || savedAspect === 'Landscape' ? savedAspect : 'Vertical');
     setModelPref(record.settings.model ?? 'auto');
     setStockFootage(record.settings.stockFootage ?? true);
     setAiArt(record.settings.aiArt ?? true);

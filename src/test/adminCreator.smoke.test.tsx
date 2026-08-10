@@ -156,6 +156,8 @@ describe('AdminCreatorShell smoke', () => {
     fireEvent.click(screen.getByRole('button', { name: 'AI video gen' }));
     expect(await screen.findByRole('button', { name: 'Paid' })).toBeInTheDocument();
     expect(screen.getByText('Live preview')).toBeInTheDocument();
+    // Captions live in the Text drawer of the editor shell.
+    fireEvent.click(screen.getByRole('button', { name: 'Text' }));
     expect(screen.getByLabelText(/Headline/)).toHaveValue('BIG ENERGY');
 
     // The AI Video Studio exposes the AI video generation option with tiers.

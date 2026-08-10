@@ -29,6 +29,12 @@ describe('pollinations — aspectDimensions', () => {
     const l = aspectDimensions('Landscape');
     expect(l.width).toBe(1024);
     expect(l.height).toBe(Math.round((1024 * 9) / 16));
+    const p45 = aspectDimensions('Ratio4x5');
+    expect(p45.height).toBe(1024);
+    expect(p45.width).toBe(Math.round((1024 * 4) / 5));
+    const p169 = aspectDimensions('Ratio16x9');
+    expect(p169.width).toBe(1024);
+    expect(p169.height).toBe(Math.round((1024 * 9) / 16));
   });
 });
 

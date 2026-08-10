@@ -1,11 +1,11 @@
-import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
   Film, Download, ImageIcon, LayoutGrid, Loader2, Sparkles, ListVideo,
   LayoutTemplate, Check, Plus, Copy, Trash2, FolderOpen, Wand2, Clapperboard,
   Layers, ChevronUp, ChevronDown, ArrowLeft, Undo2, Redo2, Play, Pause, Save,
-  Type, Music, Palette, Shapes, Scissors, RotateCcw, Timer, GripVertical,
-  Eye, EyeOff,
+  Type, Music, Palette, Shapes, Scissors, RotateCcw, Timer, Share2,
+  HelpCircle, Settings, Eye, EyeOff,
 } from 'lucide-react';
 import type { DirectorScene, TextElementStyle } from '../../lib/creativeDirector';
 import {
@@ -20,7 +20,7 @@ import {
   timelineMoveClip, timelineSetSeconds,
   timelineDuplicate, timelineSplit, timelineRemove,
   timelineSetElement, timelineResetElement, timelineAppendClip,
-  CLIP_SECONDS_MIN, CLIP_SECONDS_MAX, MOTION_SCENE_COUNTS,
+  CLIP_SECONDS_MIN, CLIP_SECONDS_MAX,
   type MotionConfig, type MotionStyle, type MotionDuration, type MotionTimeline,
 } from '../../lib/motionGraphics';
 import { resolveAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
@@ -167,6 +167,28 @@ const DURATIONS: { key: MotionDuration; label: string; hint: string }[] = [
   { key: 'long', label: 'Long', hint: '4s / card' },
   { key: 'extended', label: 'Extended', hint: '5s / card' },
   { key: 'cinematic', label: 'Cinematic', hint: '6s / card' },
+];
+
+type FormatKey = '16:9' | '9:16' | '1:1' | '4:5' | 'LED' | 'Billboard';
+
+/** The editor format chips — the primary way to resize a project in Studio. */
+const FORMATS: { key: FormatKey; aspect: RenderAspect; hint: string }[] = [
+  { key: '16:9', aspect: 'Ratio16x9', hint: 'YouTube' },
+  { key: '9:16', aspect: 'Vertical', hint: 'Reels' },
+  { key: '1:1', aspect: 'Square', hint: 'Feed' },
+  { key: '4:5', aspect: 'Ratio4x5', hint: 'Feed' },
+  { key: 'LED', aspect: 'Vertical', hint: 'Signage' },
+  { key: 'Billboard', aspect: 'Landscape', hint: 'Wide' },
+];
+
+const formatForAspect = (a: RenderAspect): FormatKey =>
+  a === 'Ratio4x5' ? '4:5' : a === 'Ratio16x9' ? '16:9' : a === 'Vertical' ? '9:16' : a === 'Square' ? '1:1' : 'Billboard';
+
+const ZOOMS: { key: 'fit' | '50' | '75' | '100'; label: string }[] = [
+  { key: 'fit', label: 'Fit' },
+  { key: '50', label: '50%' },
+  { key: '75', label: '75%' },
+  { key: '100', label: '100%' },
 ];
 
 function timeAgo(iso: string): string {
@@ -353,91 +375,37 @@ function MotionPreview({
  * edge handles, split / duplicate / remove via the buttons). The background and
  * voiceover tracks are drawn full-length so the composition reads at a glance.
  */
-const MotionTimeline = forwardRef<{ setMarker: (fraction: number) => void }, {
+function SceneStrip({
+  scenes, selected, playing, playhead, palette, logoEmoji,
+  onSelect, onPlayPause, onMove, onAdd, onDuplicate, onRemove, onReset,
+}: {
   scenes: DirectorScene[];
   selected: number;
   playing: boolean;
-  totalSeconds: number;
-  onSelect: (index: number) => void;
-  onScrub: (fraction: number, sceneIndex: number) => void;
+  playhead: number | null;
+  palette: [string, string, string];
+  logoEmoji?: string;
+  onSelect: (i: number) => void;
   onPlayPause: () => void;
-  onMove: (fromIndex: number, toIndex: number) => void;
-  onTrim: (id: string, seconds: number) => void;
+  onMove: (from: number, to: number) => void;
+  onAdd: () => void;
+  onDuplicate: (id: string) => void;
+  onRemove: (id: string) => void;
   onReset: () => void;
-}>(function MotionTimelineInner({
-  scenes, selected, playing, totalSeconds,
-  onSelect, onScrub, onPlayPause, onMove, onTrim, onReset,
-}, ref) {
-  const trackRef = useRef<HTMLDivElement>(null);
-  const [marker, setMarker] = useState(0);
-  const [trimming, setTrimming] = useState<{ id: string; side: 'l' | 'r' } | null>(null);
-  const trimSession = useRef<{ id: string; side: 'l' | 'r'; clipStartFrac: number; clipEndFrac: number } | null>(null);
-  const dragFrom = useRef<number | null>(null);
-  const scrubbing = useRef(false);
+}) {
+  const [dragFrom, setDragFrom] = useState<number | null>(null);
+  const totalSeconds = scenes.reduce((s, x) => s + x.seconds, 0);
 
-  useImperativeHandle(ref, () => ({
-    setMarker: (f: number) => setMarker(Math.max(0, Math.min(1, f))),
-  }), []);
-
-  const safeTotal = totalSeconds > 0 ? totalSeconds : 1;
-  const markerPct = `${Math.round(marker * 100)}%`;
-
-  const sceneIndexAt = (f: number): number => {
-    if (scenes.length === 0) return 0;
-    const target = f * safeTotal;
+  const active = (() => {
+    if (scenes.length === 0) return -1;
+    const target = (playhead ?? 0) * (totalSeconds || 1);
     let acc = 0;
     for (let i = 0; i < scenes.length; i += 1) {
       acc += scenes[i].seconds;
       if (target < acc) return i;
     }
     return scenes.length - 1;
-  };
-
-  const scrubTo = (clientX: number) => {
-    const el = trackRef.current;
-    if (!el) return;
-    const rect = el.getBoundingClientRect();
-    const f = rect.width > 0 ? Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) : 0;
-    setMarker(f);
-    onScrub(f, sceneIndexAt(f));
-  };
-
-  const beginTrim = (id: string, side: 'l' | 'r', e: React.PointerEvent) => {
-    e.stopPropagation();
-    e.preventDefault();
-    const scene = scenes.find((s) => s.id === id);
-    const idx = scenes.findIndex((s) => s.id === id);
-    if (!scene || idx < 0) return;
-    const startFrac = scenes.slice(0, idx).reduce((a, s) => a + s.seconds, 0) / safeTotal;
-    trimSession.current = { id, side, clipStartFrac: startFrac, clipEndFrac: startFrac + scene.seconds / safeTotal };
-    setTrimming({ id, side });
-  };
-
-  useEffect(() => {
-    if (!trimming) return;
-    const move = (ev: PointerEvent) => {
-      const s = trimSession.current;
-      const el = trackRef.current;
-      if (!s || !el) return;
-      const rect = el.getBoundingClientRect();
-      const f = rect.width > 0 ? Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)) : 0;
-      const seconds = s.side === 'l'
-        ? (s.clipEndFrac - f) * safeTotal
-        : (f - s.clipStartFrac) * safeTotal;
-      onTrim(s.id, Math.max(CLIP_SECONDS_MIN, seconds));
-    };
-    const up = () => { setTrimming(null); trimSession.current = null; };
-    window.addEventListener('pointermove', move);
-    window.addEventListener('pointerup', up);
-    return () => {
-      window.removeEventListener('pointermove', move);
-      window.removeEventListener('pointerup', up);
-    };
-  }, [trimming, safeTotal, onTrim]);
-
-  const secondsPerTick = Math.max(1, Math.ceil(safeTotal / 10));
-  const ticks: number[] = [];
-  for (let t = 0; t <= Math.ceil(safeTotal); t += secondsPerTick) ticks.push(t);
+  })();
 
   return (
     <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 select-none">
@@ -448,123 +416,80 @@ const MotionTimeline = forwardRef<{ setMarker: (fraction: number) => void }, {
           {playing ? <Pause size={15} /> : <Play size={15} className="ml-0.5" />}
         </button>
         <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 tabular-nums">
-          {(marker * safeTotal).toFixed(1)}s / {safeTotal.toFixed(1)}s
+          {scenes.length} clips · {totalSeconds.toFixed(1)}s
         </span>
         <span className="ml-auto hidden sm:inline text-[10px] text-gray-400">
-          {scenes.length} clips · drag to reorder · drag clip edges to trim
+          Click a scene card to edit · drag to reorder
         </span>
         <button onClick={onReset} title="Reset the timeline to the designed order"
           className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 transition">
-          <RotateCcw size={12} /> Reset timeline
+          <RotateCcw size={12} /> Reset
         </button>
       </div>
 
-      <div className="relative px-3 pb-2">
-        {/* Ruler + playhead (also the scrub surface for the whole strip) */}
-        <div
-          ref={trackRef}
-          onPointerDown={(e) => {
-            scrubbing.current = true;
-            e.currentTarget.setPointerCapture(e.pointerId);
-            scrubTo(e.clientX);
-          }}
-          onPointerMove={(e) => { if (scrubbing.current) scrubTo(e.clientX); }}
-          onPointerUp={() => { scrubbing.current = false; }}
-          onPointerCancel={() => { scrubbing.current = false; }}
-          className="relative h-6 border-b border-gray-200 dark:border-gray-700 cursor-col-resize"
-        >
-          <div className="absolute inset-x-0 top-1/2 h-px bg-gray-200 dark:bg-gray-700" />
-          {ticks.map((t) => (
-            <span key={t} className="absolute top-1 -translate-x-1/2 text-[9px] text-gray-400 tabular-nums"
-              style={{ left: `${(t / Math.max(1, Math.ceil(safeTotal))) * 100}%` }}>
-              {t}
-            </span>
-          ))}
-        </div>
-
-        {/* Tracks */}
-        <div className="space-y-1 py-1.5">
-          {/* TEXT clips */}
-          <div className="flex items-stretch gap-1.5 h-12">
-            <span className="w-14 shrink-0 flex items-center text-[9px] font-bold uppercase tracking-wide text-gray-400">Text</span>
-            <div className="relative flex-1">
-              {scenes.map((s, i) => {
-                const startFrac = scenes.slice(0, i).reduce((a, x) => a + x.seconds, 0) / safeTotal;
-                const widthPct = (s.seconds / safeTotal) * 100;
-                const selectedClip = selected === i && !trimming;
-                return (
-                  <div
-                    key={s.id}
-                    draggable
-                    onDragStart={() => { dragFrom.current = i; }}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragFrom.current != null && dragFrom.current !== i) {
-                        onMove(dragFrom.current, i);
-                        dragFrom.current = i;
-                      }
-                    }}
-                    onDrop={() => { dragFrom.current = null; }}
-                    onDragEnd={() => { dragFrom.current = null; }}
-                    onClick={() => onSelect(i)}
-                    title={`${s.text} — ${s.seconds}s. Drag to reorder, drag the edges to trim.`}
-                    className={`absolute top-0 bottom-0 rounded-lg border px-1.5 py-1 cursor-grab active:cursor-grabbing transition-colors ${selectedClip
-                      ? 'border-purple-600 bg-purple-600/90 text-white shadow-md z-10'
-                      : 'border-purple-300 dark:border-purple-700 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 hover:border-purple-500'}`}
-                    style={{ left: `${startFrac * 100}%`, width: `${Math.max(2, widthPct)}%` }}
-                  >
-                    <div className="flex items-center gap-1 min-w-0 h-full">
-                      <GripVertical size={12} className="shrink-0 opacity-60" />
-                      <span className="shrink-0 text-[9px] font-bold tabular-nums">{i + 1}</span>
-                      <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">{s.text}</span>
-                      <span className="shrink-0 text-[9px] font-bold tabular-nums opacity-80">{s.seconds}s</span>
-                    </div>
-                    {/* Trim handles */}
-                    <button
-                      title="Trim start"
-                      onPointerDown={(e) => beginTrim(s.id, 'l', e)}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize rounded-l ${trimming?.id === s.id && trimming.side === 'l' ? 'bg-rose-500' : 'bg-transparent hover:bg-rose-400'}`}
-                    />
-                    <button
-                      title="Trim end"
-                      onPointerDown={(e) => beginTrim(s.id, 'r', e)}
-                      onClick={(e) => e.stopPropagation()}
-                      className={`absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize rounded-r ${trimming?.id === s.id && trimming.side === 'r' ? 'bg-rose-500' : 'bg-transparent hover:bg-rose-400'}`}
-                    />
-                  </div>
-                );
-              })}
+      {/* Scene cards */}
+      <div className="flex items-stretch gap-2 overflow-x-auto px-3 pb-3">
+        {scenes.map((s, i) => {
+          const isActive = playing && i === active;
+          const isSel = !playing && i === selected;
+          return (
+            <div
+              key={s.id}
+              draggable
+              onDragStart={() => setDragFrom(i)}
+              onDragOver={(e) => {
+                e.preventDefault();
+                if (dragFrom !== null && dragFrom !== i) {
+                  onMove(dragFrom, i);
+                  setDragFrom(i);
+                }
+              }}
+              onDragEnd={() => setDragFrom(null)}
+              onClick={() => onSelect(i)}
+              title={`${s.text} — ${s.seconds}s. Click to edit, drag to reorder.`}
+              className={`group relative w-[150px] shrink-0 rounded-xl border-2 cursor-grab active:cursor-grabbing transition-colors ${isActive
+                ? 'border-rose-400'
+                : isSel
+                  ? 'border-purple-600 shadow-md'
+                  : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'}`}
+            >
+              {isActive && (
+                <span className="absolute -top-2 left-3 z-10 w-0 h-0 border-x-[6px] border-x-transparent border-t-[8px] border-t-rose-500" />
+              )}
+              <div className="relative h-20 rounded-t-[10px] overflow-hidden" style={swatchStyle(palette)}>
+                <span className="absolute inset-0 flex items-center justify-center text-2xl drop-shadow">{logoEmoji ?? '✦'}</span>
+                <span className="absolute bottom-1 left-1.5 text-[9px] font-bold text-white/90 drop-shadow">
+                  SCENE {String(i + 1).padStart(2, '0')}
+                </span>
+                {isActive && (
+                  <span className="absolute top-1 right-1.5 text-[9px] font-bold text-white/90 drop-shadow">LIVE</span>
+                )}
+              </div>
+              <div className="flex items-center gap-1 p-1.5">
+                <span className="min-w-0 flex-1 truncate text-[10px] font-semibold text-gray-700 dark:text-gray-200">{s.text}</span>
+                <span className="shrink-0 text-[9px] font-bold text-gray-400 tabular-nums">{s.seconds}s</span>
+              </div>
+              <div className="absolute top-1 right-1 flex gap-0.5 opacity-0 group-hover:opacity-100 transition">
+                <button title="Duplicate" onClick={(e) => { e.stopPropagation(); onDuplicate(s.id); }}
+                  className="w-6 h-6 inline-flex items-center justify-center rounded-md bg-black/50 text-white hover:bg-black/70">
+                  <Copy size={11} />
+                </button>
+                <button title="Remove" onClick={(e) => { e.stopPropagation(); onRemove(s.id); }}
+                  className="w-6 h-6 inline-flex items-center justify-center rounded-md bg-black/50 text-white hover:bg-rose-600">
+                  <Trash2 size={11} />
+                </button>
+              </div>
             </div>
-          </div>
-
-          {/* Background layer track (full length) */}
-          <div className="flex items-stretch gap-1.5 h-5">
-            <span className="w-14 shrink-0 flex items-center text-[9px] font-bold uppercase tracking-wide text-gray-400">BG</span>
-            <div className="flex-1 rounded bg-slate-200 dark:bg-slate-700/60 flex items-center px-2">
-              <span className="truncate text-[9px] font-semibold text-slate-500 dark:text-slate-300">Background layers (image / video)</span>
-            </div>
-          </div>
-
-          {/* Voiceover track (full length) */}
-          <div className="flex items-stretch gap-1.5 h-5">
-            <span className="w-14 shrink-0 flex items-center text-[9px] font-bold uppercase tracking-wide text-gray-400">Audio</span>
-            <div className="flex-1 rounded bg-amber-100 dark:bg-amber-900/40 flex items-center px-2">
-              <span className="truncate text-[9px] font-semibold text-amber-700 dark:text-amber-300">Voiceover · preview in the Audio panel</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Playhead line through every track */}
-        <div className="pointer-events-none absolute top-0 bottom-0 left-0 right-0">
-          <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-20" style={{ left: markerPct }}>
-            <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[5px] border-x-transparent border-t-[7px] border-t-rose-500" />
-          </div>
-        </div>
+          );
+        })}
+        <button onClick={onAdd} title="Add a new clip after the selected one"
+          className="w-[110px] shrink-0 rounded-xl border-2 border-dashed border-gray-300 dark:border-gray-600 text-gray-400 hover:text-purple-500 hover:border-purple-300 flex flex-col items-center justify-center gap-1 text-[10px] font-semibold transition">
+          <Plus size={15} /> Add scene
+        </button>
       </div>
     </div>
   );
-});
+}
 
 function swatchStyle(palette: [string, string, string]): React.CSSProperties {
   return { background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]} 55%, ${palette[2]})` };
@@ -756,9 +681,13 @@ export default function MotionGraphicsStudio() {
   // Editor workspace transport + toolbar.
   const [playing, setPlaying] = useState(false);
   const [playhead, setPlayhead] = useState<number | null>(null);
-  const [tool, setTool] = useState<'media' | 'text' | 'elements' | 'audio' | 'brand'>('text');
+  const [tool, setTool] = useState<'templates' | 'media' | 'text' | 'elements' | 'brand' | 'ai' | 'help' | 'settings'>('templates');
+  const [formatChip, setFormatChip] = useState<FormatKey>(() => formatForAspect(project.brief.aspect));
+  const [zoom, setZoom] = useState<'fit' | '50' | '75' | '100'>('fit');
   const progressRef = useRef(0);
-  const timelineRef = useRef<{ setMarker: (fraction: number) => void } | null>(null);
+  const lastTickRef = useRef(0);
+
+  useEffect(() => { setFormatChip(formatForAspect(project.brief.aspect)); }, [project.brief.aspect]);
 
   // Undo / redo stack over the shared project (ref + tick so the toolbar
   // buttons re-evaluate without re-rendering the whole editor on every frame).
@@ -924,9 +853,31 @@ export default function MotionGraphicsStudio() {
     toast('Timeline reset to the designed order.');
   };
 
+  const pickFormat = (f: { key: FormatKey; aspect: RenderAspect }) => {
+    setFormatChip(f.key);
+    editBrief({ aspect: f.aspect });
+  };
+
+  const shareProject = () => {
+    const write = navigator.clipboard?.writeText(`nowopen:motion:${project.id}`);
+    if (write) {
+      write
+        .then(() => toast.success('Project link copied — share it (same browser, this device).'))
+        .catch(() => toast.error('Clipboard unavailable.'));
+    } else {
+      toast.error('Clipboard unavailable.');
+    }
+  };
+
   const onProgress = useCallback((fraction: number) => {
     progressRef.current = fraction;
-    timelineRef.current?.setMarker(fraction);
+    // Throttled playhead updates keep the scene-strip highlight live without
+    // re-rendering the whole editor on every animation frame.
+    const now = performance.now();
+    if (now - lastTickRef.current > 200) {
+      lastTickRef.current = now;
+      setPlayhead(fraction);
+    }
   }, []);
 
   const sceneStartFraction = (index: number) => {
@@ -944,14 +895,6 @@ export default function MotionGraphicsStudio() {
     const at = sceneStartFraction(i);
     progressRef.current = at;
     setPlayhead(at);
-    timelineRef.current?.setMarker(at);
-  };
-
-  const onScrub = (fraction: number, sceneIndex: number) => {
-    if (playing) { setPlaying(false); setEditMode(false); setEditing(null); }
-    progressRef.current = fraction;
-    setPlayhead(fraction);
-    setEditSceneIndex(sceneIndex);
   };
 
   const togglePlay = () => {
@@ -1356,6 +1299,10 @@ export default function MotionGraphicsStudio() {
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 transition">
                   <Save size={13} /> Save
                 </button>
+                <button onClick={shareProject} title="Copy a share link for this project"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 transition">
+                  <Share2 size={13} /> Share
+                </button>
                 <button onClick={downloadVideo} disabled={rendering}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white transition">
                   {rendering ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
@@ -1364,16 +1311,28 @@ export default function MotionGraphicsStudio() {
               </div>
             </div>
 
-            {/* Workspace: toolbar · canvas · properties */}
-            <div className="grid grid-cols-[52px_minmax(0,1fr)_290px] min-h-[540px]">
-              {/* Left toolbar */}
+            {/* Workspace: rail · drawer · canvas · properties */}
+            <div className="grid grid-cols-[52px_260px_minmax(0,1fr)_280px] min-h-[540px]">
+              {/* Left rail */}
               <div className="border-r border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 py-2 flex flex-col items-center gap-1">
                 {([
+                  { key: 'templates', label: 'Templates', icon: LayoutTemplate },
                   { key: 'media', label: 'Media', icon: ImageIcon },
                   { key: 'text', label: 'Text', icon: Type },
                   { key: 'elements', label: 'Elements', icon: Shapes },
-                  { key: 'audio', label: 'Audio', icon: Music },
                   { key: 'brand', label: 'Brand', icon: Palette },
+                  { key: 'ai', label: 'AI', icon: Wand2 },
+                ] as const).map((t) => (
+                  <button key={t.key} onClick={() => { setTool(t.key); setEditMode(false); setEditing(null); }} title={t.label} aria-pressed={tool === t.key}
+                    className={`w-full flex flex-col items-center gap-0.5 py-2 rounded-lg text-[9px] font-semibold transition ${tool === t.key ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}>
+                    <t.icon size={17} />
+                    <span>{t.label}</span>
+                  </button>
+                ))}
+                <div className="mt-auto w-8 h-px bg-gray-200 dark:bg-gray-700" />
+                {([
+                  { key: 'help', label: 'Help', icon: HelpCircle },
+                  { key: 'settings', label: 'Settings', icon: Settings },
                 ] as const).map((t) => (
                   <button key={t.key} onClick={() => { setTool(t.key); setEditMode(false); setEditing(null); }} title={t.label} aria-pressed={tool === t.key}
                     className={`w-full flex flex-col items-center gap-0.5 py-2 rounded-lg text-[9px] font-semibold transition ${tool === t.key ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}>
@@ -1383,21 +1342,288 @@ export default function MotionGraphicsStudio() {
                 ))}
               </div>
 
+              {/* Contextual drawer */}
+              <div className="border-r border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-y-auto p-2.5 space-y-2.5">
+                {tool === 'templates' && (
+                  <div className="space-y-2.5">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white">Templates</h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">Modern designs — each starts a new project you keep editing.</p>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {MOTION_TEMPLATES.map((t) => (
+                        <button key={t.key} onClick={() => startFromTemplate(t)} title={`${t.name} — ${t.concept}`}
+                          className="text-left rounded-lg border border-gray-200 dark:border-gray-700 hover:border-purple-300 transition overflow-hidden">
+                          <div className="relative h-12" style={swatchStyle(t.palette)}>
+                            <span className="absolute inset-0 flex items-center justify-center text-xl drop-shadow">{t.emoji}</span>
+                          </div>
+                          <div className="p-1.5">
+                            <span className="block truncate text-[10px] font-bold text-gray-900 dark:text-white">{t.name}</span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={() => startBlank(brief.aspect)}
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                      <Plus size={12} /> New blank project
+                    </button>
+                  </div>
+                )}
+
+                {tool === 'media' && (
+                  <div className="space-y-3">
+                    <section className="space-y-2">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Layers size={13} className="text-purple-500" /> Media layers
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                        Images/videos compose behind the captions. First layer = background; extra layers stack on top. Preview & downloads only, never saved.
+                      </p>
+                      <label title="Compose your film: the first layer is the background, extra layers stack on top under the captions (preview & downloads only, never saved)"
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 cursor-pointer">
+                        <Plus size={13} /> {layers.length === 0 ? 'Add layers (image/video)' : 'Add another layer'}
+                        <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => {
+                          if (e.target.files) addLayerFiles(e.target.files);
+                          e.target.value = '';
+                        }} />
+                      </label>
+                      {layers.length > 0 && (
+                        <ul className="space-y-1.5">
+                          {layers.map((l, i) => (
+                            <li key={l.url} className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2 py-1.5">
+                              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${l.kind === 'video' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'}`}>
+                                {i === 0 ? 'BG' : `L${i + 1}`} · {l.kind}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-gray-700 dark:text-gray-200">{l.name}</span>
+                              <input type="range" min={0} max={100} value={Math.round((l.opacity ?? 1) * 100)}
+                                onChange={(e) => setLayerOpacity(i, Number(e.target.value) / 100)}
+                                title={`Opacity ${Math.round((l.opacity ?? 1) * 100)}%`} className="w-14" />
+                              <div className="flex items-center gap-0.5">
+                                <button onClick={() => moveLayer(i, -1)} disabled={i === 0} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={12} /></button>
+                                <button onClick={() => moveLayer(i, 1)} disabled={i === layers.length - 1} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={12} /></button>
+                                <button onClick={() => removeLayer(i)} className="p-0.5 rounded text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
+                              </div>
+                            </li>
+                          ))}
+                          <li className="flex justify-end">
+                            <button onClick={clearLayers} className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">
+                              <Trash2 size={11} /> Clear layers
+                            </button>
+                          </li>
+                        </ul>
+                      )}
+                    </section>
+                    <section className="space-y-2 pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Music size={13} className="text-purple-500" /> Voiceover
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                        Preview the scripted voiceover with your browser's built-in voice — no upload, no API key.
+                      </p>
+                      <button onClick={() => speakScene(scenes[editSceneIndex]?.voiceover ?? scenes[0]?.voiceover ?? '')}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                        <Play size={12} /> Play selected scene
+                      </button>
+                      <button onClick={speakTrack}
+                        className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-purple-600 hover:bg-purple-700 text-white transition">
+                        <Play size={12} /> Play whole voiceover track
+                      </button>
+                    </section>
+                  </div>
+                )}
+
+                {tool === 'text' && (
+                  <div className="space-y-2.5">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Type size={13} className="text-purple-500" /> Captions
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                        These are your caption cards. They sync with the brief — edit once, every matching card updates.
+                      </p>
+                    </div>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Brand lockup</span>
+                      <input value={brief.business} onChange={(e) => editBrief({ business: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Mark emoji</span>
+                      <input value={brief.logoEmoji} onChange={(e) => editBrief({ logoEmoji: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Headline</span>
+                      <input value={brief.headline} onChange={(e) => editBrief({ headline: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Sub-line (voiceover strip)</span>
+                      <input value={brief.subhead} onChange={(e) => editBrief({ subhead: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    </label>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Call to action (end card)</span>
+                      <input value={brief.cta} onChange={(e) => editBrief({ cta: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    </label>
+                  </div>
+                )}
+
+                {tool === 'elements' && (
+                  <div>
+                    <div className="flex items-center justify-between pb-1.5">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <ListVideo size={13} className="text-purple-500" /> Storyboard
+                      </h4>
+                      <span className="text-[10px] text-gray-400">{scenes.length} clips</span>
+                    </div>
+                    <ol className="divide-y divide-gray-100 dark:divide-gray-700 rounded-lg border border-gray-100 dark:border-gray-700 overflow-hidden">
+                      {scenes.map((s, i) => (
+                        <li key={s.id}
+                          onClick={() => selectScene(i)}
+                          className={`flex gap-2 p-2 cursor-pointer transition ${editSceneIndex === i ? 'bg-purple-50 dark:bg-purple-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
+                          <span className="shrink-0 w-5 h-5 rounded-md bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-[11px] font-semibold text-gray-900 dark:text-white">{s.text}</p>
+                            <p className="truncate text-[10px] text-gray-500 dark:text-gray-400 italic">“{s.voiceover}”</p>
+                          </div>
+                          <span className="shrink-0 text-[10px] font-semibold text-gray-400 tabular-nums">{s.seconds}s</span>
+                        </li>
+                      ))}
+                    </ol>
+                  </div>
+                )}
+
+                {tool === 'brand' && (
+                  <div className="space-y-3">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Palette size={13} className="text-purple-500" /> Brand & look
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">The treatment drives the motion; the palette drives every scene.</p>
+                    </div>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Treatment</span>
+                      <select value={brief.style} onChange={(e) => {
+                        const s = STYLES.find((x) => x.key === e.target.value);
+                        if (s) editBrief({ style: s.key, headline: s.defaults.headline, subhead: s.defaults.subhead, cta: s.defaults.cta, logoEmoji: s.defaults.logoEmoji });
+                      }}
+                        className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        {STYLES.map((s) => <option key={s.key} value={s.key}>{s.emoji} {s.label}</option>)}
+                      </select>
+                    </label>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Palette</span>
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {RENDER_PALETTES.map((p, i) => (
+                          <button key={i} onClick={() => patch({ palette: p, templateKey: undefined })} aria-pressed={project.palette === p} title={p.join(' → ')}
+                            className={`w-7 h-7 rounded-lg border-2 transition ${project.palette === p ? 'border-purple-600 ring-2 ring-purple-300' : 'border-transparent'}`}
+                            style={swatchStyle(p)} />
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {tool === 'ai' && (
+                  <div className="space-y-2.5">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Wand2 size={13} className="text-purple-500" /> AI Director
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">
+                        Describe the motion — the local director writes a full project and opens it in Studio. No cloud model, no wait.
+                      </p>
+                    </div>
+                    <textarea value={prompt} onChange={(e) => setPrompt(e.target.value)} rows={4}
+                      placeholder="e.g. A countdown reel for a Lagos coffee shop opening this Friday"
+                      className="w-full px-2.5 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    <div className="flex flex-wrap gap-1.5">
+                      {EXAMPLE_PROMPTS.slice(0, 3).map((p) => (
+                        <button key={p} onClick={() => setPrompt(p)}
+                          className="px-2 py-1 rounded-md bg-gray-100 dark:bg-gray-700 text-[10px] text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                          {p}
+                        </button>
+                      ))}
+                    </div>
+                    <button onClick={buildFromPrompt}
+                      className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-purple-600 hover:bg-purple-700 text-white transition">
+                      <Sparkles size={12} /> Build motion project
+                    </button>
+                    {aiError && <p role="alert" className="text-[11px] text-red-600 dark:text-red-400">{aiError}</p>}
+                  </div>
+                )}
+
+                {tool === 'settings' && (
+                  <div className="space-y-2.5">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Settings size={13} className="text-purple-500" /> Project
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 inline-flex items-center gap-1" title="Saved to this browser under nowopen_motion_projects">
+                        <Check size={11} className="text-emerald-500" /> Autosaved · {timeAgo(project.updatedAt)}
+                      </p>
+                    </div>
+                    <label className="block">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Status</span>
+                      <select value={project.status} onChange={(e) => patch({ status: e.target.value as MotionProjectStatus })}
+                        className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        {MOTION_PROJECT_STATUSES.map((s) => (
+                          <option key={s} value={s}>{MOTION_PROJECT_STATUS_LABELS[s]}</option>
+                        ))}
+                      </select>
+                    </label>
+                    <dl className="text-[11px] space-y-1">
+                      <div className="flex justify-between gap-2"><dt className="text-gray-400">Source</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{project.source === 'ai' ? 'AI designed' : project.source === 'template' ? 'Template' : 'Blank'}</dd></div>
+                      <div className="flex justify-between gap-2"><dt className="text-gray-400">Style</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{label}</dd></div>
+                      <div className="flex justify-between gap-2"><dt className="text-gray-400">Format</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{formatChip} · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}</dd></div>
+                    </dl>
+                    <div className="flex flex-wrap gap-1.5">
+                      <button onClick={duplicate} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                        <Copy size={12} /> Duplicate
+                      </button>
+                      <button onClick={remove} className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition">
+                        <Trash2 size={12} /> Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {tool === 'help' && (
+                  <div className="space-y-2.5">
+                    <div>
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <HelpCircle size={13} className="text-purple-500" /> Help
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">Editing the film is point-and-click:</p>
+                    </div>
+                    <ul className="text-[11px] text-gray-600 dark:text-gray-300 space-y-1.5 list-disc list-inside">
+                      <li>Click a scene card to edit it — click an outlined element on the canvas to change its text, or drag it to move.</li>
+                      <li>Drag scene cards to reorder; hover a card for duplicate/remove.</li>
+                      <li>Text edits the caption words, Elements shows the storyboard, Brand picks the look.</li>
+                      <li>Format chips resize for any placement — captions reflow to fit.</li>
+                      <li>Undo/Redo step through every edit; everything autosaves to this browser.</li>
+                    </ul>
+                    <div className="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                      Keyboard: Enter commits an edited element, Esc cancels.
+                    </div>
+                  </div>
+                )}
+              </div>
+
               {/* Central canvas */}
-              <div className="min-w-0 p-4 flex flex-col gap-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
+              <div className="min-w-0 flex flex-col">
+                <div className="px-3 pt-3 flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                     <Film size={15} className="text-purple-500" /> Live preview
                   </h3>
                   <span className="text-[11px] font-semibold text-gray-400">
-                    {MOTION_SCENE_COUNTS[brief.style]} cards · {seconds}s · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}
+                    {scenes.length} clips · {seconds}s · {formatChip} · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}
                   </span>
                 </div>
-                <div className="flex-1 flex items-center justify-center min-h-[380px] bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 p-3">
-                  <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex}
-                    playing={playing} playhead={playhead} onProgress={onProgress} onPick={pickElement}
-                    onMoveElement={onMoveElement}
-                    className="max-w-full max-h-[68vh] w-auto h-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black shadow-xl" />
+                <div className="flex-1 flex items-center justify-center min-h-[380px] bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 mx-3 my-2 p-3">
+                  <div className="flex justify-center items-center" style={{ width: zoom === 'fit' ? '100%' : `${zoom}%`, height: '100%' }}>
+                    <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex}
+                      playing={playing} playhead={playhead} onProgress={onProgress} onPick={pickElement}
+                      onMoveElement={onMoveElement}
+                      className="max-w-full max-h-[68vh] w-auto h-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black shadow-xl" />
+                  </div>
                 </div>
                 {editMode && (
                   <div className="space-y-2">
@@ -1423,6 +1649,24 @@ export default function MotionGraphicsStudio() {
                     )}
                   </div>
                 )}
+                <div className="px-3 pb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex flex-wrap gap-1">
+                    {FORMATS.map((f) => (
+                      <button key={f.key} onClick={() => pickFormat(f)} aria-pressed={formatChip === f.key} title={`${f.hint} · ${RENDER_DIMENSIONS[f.aspect].width}×${RENDER_DIMENSIONS[f.aspect].height}`}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${formatChip === f.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                        {f.key}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1">
+                    {ZOOMS.map((z) => (
+                      <button key={z.key} onClick={() => setZoom(z.key)} aria-pressed={zoom === z.key}
+                        className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${zoom === z.key ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                        {z.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               {/* Right properties panel */}
@@ -1473,196 +1717,54 @@ export default function MotionGraphicsStudio() {
                         </button>
                       </div>
                     </section>
-                  ) : tool === 'media' ? (
-                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2">
-                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-                        <Layers size={13} className="text-purple-500" /> Media layers
-                      </h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
-                        Images/videos compose behind the captions. First layer = background; extra layers stack on top. Preview & downloads only, never saved.
-                      </p>
-                      <label title="Compose your film: the first layer is the background, extra layers stack on top under the captions (preview & downloads only, never saved)"
-                        className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 cursor-pointer">
-                        <Plus size={13} /> {layers.length === 0 ? 'Add layers (image/video)' : 'Add another layer'}
-                        <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => {
-                          if (e.target.files) addLayerFiles(e.target.files);
-                          e.target.value = '';
-                        }} />
-                      </label>
-                      {layers.length > 0 && (
-                        <ul className="space-y-1.5">
-                          {layers.map((l, i) => (
-                            <li key={l.url} className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1.5">
-                              <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${l.kind === 'video' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'}`}>
-                                {i === 0 ? 'BG' : `L${i + 1}`} · {l.kind}
-                              </span>
-                              <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-gray-700 dark:text-gray-200">{l.name}</span>
-                              <input type="range" min={0} max={100} value={Math.round((l.opacity ?? 1) * 100)}
-                                onChange={(e) => setLayerOpacity(i, Number(e.target.value) / 100)}
-                                title={`Opacity ${Math.round((l.opacity ?? 1) * 100)}%`} className="w-14" />
-                              <div className="flex items-center gap-0.5">
-                                <button onClick={() => moveLayer(i, -1)} disabled={i === 0} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={12} /></button>
-                                <button onClick={() => moveLayer(i, 1)} disabled={i === layers.length - 1} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={12} /></button>
-                                <button onClick={() => removeLayer(i)} className="p-0.5 rounded text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
-                              </div>
-                            </li>
-                          ))}
-                          <li className="flex justify-end">
-                            <button onClick={clearLayers} className="flex items-center gap-1 px-2 py-1 text-[11px] font-semibold rounded-md border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/40">
-                              <Trash2 size={11} /> Clear layers
-                            </button>
-                          </li>
-                        </ul>
-                      )}
-                    </section>
-                  ) : tool === 'text' ? (
-                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2.5">
-                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-                        <Type size={13} className="text-purple-500" /> Captions
-                      </h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
-                        These are your caption cards. They sync with the brief — edit once, every matching card updates.
-                      </p>
-                      <label className="block">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Brand lockup</span>
-                        <input value={brief.business} onChange={(e) => editBrief({ business: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                      </label>
-                      <label className="block">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Mark emoji</span>
-                        <input value={brief.logoEmoji} onChange={(e) => editBrief({ logoEmoji: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                      </label>
-                      <label className="block">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Headline</span>
-                        <input value={brief.headline} onChange={(e) => editBrief({ headline: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                      </label>
-                      <label className="block">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Sub-line (voiceover strip)</span>
-                        <input value={brief.subhead} onChange={(e) => editBrief({ subhead: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                      </label>
-                      <label className="block">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Call to action (end card)</span>
-                        <input value={brief.cta} onChange={(e) => editBrief({ cta: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                      </label>
-                    </section>
-                  ) : tool === 'elements' ? (
-                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
-                      <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-                          <ListVideo size={13} className="text-purple-500" /> Storyboard
-                        </h4>
-                        <span className="text-[10px] text-gray-400">{scenes.length} clips</span>
-                      </div>
-                      <ol className="divide-y divide-gray-100 dark:divide-gray-700">
-                        {scenes.map((s, i) => (
-                          <li key={s.id}
-                            onClick={() => selectScene(i)}
-                            className={`flex gap-2.5 p-2.5 cursor-pointer transition ${editSceneIndex === i ? 'bg-purple-50 dark:bg-purple-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
-                            <span className="shrink-0 w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
-                            <div className="min-w-0 flex-1">
-                              <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">{s.text}</p>
-                              <p className="truncate text-[10px] text-gray-500 dark:text-gray-400 italic">“{s.voiceover}”</p>
-                            </div>
-                            <span className="shrink-0 text-[10px] font-semibold text-gray-400 tabular-nums">{s.seconds}s</span>
-                          </li>
-                        ))}
-                      </ol>
-                    </section>
-                  ) : tool === 'audio' ? (
-                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2">
-                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-                        <Music size={13} className="text-purple-500" /> Voiceover
-                      </h4>
-                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
-                        Preview the scripted voiceover with your browser's built-in voice — no upload, no API key.
-                      </p>
-                      <div className="space-y-1.5">
-                        <button onClick={() => speakScene(scenes[editSceneIndex]?.voiceover ?? scenes[0]?.voiceover ?? '')}
-                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-                          <Play size={12} /> Play selected scene
-                        </button>
-                        <button onClick={speakTrack}
-                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-purple-600 hover:bg-purple-700 text-white transition">
-                          <Play size={12} /> Play whole voiceover track
-                        </button>
-                        {scenes.map((s, i) => (
-                          <button key={s.id} onClick={() => speakScene(s.voiceover)}
-                            className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 hover:border-purple-300 transition">
-                            <span className="block truncate text-[11px] font-semibold text-gray-700 dark:text-gray-200">{i + 1}. {s.text}</span>
-                            <span className="block truncate text-[10px] text-gray-400 italic mt-0.5">“{s.voiceover}”</span>
-                          </button>
-                        ))}
-                      </div>
-                    </section>
                   ) : (
-                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-3">
+                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2">
                       <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
-                        <Palette size={13} className="text-purple-500" /> Brand & look
+                        <Film size={13} className="text-purple-500" /> Inspector
                       </h4>
-                      <label className="block">
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Treatment</span>
-                        <select value={brief.style} onChange={(e) => {
-                          const s = STYLES.find((x) => x.key === e.target.value);
-                          if (s) editBrief({ style: s.key, headline: s.defaults.headline, subhead: s.defaults.subhead, cta: s.defaults.cta, logoEmoji: s.defaults.logoEmoji });
-                        }}
-                          className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
-                          {STYLES.map((s) => <option key={s.key} value={s.key}>{s.emoji} {s.label}</option>)}
-                        </select>
-                      </label>
-                      <div>
-                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Palette</span>
-                        <div className="mt-1.5 flex flex-wrap gap-1.5">
-                          {RENDER_PALETTES.map((p, i) => (
-                            <button key={i} onClick={() => patch({ palette: p, templateKey: undefined })} aria-pressed={project.palette === p} title={p.join(' → ')}
-                              className={`w-7 h-7 rounded-lg border-2 transition ${project.palette === p ? 'border-purple-600 ring-2 ring-purple-300' : 'border-transparent'}`}
-                              style={swatchStyle(p)} />
-                          ))}
-                        </div>
-                      </div>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                        Select a clip on the timeline below — or in the Storyboard drawer — to edit its words, elements, timing and clip actions.
+                      </p>
+                      <dl className="text-[11px] space-y-1">
+                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Style</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{label}</dd></div>
+                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Format</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{formatChip} · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}</dd></div>
+                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Clips</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{scenes.length} · {seconds}s</dd></div>
+                        <div className="flex justify-between gap-2"><dt className="text-gray-400">Render</dt><dd className="font-semibold text-gray-700 dark:text-gray-200">{renderSource === 'aivideo' ? 'AI video gen' : 'Free canvas'}</dd></div>
+                      </dl>
                     </section>
                   )}
 
-                  {/* Format & pace — always available */}
+                  {/* Pace — always available */}
                   <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2.5">
-                    <h4 className="text-xs font-bold text-gray-900 dark:text-white">Format & pace</h4>
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Shape</span>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {ASPECTS.map((a) => (
-                          <button key={a.key} onClick={() => editBrief({ aspect: a.key })} aria-pressed={brief.aspect === a.key}
-                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${brief.aspect === a.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                            {a.label}<span className="ml-1 font-normal opacity-70">{a.hint}</span>
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                    <div>
-                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Pace</span>
-                      <div className="mt-1 flex flex-wrap gap-1.5">
-                        {DURATIONS.map((d) => (
-                          <button key={d.key} onClick={() => editBrief({ duration: d.key })} aria-pressed={brief.duration === d.key}
-                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                            {d.label}<span className="ml-1 font-normal opacity-70">{d.hint}</span>
-                          </button>
-                        ))}
-                      </div>
+                    <h4 className="text-xs font-bold text-gray-900 dark:text-white">Pace</h4>
+                    <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">Target length per clip; the film scales its captions to fit.</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      {DURATIONS.map((d) => (
+                        <button key={d.key} onClick={() => editBrief({ duration: d.key })} aria-pressed={brief.duration === d.key}
+                          className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                          {d.label}<span className="ml-1 font-normal opacity-70">{d.hint}</span>
+                        </button>
+                      ))}
                     </div>
                   </section>
                 </div>
               </aside>
             </div>
 
-            {/* Bottom timeline */}
-            <MotionTimeline
-              ref={timelineRef}
+            {/* Bottom timeline — scene-card strip */}
+            <SceneStrip
               scenes={scenes}
               selected={editSceneIndex}
               playing={playing}
-              totalSeconds={seconds}
+              playhead={playhead}
+              palette={project.palette}
+              logoEmoji={brief.logoEmoji}
               onSelect={selectScene}
-              onScrub={onScrub}
               onPlayPause={togglePlay}
               onMove={onMoveClip}
-              onTrim={onTrimClip}
+              onAdd={onAddClip}
+              onDuplicate={onDuplicateClip}
+              onRemove={onRemoveClip}
               onReset={onResetTimeline}
             />
 

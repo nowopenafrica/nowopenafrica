@@ -101,7 +101,7 @@ describe('renderVideo — scene plans', () => {
 
 describe('renderVideo — layout & editable regions', () => {
   it('lays out both aspects with sane, ordered geometry', () => {
-    for (const aspect of ['Vertical', 'Landscape'] as const) {
+    for (const aspect of ['Vertical', 'Landscape', 'Ratio4x5', 'Ratio16x9'] as const) {
       const { width: w, height: h } = RENDER_DIMENSIONS[aspect];
       const L = sceneLayout(w, h, aspect);
       expect(L.minDim).toBe(Math.min(w, h));
@@ -286,6 +286,10 @@ describe('renderVideo — dimensions', () => {
     expect(RENDER_DIMENSIONS.Square.width).toBe(RENDER_DIMENSIONS.Square.height);
     expect(RENDER_DIMENSIONS.Landscape.width).toBe(1920);
     expect(RENDER_DIMENSIONS.Landscape.height).toBe(1080);
+    expect(RENDER_DIMENSIONS.Ratio4x5.width).toBe(1080);
+    expect(RENDER_DIMENSIONS.Ratio4x5.height).toBe(1350);
+    expect(RENDER_DIMENSIONS.Ratio16x9.width).toBe(1920);
+    expect(RENDER_DIMENSIONS.Ratio16x9.height).toBe(1080);
   });
 });
 
