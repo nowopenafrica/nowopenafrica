@@ -8,7 +8,7 @@
 // the same prompt always builds the same project. The UI labels it as designed
 // locally; the real model-backed director slots into the same function later.
 
-import type { MotionConfig, MotionDuration, MotionStyle } from './motionGraphics';
+import type { MotionConfig, MotionDuration, MotionStyle, MotionTimeline } from './motionGraphics';
 import { RENDER_PALETTES, type RenderAspect } from './renderVideo';
 import type { MotionTemplate } from '../data/motionTemplates';
 import type { AiVideoModel } from './pollinations';
@@ -40,6 +40,8 @@ export interface MotionProject {
   brief: MotionConfig;
   palette: [string, string, string];
   render: { source: 'canvas' | 'aivideo'; tier: VideoGenTier; model: AiVideoModel };
+  /** Editor timeline overlay — reorder/trim/split/duplicate/remove edits on top of the generated brief. */
+  timeline?: MotionTimeline;
 }
 
 const DEFAULT_BRIEF: MotionConfig = {

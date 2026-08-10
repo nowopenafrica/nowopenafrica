@@ -174,3 +174,132 @@ export function motionScenesFromJob(cfg: MotionConfig): DirectorScene[] {
 export function motionTotalSeconds(cfg: MotionConfig): number {
   return motionScenesFromJob(cfg).reduce((s, x) => s + x.seconds, 0);
 }
+
+// ---------------------------------------------------------------------------
+// Editor timeline — a project-level overlay on the generated storyboard.
+//
+// The brief always produces a base DirectorScene[] (motionScenesFromJob). The
+// editor overlays a MotionTimeline on top of it so users can reorder, trim,
+// split, duplicate and remove clips without rewriting the brief. It is stored
+// on the MotionProject (persisted) and merged in via applyMotionTimeline —
+// the base scenes stay the source of truth, so a stale timeline (e.g. after a
+// style change that renames scene ids) degrades gracefully instead of breaking.
+// ---------------------------------------------------------------------------
+
+export interface MotionTimeline {
+  /** Ordered clip ids — the timeline order (base scene ids + custom ids). */
+  order: string[];
+  /** Trimmed durations in seconds, keyed by clip id (base or custom). */
+  seconds: Record<string, number>;
+  /** Clips created by the editor (split / duplicate) that are not in the brief. */
+  custom: Record<string, DirectorScene>;
+  /** Base scene ids the user deleted — kept out of the timeline even after the brief regenerates them. */
+  removed: string[];
+}
+
+export function emptyMotionTimeline(scenes: DirectorScene[]): MotionTimeline {
+  return { order: scenes.map((s) => s.id), seconds: {}, custom: {}, removed: [] };
+}
+
+export const CLIP_SECONDS_MIN = 1;
+export const CLIP_SECONDS_MAX = 12;
+
+export function clampClipSeconds(n: number): number {
+  return Math.max(CLIP_SECONDS_MIN, Math.min(CLIP_SECONDS_MAX, Math.round(n * 10) / 10));
+}
+
+/** Merge the timeline overlay into the generated storyboard. */
+export function applyMotionTimeline(
+  scenes: DirectorScene[],
+  timeline: MotionTimeline | null | undefined,
+): DirectorScene[] {
+  if (!timeline || !Array.isArray(timeline.order) || timeline.order.length === 0) return scenes;
+  const order = timeline.order;
+  const seconds = timeline.seconds ?? {};
+  const custom = timeline.custom ?? {};
+  const removed = timeline.removed ?? [];
+  const baseById = new Map(scenes.map((s) => [s.id, s]));
+  const placed = new Set<string>();
+  const out: DirectorScene[] = [];
+  const push = (id: string) => {
+    if (removed.includes(id)) return;
+    const src = custom[id] ?? baseById.get(id);
+    if (!src) return;
+    placed.add(id);
+    const clipSeconds = seconds[id] != null ? clampClipSeconds(seconds[id]) : src.seconds;
+    out.push({ ...src, order: out.length, seconds: clipSeconds });
+  };
+  for (const id of order) push(id);
+  // Anything the brief grew that the timeline does not mention appends at the
+  // end (e.g. after a style change) instead of vanishing.
+  for (const s of scenes) if (!placed.has(s.id)) push(s.id);
+  return out;
+}
+
+function nextClipId(prefix: string, tl: MotionTimeline): string {
+  let n = Object.keys(tl.custom).length + 1;
+  let id = `${prefix}-${n}`;
+  while (tl.order.includes(id)) {
+    n += 1;
+    id = `${prefix}-${n}`;
+  }
+  return id;
+}
+
+export function timelineMoveClip(tl: MotionTimeline, id: string, toIndex: number): MotionTimeline {
+  if (!tl.order.includes(id)) return tl;
+  const order = tl.order.filter((x) => x !== id);
+  order.splice(Math.max(0, Math.min(order.length, toIndex)), 0, id);
+  return { ...tl, order };
+}
+
+export function timelineSetSeconds(tl: MotionTimeline, id: string, seconds: number): MotionTimeline {
+  return { ...tl, seconds: { ...tl.seconds, [id]: clampClipSeconds(seconds) } };
+}
+
+export function timelineResetSeconds(tl: MotionTimeline, id: string): MotionTimeline {
+  if (tl.seconds[id] == null) return tl;
+  const seconds = { ...tl.seconds };
+  delete seconds[id];
+  return { ...tl, seconds };
+}
+
+export function timelineDuplicate(scenes: DirectorScene[], tl: MotionTimeline, id: string): MotionTimeline {
+  const src = tl.custom[id] ?? scenes.find((s) => s.id === id);
+  if (!src) return tl;
+  const newId = nextClipId(`${id}:copy`, tl);
+  const idx = tl.order.indexOf(id);
+  const order = [...tl.order];
+  order.splice(idx + 1, 0, newId);
+  const custom = { ...tl.custom, [newId]: { ...src, id: newId, transition: 'fade' } };
+  const seconds = { ...tl.seconds, [newId]: tl.seconds[id] };
+  return { ...tl, order, custom, seconds };
+}
+
+/** Split a clip at `atSeconds` — the first half keeps the id, a new clip holds the rest. */
+export function timelineSplit(scenes: DirectorScene[], tl: MotionTimeline, id: string, atSeconds: number): MotionTimeline {
+  const src = tl.custom[id] ?? scenes.find((s) => s.id === id);
+  if (!src) return tl;
+  const total = tl.seconds[id] != null ? clampClipSeconds(tl.seconds[id]) : src.seconds;
+  const cut = clampClipSeconds(atSeconds);
+  if (cut <= 0 || cut >= total) return tl;
+  const newId = nextClipId(`${id}:split`, tl);
+  const idx = tl.order.indexOf(id);
+  const order = [...tl.order];
+  order.splice(idx + 1, 0, newId);
+  const custom = { ...tl.custom, [newId]: { ...src, id: newId, text: `${src.text} · continued`, transition: 'fade' } };
+  const seconds = { ...tl.seconds, [id]: cut, [newId]: Math.round((total - cut) * 10) / 10 };
+  return { ...tl, order, custom, seconds };
+}
+
+export function timelineRemove(tl: MotionTimeline, id: string): MotionTimeline {
+  if (!tl.order.includes(id)) return tl;
+  const order = tl.order.filter((x) => x !== id);
+  const custom = { ...tl.custom };
+  delete custom[id];
+  const seconds = { ...tl.seconds };
+  delete seconds[id];
+  const removed = [...tl.removed];
+  if (!removed.includes(id)) removed.push(id);
+  return { ...tl, order, custom, seconds, removed };
+}

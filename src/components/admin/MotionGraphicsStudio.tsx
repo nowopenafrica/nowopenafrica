@@ -1,9 +1,10 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import toast from 'react-hot-toast';
 import {
   Film, Download, ImageIcon, LayoutGrid, Loader2, Sparkles, ListVideo,
   LayoutTemplate, Check, Plus, Copy, Trash2, FolderOpen, Wand2, Clapperboard,
-  Layers, ChevronUp, ChevronDown,
+  Layers, ChevronUp, ChevronDown, ArrowLeft, Undo2, Redo2, Play, Pause, Save,
+  Type, Music, Palette, Shapes, Scissors, RotateCcw, Timer, GripVertical,
 } from 'lucide-react';
 import type { DirectorScene } from '../../lib/creativeDirector';
 import {
@@ -14,12 +15,16 @@ import {
   type SceneElementKey, type MotionLayer,
 } from '../../lib/renderVideo';
 import {
-  motionScenesFromJob, motionTotalSeconds, MOTION_SCENE_COUNTS,
-  type MotionConfig, type MotionStyle, type MotionDuration,
+  motionScenesFromJob, applyMotionTimeline, emptyMotionTimeline,
+  timelineMoveClip, timelineSetSeconds,
+  timelineDuplicate, timelineSplit, timelineRemove,
+  CLIP_SECONDS_MIN, CLIP_SECONDS_MAX, MOTION_SCENE_COUNTS,
+  type MotionConfig, type MotionStyle, type MotionDuration, type MotionTimeline,
 } from '../../lib/motionGraphics';
 import { resolveAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
 import AiVideoGenPicker from '../studio/AiVideoGenPicker';
 import { MOTION_TEMPLATES, motionTemplateByKey, type MotionTemplate } from '../../data/motionTemplates';
+import { pickPreviewVoice } from '../../lib/voicePreview';
 import {
   blankMotionProject, motionProjectFromTemplate, motionProjectFromPrompt,
   saveMotionProject, deleteMotionProject, duplicateMotionProject, loadMotionProjects,
@@ -151,21 +156,30 @@ function timeAgo(iso: string): string {
 
 /**
  * Live, looping canvas preview of the motion brief — real frames, real timing.
- * In edit mode the loop freezes on a chosen scene, the clickable layout
- * elements are outlined, and clicking one reports which element was picked so
- * the parent can open an inline editor for that exact element.
+ * The parent owns the transport: when `playing` is true it loops and reports
+ * progress so the timeline marker can follow; when paused it freezes on the
+ * `playhead` fraction (or the last scene). In edit mode the loop freezes on a
+ * chosen scene, the clickable layout elements are outlined, and clicking one
+ * reports which element was picked so the parent can open an inline editor.
  */
 function MotionPreview({
-  opts, scenes, editMode, sceneIndex, onPick,
+  opts, scenes, editMode, sceneIndex, playing, playhead, onProgress, onPick, className,
 }: {
   opts: SceneFrameOptions;
   scenes: DirectorScene[];
   editMode: boolean;
   sceneIndex: number;
-  onPick: (key: SceneElementKey) => void;
+  playing: boolean;
+  playhead: number | null;
+  onProgress?: (fraction: number) => void;
+  onPick?: (key: SceneElementKey) => void;
+  className?: string;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dims = RENDER_DIMENSIONS[opts.aspect];
+  // Keep the latest progress callback without re-running the drawing loop.
+  const onProgressRef = useRef(onProgress);
+  onProgressRef.current = onProgress;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -178,6 +192,7 @@ function MotionPreview({
     const cw = canvas.width;
     const ch = canvas.height;
     const timeline = buildRenderTimeline(scenes, opts);
+    const totalFrames = Math.max(1, timeline.totalFrames);
     let frame = 0;
     let raf = 0;
 
@@ -219,14 +234,24 @@ function MotionPreview({
       return () => window.cancelAnimationFrame(raf);
     }
 
+    const startFrame = playhead != null ? Math.round(playhead * (totalFrames - 1)) : 0;
+
+    if (!playing) {
+      // Paused: one frozen frame at the playhead position.
+      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, startFrame);
+      return () => window.cancelAnimationFrame(raf);
+    }
+
+    frame = startFrame;
     const tick = () => {
       drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame);
-      frame = (frame + 1) % timeline.totalFrames;
+      onProgressRef.current?.(totalFrames > 1 ? frame / (totalFrames - 1) : 0);
+      frame = (frame + 1) % totalFrames;
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
     return () => { window.cancelAnimationFrame(raf); };
-  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex]);
+  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead]);
 
   const onPointer = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!editMode) return;
@@ -239,7 +264,7 @@ function MotionPreview({
     const hit = sceneElementRegions(opts, idx).find(
       (r) => nx >= r.x && nx <= r.x + r.w && ny >= r.y && ny <= r.y + r.h,
     );
-    if (hit) onPick(hit.key);
+    if (hit && onPick) onPick(hit.key);
   };
 
   return (
@@ -251,10 +276,229 @@ function MotionPreview({
         if (editMode) e.preventDefault();
       }}
       onPointerDown={onPointer}
-      className="w-full max-w-md mx-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black"
+      className={className ?? 'w-full max-w-md mx-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black'}
     />
   );
 }
+
+/**
+ * The editor timeline — CapCut-style bottom strip: transport, time ruler with a
+ * scrubbing playhead, and draggable text clips (reorder via drag, trim via the
+ * edge handles, split / duplicate / remove via the buttons). The background and
+ * voiceover tracks are drawn full-length so the composition reads at a glance.
+ */
+const MotionTimeline = forwardRef<{ setMarker: (fraction: number) => void }, {
+  scenes: DirectorScene[];
+  selected: number;
+  playing: boolean;
+  totalSeconds: number;
+  onSelect: (index: number) => void;
+  onScrub: (fraction: number, sceneIndex: number) => void;
+  onPlayPause: () => void;
+  onMove: (fromIndex: number, toIndex: number) => void;
+  onTrim: (id: string, seconds: number) => void;
+  onReset: () => void;
+}>(function MotionTimelineInner({
+  scenes, selected, playing, totalSeconds,
+  onSelect, onScrub, onPlayPause, onMove, onTrim, onReset,
+}, ref) {
+  const trackRef = useRef<HTMLDivElement>(null);
+  const [marker, setMarker] = useState(0);
+  const [trimming, setTrimming] = useState<{ id: string; side: 'l' | 'r' } | null>(null);
+  const trimSession = useRef<{ id: string; side: 'l' | 'r'; clipStartFrac: number; clipEndFrac: number } | null>(null);
+  const dragFrom = useRef<number | null>(null);
+  const scrubbing = useRef(false);
+
+  useImperativeHandle(ref, () => ({
+    setMarker: (f: number) => setMarker(Math.max(0, Math.min(1, f))),
+  }), []);
+
+  const safeTotal = totalSeconds > 0 ? totalSeconds : 1;
+  const markerPct = `${Math.round(marker * 100)}%`;
+
+  const sceneIndexAt = (f: number): number => {
+    if (scenes.length === 0) return 0;
+    const target = f * safeTotal;
+    let acc = 0;
+    for (let i = 0; i < scenes.length; i += 1) {
+      acc += scenes[i].seconds;
+      if (target < acc) return i;
+    }
+    return scenes.length - 1;
+  };
+
+  const scrubTo = (clientX: number) => {
+    const el = trackRef.current;
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    const f = rect.width > 0 ? Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)) : 0;
+    setMarker(f);
+    onScrub(f, sceneIndexAt(f));
+  };
+
+  const beginTrim = (id: string, side: 'l' | 'r', e: React.PointerEvent) => {
+    e.stopPropagation();
+    e.preventDefault();
+    const scene = scenes.find((s) => s.id === id);
+    const idx = scenes.findIndex((s) => s.id === id);
+    if (!scene || idx < 0) return;
+    const startFrac = scenes.slice(0, idx).reduce((a, s) => a + s.seconds, 0) / safeTotal;
+    trimSession.current = { id, side, clipStartFrac: startFrac, clipEndFrac: startFrac + scene.seconds / safeTotal };
+    setTrimming({ id, side });
+  };
+
+  useEffect(() => {
+    if (!trimming) return;
+    const move = (ev: PointerEvent) => {
+      const s = trimSession.current;
+      const el = trackRef.current;
+      if (!s || !el) return;
+      const rect = el.getBoundingClientRect();
+      const f = rect.width > 0 ? Math.max(0, Math.min(1, (ev.clientX - rect.left) / rect.width)) : 0;
+      const seconds = s.side === 'l'
+        ? (s.clipEndFrac - f) * safeTotal
+        : (f - s.clipStartFrac) * safeTotal;
+      onTrim(s.id, Math.max(CLIP_SECONDS_MIN, seconds));
+    };
+    const up = () => { setTrimming(null); trimSession.current = null; };
+    window.addEventListener('pointermove', move);
+    window.addEventListener('pointerup', up);
+    return () => {
+      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointerup', up);
+    };
+  }, [trimming, safeTotal, onTrim]);
+
+  const secondsPerTick = Math.max(1, Math.ceil(safeTotal / 10));
+  const ticks: number[] = [];
+  for (let t = 0; t <= Math.ceil(safeTotal); t += secondsPerTick) ticks.push(t);
+
+  return (
+    <div className="border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 select-none">
+      {/* Transport */}
+      <div className="flex items-center gap-2 px-3 py-1.5">
+        <button onClick={onPlayPause} title={playing ? 'Pause preview' : 'Play preview'}
+          className="w-8 h-8 rounded-lg bg-purple-600 hover:bg-purple-700 text-white flex items-center justify-center transition">
+          {playing ? <Pause size={15} /> : <Play size={15} className="ml-0.5" />}
+        </button>
+        <span className="text-[11px] font-semibold text-gray-700 dark:text-gray-200 tabular-nums">
+          {(marker * safeTotal).toFixed(1)}s / {safeTotal.toFixed(1)}s
+        </span>
+        <span className="ml-auto hidden sm:inline text-[10px] text-gray-400">
+          {scenes.length} clips · drag to reorder · drag clip edges to trim
+        </span>
+        <button onClick={onReset} title="Reset the timeline to the designed order"
+          className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg text-[11px] font-semibold border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 transition">
+          <RotateCcw size={12} /> Reset timeline
+        </button>
+      </div>
+
+      <div className="relative px-3 pb-2">
+        {/* Ruler + playhead (also the scrub surface for the whole strip) */}
+        <div
+          ref={trackRef}
+          onPointerDown={(e) => {
+            scrubbing.current = true;
+            e.currentTarget.setPointerCapture(e.pointerId);
+            scrubTo(e.clientX);
+          }}
+          onPointerMove={(e) => { if (scrubbing.current) scrubTo(e.clientX); }}
+          onPointerUp={() => { scrubbing.current = false; }}
+          onPointerCancel={() => { scrubbing.current = false; }}
+          className="relative h-6 border-b border-gray-200 dark:border-gray-700 cursor-col-resize"
+        >
+          <div className="absolute inset-x-0 top-1/2 h-px bg-gray-200 dark:bg-gray-700" />
+          {ticks.map((t) => (
+            <span key={t} className="absolute top-1 -translate-x-1/2 text-[9px] text-gray-400 tabular-nums"
+              style={{ left: `${(t / Math.max(1, Math.ceil(safeTotal))) * 100}%` }}>
+              {t}
+            </span>
+          ))}
+        </div>
+
+        {/* Tracks */}
+        <div className="space-y-1 py-1.5">
+          {/* TEXT clips */}
+          <div className="flex items-stretch gap-1.5 h-12">
+            <span className="w-14 shrink-0 flex items-center text-[9px] font-bold uppercase tracking-wide text-gray-400">Text</span>
+            <div className="relative flex-1">
+              {scenes.map((s, i) => {
+                const startFrac = scenes.slice(0, i).reduce((a, x) => a + x.seconds, 0) / safeTotal;
+                const widthPct = (s.seconds / safeTotal) * 100;
+                const selectedClip = selected === i && !trimming;
+                return (
+                  <div
+                    key={s.id}
+                    draggable
+                    onDragStart={() => { dragFrom.current = i; }}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      if (dragFrom.current != null && dragFrom.current !== i) {
+                        onMove(dragFrom.current, i);
+                        dragFrom.current = i;
+                      }
+                    }}
+                    onDrop={() => { dragFrom.current = null; }}
+                    onDragEnd={() => { dragFrom.current = null; }}
+                    onClick={() => onSelect(i)}
+                    title={`${s.text} — ${s.seconds}s. Drag to reorder, drag the edges to trim.`}
+                    className={`absolute top-0 bottom-0 rounded-lg border px-1.5 py-1 cursor-grab active:cursor-grabbing transition-colors ${selectedClip
+                      ? 'border-purple-600 bg-purple-600/90 text-white shadow-md z-10'
+                      : 'border-purple-300 dark:border-purple-700 bg-purple-100 dark:bg-purple-900/40 text-purple-900 dark:text-purple-100 hover:border-purple-500'}`}
+                    style={{ left: `${startFrac * 100}%`, width: `${Math.max(2, widthPct)}%` }}
+                  >
+                    <div className="flex items-center gap-1 min-w-0 h-full">
+                      <GripVertical size={12} className="shrink-0 opacity-60" />
+                      <span className="shrink-0 text-[9px] font-bold tabular-nums">{i + 1}</span>
+                      <span className="min-w-0 flex-1 truncate text-[10px] font-semibold">{s.text}</span>
+                      <span className="shrink-0 text-[9px] font-bold tabular-nums opacity-80">{s.seconds}s</span>
+                    </div>
+                    {/* Trim handles */}
+                    <button
+                      title="Trim start"
+                      onPointerDown={(e) => beginTrim(s.id, 'l', e)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute left-0 top-0 bottom-0 w-1.5 cursor-col-resize rounded-l ${trimming?.id === s.id && trimming.side === 'l' ? 'bg-rose-500' : 'bg-transparent hover:bg-rose-400'}`}
+                    />
+                    <button
+                      title="Trim end"
+                      onPointerDown={(e) => beginTrim(s.id, 'r', e)}
+                      onClick={(e) => e.stopPropagation()}
+                      className={`absolute right-0 top-0 bottom-0 w-1.5 cursor-col-resize rounded-r ${trimming?.id === s.id && trimming.side === 'r' ? 'bg-rose-500' : 'bg-transparent hover:bg-rose-400'}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Background layer track (full length) */}
+          <div className="flex items-stretch gap-1.5 h-5">
+            <span className="w-14 shrink-0 flex items-center text-[9px] font-bold uppercase tracking-wide text-gray-400">BG</span>
+            <div className="flex-1 rounded bg-slate-200 dark:bg-slate-700/60 flex items-center px-2">
+              <span className="truncate text-[9px] font-semibold text-slate-500 dark:text-slate-300">Background layers (image / video)</span>
+            </div>
+          </div>
+
+          {/* Voiceover track (full length) */}
+          <div className="flex items-stretch gap-1.5 h-5">
+            <span className="w-14 shrink-0 flex items-center text-[9px] font-bold uppercase tracking-wide text-gray-400">Audio</span>
+            <div className="flex-1 rounded bg-amber-100 dark:bg-amber-900/40 flex items-center px-2">
+              <span className="truncate text-[9px] font-semibold text-amber-700 dark:text-amber-300">Voiceover · preview in the Audio panel</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Playhead line through every track */}
+        <div className="pointer-events-none absolute top-0 bottom-0 left-0 right-0">
+          <div className="absolute top-0 bottom-0 w-px bg-rose-500 z-20" style={{ left: markerPct }}>
+            <div className="absolute -top-0.5 left-1/2 -translate-x-1/2 w-0 h-0 border-x-[5px] border-x-transparent border-t-[7px] border-t-rose-500" />
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+});
 
 function swatchStyle(palette: [string, string, string]): React.CSSProperties {
   return { background: `linear-gradient(135deg, ${palette[0]}, ${palette[1]} 55%, ${palette[2]})` };
@@ -272,11 +516,22 @@ export default function MotionGraphicsStudio() {
   const [progress, setProgress] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  // Editable preview — toggle freezes the canvas and lets clicks open the
-  // element's field inline (headline, sub-line, brand lockup or call to action).
+  // Editable preview — a selected scene freezes the canvas and lets clicks open
+  // the element's field inline (headline, sub-line, brand lockup or call to action).
   const [editMode, setEditMode] = useState(false);
   const [editSceneIndex, setEditSceneIndex] = useState(0);
   const [editing, setEditing] = useState<{ key: SceneElementKey; field: MotionField; label: string; value: string } | null>(null);
+
+  // Editor workspace transport + toolbar.
+  const [playing, setPlaying] = useState(false);
+  const [playhead, setPlayhead] = useState<number | null>(null);
+  const [tool, setTool] = useState<'media' | 'text' | 'elements' | 'audio' | 'brand'>('text');
+  const progressRef = useRef(0);
+  const timelineRef = useRef<{ setMarker: (fraction: number) => void } | null>(null);
+
+  // Undo / redo stack over the shared project (ref + tick so the toolbar
+  // buttons re-evaluate without re-rendering the whole editor on every frame).
+  const historyRef = useRef<{ past: MotionProject[]; future: MotionProject[] }>({ past: [], future: [] });
 
   // User-uploaded layers (images/videos) that compose the film bottom-to-top in
   // the preview and every export. Session-local: kept in component state as
@@ -338,8 +593,10 @@ export default function MotionGraphicsStudio() {
   // Autosave — every edit lands in nowopen_motion_projects.
   useEffect(() => { setProjects(saveMotionProject(project)); }, [project]);
 
-  const patch = (partial: Partial<MotionProject>) =>
+  const patch = (partial: Partial<MotionProject>) => {
+    historyRef.current = { past: [...historyRef.current.past.slice(-49), project], future: [] };
     setProject((prev) => (prev ? { ...prev, ...partial, updatedAt: new Date().toISOString() } : prev));
+  };
 
   const editBrief = (partial: Partial<MotionConfig>) =>
     setProject((prev) => (prev ? { ...prev, templateKey: undefined, brief: { ...prev.brief, ...partial }, updatedAt: new Date().toISOString() } : prev));
@@ -347,12 +604,130 @@ export default function MotionGraphicsStudio() {
   const editRender = (partial: Partial<MotionProject['render']>) =>
     setProject((prev) => (prev ? { ...prev, render: { ...prev.render, ...partial }, updatedAt: new Date().toISOString() } : prev));
 
-  const toggleEdit = () => {
-    if (editMode) {
+  const canUndo = historyRef.current.past.length > 0;
+  const canRedo = historyRef.current.future.length > 0;
+
+  const undo = () => {
+    const h = historyRef.current;
+    if (h.past.length === 0) return;
+    const prev = h.past[h.past.length - 1];
+    historyRef.current = { past: h.past.slice(0, -1), future: [project, ...h.future] };
+    setProject(prev);
+  };
+
+  const redo = () => {
+    const h = historyRef.current;
+    if (h.future.length === 0) return;
+    const next = h.future[0];
+    historyRef.current = { past: [...h.past, project], future: h.future.slice(1) };
+    setProject(next);
+  };
+
+  const saveNow = () => {
+    setProjects(saveMotionProject(project));
+    toast.success('Project saved.');
+  };
+
+  // --- Editor workspace: transport, scrub, clip selection and timeline ops ---
+
+  const applyTimelineOp = (fn: (tl: MotionTimeline) => MotionTimeline) =>
+    patch({ timeline: fn(project.timeline ?? emptyMotionTimeline(baseScenes)) });
+
+  const onMoveClip = (fromIndex: number, toIndex: number) => {
+    const id = scenes[fromIndex]?.id;
+    if (!id) return;
+    applyTimelineOp((tl) => timelineMoveClip(tl, id, toIndex));
+  };
+
+  const onTrimClip = (id: string, seconds: number) => {
+    applyTimelineOp((tl) => timelineSetSeconds(tl, id, seconds));
+  };
+
+  const onSplitClip = (id: string) => {
+    const src = scenes.find((s) => s.id === id);
+    if (!src) return;
+    const next = timelineSplit(scenes, project.timeline ?? emptyMotionTimeline(baseScenes), id, src.seconds / 2);
+    patch({ timeline: next });
+    toast('Clip split in two.');
+  };
+
+  const onDuplicateClip = (id: string) => {
+    const next = timelineDuplicate(scenes, project.timeline ?? emptyMotionTimeline(baseScenes), id);
+    patch({ timeline: next });
+    toast('Clip duplicated.');
+  };
+
+  const onRemoveClip = (id: string) => {
+    patch({ timeline: timelineRemove(project.timeline ?? emptyMotionTimeline(baseScenes), id) });
+  };
+
+  const onResetTimeline = () => {
+    patch({ timeline: undefined });
+    toast('Timeline reset to the designed order.');
+  };
+
+  const onProgress = useCallback((fraction: number) => {
+    progressRef.current = fraction;
+    timelineRef.current?.setMarker(fraction);
+  }, []);
+
+  const sceneStartFraction = (index: number) => {
+    if (scenes.length === 0 || seconds <= 0) return 0;
+    const acc = scenes.slice(0, Math.max(0, Math.min(index, scenes.length))).reduce((s, x) => s + x.seconds, 0);
+    return Math.max(0, Math.min(1, acc / seconds));
+  };
+
+  const selectScene = (index: number) => {
+    const i = Math.max(0, Math.min(index, scenes.length - 1));
+    setEditSceneIndex(i);
+    setEditMode(true);
+    setEditing(null);
+    setPlaying(false);
+    const at = sceneStartFraction(i);
+    progressRef.current = at;
+    setPlayhead(at);
+    timelineRef.current?.setMarker(at);
+  };
+
+  const onScrub = (fraction: number, sceneIndex: number) => {
+    if (playing) { setPlaying(false); setEditMode(false); setEditing(null); }
+    progressRef.current = fraction;
+    setPlayhead(fraction);
+    setEditSceneIndex(sceneIndex);
+  };
+
+  const togglePlay = () => {
+    if (playing) {
+      setPlaying(false);
+      setEditMode(false);
       setEditing(null);
-      setEditSceneIndex(0);
+      setPlayhead(progressRef.current);
+    } else {
+      setEditMode(false);
+      setEditing(null);
+      setPlaying(true);
+      setPlayhead(progressRef.current);
     }
-    setEditMode(!editMode);
+  };
+
+  const speakScene = (text: string) => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) { toast.error('Speech synthesis is not available in this browser.'); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    const v = pickPreviewVoice(window.speechSynthesis.getVoices(), 'Female', 'en');
+    if (v) u.voice = v;
+    window.speechSynthesis.speak(u);
+  };
+
+  const speakTrack = () => {
+    if (typeof window === 'undefined' || !window.speechSynthesis) { toast.error('Speech synthesis is not available in this browser.'); return; }
+    window.speechSynthesis.cancel();
+    scenes.forEach((s) => {
+      const u = new SpeechSynthesisUtterance(s.voiceover);
+      const v = pickPreviewVoice(window.speechSynthesis.getVoices(), 'Female', 'en');
+      if (v) u.voice = v;
+      window.speechSynthesis.speak(u);
+    });
   };
 
   const pickElement = (key: SceneElementKey) => {
@@ -368,10 +743,16 @@ export default function MotionGraphicsStudio() {
   };
 
   const openProject = (p: MotionProject, nextMode: Mode = 'studio') => {
+    historyRef.current = { past: [], future: [] };
     setProject(p);
     setMode(nextMode);
     setError(null);
     setAiError(null);
+    setEditMode(false);
+    setEditing(null);
+    setPlaying(false);
+    setPlayhead(null);
+    progressRef.current = 0;
   };
 
   const startFromTemplate = (t: MotionTemplate) => {
@@ -406,7 +787,8 @@ export default function MotionGraphicsStudio() {
 
   const brief = project.brief;
   const label = STYLES.find((s) => s.key === brief.style)?.label ?? 'Motion';
-  const scenes = useMemo(() => motionScenesFromJob(brief), [brief]);
+  const baseScenes = useMemo(() => motionScenesFromJob(brief), [brief]);
+  const scenes = useMemo(() => applyMotionTimeline(baseScenes, project.timeline), [baseScenes, project.timeline]);
   const opts: SceneFrameOptions = useMemo(
     () => ({
       businessName: brief.business || 'NowOpen',
@@ -422,9 +804,11 @@ export default function MotionGraphicsStudio() {
     }),
     [brief, label, project.palette, scenes.length, layers],
   );
-  const seconds = motionTotalSeconds(brief);
+  const seconds = useMemo(() => scenes.reduce((s, x) => s + x.seconds, 0), [scenes]);
   const renderSource = project.render.source;
   const templateName = project.templateKey ? motionTemplateByKey(project.templateKey)?.name : null;
+  const selScene = scenes.length > 0 ? scenes[Math.min(editSceneIndex, scenes.length - 1)] : null;
+  const mapped = selScene ? fieldForElement('title', selScene, brief) : null;
 
   const downloadVideo = async () => {
     setRendering(true);
@@ -504,8 +888,8 @@ export default function MotionGraphicsStudio() {
         <p className="mt-2.5 text-[11px] text-gray-500 dark:text-gray-400">{MODES.find((m) => m.key === mode)?.blurb}</p>
       </section>
 
-      {/* Project bar — the shared, autosaved project behind every mode */}
-      {(mode === 'studio' || mode === 'ai') && (
+      {/* Project bar — the shared, autosaved project behind the AI Director (Studio has its own top bar) */}
+      {mode === 'ai' && (
         <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
           <div className="flex flex-wrap items-end gap-3">
             <label className="block min-w-[180px] flex-1">
@@ -672,120 +1056,175 @@ export default function MotionGraphicsStudio() {
             </p>
           )}
 
-          {/* Style picker */}
-          <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
-            <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-              <Film size={15} className="text-purple-500" /> What are you animating?
-            </h3>
-            <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-              {STYLES.map((s) => (
-                <button key={s.key} onClick={() => editBrief({ style: s.key, headline: s.defaults.headline, subhead: s.defaults.subhead, cta: s.defaults.cta, logoEmoji: s.defaults.logoEmoji })} aria-pressed={brief.style === s.key}
-                  className={`text-left p-3 rounded-xl border transition ${brief.style === s.key ? 'border-purple-500 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-purple-300'}`}>
-                  <span className="text-xl">{s.emoji}</span>
-                  <span className="block mt-1 text-xs font-bold text-gray-900 dark:text-white">{s.label}</span>
-                  <span className="block mt-0.5 text-[10px] leading-snug text-gray-500 dark:text-gray-400">{s.desc}</span>
+          <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+            {/* Editor workspace top bar */}
+            <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-700">
+              <button onClick={() => setMode('quick')} title="Back to Quick Create"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition">
+                <ArrowLeft size={14} /> Back
+              </button>
+              <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
+              <label className="block min-w-[160px]">
+                <span className="sr-only">Project name</span>
+                <input value={project.name} onChange={(e) => patch({ name: e.target.value })} aria-label="Project name"
+                  className="w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              </label>
+              <select value={project.status} onChange={(e) => patch({ status: e.target.value as MotionProjectStatus })} aria-label="Status"
+                className="px-2 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500">
+                {MOTION_PROJECT_STATUSES.map((s) => (
+                  <option key={s} value={s}>{MOTION_PROJECT_STATUS_LABELS[s]}</option>
+                ))}
+              </select>
+              <span className="hidden md:inline-flex items-center gap-1 text-[10px] text-gray-400" title="Autosaved to nowopen_motion_projects">
+                <Check size={11} className="text-emerald-500" /> Autosaved · {timeAgo(project.updatedAt)}
+              </span>
+              <div className="ml-auto flex flex-wrap items-center gap-1.5">
+                <button onClick={undo} disabled={!canUndo} title="Undo" aria-label="Undo"
+                  className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-purple-300 transition disabled:opacity-40">
+                  <Undo2 size={14} />
                 </button>
-              ))}
+                <button onClick={redo} disabled={!canRedo} title="Redo" aria-label="Redo"
+                  className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-purple-300 transition disabled:opacity-40">
+                  <Redo2 size={14} />
+                </button>
+                <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
+                <button onClick={togglePlay} title={playing ? 'Pause preview' : 'Play preview'} aria-label="Play preview"
+                  className="w-8 h-8 inline-flex items-center justify-center rounded-lg border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-purple-300 transition">
+                  {playing ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
+                </button>
+                <button onClick={saveNow} title="Save now (already autosaves)"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 transition">
+                  <Save size={13} /> Save
+                </button>
+                <button onClick={downloadVideo} disabled={rendering}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white transition">
+                  {rendering ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+                  {rendering ? `Filming ${Math.round(progress * 100)}%` : 'Export'}
+                </button>
+              </div>
             </div>
-          </section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-            {/* Editor */}
-            <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
-              <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                <Sparkles size={15} className="text-purple-500" /> Your motion brief
-              </h3>
-
-              <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Brand lockup</span>
-                  <input value={brief.business} onChange={(e) => editBrief({ business: e.target.value })} className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                </label>
-                <label className="block">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Mark emoji</span>
-                  <input value={brief.logoEmoji} onChange={(e) => editBrief({ logoEmoji: e.target.value })} className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                </label>
-                <label className="block sm:col-span-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Headline</span>
-                  <input value={brief.headline} onChange={(e) => editBrief({ headline: e.target.value })} className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                </label>
-                <label className="block sm:col-span-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Sub-line (voiceover strip)</span>
-                  <input value={brief.subhead} onChange={(e) => editBrief({ subhead: e.target.value })} className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                </label>
-                <label className="block sm:col-span-2">
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Call to action (end card)</span>
-                  <input value={brief.cta} onChange={(e) => editBrief({ cta: e.target.value })} className="mt-1 w-full px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                </label>
-              </div>
-
-              <div className="mt-4 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Shape</span>
-                {ASPECTS.map((a) => (
-                  <button key={a.key} onClick={() => editBrief({ aspect: a.key })} aria-pressed={brief.aspect === a.key}
-                    className={`px-3 py-2 rounded-lg text-xs font-semibold transition ${brief.aspect === a.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                    {a.label}<span className="ml-1.5 font-normal opacity-70">{a.hint}</span>
+            {/* Workspace: toolbar · canvas · properties */}
+            <div className="grid grid-cols-[52px_minmax(0,1fr)_290px] min-h-[540px]">
+              {/* Left toolbar */}
+              <div className="border-r border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 py-2 flex flex-col items-center gap-1">
+                {([
+                  { key: 'media', label: 'Media', icon: ImageIcon },
+                  { key: 'text', label: 'Text', icon: Type },
+                  { key: 'elements', label: 'Elements', icon: Shapes },
+                  { key: 'audio', label: 'Audio', icon: Music },
+                  { key: 'brand', label: 'Brand', icon: Palette },
+                ] as const).map((t) => (
+                  <button key={t.key} onClick={() => { setTool(t.key); setEditMode(false); setEditing(null); }} title={t.label} aria-pressed={tool === t.key}
+                    className={`w-full flex flex-col items-center gap-0.5 py-2 rounded-lg text-[9px] font-semibold transition ${tool === t.key ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300' : 'text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200'}`}>
+                    <t.icon size={17} />
+                    <span>{t.label}</span>
                   </button>
                 ))}
               </div>
 
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Pace</span>
-                {DURATIONS.map((d) => (
-                  <button key={d.key} onClick={() => editBrief({ duration: d.key })} aria-pressed={brief.duration === d.key}
-                    className={`px-3 py-2 rounded-lg text-xs font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
-                    {d.label}<span className="ml-1.5 font-normal opacity-70">{d.hint}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="mt-3">
-                <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400">Palette</span>
-                <div className="mt-1.5 flex flex-wrap gap-2">
-                  {RENDER_PALETTES.map((p, i) => (
-                    <button key={i} onClick={() => patch({ palette: p, templateKey: undefined })} aria-pressed={project.palette === p} title={p.join(' → ')}
-                      className={`w-8 h-8 rounded-lg border-2 transition ${project.palette === p ? 'border-purple-600 ring-2 ring-purple-300' : 'border-transparent'}`}
-                      style={swatchStyle(p)} />
-                  ))}
-                </div>
-              </div>
-            </section>
-
-            {/* Preview + storyboard */}
-            <div className="space-y-5 min-w-0">
-              <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
-                <div className="flex items-center justify-between gap-2">
+              {/* Central canvas */}
+              <div className="min-w-0 p-4 flex flex-col gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
                     <Film size={15} className="text-purple-500" /> Live preview
                   </h3>
-                  <div className="flex items-center gap-2">
-                    <button onClick={toggleEdit} aria-pressed={editMode} title="Toggle editable preview — click layout elements to change them inline"
-                      className={`flex items-center gap-1.5 px-2.5 py-1 text-[11px] font-semibold rounded-lg border transition ${editMode ? 'bg-purple-600 text-white border-purple-600' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300'}`}>
-                      <Sparkles size={12} /> {editMode ? 'Editing on' : 'Edit preview'}
-                    </button>
-                    <span className="text-[11px] font-semibold text-gray-400">
-                      {MOTION_SCENE_COUNTS[brief.style]} cards · {seconds}s · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}
-                    </span>
-                  </div>
+                  <span className="text-[11px] font-semibold text-gray-400">
+                    {MOTION_SCENE_COUNTS[brief.style]} cards · {seconds}s · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}
+                  </span>
                 </div>
-                <div className="mt-3">
-                  <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex} onPick={pickElement} />
-                  {renderSource === 'canvas' && (
-                    <div className="mt-2 max-w-md mx-auto">
+                <div className="flex-1 flex items-center justify-center min-h-[380px] bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 p-3">
+                  <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex}
+                    playing={playing} playhead={playhead} onProgress={onProgress} onPick={pickElement}
+                    className="max-w-full max-h-[68vh] w-auto h-auto rounded-xl border border-gray-200 dark:border-gray-700 bg-black shadow-xl" />
+                </div>
+                {editMode && (
+                  <div className="space-y-2">
+                    <p className="text-center text-[11px] text-gray-400">
+                      Clip {editSceneIndex + 1} selected — click any outlined element on the canvas to edit it inline.
+                    </p>
+                    {editing ? (
+                      <div className="rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 p-2 space-y-2 max-w-md mx-auto">
+                        <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
+                          Editing {editing.label} — scene {editSceneIndex + 1}
+                        </div>
+                        <input autoFocus value={editing.value}
+                          onChange={(e) => setEditing({ ...editing, value: e.target.value })}
+                          onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null); }}
+                          className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
+                        <div className="flex gap-2 justify-end">
+                          <button onClick={() => setEditing(null)} className="px-2.5 py-1 text-[11px] font-semibold rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300">Cancel</button>
+                          <button onClick={commitEdit} className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-purple-600 text-white">Save</button>
+                        </div>
+                      </div>
+                    ) : (
+                      <p className="text-center text-[11px] text-gray-400">Drag clips on the timeline to reorder — or press play to watch the whole film.</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Right properties panel */}
+              <aside className="border-l border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-y-auto">
+                <div className="p-3 space-y-3">
+                  {editMode && selScene ? (
+                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2.5">
+                      <div className="flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                          <Timer size={13} className="text-purple-500" /> Clip {editSceneIndex + 1}
+                        </h4>
+                        <span className="text-[10px] text-gray-400 tabular-nums">{selScene.seconds}s</span>
+                      </div>
+                      <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-200">“{selScene.text}”</p>
+                      {mapped && (
+                        <label className="block">
+                          <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Editing {mapped.label}</span>
+                          <input value={brief[mapped.field] ?? ''} onChange={(e) => editBrief({ [mapped.field]: e.target.value } as Partial<MotionConfig>)}
+                            className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                        </label>
+                      )}
+                      <p className="text-[10px] text-gray-400 italic">Voiceover: “{selScene.voiceover}”</p>
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Trim duration</span>
+                        <div className="mt-1 flex items-center gap-2">
+                          <input type="range" min={CLIP_SECONDS_MIN} max={CLIP_SECONDS_MAX} step={0.5} value={selScene.seconds}
+                            onChange={(e) => onTrimClip(selScene.id, Number(e.target.value))} className="flex-1" />
+                          <span className="text-xs font-semibold text-gray-600 dark:text-gray-300 tabular-nums">{selScene.seconds}s</span>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap gap-1.5">
+                        <button onClick={() => onSplitClip(selScene.id)} title="Split this clip in two"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                          <Scissors size={12} /> Split
+                        </button>
+                        <button onClick={() => onDuplicateClip(selScene.id)} title="Duplicate this clip"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                          <Copy size={12} /> Duplicate
+                        </button>
+                        <button onClick={() => onRemoveClip(selScene.id)} title="Remove this clip"
+                          className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition">
+                          <Trash2 size={12} /> Remove
+                        </button>
+                      </div>
+                    </section>
+                  ) : tool === 'media' ? (
+                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Layers size={13} className="text-purple-500" /> Media layers
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                        Images/videos compose behind the captions. First layer = background; extra layers stack on top. Preview & downloads only, never saved.
+                      </p>
                       <label title="Compose your film: the first layer is the background, extra layers stack on top under the captions (preview & downloads only, never saved)"
-                        className="flex items-center gap-1.5 px-2.5 py-1.5 text-[11px] font-semibold rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 cursor-pointer">
-                        <Layers size={12} /> {layers.length === 0 ? 'Add layers (image/video)' : 'Add another layer'}
+                        className="flex items-center justify-center gap-1.5 px-3 py-2 text-[11px] font-semibold rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 cursor-pointer">
+                        <Plus size={13} /> {layers.length === 0 ? 'Add layers (image/video)' : 'Add another layer'}
                         <input type="file" accept="image/*,video/*" multiple className="hidden" onChange={(e) => {
                           if (e.target.files) addLayerFiles(e.target.files);
                           e.target.value = '';
                         }} />
                       </label>
-                      {layers.length === 0 ? (
-                        <p className="mt-1.5 text-[11px] text-gray-400">
-                          First layer = background; extra layers stack on top. Preview & downloads only, never saved.
-                        </p>
-                      ) : (
-                        <ul className="mt-2 space-y-1.5">
+                      {layers.length > 0 && (
+                        <ul className="space-y-1.5">
                           {layers.map((l, i) => (
                             <li key={l.url} className="flex items-center gap-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-2.5 py-1.5">
                               <span className={`shrink-0 rounded px-1.5 py-0.5 text-[9px] font-bold uppercase ${l.kind === 'video' ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300'}`}>
@@ -794,11 +1233,11 @@ export default function MotionGraphicsStudio() {
                               <span className="min-w-0 flex-1 truncate text-[11px] font-medium text-gray-700 dark:text-gray-200">{l.name}</span>
                               <input type="range" min={0} max={100} value={Math.round((l.opacity ?? 1) * 100)}
                                 onChange={(e) => setLayerOpacity(i, Number(e.target.value) / 100)}
-                                title={`Opacity ${Math.round((l.opacity ?? 1) * 100)}%`} className="w-16" />
+                                title={`Opacity ${Math.round((l.opacity ?? 1) * 100)}%`} className="w-14" />
                               <div className="flex items-center gap-0.5">
-                                <button onClick={() => moveLayer(i, -1)} disabled={i === 0} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={13} /></button>
-                                <button onClick={() => moveLayer(i, 1)} disabled={i === layers.length - 1} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={13} /></button>
-                                <button onClick={() => removeLayer(i)} className="p-0.5 rounded text-red-400 hover:text-red-600"><Trash2 size={13} /></button>
+                                <button onClick={() => moveLayer(i, -1)} disabled={i === 0} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronUp size={12} /></button>
+                                <button onClick={() => moveLayer(i, 1)} disabled={i === layers.length - 1} className="p-0.5 rounded text-gray-400 hover:text-gray-600 disabled:opacity-30"><ChevronDown size={12} /></button>
+                                <button onClick={() => removeLayer(i)} className="p-0.5 rounded text-red-400 hover:text-red-600"><Trash2 size={12} /></button>
                               </div>
                             </li>
                           ))}
@@ -809,55 +1248,164 @@ export default function MotionGraphicsStudio() {
                           </li>
                         </ul>
                       )}
-                    </div>
-                  )}
-                  {editMode && (
-                    <div className="mt-2 max-w-md mx-auto">
-                      {editing ? (
-                        <div className="rounded-lg border border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20 p-2 space-y-2">
-                          <div className="text-[11px] font-semibold text-purple-700 dark:text-purple-300">
-                            Editing {editing.label} — scene {editSceneIndex + 1}
-                          </div>
-                          <input autoFocus value={editing.value}
-                            onChange={(e) => setEditing({ ...editing, value: e.target.value })}
-                            onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null); }}
-                            className="w-full px-2 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white" />
-                          <div className="flex gap-2 justify-end">
-                            <button onClick={() => setEditing(null)} className="px-2.5 py-1 text-[11px] font-semibold rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300">Cancel</button>
-                            <button onClick={commitEdit} className="px-2.5 py-1 text-[11px] font-semibold rounded-md bg-purple-600 text-white">Save</button>
-                          </div>
-                        </div>
-                      ) : (
-                        <p className="text-center text-[11px] text-gray-400">Edit mode: click any outlined element to change it inline.</p>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </section>
-
-              <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
-                <div className="p-4 border-b border-gray-100 dark:border-gray-700">
-                  <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
-                    <ListVideo size={15} className="text-purple-500" /> Storyboard
-                  </h3>
-                </div>
-                <ol className="divide-y divide-gray-100 dark:divide-gray-700">
-                  {scenes.map((s, i) => (
-                    <li key={s.id}
-                      onClick={() => { if (editMode) { setEditing(null); setEditSceneIndex(i); } }}
-                      className={`flex gap-3 p-3.5 transition ${editMode ? 'cursor-pointer hover:bg-purple-50 dark:hover:bg-purple-900/10' : ''} ${editMode && editSceneIndex === i ? 'bg-purple-50 dark:bg-purple-900/10' : ''}`}>
-                      <span className="shrink-0 w-7 h-7 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-xs font-bold flex items-center justify-center">{i + 1}</span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-gray-900 dark:text-white">{s.text}</p>
-                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 italic">“{s.voiceover}”</p>
+                    </section>
+                  ) : tool === 'text' ? (
+                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2.5">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Type size={13} className="text-purple-500" /> Captions
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                        These are your caption cards. They sync with the brief — edit once, every matching card updates.
+                      </p>
+                      <label className="block">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Brand lockup</span>
+                        <input value={brief.business} onChange={(e) => editBrief({ business: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Mark emoji</span>
+                        <input value={brief.logoEmoji} onChange={(e) => editBrief({ logoEmoji: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Headline</span>
+                        <input value={brief.headline} onChange={(e) => editBrief({ headline: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Sub-line (voiceover strip)</span>
+                        <input value={brief.subhead} onChange={(e) => editBrief({ subhead: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </label>
+                      <label className="block">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Call to action (end card)</span>
+                        <input value={brief.cta} onChange={(e) => editBrief({ cta: e.target.value })} className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                      </label>
+                    </section>
+                  ) : tool === 'elements' ? (
+                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden">
+                      <div className="p-3 border-b border-gray-100 dark:border-gray-700 flex items-center justify-between">
+                        <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                          <ListVideo size={13} className="text-purple-500" /> Storyboard
+                        </h4>
+                        <span className="text-[10px] text-gray-400">{scenes.length} clips</span>
                       </div>
-                      <span className="shrink-0 text-[11px] font-semibold text-gray-400 tabular-nums">{s.seconds}s</span>
-                    </li>
-                  ))}
-                </ol>
-              </section>
+                      <ol className="divide-y divide-gray-100 dark:divide-gray-700">
+                        {scenes.map((s, i) => (
+                          <li key={s.id}
+                            onClick={() => selectScene(i)}
+                            className={`flex gap-2.5 p-2.5 cursor-pointer transition ${editSceneIndex === i ? 'bg-purple-50 dark:bg-purple-900/10' : 'hover:bg-gray-50 dark:hover:bg-gray-900'}`}>
+                            <span className="shrink-0 w-6 h-6 rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300 text-[10px] font-bold flex items-center justify-center">{i + 1}</span>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-xs font-semibold text-gray-900 dark:text-white">{s.text}</p>
+                              <p className="truncate text-[10px] text-gray-500 dark:text-gray-400 italic">“{s.voiceover}”</p>
+                            </div>
+                            <span className="shrink-0 text-[10px] font-semibold text-gray-400 tabular-nums">{s.seconds}s</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </section>
+                  ) : tool === 'audio' ? (
+                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Music size={13} className="text-purple-500" /> Voiceover
+                      </h4>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug">
+                        Preview the scripted voiceover with your browser's built-in voice — no upload, no API key.
+                      </p>
+                      <div className="space-y-1.5">
+                        <button onClick={() => speakScene(scenes[editSceneIndex]?.voiceover ?? scenes[0]?.voiceover ?? '')}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                          <Play size={12} /> Play selected scene
+                        </button>
+                        <button onClick={speakTrack}
+                          className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-[11px] font-semibold bg-purple-600 hover:bg-purple-700 text-white transition">
+                          <Play size={12} /> Play whole voiceover track
+                        </button>
+                        {scenes.map((s, i) => (
+                          <button key={s.id} onClick={() => speakScene(s.voiceover)}
+                            className="w-full text-left px-2.5 py-1.5 rounded-lg bg-gray-50 dark:bg-gray-900 border border-gray-100 dark:border-gray-700 hover:border-purple-300 transition">
+                            <span className="block truncate text-[11px] font-semibold text-gray-700 dark:text-gray-200">{i + 1}. {s.text}</span>
+                            <span className="block truncate text-[10px] text-gray-400 italic mt-0.5">“{s.voiceover}”</span>
+                          </button>
+                        ))}
+                      </div>
+                    </section>
+                  ) : (
+                    <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-3">
+                      <h4 className="text-xs font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
+                        <Palette size={13} className="text-purple-500" /> Brand & look
+                      </h4>
+                      <label className="block">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Treatment</span>
+                        <select value={brief.style} onChange={(e) => {
+                          const s = STYLES.find((x) => x.key === e.target.value);
+                          if (s) editBrief({ style: s.key, headline: s.defaults.headline, subhead: s.defaults.subhead, cta: s.defaults.cta, logoEmoji: s.defaults.logoEmoji });
+                        }}
+                          className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+                          {STYLES.map((s) => <option key={s.key} value={s.key}>{s.emoji} {s.label}</option>)}
+                        </select>
+                      </label>
+                      <div>
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Palette</span>
+                        <div className="mt-1.5 flex flex-wrap gap-1.5">
+                          {RENDER_PALETTES.map((p, i) => (
+                            <button key={i} onClick={() => patch({ palette: p, templateKey: undefined })} aria-pressed={project.palette === p} title={p.join(' → ')}
+                              className={`w-7 h-7 rounded-lg border-2 transition ${project.palette === p ? 'border-purple-600 ring-2 ring-purple-300' : 'border-transparent'}`}
+                              style={swatchStyle(p)} />
+                          ))}
+                        </div>
+                      </div>
+                    </section>
+                  )}
+
+                  {/* Format & pace — always available */}
+                  <section className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 space-y-2.5">
+                    <h4 className="text-xs font-bold text-gray-900 dark:text-white">Format & pace</h4>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Shape</span>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {ASPECTS.map((a) => (
+                          <button key={a.key} onClick={() => editBrief({ aspect: a.key })} aria-pressed={brief.aspect === a.key}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${brief.aspect === a.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                            {a.label}<span className="ml-1 font-normal opacity-70">{a.hint}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Pace</span>
+                      <div className="mt-1 flex flex-wrap gap-1.5">
+                        {DURATIONS.map((d) => (
+                          <button key={d.key} onClick={() => editBrief({ duration: d.key })} aria-pressed={brief.duration === d.key}
+                            className={`px-2.5 py-1.5 rounded-lg text-[11px] font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                            {d.label}<span className="ml-1 font-normal opacity-70">{d.hint}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </section>
+                </div>
+              </aside>
             </div>
-          </div>
+
+            {/* Bottom timeline */}
+            <MotionTimeline
+              ref={timelineRef}
+              scenes={scenes}
+              selected={editSceneIndex}
+              playing={playing}
+              totalSeconds={seconds}
+              onSelect={selectScene}
+              onScrub={onScrub}
+              onPlayPause={togglePlay}
+              onMove={onMoveClip}
+              onTrim={onTrimClip}
+              onReset={onResetTimeline}
+            />
+
+            {rendering && (
+              <div className="mx-4 mb-3 h-1.5 rounded-full bg-gray-100 dark:bg-gray-700 overflow-hidden">
+                <div className="h-full bg-purple-600 transition-[width] duration-200" style={{ width: `${Math.round(progress * 100)}%` }} />
+              </div>
+            )}
+          </section>
 
           {/* Export */}
           <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">

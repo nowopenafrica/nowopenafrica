@@ -1,7 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
   motionScenesFromJob, motionTotalSeconds, MOTION_SECONDS, MOTION_SCENE_COUNTS,
-  type MotionConfig,
+  applyMotionTimeline, emptyMotionTimeline, timelineMoveClip, timelineSetSeconds,
+  timelineResetSeconds, timelineDuplicate, timelineSplit, timelineRemove,
+  type MotionConfig, type MotionTimeline,
 } from './motionGraphics';
 
 const base: MotionConfig = {
@@ -67,5 +69,71 @@ describe('motionGraphics — storyboard builder', () => {
       motionScenesFromJob({ ...base, style, headline: '', subhead: '', cta: '' })
         .forEach((s) => expect(s.text.trim().length).toBeGreaterThan(0));
     });
+  });
+});
+
+describe('motionGraphics — editor timeline overlay', () => {
+  const scenes = motionScenesFromJob(base); // logo-reveal → 3 cards @ 3s
+
+  it('no timeline leaves the generated storyboard untouched', () => {
+    expect(applyMotionTimeline(scenes, undefined)).toEqual(scenes);
+    expect(applyMotionTimeline(scenes, emptyMotionTimeline(scenes))).toEqual(scenes);
+  });
+
+  it('reorders clips by id and keeps every scene', () => {
+    const tl = timelineMoveClip(emptyMotionTimeline(scenes), scenes[2].id, 0);
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out.map((s) => s.id)).toEqual([scenes[2].id, scenes[0].id, scenes[1].id]);
+    expect(out).toHaveLength(3);
+    // Order is renumbered so the render uses the new sequence.
+    expect(out.map((s) => s.order)).toEqual([0, 1, 2]);
+  });
+
+  it('trims a clip and clamps to the allowed range', () => {
+    let tl = timelineSetSeconds(emptyMotionTimeline(scenes), scenes[0].id, 4.4);
+    tl = timelineSetSeconds(tl, scenes[1].id, 99);
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out[0].seconds).toBe(4.4);
+    expect(out[1].seconds).toBe(12); // CLIP_SECONDS_MAX
+    expect(out[2].seconds).toBe(scenes[2].seconds); // untouched
+  });
+
+  it('resets a single trim', () => {
+    let tl = timelineSetSeconds(emptyMotionTimeline(scenes), scenes[0].id, 4);
+    tl = timelineResetSeconds(tl, scenes[0].id);
+    expect(applyMotionTimeline(scenes, tl)[0].seconds).toBe(scenes[0].seconds);
+  });
+
+  it('duplicates a clip with its duration, inserted right after the source', () => {
+    const tl = timelineDuplicate(scenes, emptyMotionTimeline(scenes), scenes[1].id);
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out.map((s) => s.id)).toEqual([scenes[0].id, scenes[1].id, expect.stringMatching(/^motion-1:copy-/), scenes[2].id]);
+    expect(out[2].text).toBe(scenes[1].text);
+    expect(out[2].seconds).toBe(scenes[1].seconds);
+    expect(out[2].id).not.toBe(scenes[1].id);
+  });
+
+  it('splits a clip into two halves that keep the total time', () => {
+    const tl = timelineSplit(scenes, emptyMotionTimeline(scenes), scenes[0].id, 2);
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out.map((s) => s.id)).toEqual([scenes[0].id, expect.stringMatching(/^motion-0:split-/), scenes[1].id, scenes[2].id]);
+    expect(out[0].seconds).toBe(2);
+    expect(out[1].seconds).toBe(1);
+    expect(out[0].seconds + out[1].seconds).toBe(scenes[0].seconds);
+  });
+
+  it('rejects an out-of-range split and removes a clip', () => {
+    expect(timelineSplit(scenes, emptyMotionTimeline(scenes), scenes[0].id, 3)).toEqual(emptyMotionTimeline(scenes));
+    const tl = timelineRemove(emptyMotionTimeline(scenes), scenes[0].id);
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out.map((s) => s.id)).toEqual([scenes[1].id, scenes[2].id]);
+    // The base scene reappears after a timeline reset.
+    expect(applyMotionTimeline(scenes, undefined)).toHaveLength(3);
+  });
+
+  it('appends brief scenes that a stale timeline does not know about', () => {
+    const tl: MotionTimeline = { order: ['ghost-1'], seconds: {}, custom: {}, removed: [] };
+    const out = applyMotionTimeline(scenes, tl);
+    expect(out.map((s) => s.id)).toEqual(scenes.map((s) => s.id)); // ghost skipped, all base kept
   });
 });
