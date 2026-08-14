@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { loadHeroSettings, saveHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import { Business, Advertisement, MediaService, User as UserProfile } from '../types';
@@ -86,6 +87,8 @@ export default function AdminDashboard() {
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [heroVideos, setHeroVideos] = useState<{ name: string; url: string }[]>([]);
+  const [hero, setHero] = useState<HeroSettings>(DEFAULT_HERO);
+  const [heroSaving, setHeroSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const HERO_BUCKET = 'hero-videos';
@@ -115,7 +118,7 @@ export default function AdminDashboard() {
   }, [authUser, authLoading]);
 
   useEffect(() => {
-    if (role === 'admin') { fetchAll(); fetchHeroVideos(); }
+    if (role === 'admin') { fetchAll(); fetchHeroVideos(); loadHeroSettings().then(setHero); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
@@ -350,6 +353,24 @@ export default function AdminDashboard() {
   };
 
   // ---- hero video slider management ------------------------------------
+
+  // Optimistic: the switch moves immediately, and reverts if the write fails.
+  // A toggle that waits on a round trip before responding feels broken.
+  const updateHero = async (patch: Partial<HeroSettings>) => {
+    const next = { ...hero, ...patch };
+    const previous = hero;
+    setHero(next);
+    setHeroSaving(true);
+    const res = await saveHeroSettings(next, authUser?.id);
+    setHeroSaving(false);
+    if (res.ok) {
+      toast.success('Homepage banner updated');
+      logAudit(authUser, 'update', 'site_settings', 'hero_banner', next);
+    } else {
+      setHero(previous);
+      toast.error(res.error ?? 'Could not save the banner settings.');
+    }
+  };
 
   const fetchHeroVideos = async () => {
     const { data, error } = await supabase.storage.from(HERO_BUCKET).list('', { limit: 20, sortBy: { column: 'name', order: 'asc' } });
@@ -1379,6 +1400,75 @@ export default function AdminDashboard() {
                     <div>
                       <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Homepage Video Slider</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400">Upload up to 10 videos for the hero banner.</p>
+                    </div>
+                    <div className="w-full order-last rounded-xl border border-gray-200 dark:border-gray-700 p-4 space-y-4">
+                      <div className="flex items-start justify-between gap-4 flex-wrap">
+                        <div className="min-w-0">
+                          <span className="block text-sm font-semibold text-gray-900 dark:text-white">Video slider</span>
+                          <span className="block text-xs text-gray-500 dark:text-gray-400">
+                            {hero.videoEnabled
+                              ? 'Playing on the homepage banner.'
+                              : 'Off — visitors see the banner colour below, and the videos are never downloaded.'}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          role="switch"
+                          aria-checked={hero.videoEnabled}
+                          aria-label="Homepage video slider"
+                          disabled={heroSaving}
+                          onClick={() => updateHero({ videoEnabled: !hero.videoEnabled })}
+                          className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                            hero.videoEnabled ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
+                          }`}
+                        >
+                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${hero.videoEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                        </button>
+                      </div>
+
+                      {/* The colour only matters with the video off, so it only
+                          appears then — a control that changes nothing visible
+                          is worse than no control at all. */}
+                      {!hero.videoEnabled && (
+                        <div className="flex items-center gap-3 flex-wrap border-t border-gray-100 dark:border-gray-700 pt-4">
+                          <label htmlFor="hero-color" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                            Banner colour
+                          </label>
+                          <input
+                            id="hero-color"
+                            type="color"
+                            value={hero.bannerColor ?? '#1e3a5f'}
+                            disabled={heroSaving}
+                            onChange={(e) => updateHero({ bannerColor: e.target.value })}
+                            className="h-10 w-14 cursor-pointer rounded-lg border border-gray-300 dark:border-gray-600 bg-transparent p-1 disabled:opacity-60"
+                          />
+                          <code className="text-xs text-gray-500 dark:text-gray-400">
+                            {hero.bannerColor ?? 'NowOpen gradient'}
+                          </code>
+                          {hero.bannerColor && (
+                            <button
+                              type="button"
+                              disabled={heroSaving}
+                              onClick={() => updateHero({ bannerColor: null })}
+                              className="px-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-60"
+                            >
+                              Reset to gradient
+                            </button>
+                          )}
+                          <span
+                            className="ml-auto h-10 w-32 rounded-lg border border-gray-200 dark:border-gray-700"
+                            style={{ background: heroBackground(hero) }}
+                            aria-label="Banner preview"
+                            title={hero.bannerColor ? 'Chosen colour' : 'NowOpen gradient (unchanged)'}
+                          />
+                        </div>
+                      )}
+
+                      {hero.videoEnabled && hero.bannerColor && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 border-t border-gray-100 dark:border-gray-700 pt-3">
+                          A banner colour is saved ({hero.bannerColor}) but stays hidden while the video is playing.
+                        </p>
+                      )}
                     </div>
                     <div>
                       <input

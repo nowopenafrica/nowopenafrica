@@ -12,6 +12,7 @@ import GlobalSearchInput from '../components/GlobalSearchInput';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import BrandMarquee from '../components/BrandMarquee';
 import HeroSlider from '../components/HeroSlider';
+import { loadHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 
 export default function Home() {
   const navigate = useNavigate();
@@ -23,6 +24,15 @@ export default function Home() {
   const [searchType, setSearchType] = useState('businesses');
   const [searchLocation, setSearchLocation] = useState('');
   const [textVisible, setTextVisible] = useState(true);
+  // Starts at the default so the hero paints the brand gradient on first frame;
+  // the stored preference swaps in once it loads, with no flash of blank banner.
+  const [hero, setHero] = useState<HeroSettings>(DEFAULT_HERO);
+
+  useEffect(() => {
+    let alive = true;
+    loadHeroSettings().then((s) => { if (alive) setHero(s); });
+    return () => { alive = false; };
+  }, []);
 
   useEffect(() => {
     return applySeo({
@@ -132,8 +142,12 @@ export default function Home() {
       {/* height (not min/max-height) so the h-full flex child below can
           actually resolve its percentage height and truly center — CSS only
           lets height:100% resolve against an ancestor's explicit height. */}
-      <section className="relative text-white overflow-hidden" style={{ height: '450px', background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
-        <HeroSlider overlayStyle={{ background: 'linear-gradient(135deg, rgba(30,58,95,0.15) 0%, rgba(76,29,149,0.15) 20%, rgba(131,24,67,0.15) 40%, rgba(154,52,18,0.15) 60%, rgba(146,64,14,0.15) 80%, rgba(22,101,52,0.15) 100%)' }} />
+      <section className="relative text-white overflow-hidden" style={{ height: '450px', background: heroBackground(hero) }}>
+        {/* Not mounted at all when switched off, so the videos are never even
+            requested — a real saving on the mobile data this audience uses. */}
+        {hero.videoEnabled && (
+          <HeroSlider overlayStyle={{ background: 'linear-gradient(135deg, rgba(30,58,95,0.15) 0%, rgba(76,29,149,0.15) 20%, rgba(131,24,67,0.15) 40%, rgba(154,52,18,0.15) 60%, rgba(146,64,14,0.15) 80%, rgba(22,101,52,0.15) 100%)' }} />
+        )}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col items-center justify-center gap-6">
           <div
             className="text-center space-y-6"
@@ -181,8 +195,10 @@ export default function Home() {
             <div className="flex flex-col md:flex-row gap-4">
               {/* Search Type Selector */}
               <div className="md:w-48">
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search In</label>
+                <label htmlFor="home-search-type" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search In</label>
                 <select
+                  id="home-search-type"
+                  name="searchType"
                   value={searchType}
                   onChange={(e) => setSearchType(e.target.value)}
                   className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-gray-50 dark:bg-gray-900"
