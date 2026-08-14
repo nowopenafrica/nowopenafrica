@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import { resolveImageProvider, generateImage } from './imagegen';
+import { resolveImageProvider, generateImage, parseModelRef } from './imagegen';
 
 // Runs under Vitest with Deno.env and fetch stubbed, same as llm.test.ts.
 // The two provider shapes are completely different — Hugging Face returns image
@@ -49,6 +49,68 @@ describe('generateImage — no provider', () => {
   it('names the reason instead of throwing', async () => {
     expect(await generateImage(REQ)).toEqual({ ok: false, reason: 'no_provider' });
   });
+});
+
+describe('parseModelRef', () => {
+  it('reads the provider prefix so the model dropdown can target any host', () => {
+    expect(parseModelRef('hf:stabilityai/sdxl-turbo')).toEqual({ provider: 'huggingface', model: 'stabilityai/sdxl-turbo' });
+    expect(parseModelRef('replicate:black-forest-labs/flux-dev')).toEqual({ provider: 'replicate', model: 'black-forest-labs/flux-dev' });
+    expect(parseModelRef('pollinations:flux')).toEqual({ provider: 'pollinations', model: 'flux' });
+  });
+
+  it('leaves a bare id to whichever provider is configured', () => {
+    expect(parseModelRef('stabilityai/sdxl-turbo')).toEqual({ model: 'stabilityai/sdxl-turbo' });
+    expect(parseModelRef(undefined)).toEqual({});
+  });
+
+  it('does not mistake a URL for a provider prefix', () => {
+    expect(parseModelRef('https://example.com/m')).toEqual({ model: 'https://example.com/m' });
+  });
+});
+
+describe('generateImage — model and key overrides', () => {
+  it('lets a personal key reach a provider the deployment has no key for', async () => {
+    env = {}; // nothing configured on the server at all
+    const fetchMock = vi.fn(async () => ({
+      ok: true, headers: { get: () => 'image/png' }, arrayBuffer: async () => pngBytes().buffer,
+    }) as any);
+    vi.stubGlobal('fetch', fetchMock);
+
+    const out = await generateImage({ ...REQ, model: 'hf:stabilityai/sdxl-turbo', apiKey: 'hf_personal' });
+    expect(out.ok).toBe(true);
+    expect(String(fetchMock.mock.calls[0][0])).toContain('stabilityai/sdxl-turbo');
+    expect(fetchMock.mock.calls[0][1].headers.Authorization).toBe('Bearer hf_personal');
+  });
+
+  it('refuses rather than calling out with no credential at all', async () => {
+    env = {};
+    const fetchMock = vi.fn();
+    vi.stubGlobal('fetch', fetchMock);
+    expect(await generateImage({ ...REQ, model: 'replicate:owner/m' })).toEqual({ ok: false, reason: 'no_provider' });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects video on Hugging Face instead of returning a still that claims to be a clip', async () => {
+    env = { HUGGINGFACE_API_KEY: 'h' };
+    expect(await generateImage({ ...REQ, kind: 'video' })).toMatchObject({ ok: false, reason: 'error' });
+  });
+
+  it('omits image-only inputs when asking Replicate for a clip', async () => {
+    env = { REPLICATE_API_TOKEN: 'r' };
+    const fetchMock = vi.fn(async (url: string) => {
+      if (String(url).includes('/predictions') && !String(url).includes('/v1/predictions/')) {
+        return { ok: true, json: async () => ({ status: 'succeeded', output: ['https://replicate.delivery/o.mp4'] }) } as any;
+      }
+      return { ok: true, headers: { get: () => 'video/mp4' }, arrayBuffer: async () => pngBytes().buffer } as any;
+    });
+    vi.stubGlobal('fetch', fetchMock);
+
+    const out = await generateImage({ ...REQ, model: 'replicate:owner/t2v', kind: 'video' });
+    expect(out.ok).toBe(true);
+    const input = JSON.parse(fetchMock.mock.calls[0][1].body).input;
+    expect(input).toEqual({ prompt: REQ.prompt, seed: REQ.seed });
+    expect(input).not.toHaveProperty('num_outputs');
+  }, 20_000);
 });
 
 describe('generateImage — Hugging Face', () => {
