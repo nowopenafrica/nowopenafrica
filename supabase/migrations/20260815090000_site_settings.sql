@@ -61,5 +61,5 @@ create policy "site_settings_admin_write"
 -- Seed the hero row so the homepage reads a real row rather than relying on a
 -- missing-row fallback. Video on, no colour override -> the NowOpen gradient.
 insert into public.site_settings (key, value)
-values ('hero_banner', '{"videoEnabled": true, "bannerColor": null}'::jsonb)
+values ('hero_banner', '{"videoEnabled": true, "bannerColor": null, "textSyncWithVideo": true}'::jsonb)
 on conflict (key) do nothing;

@@ -26,9 +26,16 @@ export interface HeroSettings {
   videoEnabled: boolean;
   /** CSS colour for the banner when video is off. null = keep the gradient. */
   bannerColor: string | null;
+  /**
+   * Tie the banner headline's fade to the clips instead of a free-running
+   * timer: text fades out over each clip's final seconds, the next clip takes
+   * over while it is hidden, then it fades back in. Off means the old
+   * behaviour, where the two ran independently and regularly collided.
+   */
+  textSyncWithVideo: boolean;
 }
 
-export const DEFAULT_HERO: HeroSettings = { videoEnabled: true, bannerColor: null };
+export const DEFAULT_HERO: HeroSettings = { videoEnabled: true, bannerColor: null, textSyncWithVideo: true };
 
 /** Accept only what we understand; anything else falls back to the default. */
 export function parseHeroSettings(value: unknown): HeroSettings {
@@ -38,6 +45,7 @@ export function parseHeroSettings(value: unknown): HeroSettings {
   return {
     videoEnabled: v.videoEnabled !== false,
     bannerColor: color,
+    textSyncWithVideo: v.textSyncWithVideo !== false,
   };
 }
 

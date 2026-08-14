@@ -4,15 +4,31 @@ import { supabase } from '../lib/supabase';
 const FADE_DURATION = 1500;
 const BUCKET = 'hero-videos';
 
+/** Must match the banner text's own CSS transition, or the swap shows through it. */
+export const TEXT_FADE_MS = 2000;
+
 interface HeroSliderProps {
   overlayStyle?: React.CSSProperties;
+  /**
+   * When set, the slider drives the banner text instead of a free-running
+   * timer: the text fades out over the clip's final TEXT_FADE_MS, the next clip
+   * takes over while it is hidden, and it fades back in once the crossfade is
+   * done. The text then never changes mid-clip and clips never swap under
+   * visible text — the two were previously independent, so they collided.
+   */
+  onTextVisibilityChange?: (visible: boolean) => void;
 }
 
-export default function HeroSlider({ overlayStyle }: HeroSliderProps) {
+export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: HeroSliderProps) {
   const [videos, setVideos] = useState<string[]>([]);
   const [current, setCurrent] = useState(0);
   const [ready, setReady] = useState<Record<number, boolean>>({});
   const videoRefs = useRef<HTMLVideoElement[]>([]);
+  // Guards the once-per-clip fade-out: timeupdate fires several times a second.
+  const fadingOut = useRef(false);
+  // Held in a ref so changing the callback never restarts a running sequence.
+  const notify = useRef(onTextVisibilityChange);
+  notify.current = onTextVisibilityChange;
 
   useEffect(() => {
     const load = async () => {
@@ -43,7 +59,32 @@ export default function HeroSlider({ overlayStyle }: HeroSliderProps) {
         vid.pause();
       }
     });
+
+    // The incoming clip is under way — bring the text back once the crossfade
+    // between the two videos has finished, not before.
+    if (!notify.current) return;
+    fadingOut.current = false;
+    const t = setTimeout(() => notify.current?.(true), FADE_DURATION);
+    return () => clearTimeout(t);
   }, [current]);
+
+  /**
+   * Start hiding the text while the clip still has TEXT_FADE_MS left to run.
+   *
+   * Waiting for `ended` would be too late: the fade would play out over a
+   * frozen final frame. Pre-empting means the text is already gone at the
+   * moment the clips swap, which is the whole point.
+   */
+  const onTimeUpdate = (idx: number) => {
+    if (!notify.current || idx !== current || fadingOut.current) return;
+    const vid = videoRefs.current[idx];
+    // duration is NaN until metadata loads, and Infinity for a live stream.
+    if (!vid || !Number.isFinite(vid.duration) || vid.duration <= 0) return;
+    if ((vid.duration - vid.currentTime) * 1000 <= TEXT_FADE_MS) {
+      fadingOut.current = true;
+      notify.current(false);
+    }
+  };
 
   const onCanPlay = (idx: number) => {
     setReady(prev => ({ ...prev, [idx]: true }));
@@ -52,7 +93,22 @@ export default function HeroSlider({ overlayStyle }: HeroSliderProps) {
     }
   };
 
-  const onEnded = () => advance();
+  const onEnded = () => {
+    // With a single clip, advance() computes the same index, React bails out of
+    // the state update, the [current] effect never re-runs — and the banner sits
+    // on a frozen last frame for the rest of the visit. Replay it directly.
+    if (videos.length <= 1) {
+      const vid = videoRefs.current[current];
+      if (vid) {
+        vid.currentTime = 0;
+        vid.play().catch(() => {});
+      }
+      fadingOut.current = false;
+      notify.current?.(true);
+      return;
+    }
+    advance();
+  };
 
   if (videos.length === 0) return null;
 
@@ -73,6 +129,7 @@ export default function HeroSlider({ overlayStyle }: HeroSliderProps) {
           preload="auto"
           aria-hidden="true"
           onCanPlay={() => onCanPlay(idx)}
+          onTimeUpdate={() => onTimeUpdate(idx)}
           onEnded={onEnded}
           onError={() => {}}
         />

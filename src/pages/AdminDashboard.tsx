@@ -1426,6 +1426,34 @@ export default function AdminDashboard() {
                         </button>
                       </div>
 
+                      {/* Only meaningful while clips are playing — with video
+                          off there is nothing for the text to sync to. */}
+                      {hero.videoEnabled && (
+                        <div className="flex items-start justify-between gap-4 flex-wrap border-t border-gray-100 dark:border-gray-700 pt-4">
+                          <div className="min-w-0">
+                            <span className="block text-sm font-semibold text-gray-900 dark:text-white">Fade text between videos</span>
+                            <span className="block text-xs text-gray-500 dark:text-gray-400 max-w-lg">
+                              {hero.textSyncWithVideo
+                                ? 'The headline fades out as each video ends, the next one starts, then it fades back in.'
+                                : 'The headline fades on its own 15-second cycle, so it can disappear mid-video or stay up while videos change.'}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            role="switch"
+                            aria-checked={hero.textSyncWithVideo}
+                            aria-label="Fade banner text between videos"
+                            disabled={heroSaving}
+                            onClick={() => updateHero({ textSyncWithVideo: !hero.textSyncWithVideo })}
+                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                              hero.textSyncWithVideo ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
+                            }`}
+                          >
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${hero.textSyncWithVideo ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </button>
+                        </div>
+                      )}
+
                       {/* The colour only matters with the video off, so it only
                           appears then — a control that changes nothing visible
                           is worse than no control at all. */}

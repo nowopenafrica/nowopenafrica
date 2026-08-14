@@ -44,7 +44,18 @@ export default function Home() {
     });
   }, []);
 
+  // Free-running fade, used only when the slider is NOT driving the text.
+  // Both at once would fight: the timer could hide the headline halfway
+  // through a clip that the slider had just faded it in for.
+  const sliderDrivesText = hero.videoEnabled && hero.textSyncWithVideo;
+
   useEffect(() => {
+    if (sliderDrivesText) {
+      // Leaving it hidden here would strand the headline invisible if the
+      // setting is switched on while nothing is playing.
+      setTextVisible(true);
+      return;
+    }
     const VISIBLE_MS = 15000;
     const HIDDEN_MS = 15000;
     let timeout: ReturnType<typeof setTimeout>;
@@ -59,7 +70,7 @@ export default function Home() {
 
     cycle();
     return () => clearTimeout(timeout);
-  }, []);
+  }, [sliderDrivesText]);
 
   useEffect(() => {
     // Fetch real data for the sliders; fall back to sample data while the
@@ -146,7 +157,10 @@ export default function Home() {
         {/* Not mounted at all when switched off, so the videos are never even
             requested — a real saving on the mobile data this audience uses. */}
         {hero.videoEnabled && (
-          <HeroSlider overlayStyle={{ background: 'linear-gradient(135deg, rgba(30,58,95,0.15) 0%, rgba(76,29,149,0.15) 20%, rgba(131,24,67,0.15) 40%, rgba(154,52,18,0.15) 60%, rgba(146,64,14,0.15) 80%, rgba(22,101,52,0.15) 100%)' }} />
+          <HeroSlider
+            overlayStyle={{ background: 'linear-gradient(135deg, rgba(30,58,95,0.15) 0%, rgba(76,29,149,0.15) 20%, rgba(131,24,67,0.15) 40%, rgba(154,52,18,0.15) 60%, rgba(146,64,14,0.15) 80%, rgba(22,101,52,0.15) 100%)' }}
+            onTextVisibilityChange={sliderDrivesText ? setTextVisible : undefined}
+          />
         )}
         <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col items-center justify-center gap-6">
           <div
