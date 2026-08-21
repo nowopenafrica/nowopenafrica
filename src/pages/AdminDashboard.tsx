@@ -2,6 +2,10 @@ import { useState, useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import {
+  canAccessTab, canDelete, canManageRoles, canManagePlans, isStaff, isEditor,
+  ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
+} from '../lib/permissions';
 import { loadHeroSettings, saveHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
@@ -19,11 +23,11 @@ import { getBusinessTier, BUSINESS_TIERS } from '../data/pricingPlans';
 import { logAudit } from '../lib/audit';
 import { createNotification } from '../lib/notifications';
 
-type AdminTab = 'overview' | 'users' | 'businesses' | 'verification' | 'subscriptions' | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist' | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos';
+type AdminTab = AdminTabId;
 
 type DeletableTable = 'users' | 'businesses' | 'advertisements' | 'media_services' | 'business_bookings' | 'payment_intents' | 'waitlist' | 'business_registrations' | 'platform_enquiries';
 
-const ROLES = ['business', 'media_service', 'admin'];
+
 
 // Friendly labels for the per-industry booking/cart module_key values written
 // by categoryFeatures.ts, so the admin Bookings view reads "Test Drive" instead
@@ -118,7 +122,7 @@ export default function AdminDashboard() {
   }, [authUser, authLoading]);
 
   useEffect(() => {
-    if (role === 'admin') { fetchAll(); fetchHeroVideos(); loadHeroSettings().then(setHero); }
+    if (isStaff(role)) { fetchAll(); fetchHeroVideos(); loadHeroSettings().then(setHero); }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
@@ -236,6 +240,12 @@ export default function AdminDashboard() {
   // unreliable — some browsers/webviews suppress it, which made the delete
   // button feel unresponsive. The modal below is the actual confirm step.)
   const deleteRow = (table: DeletableTable, id: string, label: string) => {
+    // Defence in depth behind the hidden buttons. RLS is the real boundary, but
+    // failing here gives a clear message instead of a silent empty result.
+    if (!canDelete(role)) {
+      toast.error('Only an admin can delete records.');
+      return;
+    }
     if (table === 'users' && id === authUser?.id) {
       toast.error("You can't delete your own account");
       return;
@@ -460,7 +470,7 @@ export default function AdminDashboard() {
     );
   }
 
-  if (role !== 'admin') {
+  if (!isStaff(role)) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
         <div className="text-center max-w-md p-8">
@@ -469,7 +479,7 @@ export default function AdminDashboard() {
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Access Denied</h2>
           <p className="text-gray-600 dark:text-gray-400 mb-6">
-            You need administrator privileges to view this page.
+            You need administrator or editor privileges to view this page.
           </p>
           <Link
             to="/dashboard"
@@ -483,7 +493,7 @@ export default function AdminDashboard() {
     );
   }
 
-  const tabs: { id: AdminTab; label: string; icon: typeof Users; count: number }[] = [
+  const allTabs: { id: AdminTab; label: string; icon: typeof Users; count: number }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutGrid, count: 0 },
     { id: 'users', label: 'Users', icon: Users, count: users.length },
     { id: 'businesses', label: 'Businesses', icon: ShoppingBag, count: businesses.length },
@@ -501,6 +511,7 @@ export default function AdminDashboard() {
     { id: 'audit', label: 'Audit Log', icon: History, count: auditLog.length },
     { id: 'hero-videos', label: 'Hero Videos', icon: Video, count: heroVideos.length },
   ];
+  const tabs = allTabs.filter(t => canAccessTab(role, t.id));
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -512,8 +523,16 @@ export default function AdminDashboard() {
               <Shield size={20} className="text-purple-600 dark:text-purple-400" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Admin Panel</h1>
-              <p className="text-gray-600 dark:text-gray-400 text-sm">Manage all platform data</p>
+              <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {isEditor(role) ? 'Editor Panel' : 'Admin Panel'}
+              </h1>
+              {/* Name the limits rather than leaving an editor to infer them
+                  from missing tabs — absence reads as a bug, not a boundary. */}
+              <p className="text-gray-600 dark:text-gray-400 text-sm">
+                {isEditor(role)
+                  ? 'Homepage and listing content. Accounts, payments, verification and deletion are admin-only.'
+                  : 'Manage all platform data'}
+              </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
@@ -669,27 +688,40 @@ export default function AdminDashboard() {
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{u.name || '—'}</td>
                         <td className="px-4 py-3 text-sm">
-                          <select
-                            value={u.role || 'business'}
-                            onChange={e => updateUserRole(u.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
-                          >
-                            {ROLES.map(r => (
-                              <option key={r} value={r}>{r}</option>
-                            ))}
-                          </select>
+                          {canManageRoles(role) ? (
+                            <select
+                              value={u.role || 'business'}
+                              onChange={e => updateUserRole(u.id, e.target.value)}
+                              title={ROLE_DESCRIPTIONS[(u.role as keyof typeof ROLE_DESCRIPTIONS) || 'business']}
+                              className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            >
+                              {ASSIGNABLE_ROLES.map(r => (
+                                <option key={r} value={r} title={ROLE_DESCRIPTIONS[r]}>{ROLE_LABELS[r]}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {ROLE_LABELS[(u.role as keyof typeof ROLE_LABELS) || 'business']}
+                            </span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <select
-                            value={(u as any).plan || 'starter'}
-                            onChange={e => updateUserPlan(u.id, e.target.value)}
-                            title="Change / upgrade this business's plan"
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
-                          >
-                            {BUSINESS_TIERS.map(t => (
-                              <option key={t.id} value={t.id}>{t.name}</option>
-                            ))}
-                          </select>
+                          {canManagePlans(role) ? (
+                            <select
+                              value={(u as any).plan || 'starter'}
+                              onChange={e => updateUserPlan(u.id, e.target.value)}
+                              title="Change / upgrade this business's plan"
+                              className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            >
+                              {BUSINESS_TIERS.map(t => (
+                                <option key={t.id} value={t.id}>{t.name}</option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="text-xs text-gray-600 dark:text-gray-400">
+                              {getBusinessTier((u as any).plan || 'starter')?.name || 'Starter'}
+                            </span>
+                          )}
                           {(u as any).plan_status && (u as any).plan_status !== 'active' && (
                             <span className="ml-1.5 text-[10px] text-amber-600 dark:text-amber-400 capitalize">{(u as any).plan_status}</span>
                           )}
@@ -698,13 +730,15 @@ export default function AdminDashboard() {
                           {u.created_at ? new Date(u.created_at).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('users', u.id, `profile for ${u.email}`)}
-                            title="Delete profile row (the auth account must be removed from the Supabase dashboard)"
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('users', u.id, `profile for ${u.email}`)}
+                              title="Delete profile row (the auth account must be removed from the Supabase dashboard)"
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -775,12 +809,14 @@ export default function AdminDashboard() {
                             >
                               <ShieldCheck size={16} />
                             </button>
-                            <button
-                              onClick={() => deleteRow('businesses', b.id, b.name)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            {canDelete(role) && (
+                              <button
+                                onClick={() => deleteRow('businesses', b.id, b.name)}
+                                className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -998,12 +1034,14 @@ export default function AdminDashboard() {
                           </select>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('advertisements', a.id, a.title)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('advertisements', a.id, a.title)}
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1045,12 +1083,14 @@ export default function AdminDashboard() {
                           </select>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('media_services', m.id, m.title)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('media_services', m.id, m.title)}
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1119,12 +1159,14 @@ export default function AdminDashboard() {
                           </select>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('business_bookings', b.id, `booking from ${b.customer_name}`)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('business_bookings', b.id, `booking from ${b.customer_name}`)}
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1171,12 +1213,14 @@ export default function AdminDashboard() {
                           </select>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('payment_intents', p.id, p.item_title)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('payment_intents', p.id, p.item_title)}
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1221,12 +1265,14 @@ export default function AdminDashboard() {
                           </button>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('waitlist', w.id, w.email)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('waitlist', w.id, w.email)}
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1273,12 +1319,14 @@ export default function AdminDashboard() {
                           </select>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('business_registrations', r.id, r.business_name)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('business_registrations', r.id, r.business_name)}
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -1377,12 +1425,14 @@ export default function AdminDashboard() {
                           {e.created_at ? new Date(e.created_at).toLocaleDateString() : '—'}
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => deleteRow('platform_enquiries', e.id, `enquiry from ${e.name}`)}
-                            className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                          >
-                            <Trash2 size={16} />
-                          </button>
+                          {canDelete(role) && (
+                            <button
+                              onClick={() => deleteRow('platform_enquiries', e.id, `enquiry from ${e.name}`)}
+                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}
