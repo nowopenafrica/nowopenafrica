@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { X, Github } from 'lucide-react';
+import PasswordToggle from '../PasswordToggle';
 import { useAuth, isEmail, normalizePhone } from '../../contexts/AuthContext';
 import PhoneOtpForm from './PhoneOtpForm';
 
@@ -28,6 +29,7 @@ export default function AuthModal({ onClose }: AuthModalProps) {
   const [isSignUp, setIsSignUp] = useState(false);
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
@@ -128,13 +130,16 @@ export default function AuthModal({ onClose }: AuthModalProps) {
             <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">
               Password
             </label>
+            <div className="relative">
             <input
-              type="password"
+              type={showPassword ? 'text' : 'password'}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+              className="w-full px-3 py-2 pr-11 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
               required
             />
+            <PasswordToggle shown={showPassword} onToggle={() => setShowPassword(!showPassword)} />
+            </div>
             {!isSignUp && (
               <div className="mt-1.5 text-right">
                 <button

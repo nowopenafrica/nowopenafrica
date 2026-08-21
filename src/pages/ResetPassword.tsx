@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Lock, Eye, EyeOff } from 'lucide-react';
+import { Lock } from 'lucide-react';
+import PasswordToggle from '../components/PasswordToggle';
 import toast from 'react-hot-toast';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
@@ -15,6 +16,7 @@ export default function ResetPassword() {
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [ready, setReady] = useState(false);
 
@@ -59,7 +61,7 @@ export default function ResetPassword() {
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-indigo-50 dark:from-gray-900 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">Set a new password</h2>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">Set a new password</h1>
         </div>
 
         {!ready ? (
@@ -79,9 +81,7 @@ export default function ResetPassword() {
                   placeholder="Create a new password"
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600">
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+                <PasswordToggle shown={showPassword} onToggle={() => setShowPassword(!showPassword)} />
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">At least 8 characters, with letters and numbers.</p>
             </div>
@@ -89,12 +89,13 @@ export default function ResetPassword() {
               <label htmlFor="confirm" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm password</label>
               <div className="mt-1 relative">
                 <input
-                  id="confirm" type="password" autoComplete="new-password" required
+                  id="confirm" type={showConfirm ? 'text' : 'password'} autoComplete="new-password" required
                   value={confirm} onChange={(e) => setConfirm(e.target.value)}
                   className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
                   placeholder="Re-enter your new password"
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <PasswordToggle shown={showConfirm} onToggle={() => setShowConfirm(!showConfirm)} field="password confirmation" />
               </div>
             </div>
             <button type="submit" disabled={loading} className="w-full flex justify-center py-2 px-4 rounded-lg text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-50">

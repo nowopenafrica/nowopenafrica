@@ -4,6 +4,7 @@ import {
   STUDIO_MODELS, CUSTOM_MODEL_ID, generateMedia, generateMessage,
   type StudioModel, type GenerateKind,
 } from '../../lib/studioModels';
+import PasswordToggle from '../PasswordToggle';
 
 // Generate a background instead of uploading one.
 //
@@ -28,6 +29,7 @@ export default function GeneratePanel({
   const [customId, setCustomId] = useState('');
   const [ownKey, setOwnKey] = useState('');
   const [showKey, setShowKey] = useState(false);
+  const [revealKey, setRevealKey] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
 
@@ -150,15 +152,21 @@ export default function GeneratePanel({
       {showKey && (
         <div className="mt-1">
           <label className="sr-only" htmlFor="gen-key">Your API key</label>
+          <div className="relative">
           <input
             id="gen-key"
-            type="password"
+            type={revealKey ? 'text' : 'password'}
             autoComplete="off"
             value={ownKey}
             onChange={(e) => setOwnKey(e.target.value)}
             placeholder={selected?.needs === 'REPLICATE_API_TOKEN' ? 'r8_…' : 'hf_…'}
-            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-2.5 min-h-[44px] text-xs text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+            className="w-full rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-2.5 pr-11 min-h-[44px] text-xs text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
           />
+          {/* A mistyped API key fails with a bare 401, so being able to read
+              back what you pasted is the difference between one attempt and
+              several. */}
+          <PasswordToggle shown={revealKey} onToggle={() => setRevealKey(!revealKey)} field="API key" />
+          </div>
           {/* Say exactly what happens to it. A vague "we keep it safe" would be
               worse than saying nothing, and this is a paid credential. */}
           <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">

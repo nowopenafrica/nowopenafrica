@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AtSign, Lock, Eye, EyeOff, User } from 'lucide-react';
+import { AtSign, Lock, User } from 'lucide-react';
+import PasswordToggle from '../components/PasswordToggle';
 import { useAuth, isEmail, normalizePhone } from '../contexts/AuthContext';
 import PhoneOtpForm from '../components/auth/PhoneOtpForm';
 import toast from 'react-hot-toast';
@@ -12,6 +13,7 @@ export default function Register() {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [role, setRole] = useState<'business' | 'media_service'>('business');
   const [showPassword, setShowPassword] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
   const { signUp } = useAuth();
@@ -68,9 +70,9 @@ export default function Register() {
     <div className="min-h-screen bg-gradient-to-br from-slate-100 to-indigo-50 dark:from-gray-900 dark:to-gray-900 flex items-center justify-center py-12 px-4 sm:px-6 lg:px-8">
       <div className="max-w-md w-full space-y-8 bg-white dark:bg-gray-800 p-8 rounded-xl shadow-lg">
         <div className="text-center">
-          <h2 className="text-3xl font-bold text-gray-900 dark:text-white">
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white">
             {pendingPhone ? 'Verify your phone' : 'Create your account'}
-          </h2>
+          </h1>
           {!pendingPhone && (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               Already have an account?{' '}
@@ -127,13 +129,7 @@ export default function Register() {
                   placeholder="Create a password"
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="absolute right-3 top-2.5 text-gray-400 hover:text-gray-600"
-                >
-                  {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                </button>
+                <PasswordToggle shown={showPassword} onToggle={() => setShowPassword(!showPassword)} />
               </div>
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">At least 8 characters, with letters and numbers.</p>
             </div>
@@ -146,7 +142,7 @@ export default function Register() {
                 <input
                   id="confirmPassword"
                   name="confirmPassword"
-                  type="password"
+                  type={showConfirm ? 'text' : 'password'}
                   autoComplete="new-password"
                   required
                   value={confirmPassword}
@@ -155,6 +151,7 @@ export default function Register() {
                   placeholder="Confirm your password"
                 />
                 <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <PasswordToggle shown={showConfirm} onToggle={() => setShowConfirm(!showConfirm)} field="password confirmation" />
               </div>
             </div>
 
