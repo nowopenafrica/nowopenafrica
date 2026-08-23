@@ -2,7 +2,12 @@ import { useState, useEffect, useRef, useMemo, createContext, useContext } from 
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
-import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge, Move } from 'lucide-react';
+import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge, Move, Camera } from 'lucide-react';
+import { useAuth } from '../../contexts/AuthContext';
+import { backgroundSourceIssue } from '../../lib/videoEmbeds';
+import { extractBackgroundClip, BACKGROUND_CLIP_SECONDS } from '../../lib/backgroundClip';
+import { isVideoUrl } from '../../lib/galleryMedia';
+import OpenReelCapture from '../dashboard/OpenReelCapture';
 import { Business } from '../../types';
 import { profileUrl, generateQr, downloadUrl, downloadBlob, slugForFile, shareLinks, exportNodeToPng } from '../../lib/studio';
 import { StudioTemplate, StudioFormat, STUDIO_LAYOUTS, darken } from '../../data/studioPresets';
@@ -18,6 +23,8 @@ import { useLiveCanvas } from '../../hooks/useLiveCanvas';
 import { CanvasLayers, CanvasPanel } from './FreeCanvas';
 import InspirationUpload from './InspirationUpload';
 import GeneratePanel from './GeneratePanel';
+import TemplateSurface from './TemplateSurface';
+import { DESIGN_TEMPLATES, templateByKey, type SlotRole } from '../../lib/designTemplates';
 import type { InspirationPlan } from '../../lib/designInspiration';
 import { docFromRenderedLayout } from '../../lib/layoutImport';
 import { pickRecorderMime } from '../../lib/renderVideo';
@@ -319,10 +326,17 @@ export default function DesignStudio({
   const [subline, setSubline] = useState(startTemplate.subline);
   const [badge, setBadge] = useState(startTemplate.badge);
   const [accent, setAccent] = useState(startTemplate.accent);
+  const { user } = useAuth();
   const [bgColor, setBgColor] = useState<string | null>(null);
   const [bgOpacity, setBgOpacity] = useState(100);
   const [qr, setQr] = useState('');
   const [bg, setBg] = useState<{ url: string; type: 'image' | 'video' } | null>(null);
+  // Background from a pasted link or the OpenReel camera, alongside the upload.
+  const [bgLink, setBgLink] = useState('');
+  const [bgLinkIssue, setBgLinkIssue] = useState<string | null>(null);
+  const [showBgCamera, setShowBgCamera] = useState(false);
+  // 0-100 while a pasted video is being trimmed to 60s, else null.
+  const [bgClipProgress, setBgClipProgress] = useState<number | null>(null);
   const [captureOverlay, setCaptureOverlay] = useState(false);
   const [busy, setBusy] = useState<null | 'png' | 'pdf' | 'video' | 'all'>(null);
   const [exportMode, setExportMode] = useState<'image' | 'video'>('image');
@@ -355,6 +369,11 @@ export default function DesignStudio({
   const template = templates.find((t) => t.key === templateKey)!;
   const format = formats.find((f) => f.key === formatKey)!;
   const layout = STUDIO_LAYOUTS.find((l) => l.key === layoutKey) ?? STUDIO_LAYOUTS[0];
+  // A modern (data-driven) template is selected by a "t:" prefixed key. The 30
+  // legacy hardcoded layouts keep working untouched, so nothing regresses while
+  // the new system takes over surface by surface.
+  const modernKey = layoutKey.startsWith('t:') ? layoutKey.slice(2) : null;
+  const modernTpl = modernKey ? templateByKey(modernKey) : null;
   const { w, h } = format;
   const url = profileUrl(business);
   const brandUrl = url.replace(/^https?:\/\//, '');
@@ -429,6 +448,43 @@ export default function DesignStudio({
   // Accept any size of image or video. The file is kept in memory as a local
   // object URL (used only as the design background to generate the download
   // materials) — it is never uploaded to storage.
+  /**
+   * Use a pasted link as the background. Rejects a platform embed, since the
+   * export draws the background into a canvas and an iframe cannot be drawn.
+   */
+  const applyBgLink = async () => {
+    const url = bgLink.trim();
+    if (!url) { setBgLinkIssue(null); return; }
+    const issue = backgroundSourceIssue(url);
+    if (issue) { setBgLinkIssue(issue); return; }
+    setBgLinkIssue(null);
+
+    if (!isVideoUrl(url)) {
+      setBg({ url, type: 'image' });
+      toast.success('Background image set from link');
+      return;
+    }
+
+    // Trim and compress the first minute locally, so the design renders from a
+    // small clip instead of streaming a whole film on every preview frame. The
+    // result stays in memory — nothing is uploaded.
+    setBgClipProgress(0);
+    try {
+      const clip = await extractBackgroundClip(url, BACKGROUND_CLIP_SECONDS, (fraction) => {
+        setBgClipProgress(Math.round(fraction * 100));
+      });
+      setBg({ url: clip.url, type: 'video' });
+      toast.success(`Background clip ready — ${Math.round(clip.seconds)}s, ${Math.round(clip.blob.size / 1024)} KB`);
+    } catch (err: any) {
+      // Fall back to using the link directly: it may still render, and saying
+      // nothing would be worse than a working-but-untrimmed background.
+      setBg({ url, type: 'video' });
+      setBgLinkIssue(`${err?.message || 'Could not trim that video.'} Using the full link instead.`);
+    } finally {
+      setBgClipProgress(null);
+    }
+  };
+
   const onUpload = async (file: File | undefined) => {
     if (!file) return;
     const isVideo = file.type.startsWith('video/');
@@ -850,6 +906,31 @@ export default function DesignStudio({
   // Sizing tokens are all relative to u = min(w,h) so hierarchy stays correct
   // on every format — square post, tall story, A4, billboard.
   const renderLayout = () => {
+    if (modernTpl) {
+      return (
+        <TemplateSurface
+          template={modernTpl}
+          width={w}
+          height={h}
+          accent={accent}
+          content={{
+            brand: business.name,
+            eyebrow: badge,
+            headline,
+            subline,
+            meta: brandUrl,
+            cta: 'Book now',
+            logoUrl: business.logo_url,
+            qrUrl: qr || null,
+          }}
+          onEditText={(role: SlotRole, value: string) => {
+            if (role === 'headline') setHeadline(value);
+            else if (role === 'subline') setSubline(value);
+            else if (role === 'eyebrow') setBadge(value);
+          }}
+        />
+      );
+    }
     const S = {
       logo: u * 0.1,     // brand mark box
       pad: u * 0.07,     // outer padding
@@ -1439,7 +1520,25 @@ export default function DesignStudio({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Design layout</label>
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Modern templates</label>
+            <div className="grid grid-cols-2 gap-2 mb-3">
+              {DESIGN_TEMPLATES.map((t) => {
+                const key = `t:${t.key}`;
+                const on = layoutKey === key;
+                return (
+                  <button key={key} onClick={() => setLayoutKey(key)}
+                    className={`text-left px-3 py-2 rounded-lg text-xs border transition ${on ? 'border-transparent text-white bg-purple-600' : 'border-purple-200 dark:border-purple-800/60 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}>
+                    <span className="block font-bold">{t.label}</span>
+                    <span className={`block mt-0.5 text-[10px] ${on ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'}`}>{t.desc}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-gray-400 mb-4">
+              One definition, rendered at any size — and the same definition animates in Motion Studio.
+            </p>
+
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Classic layouts</label>
             <div className="grid grid-cols-2 gap-2">
               {STUDIO_LAYOUTS.map((l) => (
                 <button key={l.key} onClick={() => setLayoutKey(l.key)}
@@ -1649,6 +1748,41 @@ export default function DesignStudio({
             </div>
             <p className="mt-1 text-[11px] text-gray-400">Any size image or video — used only to make your downloadable materials. Leave empty to use your profile cover.</p>
 
+            {/* Record a backdrop, or paste one from a link. A platform embed is
+                refused here: the export composites the background into a canvas
+                and an iframe cannot be drawn into one. */}
+            <div className="mt-2 flex flex-col sm:flex-row gap-2">
+              {user && (
+                <button
+                  type="button"
+                  onClick={() => setShowBgCamera(true)}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-black text-white hover:bg-gray-800 flex-shrink-0"
+                >
+                  <Camera size={15} /> OpenReel Camera
+                </button>
+              )}
+              <input
+                type="text"
+                value={bgLink}
+                onChange={(e) => setBgLink(e.target.value)}
+                onBlur={() => applyBgLink()}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyBgLink(); } }}
+                placeholder="…or paste a direct image/video URL"
+                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+              />
+            </div>
+            {bgClipProgress !== null && (
+              <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400">
+                Trimming the first {BACKGROUND_CLIP_SECONDS}s… {bgClipProgress}%
+                <span className="block text-gray-400">
+                  This runs in real time and stays on your device — nothing is uploaded.
+                </span>
+              </p>
+            )}
+            {bgLinkIssue && (
+              <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">{bgLinkIssue}</p>
+            )}
+
             {/* Generated media lands in exactly the same place as an upload, so
                 everything downstream (preview, export, opacity) is unchanged. */}
             <div className="mt-3">
@@ -1827,6 +1961,23 @@ export default function DesignStudio({
           </div>
         </StudioSection>
       </div>
+
+      {/* Record a backdrop with the OpenReel camera. It uploads to storage and
+          hands back a public URL, which composites like any other background. */}
+      {showBgCamera && user && (
+        <OpenReelCapture
+          userId={user.id}
+          maxSeconds={60}
+          onCaptured={(url, kind) => {
+            setBg({ url, type: kind === 'video' ? 'video' : 'image' });
+            setBgLink(url);
+            setBgLinkIssue(null);
+            setShowBgCamera(false);
+            toast.success(kind === 'video' ? 'Recorded clip set as background' : 'Photo set as background');
+          }}
+          onClose={() => setShowBgCamera(false)}
+        />
+      )}
     </div>
   );
 }
