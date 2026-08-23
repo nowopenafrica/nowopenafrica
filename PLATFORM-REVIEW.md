@@ -65,7 +65,7 @@ What holds it at 6 rather than 8 is not polish. It is three things:
 | **Accessibility** | 7 | ▲▲ | Revised up after remeasurement and fixes — see the correction below. 89 `focus-visible` rings, 309 aria attributes, alt text effectively complete, a skip link, and the homepage now passes WCAG 2.5.8 (AA) for target size: 2 sub-24px controls remain and both are links inline in a sentence, which the criterion exempts. Still short of 9: `prefers-reduced-motion` in only 3 places, and 41 controls between 24px and 44px (AA-conformant, below the AAA 44px ideal). |
 | **Performance** | 5 | – | 3.4 MB of JS. `ContentFactory` alone is **821 kB** (256 kB gzipped); `index` 527 kB; `AdminCreator` 438 kB. Two chunks exceed Vite's 500 kB warning. **10 of 101 images lazy-load; 1 declares dimensions**, so layout shift is near-guaranteed on slow connections. |
 | **Observability** | 2 | – | No analytics table, no error monitoring, no Sentry. Nothing in production reports anything. This is the single biggest gap. |
-| **Operability** | 3 | – | `supabase migration list` reports **all 68 migrations unapplied** while the schema demonstrably exists. Deploys are therefore guesswork, and this has already caused two visible failures this month. |
+| **Operability** | 6 | ▲ | Revised up after reconciliation — see below. `migration list` still reports all 68 unapplied, but the **schema is in sync**: 45 of 46 declared tables and `is_admin()` are present live. The drift is a bookkeeping problem, not a structural one, which makes the repair low-risk rather than dangerous. Held at 6 until the ledger is actually repaired and the three pending migrations are applied. |
 
 ---
 
@@ -229,3 +229,54 @@ the worst on the page), twelve search-suggestion chips (21px) and three
 a finding. Where a claim is about rendered output, it has to be measured in a
 browser at the viewport that matters. Both errors here pointed the same way —
 they overstated the problem — which is its own kind of unhelpful.
+
+---
+
+## Schema reconciliation — 2026-08-17
+
+The review said "all 68 migrations report unapplied" and treated that as
+dangerous. Measured properly, it is much less alarming, and the difference
+matters because it changes what the safe fix is.
+
+**Method.** `supabase db dump` needs an access token this environment does not
+have, and the PostgREST OpenAPI root needs the service-role key. So every table
+declared across the migrations was probed individually with the anon key: a
+`404 / PGRST205` means absent, anything else means present. The SQL helper
+functions were probed the same way via `/rest/v1/rpc/`.
+
+**Result.**
+
+| Probed | Present | Absent |
+|---|--:|---|
+| Tables declared in migrations | 45 of 46 | `analytics_events` |
+| SQL helper functions | `is_admin()` | `is_staff()`, `is_editor()`, `register_push_token()` |
+
+So the live schema matches the repo **except for the three migrations written
+this month**:
+
+- `20260815090000_site_settings` — table present (applied by hand), policy state
+  unverified
+- `20260816090000_editor_role` — **not applied**: `is_staff`/`is_editor` absent,
+  so the `editor` role would fail the CHECK constraint on save
+- `20260817090000_observability_and_push_token_fix` — **not applied**: no
+  `analytics_events`, so telemetry has nowhere to write, and the push-token hole
+  is still open
+
+Everything older is in place. The ledger is simply empty, which is a bookkeeping
+defect rather than the structural divergence assumed above.
+
+**What that changes.** `migration repair --status applied` for the 65 historical
+migrations followed by `db push` for the three new ones is now an
+evidence-backed operation rather than a gamble.
+
+**One caveat that still stands.** This probe verified tables and functions, not
+columns or policies. Policies *can* be missing while the table exists — that is
+exactly what happened with `site_settings`, whose admin-write policy had to be
+fixed by hand after the table was created. Marking 65 migrations applied means
+`db push` will never revisit them, so any historical policy gap stays hidden.
+That is an acceptable trade against never using `db push` again, but it is a
+trade, and a policy audit belongs on the list.
+
+`scripts/sql/pending_migrations.sql` contains the three outstanding migrations
+concatenated and idempotent, for pasting into the SQL editor — the path that
+already worked once for `site_settings`.
