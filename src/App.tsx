@@ -8,6 +8,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import ChatBot from './components/ChatBot';
+import VoiceAssistant from './components/VoiceAssistant';
 import TrialPromoModal from './components/TrialPromoModal';
 import CookieConsent from './components/CookieConsent';
 import Home from './pages/Home';
@@ -56,8 +57,21 @@ function App() {
   return (
     <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
       <ScrollToTop />
+      {/* Skip link. The nav carries ~20 focusable items on every page, so a
+          keyboard or screen-reader user otherwise traverses all of them before
+          reaching content, on every navigation. Visually hidden until focused
+          rather than display:none, which would remove it from the tab order and
+          defeat the point. */}
+      <a
+        href="#main-content"
+        className="absolute left-3 -top-20 z-[100] inline-flex items-center min-h-[44px] px-4 rounded-lg bg-gray-900 text-white text-sm font-semibold shadow-lg transition-[top] duration-150 focus:top-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
+      >
+        Skip to main content
+      </a>
       <Navbar />
-      <main className="flex-grow">
+      {/* tabIndex={-1} so the skip target can actually receive focus; without it
+          the browser scrolls but focus stays in the nav. */}
+      <main id="main-content" tabIndex={-1} className="flex-grow focus:outline-none">
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>
             <Routes>
@@ -135,6 +149,9 @@ function App() {
       </main>
       <Footer />
       <ChatBot />
+      {/* Hides itself on browsers without SpeechRecognition (notably most of
+          Safari), so it never offers a control that cannot work. */}
+      <VoiceAssistant />
       <TrialPromoModal />
       <CookieConsent />
       <Toaster position="top-right" />

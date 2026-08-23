@@ -41,7 +41,7 @@ export default function Footer() {
             <ul className="space-y-2 text-xs">
               {explore.map(link => (
                 <li key={link.to}>
-                  <Link to={link.to} className="hover:text-white transition">
+                  <Link to={link.to} className="inline-flex items-center min-h-[44px] hover:text-white transition">
                     {link.label}
                   </Link>
                 </li>
@@ -54,7 +54,7 @@ export default function Footer() {
             <ul className="space-y-2 text-xs">
               {company.map(link => (
                 <li key={link.to}>
-                  <Link to={link.to} className="hover:text-white transition">
+                  <Link to={link.to} className="inline-flex items-center min-h-[44px] hover:text-white transition">
                     {link.label}
                   </Link>
                 </li>
@@ -67,14 +67,14 @@ export default function Footer() {
             <div className="space-y-2 text-xs">
               <a
                 href="mailto:hello@nowopenafrica.com"
-                className="flex items-center gap-2 hover:text-white transition"
+                className="flex items-center min-h-[44px] gap-2 hover:text-white transition"
               >
                 <Mail size={14} />
                 <span>hello@nowopenafrica.com</span>
               </a>
               <a
                 href="tel:+2347081547726"
-                className="flex items-center gap-2 hover:text-white transition"
+                className="flex items-center min-h-[44px] gap-2 hover:text-white transition"
               >
                 <Phone size={14} />
                 <span>+234 (708) 154-7726</span>
@@ -92,9 +92,9 @@ export default function Footer() {
             &copy; {new Date().getFullYear()} NowOpen Africa (AEY Inc.). All rights reserved.
           </p>
           <div className="flex items-center gap-4 text-xs">
-            <Link to="/terms" className="text-gray-400 hover:text-white transition">Terms</Link>
-            <Link to="/privacy" className="text-gray-400 hover:text-white transition">Privacy</Link>
-            <Link to="/contact" className="text-gray-400 hover:text-white transition">Contact</Link>
+            <Link to="/terms" className="inline-flex items-center min-h-[44px] text-gray-400 hover:text-white transition">Terms</Link>
+            <Link to="/privacy" className="inline-flex items-center min-h-[44px] text-gray-400 hover:text-white transition">Privacy</Link>
+            <Link to="/contact" className="inline-flex items-center min-h-[44px] text-gray-400 hover:text-white transition">Contact</Link>
           </div>
         </div>
       </div>

@@ -26,9 +26,11 @@ What holds it at 6 rather than 8 is not polish. It is three things:
    whether any of this works for real users.
 2. **The live database does not match the repo.** All 68 migrations report
    unapplied. Features ship into a schema nobody can describe.
-3. **Accessibility is still the weakest dimension** — 27 images with no alt
-   text, 32 of 980 buttons meeting the touch-target standard the project set
-   for itself.
+3. **Performance is the weakest measured dimension** — 3.4 MB of JS, an 821 kB
+   single chunk, and 10 of 101 images lazy-loading.
+
+   *(This slot originally read "accessibility", on figures that turned out to be
+   measurement errors. See the correction at the end.)*
 
 ---
 
@@ -60,7 +62,7 @@ What holds it at 6 rather than 8 is not polish. It is three things:
 | **UX** | 6 | – | Flows work and the new role/permission model is coherent. Multiple overlapping "how am I doing" scores still compete for the same attention. |
 | **Functionality** | 6 | ▲ | Breadth is real: assistant, generation, footage, studios, invoicing, bookings. Marked at 6 because several paths are wired only partway — a Motion Studio template animates in preview but **exports with the old renderer**; Brand Card, Landing Pages and admin studios still carry their own layout code. |
 | **Growth & discovery** | 6 | ▲▲ | SEO now on 29/29 pages (was 2/26), OG images, sitemap, JSON-LD. The loop is finally *findable*. It is still **unmeasured**, so no growth claim can be validated. |
-| **Accessibility** | 5 | ▲ | Improved: 89 `focus-visible` rings (was 0), 309 aria attributes, 44 roles. Still weak: **27 of 101 images have no `alt`**, **32 of 980 buttons use `min-h-[44px]`**, **no skip link**, 7 `sr-only` helpers, `prefers-reduced-motion` honoured in only 3 places. |
+| **Accessibility** | 7 | ▲▲ | Revised up after remeasurement and fixes — see the correction below. 89 `focus-visible` rings, 309 aria attributes, alt text effectively complete, a skip link, and the homepage now passes WCAG 2.5.8 (AA) for target size: 2 sub-24px controls remain and both are links inline in a sentence, which the criterion exempts. Still short of 9: `prefers-reduced-motion` in only 3 places, and 41 controls between 24px and 44px (AA-conformant, below the AAA 44px ideal). |
 | **Performance** | 5 | – | 3.4 MB of JS. `ContentFactory` alone is **821 kB** (256 kB gzipped); `index` 527 kB; `AdminCreator` 438 kB. Two chunks exceed Vite's 500 kB warning. **10 of 101 images lazy-load; 1 declares dimensions**, so layout shift is near-guaranteed on slow connections. |
 | **Observability** | 2 | – | No analytics table, no error monitoring, no Sentry. Nothing in production reports anything. This is the single biggest gap. |
 | **Operability** | 3 | – | `supabase migration list` reports **all 68 migrations unapplied** while the schema demonstrably exists. Deploys are therefore guesswork, and this has already caused two visible failures this month. |
@@ -195,3 +197,35 @@ verification, permissions) and **Discoverability** well (SEO 29/29). **Speed** h
 gone backwards — the bundle grew. **Business Growth** and **Revenue** cannot be
 assessed at all, because nothing is measured. That asymmetry is the argument for
 making Priority 1 the next thing you do.
+
+---
+
+## Correction — 2026-08-17
+
+Two figures in the accessibility row above were wrong when first published, and
+the row has been revised from 5 to 7.
+
+**"27 of 101 images have no `alt`" was false.** That number came from
+`grep '<img[^>]*alt='`, which cannot match a tag spanning multiple lines — and
+almost every `<img>` in this codebase is formatted across several. Re-measured
+with a multi-line parser, exactly **three** matches lacked `alt`, and two of
+those were `<img>` written inside explanatory comments rather than real JSX. The
+single genuine case was an HTML string in the brand-kit email signature, now
+fixed. Alt coverage was effectively complete all along.
+
+**"32 of 980 buttons use `min-h-[44px]`" was a weak proxy**, not a measurement.
+Counting a class says nothing about rendered size, since padding and line-height
+also produce large targets. Measuring actual `getBoundingClientRect()` heights at
+a 375px viewport gave the real picture: of 198 visible interactive elements on
+the homepage, 66 were under 44px and **27 were under 24px** — the latter being
+the actual WCAG 2.5.8 (AA) failure line, rather than the 44px AAA ideal.
+
+Those 27 are now 2, and both are links inline in a sentence, which 2.5.8
+explicitly exempts. Fixed: footer navigation, contact and legal links (12–15px,
+the worst on the page), twelve search-suggestion chips (21px) and three
+"View All" links (18px).
+
+**The lesson for future audits in this file:** a static grep is a hypothesis, not
+a finding. Where a claim is about rendered output, it has to be measured in a
+browser at the viewport that matters. Both errors here pointed the same way —
+they overstated the problem — which is its own kind of unhelpful.

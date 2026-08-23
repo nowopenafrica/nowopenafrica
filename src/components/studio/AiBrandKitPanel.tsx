@@ -17,7 +17,10 @@ function signatureHtml(business: Business, identity: BrandIdentity, holderName: 
   const name = holderName || business.name;
   const role = holderRole || business.category;
   const logo = business.logo_url
-    ? `<img src="${business.logo_url}" width="56" height="56" style="border-radius:12px;border:1px solid #e5e7eb" />`
+    // This HTML is pasted into an email signature, so the alt text is what a
+    // recipient with images disabled actually sees — a very common default in
+    // corporate mail clients.
+    ? `<img src="${business.logo_url}" alt="${business.name} logo" width="56" height="56" style="border-radius:12px;border:1px solid #e5e7eb" />`
     : `<div style="width:56px;height:56px;border-radius:12px;background:#f3f4f6;color:#6b7280;font:700 22px Arial,sans-serif;display:flex;align-items:center;justify-content:center">${business.name.charAt(0)}</div>`;
   return `<table cellpadding="0" cellspacing="0" style="font-family:Arial,Helvetica,sans-serif;color:#111827;font-size:13px;line-height:1.5">
   <tr>

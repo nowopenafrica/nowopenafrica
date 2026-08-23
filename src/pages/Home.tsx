@@ -273,24 +273,24 @@ export default function Home() {
               <span className="text-xs text-gray-500 dark:text-gray-400 py-1">Popular:</span>
               {searchType === 'businesses' ? (
                 <>
-                  <button type="button" onClick={() => setSearchQuery('Restaurants')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Restaurants</button>
-                  <button type="button" onClick={() => setSearchQuery('Tech')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Tech</button>
-                  <button type="button" onClick={() => setSearchQuery('Marketing')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Marketing</button>
-                  <button type="button" onClick={() => setSearchQuery('Fashion')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Fashion</button>
+                  <button type="button" onClick={() => setSearchQuery('Restaurants')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Restaurants</button>
+                  <button type="button" onClick={() => setSearchQuery('Tech')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Tech</button>
+                  <button type="button" onClick={() => setSearchQuery('Marketing')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Marketing</button>
+                  <button type="button" onClick={() => setSearchQuery('Fashion')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Fashion</button>
                 </>
               ) : searchType === 'adverts' ? (
                 <>
-                  <button type="button" onClick={() => setSearchQuery('Billboard')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Billboards</button>
-                  <button type="button" onClick={() => setSearchQuery('Digital')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Digital Screens</button>
-                  <button type="button" onClick={() => setSearchQuery('Transit')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Transit</button>
-                  <button type="button" onClick={() => setSearchQuery('Indoor')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Indoor</button>
+                  <button type="button" onClick={() => setSearchQuery('Billboard')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Billboards</button>
+                  <button type="button" onClick={() => setSearchQuery('Digital')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Digital Screens</button>
+                  <button type="button" onClick={() => setSearchQuery('Transit')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Transit</button>
+                  <button type="button" onClick={() => setSearchQuery('Indoor')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Indoor</button>
                 </>
               ) : (
                 <>
-                  <button type="button" onClick={() => setSearchQuery('Photography')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Photography</button>
-                  <button type="button" onClick={() => setSearchQuery('Video')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Video Production</button>
-                  <button type="button" onClick={() => setSearchQuery('Design')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Graphic Design</button>
-                  <button type="button" onClick={() => setSearchQuery('Social')} className="px-3 py-1 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Social Media</button>
+                  <button type="button" onClick={() => setSearchQuery('Photography')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Photography</button>
+                  <button type="button" onClick={() => setSearchQuery('Video')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Video Production</button>
+                  <button type="button" onClick={() => setSearchQuery('Design')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Graphic Design</button>
+                  <button type="button" onClick={() => setSearchQuery('Social')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Social Media</button>
                 </>
               )}
             </div>
@@ -361,7 +361,7 @@ export default function Home() {
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Top Businesses</h2>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Verified businesses NowOpen in Africa</p>
               </div>
-              <Link to="/businesses" className="inline-flex items-center gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
+              <Link to="/businesses" className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
                 View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               </Link>
             </div>
@@ -390,7 +390,7 @@ export default function Home() {
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Featured Ad Placements</h2>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Premium advertising opportunities across top locations</p>
               </div>
-              <Link to="/adverts" className="inline-flex items-center gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
+              <Link to="/adverts" className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
                 View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               </Link>
             </div>
@@ -417,7 +417,7 @@ export default function Home() {
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Media Services</h2>
                 <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Professional media production and creative services</p>
               </div>
-              <Link to="/media" className="inline-flex items-center gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
+              <Link to="/media" className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
                 View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
               </Link>
             </div>
