@@ -1,7 +1,16 @@
-import QRCode from 'qrcode';
-import { toPng } from 'html-to-image';
-import { jsPDF } from 'jspdf';
 import { Business } from '../types';
+
+// qrcode, html-to-image and jspdf are imported DYNAMICALLY, inside the three
+// functions that need them, rather than at the top of this module.
+//
+// Twenty files import from here, most of them only for a string or blob helper
+// like slugForFile or downloadText. A static import meant every one of those
+// chunks also carried a QR encoder, a DOM rasteriser and a PDF writer — which
+// is how ContentFactory, a 125-line component, ended up in an 821 kB bundle.
+//
+// Each consumer is already async, so deferring costs nothing at the call site:
+// the library loads on the first export, by which time the user has clicked a
+// button and expects a moment's work.
 
 // Brand materials always show the production brand domain (never localhost/a
 // preview URL) so a printed QR/card points at the real live profile.
@@ -20,6 +29,7 @@ export async function generateQr(
   text: string,
   opts: { size?: number; dark?: string; light?: string } = {},
 ): Promise<string> {
+  const { default: QRCode } = await import('qrcode');
   return QRCode.toDataURL(text, {
     errorCorrectionLevel: 'H',
     margin: 1,
@@ -100,6 +110,8 @@ export async function exportNodeToPng(
   };
   // Warm-up pass primes html-to-image's image cache; the second pass is the
   // one we keep. (Well-known html-to-image workaround for first-render blanks.)
+  const { toPng } = await import('html-to-image');
+  // Called twice on purpose — see the note above this function.
   await toPng(node, options);
   return toPng(node, options);
 }
@@ -206,6 +218,7 @@ export async function downloadNodePdf(
     fitH = cardH;
     fitW = fitH * (w / h);
   }
+  const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ orientation: 'landscape', unit: 'mm', format: [cardW, cardH] });
   pdf.addImage(dataUrl, 'PNG', (cardW - fitW) / 2, (cardH - fitH) / 2, fitW, fitH);
   pdf.save(filename);
