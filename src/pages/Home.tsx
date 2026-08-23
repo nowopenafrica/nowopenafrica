@@ -25,6 +25,22 @@ export default function Home() {
   const [searchType, setSearchType] = useState('businesses');
   const [searchLocation, setSearchLocation] = useState('');
   const [textVisible, setTextVisible] = useState(true);
+  // Exact row counts for the stats band. head:true fetches no rows, so this
+  // is three cheap COUNT queries rather than three more result sets.
+  const [counts, setCounts] = useState<{ businesses: number | null; adverts: number | null; media: number | null }>({
+    businesses: null, adverts: null, media: null,
+  });
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const q = (t: string) => supabase.from(t).select('id', { count: 'exact', head: true });
+      const [b, a, m] = await Promise.all([q('businesses'), q('advertisements'), q('media_services')]);
+      if (!alive) return;
+      setCounts({ businesses: b.count ?? null, adverts: a.count ?? null, media: m.count ?? null });
+    })().catch(() => { /* a missing count hides its tile; never blocks the page */ });
+    return () => { alive = false; };
+  }, []);
   // Starts at the default so the hero paints the brand gradient on first frame;
   // the stored preference swaps in once it loads, with no flash of blank banner.
   const [hero, setHero] = useState<HeroSettings>(DEFAULT_HERO);
@@ -51,6 +67,13 @@ export default function Home() {
   const sliderDrivesText = hero.videoEnabled && hero.textSyncWithVideo;
 
   useEffect(() => {
+    // A repeating fade is exactly what prefers-reduced-motion is for, and it
+    // was honoured in only three places site-wide. Leave the headline up.
+    if (typeof window !== 'undefined'
+        && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) {
+      setTextVisible(true);
+      return;
+    }
     if (sliderDrivesText) {
       // Leaving it hidden here would strand the headline invisible if the
       // setting is switched on while nothing is playing.
@@ -302,12 +325,20 @@ export default function Home() {
       <section className="pt-12">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-200 dark:divide-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 overflow-hidden">
+            {/* Real numbers only.
+                "30+", "20+", "3-in-1" and "AI" were three vague claims and one
+                that is not a statistic at all. These are counted: the industry
+                total comes from the config that drives the industry pages, and
+                the rest are exact COUNT queries. A tile whose count is unknown
+                or zero is dropped rather than shown as "0" or rounded up —
+                which is the same rule the Trust Panel follows, and it means the
+                band strengthens on its own as the platform fills. */}
             {[
-              { value: '30+', label: 'Industry systems' },
-              { value: '20+', label: 'African markets' },
-              { value: '3-in-1', label: 'Discover · Advertise · Create' },
-              { value: 'AI', label: 'Built in' },
-            ].map((s) => (
+              { value: String(INDUSTRIES.length), label: 'Industry systems' },
+              { value: counts.businesses ? String(counts.businesses) : null, label: 'Businesses listed' },
+              { value: counts.media ? String(counts.media) : null, label: 'Creative services' },
+              { value: counts.adverts ? String(counts.adverts) : null, label: 'Ad placements' },
+            ].filter((s): s is { value: string; label: string } => Boolean(s.value)).map((s) => (
               <div key={s.label} className="px-3 py-5 text-center">
                 <div className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">{s.value}</div>
                 <div className="mt-1 text-[11px] sm:text-xs font-medium text-gray-500 dark:text-gray-400">{s.label}</div>
@@ -509,8 +540,14 @@ export default function Home() {
       <section className="py-16 text-white" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2 className="text-xl sm:text-3xl md:text-4xl font-bold mb-4">Ready to Grow Your Business?</h2>
+          {/* This read "Join thousands of African businesses already in line
+              for launch". The waitlist table has zero rows, so it was simply
+              untrue — and an invented number on the most-visited page
+              contradicts the standard the rest of the product holds itself to.
+              Replaced with what is actually on offer, which needs no count. */}
           <p className="text-lg mb-8 text-blue-100">
-            Join thousands of African businesses already in line for launch
+            Invite-only early access. Founding members keep launch pricing for
+            twelve months and a verified badge.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -539,7 +576,7 @@ export default function Home() {
       {/* Get the app */}
       <section className="py-16 bg-gray-900 text-white">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
-          <h2 className="text-xl sm:text-3xl md:text-4xl font-bold">Get Started Today</h2>
+          <h2 className="text-xl sm:text-3xl md:text-4xl font-bold">Coming to Android and iOS</h2>
           <p className="text-gray-300 max-w-xl mx-auto">
             The NowOpen Africa app is coming to Android and iOS — discover businesses,
             book placements and manage your listings from your pocket.

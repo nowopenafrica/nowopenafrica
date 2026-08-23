@@ -68,7 +68,12 @@ function App() {
       >
         Skip to main content
       </a>
-      <Navbar />
+      {/* <header> wraps the nav so assistive tech has a banner landmark to jump
+          to. Navbar renders a <nav>, which is a navigation landmark but not a
+          banner, so the region was simply absent. */}
+      <header>
+        <Navbar />
+      </header>
       {/* tabIndex={-1} so the skip target can actually receive focus; without it
           the browser scrolls but focus stays in the nav. */}
       <main id="main-content" tabIndex={-1} className="flex-grow focus:outline-none">
