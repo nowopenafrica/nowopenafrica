@@ -266,7 +266,7 @@ function MotionPreview({
     // A single paint path. There were three separate drawSceneFrame calls, and
     // adding a template branch at each would be three chances to diverge.
     const paint = (frame: number) => {
-      if (!template) { paint(frame); return; }
+      if (!template) { drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame); return; }
       const { scene, t } = timelineAt(timeline, frame);
       const current = scenes[scene.index];
       // motionAt works in seconds; timelineAt reports a 0..1 fraction of the
@@ -386,7 +386,7 @@ function MotionPreview({
       const frame = (startFrame + Math.floor(((now - startedAt) / 1000) * fps)) % totalFrames;
       if (frame !== lastDrawn) {
         lastDrawn = frame;
-        drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame);
+        paint(frame);
         onProgressRef.current?.(totalFrames > 1 ? frame / (totalFrames - 1) : 0);
       }
       raf = window.requestAnimationFrame(tick);
