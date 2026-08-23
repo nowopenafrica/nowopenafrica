@@ -228,8 +228,55 @@ export default function Home() {
         </div>
       </section>
 
+
+
+
+
+      {/* Industry Operating Systems */}
+      <section className="py-16 bg-white dark:bg-gray-800/40 border-y border-gray-100 dark:border-gray-800">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-10">
+            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">
+              <Layers size={14} /> Not a directory. An operating system.
+            </span>
+            <h2 className="mt-4 text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">An operating system for every industry</h2>
+            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              Every category gets a purpose-built profile — property portals, restaurant menus, repair queues, booking
+              engines and more — so a business feels designed specifically for its industry.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3">
+            {INDUSTRIES.slice(0, 14).map((ind) => {
+              const Icon = ind.icon;
+              return (
+                <Link
+                  key={ind.slug}
+                  to="/platform"
+                  className="group flex flex-col items-center gap-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-center hover:-translate-y-0.5 hover:shadow-md transition"
+                >
+                  <span className={`w-10 h-10 rounded-xl bg-gradient-to-br ${ind.accent} flex items-center justify-center`}>
+                    <Icon size={20} className="text-white" />
+                  </span>
+                  <span className="text-[11px] sm:text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight">{ind.name}</span>
+                </Link>
+              );
+            })}
+          </div>
+
+          <div className="mt-8 text-center">
+            <Link
+              to="/platform"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-lg hover:opacity-90 transition"
+            >
+              Explore the platform <ArrowRight size={18} />
+            </Link>
+          </div>
+        </div>
+      </section>
+
       {/* Global Search Bar - Below Slider */}
-      <section aria-label="Search businesses, placements and creative services" className="relative -mt-8 z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+      <section aria-label="Search businesses, placements and creative services" className="relative my-10 z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-800">
           <form onSubmit={handleSearch} className="space-y-4">
             <div className="flex flex-col md:flex-row gap-4">
@@ -318,51 +365,6 @@ export default function Home() {
               )}
             </div>
           </form>
-        </div>
-      </section>
-
-
-
-      {/* Industry Operating Systems */}
-      <section className="py-16 bg-white dark:bg-gray-800/40 border-y border-gray-100 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-10">
-            <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">
-              <Layers size={14} /> Not a directory. An operating system.
-            </span>
-            <h2 className="mt-4 text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">An operating system for every industry</h2>
-            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
-              Every category gets a purpose-built profile — property portals, restaurant menus, repair queues, booking
-              engines and more — so a business feels designed specifically for its industry.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-7 gap-3">
-            {INDUSTRIES.slice(0, 14).map((ind) => {
-              const Icon = ind.icon;
-              return (
-                <Link
-                  key={ind.slug}
-                  to="/platform"
-                  className="group flex flex-col items-center gap-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-center hover:-translate-y-0.5 hover:shadow-md transition"
-                >
-                  <span className={`w-10 h-10 rounded-xl bg-gradient-to-br ${ind.accent} flex items-center justify-center`}>
-                    <Icon size={20} className="text-white" />
-                  </span>
-                  <span className="text-[11px] sm:text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight">{ind.name}</span>
-                </Link>
-              );
-            })}
-          </div>
-
-          <div className="mt-8 text-center">
-            <Link
-              to="/platform"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-lg hover:opacity-90 transition"
-            >
-              Explore the platform <ArrowRight size={18} />
-            </Link>
-          </div>
         </div>
       </section>
 
