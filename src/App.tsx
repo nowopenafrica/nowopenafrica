@@ -54,8 +54,15 @@ function PageLoader() {
 }
 
 function App() {
+  // overflow-x-clip, not overflow-x-hidden. The marquee sliders clip their own
+  // tracks correctly, but their fractional widths still left the document 7px
+  // wider than the viewport — enough for a horizontal scrollbar across the whole
+  // site. `hidden` would also fix it, but a hidden axis makes the other axis
+  // compute to auto, turning this div into a scroll container and breaking every
+  // position:sticky inside it (the Studio preview panes). `clip` removes the
+  // overflow without creating a scroll container.
   return (
-    <div className="min-h-screen flex flex-col bg-gray-50 dark:bg-gray-900">
+    <div className="min-h-screen flex flex-col overflow-x-clip bg-gray-50 dark:bg-gray-900">
       <ScrollToTop />
       {/* Skip link. The nav carries ~20 focusable items on every page, so a
           keyboard or screen-reader user otherwise traverses all of them before
