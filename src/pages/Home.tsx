@@ -15,6 +15,12 @@ import BrandMarquee from '../components/BrandMarquee';
 import HeroSlider from '../components/HeroSlider';
 import { loadHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 
+const LISTING_TABS = [
+  { key: 'businesses' as const, label: 'Businesses' },
+  { key: 'adverts' as const, label: 'Ad Placements' },
+  { key: 'media' as const, label: 'Creative Services' },
+];
+
 export default function Home() {
   const navigate = useNavigate();
   const { cacheKey } = useCacheBuster();
@@ -25,6 +31,7 @@ export default function Home() {
   const [searchType, setSearchType] = useState('businesses');
   const [searchLocation, setSearchLocation] = useState('');
   const [textVisible, setTextVisible] = useState(true);
+  const [listingTab, setListingTab] = useState<'businesses' | 'adverts' | 'media'>('businesses');
   // Exact row counts for the stats band. head:true fetches no rows, so this
   // is three cheap COUNT queries rather than three more result sets.
   const [counts, setCounts] = useState<{ businesses: number | null; adverts: number | null; media: number | null }>({
@@ -101,14 +108,14 @@ export default function Home() {
     // database is empty so the homepage never looks bare.
     const fetchSliderData = async () => {
       const [advertRes, businessRes, mediaRes] = await Promise.all([
-        supabase.from('advertisements').select('*').order('created_at', { ascending: false }).limit(12),
-        supabase.from('businesses').select('*').order('created_at', { ascending: false }).limit(12),
-        supabase.from('media_services').select('*').order('created_at', { ascending: false }).limit(12),
+        supabase.from('advertisements').select('*').order('created_at', { ascending: false }).limit(30),
+        supabase.from('businesses').select('*').order('created_at', { ascending: false }).limit(30),
+        supabase.from('media_services').select('*').order('created_at', { ascending: false }).limit(30),
       ]);
 
-      setAdverts(advertRes.data && advertRes.data.length > 0 ? advertRes.data : generateAdverts(12));
-      setBusinesses(businessRes.data && businessRes.data.length > 0 ? businessRes.data : generateBusinesses(12));
-      setMediaServices(mediaRes.data && mediaRes.data.length > 0 ? mediaRes.data : generateMediaServices(12));
+      setAdverts(advertRes.data && advertRes.data.length > 0 ? advertRes.data : generateAdverts(30));
+      setBusinesses(businessRes.data && businessRes.data.length > 0 ? businessRes.data : generateBusinesses(30));
+      setMediaServices(mediaRes.data && mediaRes.data.length > 0 ? mediaRes.data : generateMediaServices(30));
     };
 
     fetchSliderData().catch(err => {
@@ -129,6 +136,68 @@ export default function Home() {
       navigate(`/media?search=${encodeURIComponent(query)}`);
     }
   };
+
+  // Card sets are built once per render for the ACTIVE tab only — mapping all
+  // three every time would do 90 objects of work to show 30.
+  const activeListing = (() => {
+    if (listingTab === 'adverts') {
+      return {
+        heading: 'Featured Ad Placements',
+        blurb: 'Premium advertising opportunities across top locations',
+        viewAll: '/adverts',
+        linkBase: 'adverts',
+        cards: adverts.slice(0, 30).map(ad => ({
+          id: ad.id,
+          title: ad.title,
+          description: ad.description,
+          image_url: ad.image_url || 'https://images.pexels.com/photos/257904/pexels-photo-257904.jpeg?auto=compress&cs=tinysrgb&w=400',
+          category: ad.type || ad.category,
+          status: ad.status as 'open' | 'closed' | 'active',
+          price: ad.pricing ?? ad.price_per_day,
+          location: ad.location,
+          type: 'advert' as const,
+        })),
+      };
+    }
+    if (listingTab === 'media') {
+      return {
+        heading: 'Media Services',
+        blurb: 'Professional media production and creative services',
+        viewAll: '/media',
+        linkBase: 'media',
+        cards: mediaServices.slice(0, 30).map(media => ({
+          id: media.id,
+          title: media.title,
+          description: media.description,
+          image_url: media.image_url || 'https://images.pexels.com/photos/3182765/pexels-photo-3182765.jpeg?auto=compress&cs=tinysrgb&w=400',
+          category: media.service_type,
+          rating: media.rating,
+          price: media.pricing,
+          reach: media.reach,
+          type: 'media' as const,
+        })),
+      };
+    }
+    return {
+      heading: 'Top Businesses',
+      blurb: 'Verified businesses NowOpen in Africa',
+      viewAll: '/businesses',
+      linkBase: 'businesses',
+      cards: businesses.slice(0, 30).map(biz => ({
+        id: biz.id,
+        href: biz.username ? `/${biz.username}` : `/businesses/${biz.id}`,
+        verified: biz.verified,
+        title: biz.name,
+        description: biz.description,
+        image_url: biz.image_url || 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400',
+        category: biz.category,
+        rating: biz.rating,
+        status: biz.status as 'open' | 'closed' | 'active',
+        location: biz.location,
+        type: 'business' as const,
+      })),
+    };
+  })();
 
   const handleSearch = (e: React.FormEvent) => {
     // Term is length-capped by sanitizeProps; no identity is attached.
@@ -368,90 +437,69 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Infinite Sliders Section */}
+      {/* Listings — one tabbed grid, replacing three stacked marquees */}
       <section aria-label="Live listings across the platform" className="py-12 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
-          {/* Businesses Slider */}
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Top Businesses</h2>
-                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Verified businesses NowOpen in Africa</p>
-              </div>
-              <Link to="/businesses" className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
-                View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              </Link>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex flex-wrap justify-between items-end gap-4 mb-6">
+            <div>
+              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{activeListing.heading}</h2>
+              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">{activeListing.blurb}</p>
             </div>
-            <InfiniteSlider
-              cards={businesses.map(biz => ({
-                id: biz.id,
-                href: biz.username ? `/${biz.username}` : `/businesses/${biz.id}`,
-                verified: biz.verified,
-                title: biz.name,
-                description: biz.description,
-                image_url: biz.image_url || 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400',
-                category: biz.category,
-                rating: biz.rating,
-                status: biz.status as 'open' | 'closed' | 'active',
-                location: biz.location,
-                type: 'business'
-              }))}
-              linkBase="businesses"
-            />
+            <Link
+              to={activeListing.viewAll}
+              className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0"
+            >
+              View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
+            </Link>
           </div>
 
-          {/* Ad Placements Slider */}
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Featured Ad Placements</h2>
-                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Premium advertising opportunities across top locations</p>
-              </div>
-              <Link to="/adverts" className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
-                View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              </Link>
-            </div>
-            <InfiniteSlider
-              cards={adverts.map(ad => ({
-                id: ad.id,
-                title: ad.title,
-                description: ad.description,
-                image_url: ad.image_url || 'https://images.pexels.com/photos/257904/pexels-photo-257904.jpeg?auto=compress&cs=tinysrgb&w=400',
-                category: ad.type || ad.category,
-                status: ad.status as 'open' | 'closed' | 'active',
-                price: ad.pricing ?? ad.price_per_day,
-                location: ad.location,
-                type: 'advert'
-              }))}
-              linkBase="adverts"
-            />
+          {/* Real tabs, not styled buttons: a screen reader should announce
+              "tab, 1 of 3, selected" and the arrow keys should move between them,
+              which is what a visitor gets from a native tablist. */}
+          <div role="tablist" aria-label="Listing type" className="flex flex-wrap gap-2 mb-6">
+            {LISTING_TABS.map((t, i) => {
+              const on = listingTab === t.key;
+              return (
+                <button
+                  key={t.key}
+                  id={`listing-tab-${t.key}`}
+                  role="tab"
+                  aria-selected={on}
+                  aria-controls="listing-panel"
+                  tabIndex={on ? 0 : -1}
+                  onClick={() => setListingTab(t.key)}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                    e.preventDefault();
+                    const next = (i + (e.key === 'ArrowRight' ? 1 : LISTING_TABS.length - 1)) % LISTING_TABS.length;
+                    setListingTab(LISTING_TABS[next].key);
+                    document.getElementById(`listing-tab-${LISTING_TABS[next].key}`)?.focus();
+                  }}
+                  className={`inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl text-sm font-semibold border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                    on
+                      ? 'border-transparent bg-gray-900 text-white dark:bg-white dark:text-gray-900'
+                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
+                  }`}
+                >
+                  {t.label}
+                  <span className={`text-xs font-bold tabular-nums ${on ? 'opacity-70' : 'text-gray-400'}`}>
+                    {t.key === 'businesses' ? businesses.length : t.key === 'adverts' ? adverts.length : mediaServices.length}
+                  </span>
+                </button>
+              );
+            })}
           </div>
 
-          {/* Media Services Slider */}
-          <div>
-            <div className="flex justify-between items-center mb-6">
-              <div>
-                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Media Services</h2>
-                <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">Professional media production and creative services</p>
-              </div>
-              <Link to="/media" className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0">
-                View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-              </Link>
-            </div>
-            <InfiniteSlider
-              cards={mediaServices.map(media => ({
-                id: media.id,
-                title: media.title,
-                description: media.description,
-                image_url: media.image_url || 'https://images.pexels.com/photos/3182765/pexels-photo-3182765.jpeg?auto=compress&cs=tinysrgb&w=400',
-                category: media.service_type,
-                rating: media.rating,
-                price: media.pricing,
-                reach: media.reach,
-                type: 'media'
-              }))}
-              linkBase="media"
-            />
+          <div id="listing-panel" role="tabpanel" aria-labelledby={`listing-tab-${listingTab}`}>
+            {activeListing.cards.length > 0 ? (
+              <InfiniteSlider cards={activeListing.cards} linkBase={activeListing.linkBase} layout="grid" />
+            ) : (
+              // Honest empty state. Showing nothing at all reads as a broken
+              // page; "0" in the tab plus this line reads as a young platform.
+              <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
+                Nothing listed here yet. <Link to={activeListing.viewAll} className="text-blue-600 dark:text-blue-400 hover:underline">Browse the full page</Link>.
+              </p>
+            )}
           </div>
         </div>
       </section>

@@ -30,9 +30,22 @@ interface InfiniteSliderProps {
   category?: string;
   onCardClick?: (card: Card) => void;
   linkBase?: string;
+  /**
+   * 'marquee' (default) keeps the auto-scrolling row. 'grid' lays the same cards
+   * out statically.
+   *
+   * A layout switch rather than a second component, so both share one card
+   * renderer — the alternative was copying ~90 lines of card markup, which is
+   * how two views of the same data start drifting apart.
+   *
+   * Grid is the right choice after a deliberate act like picking a tab: the
+   * visitor has just told you what they want to look at, and an auto-scrolling
+   * row then works against them.
+   */
+  layout?: 'marquee' | 'grid';
 }
 
-export function InfiniteSlider({ cards, onCardClick, linkBase }: InfiniteSliderProps) {
+export function InfiniteSlider({ cards, onCardClick, linkBase, layout = 'marquee' }: InfiniteSliderProps) {
   const { format } = useCurrency();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [isPaused, setIsPaused] = useState(false);
@@ -41,11 +54,13 @@ export function InfiniteSlider({ cards, onCardClick, linkBase }: InfiniteSliderP
   const isPausedRef = useRef(isPaused);
   isPausedRef.current = isPaused;
 
-  // Duplicate cards for seamless infinite scroll
-  const duplicatedCards = [...cards, ...cards, ...cards];
+  // Duplicated for seamless infinite scroll. A grid shows each card once —
+  // repeating them there would look like a bug.
+  const duplicatedCards = layout === 'grid' ? cards : [...cards, ...cards, ...cards];
 
   useEffect(() => {
     const scrollContainer = scrollRef.current;
+    if (layout === 'grid') return; // nothing to animate
     if (!scrollContainer || cards.length === 0) return;
 
     const SPEED = 15; // scroll speed in px per second — lower is slower
@@ -185,6 +200,14 @@ export function InfiniteSlider({ cards, onCardClick, linkBase }: InfiniteSliderP
       </div>
     </Link>
   );
+
+  if (layout === 'grid') {
+    return (
+      <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+        {cards.map((card, index) => renderCard(card, index))}
+      </div>
+    );
+  }
 
   return (
     <div className="w-full">
