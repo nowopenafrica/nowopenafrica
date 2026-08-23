@@ -7,6 +7,7 @@ import { generateAdverts, generateBusinesses, generateMediaServices } from '../d
 import { Advertisement, Business, MediaService } from '../types';
 import { useCacheBuster } from '../hooks/useCacheBuster';
 import { applySeo } from '../lib/seo';
+import { track } from '../lib/telemetry';
 import { InfiniteSlider } from '../components/InfiniteSlider';
 import GlobalSearchInput from '../components/GlobalSearchInput';
 import LocationAutocomplete from '../components/LocationAutocomplete';
@@ -107,6 +108,8 @@ export default function Home() {
   };
 
   const handleSearch = (e: React.FormEvent) => {
+    // Term is length-capped by sanitizeProps; no identity is attached.
+    track('search_performed', { type: searchType, term: searchQuery, hasLocation: Boolean(searchLocation) });
     e.preventDefault();
     runSearch(searchQuery, searchLocation);
   };

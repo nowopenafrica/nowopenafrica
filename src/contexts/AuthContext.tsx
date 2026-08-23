@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
+import { setTelemetryUser, track } from '../lib/telemetry';
 import { sendWelcomePack } from '../lib/onboarding';
 
 interface AuthContextType {
@@ -60,14 +61,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      // Attribute later events to this user. Set here rather than at the call
+      // sites so nothing that fires before a page reads auth is anonymous by
+      // accident.
+      setTelemetryUser(session?.user?.id ?? null);
       setLoading(false);
     });
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
+      (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
+        setTelemetryUser(session?.user?.id ?? null);
+        // Recorded from the auth event rather than from the submit handler, so
+        // social and magic-link sign-ins count too — they never touch signIn().
+        if (event === 'SIGNED_IN') track('signin');
         setLoading(false);
       }
     );

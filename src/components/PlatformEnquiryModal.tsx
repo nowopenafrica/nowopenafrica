@@ -2,6 +2,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { X, Send, CheckCircle, Loader2, Mail, Phone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/telemetry';
 import { useAuth } from '../contexts/AuthContext';
 
 interface PlatformEnquiryModalProps {
@@ -33,6 +34,9 @@ export default function PlatformEnquiryModal({ kind, itemId, itemTitle, subjectP
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSubmitting(true);
+    // Fired on intent rather than on success: an abandoned booking is exactly
+    // the thing worth knowing about, and a success-only event hides it.
+    track('booking_started', { kind, itemId: itemId ?? null });
     try {
       const { error } = await supabase.from('platform_enquiries').insert([{
         kind,

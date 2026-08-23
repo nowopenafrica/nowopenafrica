@@ -23,6 +23,7 @@ import { useLiveCanvas } from '../../hooks/useLiveCanvas';
 import { CanvasLayers, CanvasPanel } from './FreeCanvas';
 import InspirationUpload from './InspirationUpload';
 import GeneratePanel from './GeneratePanel';
+import { track } from '../../lib/telemetry';
 import TemplateSurface from './TemplateSurface';
 import { DESIGN_TEMPLATES, templateByKey, type SlotRole } from '../../lib/designTemplates';
 import type { InspirationPlan } from '../../lib/designInspiration';
@@ -538,6 +539,9 @@ export default function DesignStudio({
 
   const exportPng = async () => {
     setBusy('png');
+    // Whether the flagship actually produces anything is the one product
+    // question no amount of code reading can answer.
+    track('studio_export', { kind: 'png', format: format.key, layout: layoutKey }, business.id);
     try { downloadUrl(await stillPng(), `${slugForFile(business.name)}-${format.key}.png`); toast.success('PNG downloaded'); }
     catch { toast.error('Could not export the image — try again.'); }
     finally { setBusy(null); }

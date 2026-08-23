@@ -1,5 +1,6 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
 import { RefreshCw, Home } from 'lucide-react';
+import { reportError } from '../lib/telemetry';
 
 interface Props {
   children: ReactNode;
@@ -18,6 +19,10 @@ export default class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error('Unhandled render error:', error, info.componentStack);
+    // A caught render error is the most valuable signal the app produces: the
+    // user saw a broken screen. Logging it to the console only helps if someone
+    // happens to have devtools open at that moment.
+    reportError('react-boundary', error);
   }
 
   render() {

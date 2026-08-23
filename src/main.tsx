@@ -6,6 +6,7 @@ import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
 import './index.css';
+import { initTelemetry } from './lib/telemetry';
 
 // Warm up the connection to the Supabase origin as early as possible — its
 // project ref isn't known at build time (it's a VITE_ env var), so we inject
@@ -27,6 +28,11 @@ import './index.css';
     /* malformed URL — skip the hint */
   }
 })();
+
+// Registered before render so an error thrown during the first paint is
+// still reported. Two bugs last month were found by a human clicking
+// rather than by anything reporting them.
+initTelemetry();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

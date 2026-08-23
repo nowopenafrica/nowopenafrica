@@ -2,6 +2,7 @@ import { useState } from 'react';
 import toast from 'react-hot-toast';
 import { X, Send, CheckCircle, Loader2, Mail, Phone } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/telemetry';
 import { useAuth } from '../contexts/AuthContext';
 
 interface EnquiryModalProps {
@@ -49,6 +50,9 @@ export default function EnquiryModal({
         context: context ?? null,
       }]);
       if (error) throw error;
+      // After the insert, so a failed submit never counts as a conversion.
+      // No name, email or message is sent — only that it happened.
+      track('enquiry_sent', { hasPhone: Boolean(phone.trim()), context: context ?? null }, businessId);
       setDone(true);
     } catch (err: any) {
       console.error('Enquiry failed:', err);

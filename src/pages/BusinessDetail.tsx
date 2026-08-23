@@ -18,6 +18,15 @@ import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { resolveBusinessStatus, loadClockConfig, resolvePublicStatus } from '../lib/businessStatus';
 import { applySeo, SITE_URL } from '../lib/seo';
+import { track } from '../lib/telemetry';
+import {
+  GALLERY_FILTERS, galleryFilterCounts, matchesGalleryFilter, mediaKindOf,
+  orientationOf, type GalleryFilter, type MediaKind,
+} from '../lib/galleryMedia';
+import { shareReel } from '../lib/reelShare';
+import { parseVideoEmbed } from '../lib/videoEmbeds';
+import VideoEmbedFrame from '../components/VideoEmbedFrame';
+import GalleryThumb from '../components/GalleryThumb';
 import { getActiveFeatures } from '../data/categoryFeatures';
 import { getTabLabel } from '../data/categoryTabLabels';
 import RealEstatePortal from '../components/RealEstatePortal';
@@ -102,7 +111,7 @@ const EDUCATION_CATEGORIES = ['School & Education', 'Training & Tutoring'];
 // made the header badge contradict the Trust Panel. withDemoTrustAll gives them
 // earned signals; real rows are untouched.
 const SPOTLIGHTS: Record<string, any> = withDemoTrustAll({ ...SPOTLIGHT_BUSINESSES, ...MENU_SPOTLIGHTS, ...HOTEL_SPOTLIGHTS, ...CAR_SPOTLIGHTS, ...PHARMACY_SPOTLIGHTS, ...FITNESS_SPOTLIGHTS, ...BEAUTY_SPOTLIGHTS, ...HEALTH_SPOTLIGHTS, ...FASHION_SPOTLIGHTS, ...EDUCATION_SPOTLIGHTS, ...PHOTO_SPOTLIGHTS, ...TRANSPORT_SPOTLIGHTS, ...EVENT_SPOTLIGHTS, ...RETAIL_SPOTLIGHTS, ...AGRICULTURE_SPOTLIGHTS, ...LEGAL_SPOTLIGHTS, ...SERVICE_PROVIDER_SPOTLIGHTS, ...FINANCE_SPOTLIGHTS, ...MANUFACTURING_SPOTLIGHTS, ...CONSTRUCTION_SPOTLIGHTS, ...TRAVEL_SPOTLIGHTS, ...AUTOMOTIVE_SPOTLIGHTS, ...CHILDCARE_SPOTLIGHTS, ...MUSIC_SPOTLIGHTS, ...DESIGN_SPOTLIGHTS, ...INSURANCE_SPOTLIGHTS, ...ACCOUNTING_SPOTLIGHTS, ...MARKETING_SPOTLIGHTS, ...MONEY_SPOTLIGHTS, ...SOFTWARE_SPOTLIGHTS, ...REPAIR_SPOTLIGHTS, ...NEW_INDUSTRY_SPOTLIGHTS, ...MORE_SPOTLIGHTS });
-import { ArrowLeft, ShoppingBag, Clock, MapPin, Phone, Mail, Globe, Star, Tag, Image, Grid, Package, Users2, Navigation, Loader2, Send, MessageCircle, CalendarCheck, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, Radio, Play } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Clock, MapPin, Phone, Mail, Globe, Star, Tag, Image, Grid, Package, Users2, Navigation, Loader2, Send, MessageCircle, CalendarCheck, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, Radio, Play, Share2 } from 'lucide-react';
 import { telHref, whatsappHref } from '../lib/phone';
 
 interface TabConfig {
@@ -159,6 +168,38 @@ export default function BusinessDetail() {
   const [cartOpen, setCartOpen] = useState(false);
   const [productQty, setProductQty] = useState<Record<string, number>>({});
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [galleryFilter, setGalleryFilter] = useState<GalleryFilter>('all');
+  const [galleryDims, setGalleryDims] = useState<Record<string, { w: number; h: number }>>({});
+  const noteGalleryDim = useCallback((url: string, w: number, h: number) => {
+    if (!w || !h) return;
+    setGalleryDims((prev) => (prev[url] ? prev : { ...prev, [url]: { w, h } }));
+  }, []);
+
+  /**
+   * Share a single reel. Points at /r/<id>, not this page: that route is
+   * server-rendered with the reel's own Open Graph tags, so WhatsApp and friends
+   * show the reel itself instead of the generic site card an SPA hands them.
+   */
+  const shareReelItem = useCallback(async (
+    galleryId: string,
+    mediaUrl: string,
+    isVideo: boolean,
+    caption?: string | null,
+  ) => {
+    const name = business?.name || 'NowOpen Africa';
+    const pending = isVideo ? toast.loading('Preparing the video to share…') : null;
+    try {
+      // Hands the share sheet the file itself where the browser allows it, which
+      // is the only way a reel actually plays in WhatsApp (and the only way it
+      // can go to Status at all). Falls back to the /r/ link otherwise.
+      const outcome = await shareReel({ mediaUrl, isVideo, businessName: name, caption, galleryId });
+      if (pending) toast.dismiss(pending);
+      if (outcome === 'copied') toast.success('Share link copied — paste it into WhatsApp.');
+    } catch {
+      if (pending) toast.dismiss(pending);
+      toast.error('Could not share that reel.');
+    }
+  }, [business?.name]);
   const [hasLiveNow, setHasLiveNow] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
   const [reviewComment, setReviewComment] = useState('');
@@ -252,6 +293,14 @@ export default function BusinessDetail() {
   // canonical (friendly username URL when available) and LocalBusiness
   // JSON-LD, so each profile ranks as its own entity. Sample and unresolved
   // listings are noindexed — demo data must never appear in search results.
+  // Recorded once per listing per mount, and never for the sample fallback —
+  // counting placeholder views would corrupt the one number an owner cares
+  // most about.
+  useEffect(() => {
+    if (!business || isSample) return;
+    track('business_viewed', { category: business.category ?? null, verified: Boolean(business.verified) }, business.id);
+  }, [business?.id, isSample]);
+
   useEffect(() => {
     if (!business) return undefined;
     if (isSample) {
@@ -512,13 +561,36 @@ export default function BusinessDetail() {
       toast.error("This business hasn't added a WhatsApp number yet.");
     }
   };
-  const gallery: { url: string; caption?: string; type: 'photo' | 'video' }[] = isSample
+  // `id` is the business_gallery row id, needed to build the /r/<id> share URL.
+  // Sample items have none — they aren't real rows, so they aren't shareable.
+  const gallery: { id?: string; url: string; caption?: string; type: MediaKind }[] = isSample
     ? sampleGallery.map(url => ({ url, type: 'photo' as const }))
-    : content.gallery.map(g => ({
-        url: g.image_url,
-        caption: g.caption || undefined,
-        type: /\.(mp4|webm|ogg|mov)$/i.test(g.image_url) ? 'video' as const : 'photo' as const,
-      }));
+    : content.gallery
+        // Scheduled reels stay off the profile until their time. RLS enforces
+        // this too; filtering here keeps it right even on a database where the
+        // scheduling migration hasn't been applied.
+        .filter(g => !g.scheduled_for || new Date(g.scheduled_for).getTime() <= Date.now())
+        .map(g => ({
+          id: g.id,
+          url: g.image_url,
+          caption: g.caption || undefined,
+          type: mediaKindOf(g.image_url),
+        }));
+
+  // Intrinsic size per URL, reported by the browser once each item loads. Only
+  // the browser knows it, so the orientation filters populate as the grid
+  // renders rather than being guessed from the URL.
+  const galleryDimensions = galleryDims;
+  const galleryItems = gallery.map((item) => {
+    const dim = galleryDimensions[item.url];
+    return { ...item, kind: item.type, orientation: orientationOf(dim?.w, dim?.h) };
+  });
+  const filterCounts = galleryFilterCounts(galleryItems);
+  // Offer only filters that would actually show something.
+  const availableFilters = GALLERY_FILTERS.filter(
+    (f) => f.key === 'all' || filterCounts[f.key] > 0,
+  );
+  const visibleGallery = galleryItems.filter((i) => matchesGalleryFilter(i, galleryFilter));
   const reviews = isSample
     ? sampleReviews
     : content.reviews.map(r => ({
@@ -1484,34 +1556,90 @@ export default function BusinessDetail() {
             {/* Gallery Tab */}
             {activeTab === 'gallery' && (
               <div className="animate-fadeIn">
-                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">{getTabLabel(business.category, 'gallery', 'BusReels')}</h2>
+                <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">{getTabLabel(business.category, 'gallery', 'OpenReels')}</h2>
 
                 {gallery.length > 0 ? (
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-                    {gallery.map((item, index) => (
+                  <>
+                    {/* Filter rail — scrolls sideways on a phone rather than
+                        wrapping into rows and pushing the grid down. */}
+                    {availableFilters.length > 1 && (
+                      <div className="-mx-4 sm:mx-0 mb-4 overflow-x-auto no-scrollbar">
+                        <div
+                          role="tablist"
+                          aria-label="Filter gallery"
+                          className="flex items-center gap-2 px-4 sm:px-0 w-max"
+                        >
+                          {availableFilters.map((f) => {
+                            const active = galleryFilter === f.key;
+                            return (
+                              <button
+                                key={f.key}
+                                role="tab"
+                                aria-selected={active}
+                                // Indices are into the filtered list, so a
+                                // lightbox left open would point at the wrong
+                                // item once the list changes.
+                                onClick={() => { setGalleryFilter(f.key); setLightboxIndex(null); }}
+                                className={`whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-medium border transition ${
+                                  active
+                                    ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent'
+                                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                                }`}
+                              >
+                                {f.label}
+                                <span className={active ? 'ml-1.5 opacity-70' : 'ml-1.5 text-gray-400 dark:text-gray-500'}>
+                                  {filterCounts[f.key]}
+                                </span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+                    {visibleGallery.map((item, index) => (
                       <div
-                        key={index}
+                        key={item.url + index}
                         onClick={() => setLightboxIndex(index)}
                         className="bg-gray-200 dark:bg-gray-700 rounded-xl overflow-hidden group cursor-pointer aspect-[9/16] relative"
                       >
-                        {item.type === 'video' ? (
-                          <video
-                            src={item.url}
+                        {item.type === 'embed' ? (
+                          // Tiles stay lightweight: a badge, not an iframe.
+                          // Loading a dozen third-party players in a grid would
+                          // cost more than the whole rest of the page. The real
+                          // player opens in the lightbox.
+                          <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center gap-2">
+                            <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
+                              <Play size={18} className="text-gray-900 ml-0.5" />
+                            </div>
+                            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-300">
+                              {parseVideoEmbed(item.url)?.label}
+                            </span>
+                          </div>
+                        ) : item.type === 'video' ? (
+                          // Poster image where one exists, so a grid of reels
+                          // doesn't download and decode every clip just to show
+                          // a thumbnail.
+                          <GalleryThumb
+                            url={item.url}
+                            alt={item.caption || `${business.name} reel ${index + 1}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
-                            muted
-                            playsInline
-                            preload="metadata"
-                            onError={() => {}}
+                            onMeasured={(w, h) => noteGalleryDim(item.url, w, h)}
                           />
                         ) : (
                           <img
                             src={item.url}
                             alt={item.caption || `${business.name} gallery ${index + 1}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
+                            onLoad={(e) => {
+                              const i = e.currentTarget;
+                              noteGalleryDim(item.url, i.naturalWidth, i.naturalHeight);
+                            }}
                           />
                         )}
                         {item.type === 'video' && (
-                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition">
+                          <div className="absolute inset-0 flex items-center justify-center bg-black/20 group-hover:bg-black/30 transition pointer-events-none">
                             <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
                               <Play size={18} className="text-gray-900 ml-0.5" />
                             </div>
@@ -1524,12 +1652,26 @@ export default function BusinessDetail() {
                         )}
                       </div>
                     ))}
-                  </div>
+                    </div>
+
+                    {visibleGallery.length === 0 && (
+                      <div className="text-center py-12">
+                        <Image size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
+                        <p className="text-gray-600 dark:text-gray-400">Nothing matches this filter.</p>
+                        <button
+                          onClick={() => setGalleryFilter('all')}
+                          className="mt-3 text-sm text-blue-600 dark:text-blue-400 hover:underline"
+                        >
+                          Show everything
+                        </button>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center py-12">
                     <Image size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
                     <p className="text-gray-600 dark:text-gray-400">
-                      This business hasn't uploaded any BusReels yet.
+                      This business hasn't uploaded any OpenReels yet.
                     </p>
                   </div>
                 )}
@@ -1815,7 +1957,7 @@ export default function BusinessDetail() {
         />
       )}
 
-      {lightboxIndex !== null && gallery[lightboxIndex] && (
+      {lightboxIndex !== null && visibleGallery[lightboxIndex] && (
         <div
           className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
           onClick={() => setLightboxIndex(null)}
@@ -1829,19 +1971,42 @@ export default function BusinessDetail() {
           >
             <X size={28} />
           </button>
-          {gallery.length > 1 && (
+          {visibleGallery[lightboxIndex].id && (
             <button
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex(i => ((i! - 1 + gallery.length) % gallery.length)); }}
+              onClick={(e) => {
+                e.stopPropagation();
+                const item = visibleGallery[lightboxIndex];
+                shareReelItem(item.id!, item.url, item.type === 'video', item.caption);
+              }}
+              aria-label="Share this reel"
+              className="absolute top-4 left-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/15 hover:bg-white/25 text-white text-sm font-medium backdrop-blur transition z-10"
+            >
+              <Share2 size={16} /> Share
+            </button>
+          )}
+          {visibleGallery.length > 1 && (
+            <button
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(i => ((i! - 1 + visibleGallery.length) % visibleGallery.length)); }}
               aria-label="Previous"
               className="absolute left-2 sm:left-4 text-white/80 hover:text-white transition p-2 z-10"
             >
               <ChevronLeft size={32} />
             </button>
           )}
-          {gallery[lightboxIndex].type === 'video' ? (
+          {visibleGallery[lightboxIndex].type === 'embed' ? (
+            <div
+              onClick={(e) => e.stopPropagation()}
+              className="w-full max-w-3xl max-h-full overflow-auto"
+            >
+              <VideoEmbedFrame
+                url={visibleGallery[lightboxIndex].url}
+                title={visibleGallery[lightboxIndex].caption || `${business.name} video`}
+              />
+            </div>
+          ) : visibleGallery[lightboxIndex].type === 'video' ? (
             <video
-              key={gallery[lightboxIndex].url}
-              src={gallery[lightboxIndex].url}
+              key={visibleGallery[lightboxIndex].url}
+              src={visibleGallery[lightboxIndex].url}
               controls
               autoPlay
               playsInline
@@ -1850,24 +2015,24 @@ export default function BusinessDetail() {
             />
           ) : (
             <img
-              src={gallery[lightboxIndex].url}
-              alt={gallery[lightboxIndex].caption || `${business.name} gallery ${lightboxIndex + 1}`}
+              src={visibleGallery[lightboxIndex].url}
+              alt={visibleGallery[lightboxIndex].caption || `${business.name} gallery ${lightboxIndex + 1}`}
               onClick={(e) => e.stopPropagation()}
               className="max-w-full max-h-full object-contain rounded-lg"
             />
           )}
-          {gallery.length > 1 && (
+          {visibleGallery.length > 1 && (
             <button
-              onClick={(e) => { e.stopPropagation(); setLightboxIndex(i => ((i! + 1) % gallery.length)); }}
+              onClick={(e) => { e.stopPropagation(); setLightboxIndex(i => ((i! + 1) % visibleGallery.length)); }}
               aria-label="Next"
               className="absolute right-2 sm:right-4 text-white/80 hover:text-white transition p-2 z-10"
             >
               <ChevronRight size={32} />
             </button>
           )}
-          {gallery[lightboxIndex].caption && (
+          {visibleGallery[lightboxIndex].caption && (
             <p className="absolute bottom-6 left-1/2 -translate-x-1/2 text-white text-sm bg-black/60 px-3 py-1.5 rounded-full max-w-[90%] truncate">
-              {gallery[lightboxIndex].caption}
+              {visibleGallery[lightboxIndex].caption}
             </p>
           )}
         </div>
