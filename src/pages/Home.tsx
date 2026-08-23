@@ -321,66 +321,7 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Stats band */}
-      <section className="pt-12" aria-label="NowOpen Africa at a glance">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-200 dark:divide-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 overflow-hidden">
-            {/* Real numbers only.
-                "30+", "20+", "3-in-1" and "AI" were three vague claims and one
-                that is not a statistic at all. These are counted: the industry
-                total comes from the config that drives the industry pages, and
-                the rest are exact COUNT queries. A tile whose count is unknown
-                or zero is dropped rather than shown as "0" or rounded up —
-                which is the same rule the Trust Panel follows, and it means the
-                band strengthens on its own as the platform fills. */}
-            {[
-              { value: String(INDUSTRIES.length), label: 'Industry systems' },
-              { value: counts.businesses ? String(counts.businesses) : null, label: 'Businesses listed' },
-              { value: counts.media ? String(counts.media) : null, label: 'Creative services' },
-              { value: counts.adverts ? String(counts.adverts) : null, label: 'Ad placements' },
-            ].filter((s): s is { value: string; label: string } => Boolean(s.value)).map((s) => (
-              <div key={s.label} className="px-3 py-5 text-center">
-                <div className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">{s.value}</div>
-                <div className="mt-1 text-[11px] sm:text-xs font-medium text-gray-500 dark:text-gray-400">{s.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
 
-      {/* Three ways to grow */}
-      <section className="pt-14 pb-4">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center max-w-2xl mx-auto mb-8">
-            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">One platform, three ways to grow</h2>
-            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
-              Discover customers, advertise everywhere and create anything — all in one place.
-            </p>
-          </div>
-          <div className="grid grid-cols-3 gap-2.5 sm:gap-5">
-            {[
-              { icon: Store, title: 'Discover', desc: 'Find and connect with verified African businesses across every industry.', to: '/businesses', cta: 'Browse businesses', grad: 'from-blue-500 to-indigo-600' },
-              { icon: Megaphone, title: 'Advertise', desc: 'Book billboards, screens, transit and broadcast placements across Africa.', to: '/adverts', cta: 'Explore placements', grad: 'from-fuchsia-500 to-purple-600' },
-              { icon: Palette, title: 'Create', desc: 'Hire photographers, designers, editors and studios for any project.', to: '/media', cta: 'Find creatives', grad: 'from-pink-500 to-rose-600' },
-            ].map((p) => (
-              <Link
-                key={p.title}
-                to={p.to}
-                className="group flex flex-col rounded-xl sm:rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 sm:p-6 hover:shadow-lg hover:-translate-y-0.5 transition"
-              >
-                <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br ${p.grad} flex items-center justify-center`}>
-                  <p.icon size={20} className="text-white" />
-                </div>
-                <h3 className="mt-2.5 sm:mt-4 text-sm sm:text-lg font-bold text-gray-900 dark:text-white">{p.title}</h3>
-                <p className="mt-1 text-[11px] sm:text-sm text-gray-600 dark:text-gray-400 leading-snug sm:leading-relaxed flex-1">{p.desc}</p>
-                <span className="mt-2 sm:mt-3 inline-flex items-center gap-1 text-[11px] sm:text-sm font-semibold text-blue-600 dark:text-blue-400 group-hover:gap-2 transition-all">
-                  {p.cta} <ArrowRight size={13} className="flex-shrink-0" />
-                </span>
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
 
       {/* Industry Operating Systems */}
       <section className="py-16 bg-white dark:bg-gray-800/40 border-y border-gray-100 dark:border-gray-800">
@@ -513,6 +454,75 @@ export default function Home() {
         </div>
       </section>
 
+
+      {/* Stats band */}
+      <section className="pt-12" aria-label="NowOpen Africa at a glance">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-200 dark:divide-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 overflow-hidden">
+            {/* Real numbers only.
+                "30+", "20+", "3-in-1" and "AI" were three vague claims and one
+                that is not a statistic at all. These are counted: the industry
+                total comes from the config that drives the industry pages, and
+                the rest are exact COUNT queries. A tile whose count is unknown
+                or zero is dropped rather than shown as "0" or rounded up —
+                which is the same rule the Trust Panel follows, and it means the
+                band strengthens on its own as the platform fills. */}
+            {[
+              // Three counted tiles, then AI. The grid is four columns, so
+              // dropping empty counts left a visible gap; capping the counted
+              // ones at three keeps the row complete now and still complete
+              // once ad placements exist. AI is a property of the product
+              // rather than a metric, so it needs no count to be true.
+              ...([
+                { value: String(INDUSTRIES.length), label: 'Industry systems' },
+                { value: counts.businesses ? String(counts.businesses) : null, label: 'Businesses listed' },
+                { value: counts.media ? String(counts.media) : null, label: 'Creative services' },
+                { value: counts.adverts ? String(counts.adverts) : null, label: 'Ad placements' },
+              ].filter((t): t is { value: string; label: string } => Boolean(t.value)).slice(0, 3)),
+              { value: 'AI', label: 'Built in' },
+            ].map((s) => (
+              <div key={s.label} className="px-3 py-5 text-center">
+                <div className="text-xl sm:text-2xl font-extrabold text-gray-900 dark:text-white">{s.value}</div>
+                <div className="mt-1 text-[11px] sm:text-xs font-medium text-gray-500 dark:text-gray-400">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* Three ways to grow */}
+      <section className="pt-14 pb-4">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-8">
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">One platform, three ways to grow</h2>
+            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              Discover customers, advertise everywhere and create anything — all in one place.
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2.5 sm:gap-5">
+            {[
+              { icon: Store, title: 'Discover', desc: 'Find and connect with verified African businesses across every industry.', to: '/businesses', cta: 'Browse businesses', grad: 'from-blue-500 to-indigo-600' },
+              { icon: Megaphone, title: 'Advertise', desc: 'Book billboards, screens, transit and broadcast placements across Africa.', to: '/adverts', cta: 'Explore placements', grad: 'from-fuchsia-500 to-purple-600' },
+              { icon: Palette, title: 'Create', desc: 'Hire photographers, designers, editors and studios for any project.', to: '/media', cta: 'Find creatives', grad: 'from-pink-500 to-rose-600' },
+            ].map((p) => (
+              <Link
+                key={p.title}
+                to={p.to}
+                className="group flex flex-col rounded-xl sm:rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-3 sm:p-6 hover:shadow-lg hover:-translate-y-0.5 transition"
+              >
+                <div className={`w-9 h-9 sm:w-12 sm:h-12 rounded-lg sm:rounded-xl bg-gradient-to-br ${p.grad} flex items-center justify-center`}>
+                  <p.icon size={20} className="text-white" />
+                </div>
+                <h3 className="mt-2.5 sm:mt-4 text-sm sm:text-lg font-bold text-gray-900 dark:text-white">{p.title}</h3>
+                <p className="mt-1 text-[11px] sm:text-sm text-gray-600 dark:text-gray-400 leading-snug sm:leading-relaxed flex-1">{p.desc}</p>
+                <span className="mt-2 sm:mt-3 inline-flex items-center gap-1 text-[11px] sm:text-sm font-semibold text-blue-600 dark:text-blue-400 group-hover:gap-2 transition-all">
+                  {p.cta} <ArrowRight size={13} className="flex-shrink-0" />
+                </span>
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
 
       {/* Features Section */}
       <section className="py-16 bg-gray-50 dark:bg-gray-900">
