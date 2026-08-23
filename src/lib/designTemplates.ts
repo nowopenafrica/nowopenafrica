@@ -33,6 +33,30 @@ export type Mood = 'editorial' | 'bold' | 'minimal' | 'luxe' | 'street' | 'warm'
 
 export type Treatment = 'plain' | 'pill' | 'panel' | 'underline' | 'outline' | 'bar';
 
+/**
+ * Type families.
+ *
+ * Every template previously rendered in the same system sans, which is the main
+ * reason they read as variations of one design rather than six designs. A serif
+ * display or a mono eyebrow changes the character of a layout more than any
+ * amount of colour work.
+ *
+ * Web-safe stacks only — no font loading. A template must render identically in
+ * the editor, in an html2canvas PNG and in a canvas video frame, and a webfont
+ * that has not finished loading silently substitutes in one of the three.
+ */
+export type FontKey = 'sans' | 'serif' | 'mono' | 'condensed';
+
+export const FONT_STACKS: Record<FontKey, string> = {
+  sans: 'Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif',
+  serif: 'Georgia, "Times New Roman", "Iowan Old Style", serif',
+  mono: '"SF Mono", ui-monospace, Menlo, Consolas, "Liberation Mono", monospace',
+  condensed: '"Arial Narrow", "Helvetica Neue Condensed", "Roboto Condensed", Impact, sans-serif',
+};
+
+export const fontStack = (key: FontKey | undefined, fallback: FontKey = 'sans'): string =>
+  FONT_STACKS[key ?? fallback];
+
 export interface SlotMotion {
   in: MotionIn;
   /** Seconds into the scene when this slot starts arriving. */
@@ -58,6 +82,8 @@ export interface SlotSpec {
   tone?: 'onSurface' | 'accent' | 'muted';
   /** Anchor from the bottom instead of the top, so footers stay pinned. */
   fromBottom?: boolean;
+  /** Overrides the template font for this slot — a mono eyebrow over a serif headline. */
+  font?: FontKey;
   motion?: SlotMotion;
 }
 
@@ -80,6 +106,8 @@ export interface DesignTemplate {
   mood: Mood;
   /** 'dark' = light text on a dark surface. Decides the default ink colour. */
   scheme: 'dark' | 'light';
+  /** Default family for every slot. Individual slots may override it. */
+  font?: FontKey;
   surface: SurfaceSpec;
   slots: SlotSpec[];
 }
@@ -209,40 +237,76 @@ export const hexAlpha = (hex: string, a: number): string => {
 };
 
 /**
- * Background layers, listed bottom-up.
+ * A background layer, described structurally rather than as a CSS string.
  *
- * A list rather than one flattened string so a caller can slot uploaded media
- * between them: photo underneath, surface tint over it, vignette on top. One
- * combined background would force the media either behind everything or in
- * front of everything, and neither reads well behind text.
+ * The DOM renderer needs `linear-gradient(...)`; the canvas renderer needs
+ * ctx.createLinearGradient. Deriving both from one description is the only way
+ * they stay identical — a preview that does not match the exported frame is the
+ * single most damaging bug a design tool can have, and building the two
+ * independently guarantees it eventually.
  */
-export function surfaceLayers(tpl: DesignTemplate, accent: string, base: string): string[] {
+export type SurfaceLayer =
+  | { kind: 'linear'; angle: number; stops: { at: number; color: string }[] }
+  | { kind: 'radial'; cx: number; cy: number; r: number; stops: { at: number; color: string }[] };
+
+/** The structured surface description. Both renderers consume this. */
+export function surfaceSpecLayers(tpl: DesignTemplate, accent: string, base: string): SurfaceLayer[] {
   const s = tpl.surface;
   const k = s.intensity ?? 0.5;
-  const layers: string[] = [];
+  const out: SurfaceLayer[] = [];
 
   switch (s.kind) {
     case 'solid':
     case 'frame':
-      layers.push(`linear-gradient(0deg, ${hexAlpha(base, 0.92)}, ${hexAlpha(base, 0.92)})`);
+      out.push({ kind: 'linear', angle: 0, stops: [
+        { at: 0, color: hexAlpha(base, 0.92) },
+        { at: 1, color: hexAlpha(base, 0.92) },
+      ] });
       break;
     case 'spotlight':
-      layers.push(`radial-gradient(120% 90% at 50% 12%, ${hexAlpha(accent, k)} 0%, ${hexAlpha(base, 0.94)} 68%)`);
+      out.push({ kind: 'radial', cx: 0.5, cy: 0.12, r: 1.1, stops: [
+        { at: 0, color: hexAlpha(accent, k) },
+        { at: 0.68, color: hexAlpha(base, 0.94) },
+        { at: 1, color: hexAlpha(base, 0.97) },
+      ] });
       break;
     case 'wash':
-      layers.push(`linear-gradient(${(s.angle ?? 180) + 90}deg, ${hexAlpha(accent, k * 0.6)} 0%, transparent 70%)`);
-      layers.push(`linear-gradient(${s.angle ?? 180}deg, ${hexAlpha(base, 0.2)} 0%, ${hexAlpha(base, 0.94)} 100%)`);
+      out.push({ kind: 'linear', angle: (s.angle ?? 180) + 90, stops: [
+        { at: 0, color: hexAlpha(accent, k * 0.6) },
+        { at: 0.7, color: hexAlpha(accent, 0) },
+      ] });
+      out.push({ kind: 'linear', angle: s.angle ?? 180, stops: [
+        { at: 0, color: hexAlpha(base, 0.2) },
+        { at: 1, color: hexAlpha(base, 0.94) },
+      ] });
       break;
     case 'gradient':
     default:
-      layers.push(`linear-gradient(${s.angle ?? 160}deg, ${hexAlpha(accent, k)} 0%, ${hexAlpha(base, 0.95)} 72%)`);
+      out.push({ kind: 'linear', angle: s.angle ?? 160, stops: [
+        { at: 0, color: hexAlpha(accent, k) },
+        { at: 0.72, color: hexAlpha(base, 0.95) },
+        { at: 1, color: hexAlpha(base, 0.98) },
+      ] });
       break;
   }
 
   if (s.vignette) {
-    layers.push(`radial-gradient(115% 115% at 50% 45%, transparent 42%, ${hexAlpha('#000000', s.vignette)} 100%)`);
+    out.push({ kind: 'radial', cx: 0.5, cy: 0.45, r: 1.15, stops: [
+      { at: 0.42, color: hexAlpha('#000000', 0) },
+      { at: 1, color: hexAlpha('#000000', s.vignette) },
+    ] });
   }
-  return layers;
+  return out;
+}
+
+/** CSS form, for the DOM renderer. Derived from surfaceSpecLayers. */
+export function surfaceLayers(tpl: DesignTemplate, accent: string, base: string): string[] {
+  return surfaceSpecLayers(tpl, accent, base).map((l) => {
+    const stops = l.stops.map(st => `${st.color} ${Math.round(st.at * 100)}%`).join(', ');
+    return l.kind === 'linear'
+      ? `linear-gradient(${l.angle}deg, ${stops})`
+      : `radial-gradient(${Math.round(l.r * 100)}% ${Math.round(l.r * 100)}% at ${Math.round(l.cx * 100)}% ${Math.round(l.cy * 100)}%, ${stops})`;
+  });
 }
 
 /** Default ink for the template's scheme. */
@@ -264,14 +328,14 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     key: 'editorial-split',
     label: 'Editorial Split',
     desc: 'Magazine masthead, accent rule, low headline',
-    mood: 'editorial', scheme: 'dark',
+    mood: 'editorial', scheme: 'dark', font: 'serif',
     surface: { kind: 'wash', angle: 200, intensity: 0.4, vignette: 0.3 },
     slots: [
       { role: 'brand', x: 0.08, y: 0.09, w: 0.5, size: 0.05, motion: { in: 'fade', at: 0, dur: 0.5 } },
-      { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.5, size: EYEBROW, upper: true, tracking: 0.22, treatment: 'bar', tone: 'accent', motion: { in: 'wipe', at: 0.3, dur: 0.6 } },
+      { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.5, size: EYEBROW, upper: true, tracking: 0.22, treatment: 'bar', tone: 'accent', font: 'mono', motion: { in: 'wipe', at: 0.3, dur: 0.6 } },
       { role: 'headline', x: 0.08, y: 0.44, w: 0.84, size: HEAD, weight: 800, tracking: -0.02, motion: { in: 'rise', at: 0.5, dur: 0.7 } },
       { role: 'subline', x: 0.08, y: 0.68, w: 0.7, size: SUB, tone: 'muted', motion: { in: 'rise', at: 0.85, dur: 0.6 } },
-      { role: 'meta', x: 0.08, y: 0.14, w: 0.6, size: META, fromBottom: true, tone: 'muted', motion: { in: 'fade', at: 1.05, dur: 0.5 } },
+      { role: 'meta', x: 0.08, y: 0.14, w: 0.6, size: META, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 1.05, dur: 0.5 } },
       { role: 'qr', x: 0.78, y: 0.2, w: 0.14, fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.5 } },
     ],
   },
@@ -294,7 +358,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     key: 'quiet-luxe',
     label: 'Quiet Luxe',
     desc: 'Airy light layout, thin rules, wide tracking',
-    mood: 'luxe', scheme: 'light',
+    mood: 'luxe', scheme: 'light', font: 'serif',
     surface: { kind: 'solid' },
     slots: [
       { role: 'brand', x: 0.1, y: 0.11, w: 0.5, size: 0.042, motion: { in: 'fade', at: 0, dur: 0.6 } },
@@ -309,7 +373,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     key: 'street-poster',
     label: 'Street Poster',
     desc: 'Hard frame, stacked caps, high contrast',
-    mood: 'street', scheme: 'dark',
+    mood: 'street', scheme: 'dark', font: 'condensed',
     surface: { kind: 'frame', frame: 0.035, intensity: 0.5, vignette: 0.22 },
     slots: [
       { role: 'eyebrow', x: 0.1, y: 0.14, w: 0.8, size: 0.026, upper: true, tracking: 0.3, treatment: 'outline', motion: { in: 'drop', at: 0, dur: 0.5 } },
@@ -339,7 +403,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     key: 'minimal-grid',
     label: 'Minimal Grid',
     desc: 'Left rail, generous space, underlined heading',
-    mood: 'minimal', scheme: 'light',
+    mood: 'minimal', scheme: 'light', font: 'sans',
     surface: { kind: 'solid' },
     slots: [
       { role: 'brand', x: 0.12, y: 0.12, w: 0.4, size: 0.04, motion: { in: 'fade', at: 0, dur: 0.5 } },
@@ -347,6 +411,96 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { role: 'headline', x: 0.12, y: 0.34, w: 0.68, size: 0.086, weight: 700, tracking: -0.02, treatment: 'underline', motion: { in: 'rise', at: 0.3, dur: 0.7 } },
       { role: 'subline', x: 0.12, y: 0.56, w: 0.56, size: 0.031, tone: 'muted', motion: { in: 'rise', at: 0.75, dur: 0.6 } },
       { role: 'meta', x: 0.12, y: 0.12, w: 0.6, size: 0.02, fromBottom: true, tone: 'muted', motion: { in: 'fade', at: 1.0, dur: 0.5 } },
+    ],
+  },
+  {
+    key: 'soft-glass',
+    label: 'Soft Glass',
+    desc: 'Frosted panel over a soft-focus photo',
+    mood: 'minimal', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 200, intensity: 0.34, vignette: 0.4 },
+    slots: [
+      { role: 'brand', x: 0.09, y: 0.1, w: 0.5, size: 0.044, motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.09, y: 0.46, w: 0.5, size: 0.021, upper: true, tracking: 0.3, font: 'mono', tone: 'accent', motion: { in: 'fade', at: 0.3, dur: 0.5 } },
+      { role: 'headline', x: 0.09, y: 0.53, w: 0.74, size: 0.084, weight: 650, tracking: -0.02, treatment: 'panel', motion: { in: 'blur', at: 0.45, dur: 0.75 } },
+      { role: 'subline', x: 0.09, y: 0.74, w: 0.62, size: 0.031, tone: 'muted', motion: { in: 'rise', at: 0.95, dur: 0.55 } },
+      { role: 'cta', x: 0.09, y: 0.16, w: 0.42, size: 0.03, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.15, dur: 0.45 } },
+      { role: 'qr', x: 0.76, y: 0.16, w: 0.14, fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'mesh-accent',
+    label: 'Mesh Accent',
+    desc: 'Layered colour bloom, tight modern sans',
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'spotlight', intensity: 0.7, vignette: 0.2 },
+    slots: [
+      { role: 'eyebrow', x: 0.09, y: 0.12, w: 0.46, size: 0.02, upper: true, tracking: 0.32, font: 'mono', tone: 'accent', motion: { in: 'wipe', at: 0, dur: 0.5 } },
+      { role: 'headline', x: 0.09, y: 0.24, w: 0.8, size: 0.104, weight: 800, tracking: -0.035, motion: { in: 'rise', at: 0.25, dur: 0.7 } },
+      { role: 'subline', x: 0.09, y: 0.56, w: 0.6, size: 0.033, tone: 'muted', motion: { in: 'rise', at: 0.75, dur: 0.6 } },
+      { role: 'brand', x: 0.09, y: 0.15, w: 0.5, size: 0.042, fromBottom: true, motion: { in: 'fade', at: 1.0, dur: 0.5 } },
+      { role: 'meta', x: 0.09, y: 0.09, w: 0.6, size: 0.02, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 1.15, dur: 0.45 } },
+      { role: 'qr', x: 0.77, y: 0.15, w: 0.14, fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
+    ],
+  },
+  {
+    key: 'gallery-serif',
+    label: 'Gallery Serif',
+    desc: 'Exhibition card - light, serif, wide margins',
+    mood: 'luxe', scheme: 'light', font: 'serif',
+    surface: { kind: 'solid' },
+    slots: [
+      { role: 'eyebrow', x: 0.14, y: 0.18, w: 0.5, size: 0.019, upper: true, tracking: 0.38, font: 'mono', tone: 'muted', motion: { in: 'fade', at: 0, dur: 0.6 } },
+      { role: 'headline', x: 0.14, y: 0.28, w: 0.66, size: 0.088, weight: 400, tracking: -0.01, motion: { in: 'blur', at: 0.35, dur: 0.85 } },
+      { role: 'subline', x: 0.14, y: 0.54, w: 0.52, size: 0.029, tone: 'muted', motion: { in: 'rise', at: 0.95, dur: 0.6 } },
+      { role: 'brand', x: 0.14, y: 0.16, w: 0.5, size: 0.036, fromBottom: true, motion: { in: 'fade', at: 1.1, dur: 0.5 } },
+      { role: 'meta', x: 0.14, y: 0.1, w: 0.55, size: 0.019, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 1.25, dur: 0.45 } },
+    ],
+  },
+  {
+    key: 'ticket',
+    label: 'Ticket',
+    desc: 'Stub-style panels, mono detail, event feel',
+    mood: 'street', scheme: 'dark', font: 'condensed',
+    surface: { kind: 'gradient', angle: 120, intensity: 0.44, vignette: 0.3 },
+    slots: [
+      { role: 'brand', x: 0.09, y: 0.11, w: 0.5, size: 0.042, font: 'sans', motion: { in: 'drop', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.09, y: 0.24, w: 0.5, size: 0.022, upper: true, tracking: 0.26, font: 'mono', treatment: 'outline', motion: { in: 'fade', at: 0.15, dur: 0.45 } },
+      { role: 'headline', x: 0.09, y: 0.3, w: 0.82, size: 0.112, weight: 700, upper: true, tracking: -0.02, motion: { in: 'wipe', at: 0.3, dur: 0.7 } },
+      { role: 'subline', x: 0.09, y: 0.6, w: 0.64, size: 0.032, font: 'sans', treatment: 'panel', motion: { in: 'rise', at: 0.85, dur: 0.6 } },
+      { role: 'meta', x: 0.09, y: 0.12, w: 0.55, size: 0.021, fromBottom: true, font: 'mono', tone: 'muted', motion: { in: 'fade', at: 1.1, dur: 0.45 } },
+      { role: 'qr', x: 0.76, y: 0.17, w: 0.15, fromBottom: true, motion: { in: 'pop', at: 1.05, dur: 0.45 } },
+    ],
+  },
+  {
+    key: 'story-caption',
+    label: 'Story Caption',
+    desc: 'Built for 9:16 - copy low and thumb-safe',
+    mood: 'warm', scheme: 'dark', font: 'sans',
+    surface: { kind: 'wash', angle: 190, intensity: 0.3, vignette: 0.44 },
+    slots: [
+      { role: 'brand', x: 0.09, y: 0.08, w: 0.6, size: 0.04, motion: { in: 'fade', at: 0, dur: 0.5 } },
+      // Anchored low so copy clears a story's own UI at the top and bottom.
+      { role: 'eyebrow', x: 0.09, y: 0.42, w: 0.5, size: 0.021, upper: true, tracking: 0.28, font: 'mono', tone: 'accent', fromBottom: true, motion: { in: 'wipe', at: 0.3, dur: 0.5 } },
+      { role: 'headline', x: 0.09, y: 0.3, w: 0.82, size: 0.09, weight: 800, tracking: -0.025, fromBottom: true, motion: { in: 'rise', at: 0.45, dur: 0.7 } },
+      { role: 'subline', x: 0.09, y: 0.22, w: 0.7, size: 0.03, tone: 'muted', fromBottom: true, motion: { in: 'rise', at: 0.9, dur: 0.55 } },
+      { role: 'cta', x: 0.09, y: 0.12, w: 0.44, size: 0.029, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
+    ],
+  },
+  {
+    key: 'price-block',
+    label: 'Price Block',
+    desc: 'Offer-led - the number is the hero',
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 165, intensity: 0.6, vignette: 0.24 },
+    slots: [
+      { role: 'brand', x: 0.09, y: 0.1, w: 0.5, size: 0.042, motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.09, y: 0.26, w: 0.55, size: 0.022, upper: true, tracking: 0.24, treatment: 'pill', tone: 'accent', font: 'mono', motion: { in: 'pop', at: 0.2, dur: 0.5 } },
+      { role: 'headline', x: 0.09, y: 0.36, w: 0.7, size: 0.13, weight: 900, tracking: -0.04, motion: { in: 'pop', at: 0.4, dur: 0.65 } },
+      { role: 'subline', x: 0.09, y: 0.62, w: 0.62, size: 0.032, tone: 'muted', motion: { in: 'rise', at: 0.85, dur: 0.55 } },
+      { role: 'cta', x: 0.09, y: 0.18, w: 0.46, size: 0.032, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.05, dur: 0.45 } },
+      { role: 'meta', x: 0.09, y: 0.1, w: 0.6, size: 0.02, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 1.2, dur: 0.45 } },
+      { role: 'qr', x: 0.77, y: 0.17, w: 0.14, fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
     ],
   },
 ];

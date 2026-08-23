@@ -1,0 +1,337 @@
+// Canvas painter for a DesignTemplate.
+//
+// The DOM renderer (TemplateSurface) covers Creative Studio's editable preview.
+// Motion Studio previews on a canvas and renderVideo exports through
+// MediaRecorder on a canvas, so motion and export need a painter, not markup.
+//
+// Both consume the SAME resolvers from designTemplates: slotBox, motionAt,
+// typePx, surfaceSpecLayers. Nothing about position, timing or colour is
+// recomputed here. That is deliberate — a preview that disagrees with the
+// exported file is the most damaging bug a design tool can have, and it is
+// exactly what you get from two independent implementations of "where does the
+// headline go".
+//
+// Everything degrades rather than throws. jsdom has no 2D context and older
+// browsers lack ctx.filter or ctx.letterSpacing, so each is feature-detected:
+// a missing blur loses an effect, it does not lose the frame.
+
+import {
+  type DesignTemplate, type SlotSpec, type SurfaceLayer,
+  slotBox, typePx, motionAt, settleTime, surfaceSpecLayers, inkFor, hexAlpha, unitOf, fontStack,
+} from './designTemplates';
+
+export interface TemplatePaintContent {
+  brand?: string;
+  eyebrow?: string;
+  headline?: string;
+  subline?: string;
+  meta?: string;
+  cta?: string;
+  /** Already-loaded images. Loading is the caller's job — painting must be sync. */
+  logo?: CanvasImageSource | null;
+  qr?: CanvasImageSource | null;
+  media?: CanvasImageSource | null;
+}
+
+export interface PaintOptions {
+  accent: string;
+  base?: string;
+  /** Seconds into the scene. Omit for the settled frame. */
+  t?: number;
+  /** 0..1 — how much of the media shows through. */
+  mediaOpacity?: number;
+  fontFamily?: string;
+}
+
+const DEFAULT_FONT = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
+
+/**
+ * CSS gradient angle to a canvas gradient line.
+ *
+ * CSS 0deg points to the top and increases clockwise, which is neither the
+ * canvas convention nor standard maths. Getting this wrong flips gradients
+ * vertically — subtle enough to ship, obvious once it is on a billboard.
+ */
+export function gradientLine(angleDeg: number, w: number, h: number) {
+  const a = (angleDeg * Math.PI) / 180;
+  const dx = Math.sin(a);
+  const dy = -Math.cos(a);
+  const len = Math.abs(w * dx) + Math.abs(h * dy);
+  const cx = w / 2;
+  const cy = h / 2;
+  return {
+    x0: cx - (dx * len) / 2,
+    y0: cy - (dy * len) / 2,
+    x1: cx + (dx * len) / 2,
+    y1: cy + (dy * len) / 2,
+  };
+}
+
+function paintLayer(ctx: CanvasRenderingContext2D, layer: SurfaceLayer, w: number, h: number) {
+  if (layer.kind === 'linear') {
+    const { x0, y0, x1, y1 } = gradientLine(layer.angle, w, h);
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    for (const s of layer.stops) g.addColorStop(Math.max(0, Math.min(1, s.at)), s.color);
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    return;
+  }
+
+  // CSS radial radii are a percentage of width and of height independently, so
+  // the shape is an ellipse. Canvas gradients are circular; scaling the context
+  // reproduces the ellipse exactly instead of approximating it with a circle.
+  const rx = Math.max(1, layer.r * w);
+  const ry = Math.max(1, layer.r * h);
+  ctx.save();
+  ctx.translate(layer.cx * w, layer.cy * h);
+  ctx.scale(1, ry / rx);
+  const g = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+  for (const s of layer.stops) g.addColorStop(Math.max(0, Math.min(1, s.at)), s.color);
+  ctx.fillStyle = g;
+  // Cover the whole canvas in the scaled space, whatever the translation.
+  ctx.fillRect(-w * 2, (-h * 2 * rx) / ry, w * 4, (h * 4 * rx) / ry);
+  ctx.restore();
+}
+
+/**
+ * Break text to fit a width.
+ *
+ * A word longer than the box is left on its own line rather than split: a
+ * hyphenated business name reads as a typo, an overhanging one reads as tight
+ * spacing. `maxLines` then truncates with an ellipsis instead of letting a long
+ * headline push the rest of the layout off the canvas.
+ */
+export function wrapLines(
+  measure: (s: string) => number,
+  text: string,
+  maxWidth: number,
+  maxLines = 4,
+): string[] {
+  const words = (text || '').trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  const lines: string[] = [];
+  let line = words[0];
+
+  for (let i = 1; i < words.length; i++) {
+    const next = `${line} ${words[i]}`;
+    if (measure(next) <= maxWidth) {
+      line = next;
+    } else {
+      lines.push(line);
+      line = words[i];
+      if (lines.length === maxLines) break;
+    }
+  }
+  if (lines.length < maxLines) lines.push(line);
+
+  if (lines.length === maxLines) {
+    const consumed = lines.join(' ').split(/\s+/).length;
+    if (consumed < words.length) {
+      let last = lines[maxLines - 1];
+      while (last.length > 1 && measure(`${last}…`) > maxWidth) last = last.slice(0, -1);
+      lines[maxLines - 1] = `${last}…`;
+    }
+  }
+  return lines;
+}
+
+const textFor = (c: TemplatePaintContent, role: SlotSpec['role']): string => {
+  switch (role) {
+    case 'brand': return c.brand ?? '';
+    case 'eyebrow': return c.eyebrow ?? '';
+    case 'headline': return c.headline ?? '';
+    case 'subline': return c.subline ?? '';
+    case 'meta': return c.meta ?? '';
+    case 'cta': return c.cta ?? '';
+    default: return '';
+  }
+};
+
+/** Headlines wrap to a few lines; supporting copy stays on one or two. */
+const maxLinesFor = (role: SlotSpec['role']): number =>
+  role === 'headline' ? 3 : role === 'subline' ? 2 : 1;
+
+/**
+ * Paint one frame of a template.
+ *
+ * Returns false when there is no usable context (jsdom), so callers can skip
+ * work rather than guard every call site.
+ */
+export function drawTemplateFrame(
+  ctx: CanvasRenderingContext2D | null,
+  tpl: DesignTemplate,
+  content: TemplatePaintContent,
+  w: number,
+  h: number,
+  opts: PaintOptions,
+): boolean {
+  if (!ctx || typeof ctx.fillRect !== 'function') return false;
+
+  const ink = inkFor(tpl);
+  const base = opts.base ?? (tpl.scheme === 'dark' ? '#0b1220' : '#f7f7f5');
+  const accent = opts.accent;
+  const t = opts.t ?? settleTime(tpl);
+  const u = unitOf(w, h);
+  const font = opts.fontFamily ?? DEFAULT_FONT;
+
+  ctx.save();
+  ctx.clearRect(0, 0, w, h);
+  ctx.fillStyle = base;
+  ctx.fillRect(0, 0, w, h);
+
+  // Media first, so the surface tint sits over it and keeps text readable.
+  if (content.media) {
+    const alpha = (opts.mediaOpacity ?? 1);
+    ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
+    try {
+      drawCover(ctx, content.media, w, h);
+    } catch {
+      // A tainted or not-yet-decoded source must not abort the whole frame.
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  for (const layer of surfaceSpecLayers(tpl, accent, base)) {
+    paintLayer(ctx, layer, w, h);
+  }
+
+  if (tpl.surface.kind === 'frame') {
+    const inset = (tpl.surface.frame ?? 0.035) * u;
+    ctx.strokeStyle = hexAlpha(ink, 0.9);
+    ctx.lineWidth = Math.max(2, u * 0.006);
+    ctx.strokeRect(inset, inset, w - inset * 2, h - inset * 2);
+  }
+
+  for (const slot of tpl.slots) {
+    const m = motionAt(slot, t, w, h);
+    if (m.opacity <= 0 && !m.clip) continue;
+
+    const box = slotBox(slot, w, h);
+    const size = typePx(slot.size, w, h);
+    const weight = slot.weight ?? 600;
+
+    ctx.save();
+    ctx.globalAlpha = Math.max(0, Math.min(1, m.opacity));
+
+    // A wipe reveals by geometry, so it clips rather than fades.
+    if (m.clip) {
+      const cw = box.width * (1 - m.clip[1] / 100);
+      ctx.beginPath();
+      ctx.rect(box.left, box.top - size * 1.4, Math.max(0, cw), size * 4);
+      ctx.clip();
+    }
+
+    if (m.blurPx > 0 && 'filter' in ctx) {
+      try { (ctx as CanvasRenderingContext2D).filter = `blur(${m.blurPx}px)`; } catch { /* unsupported */ }
+    }
+
+    ctx.translate(box.left + m.dx, box.top + m.dy);
+    if (m.scale !== 1) {
+      const ox = box.textAlign === 'center' ? box.width / 2 : 0;
+      ctx.translate(ox, 0);
+      ctx.scale(m.scale, m.scale);
+      ctx.translate(-ox, 0);
+    }
+
+    if (slot.role === 'qr' && content.qr) {
+      const s = slot.w * w;
+      ctx.fillStyle = '#ffffff';
+      ctx.fillRect(0, 0, s, s);
+      try { ctx.drawImage(content.qr, u * 0.008, u * 0.008, s - u * 0.016, s - u * 0.016); } catch { /* not decoded */ }
+      ctx.restore();
+      continue;
+    }
+
+    const value = textFor(content, slot.role);
+    if (!value) { ctx.restore(); continue; }
+
+    const shown = slot.upper ? value.toUpperCase() : value;
+    // Slot font wins over the template's, which wins over the caller's default.
+    const family = slot.font || tpl.font ? fontStack(slot.font ?? tpl.font) : font;
+    ctx.font = `${weight} ${size}px ${family}`;
+    ctx.textBaseline = 'top';
+    if (slot.tracking && 'letterSpacing' in ctx) {
+      try { (ctx as unknown as { letterSpacing: string }).letterSpacing = `${slot.tracking * size}px`; } catch { /* unsupported */ }
+    }
+
+    const tone = slot.tone === 'accent' ? accent : slot.tone === 'muted' ? hexAlpha(ink, 0.72) : ink;
+    const lines = wrapLines((s) => ctx.measureText(s).width, shown, box.width, maxLinesFor(slot.role));
+    const lineHeight = size * ((slot.size ?? 0.05) > 0.07 ? 1.06 : 1.28);
+    const widest = lines.reduce((mx, l) => Math.max(mx, ctx.measureText(l).width), 0);
+    const pad = u * 0.014;
+
+    const anchorX = box.textAlign === 'center' ? box.width / 2 : box.textAlign === 'right' ? box.width : 0;
+    ctx.textAlign = box.textAlign === 'center' ? 'center' : box.textAlign === 'right' ? 'right' : 'left';
+
+    // Treatment chrome, painted behind the glyphs.
+    const blockW = widest + pad * 2;
+    const blockH = lines.length * lineHeight + pad * 1.4;
+    const blockX = box.textAlign === 'center' ? anchorX - blockW / 2 : box.textAlign === 'right' ? anchorX - blockW : 0;
+
+    if (slot.treatment === 'pill' || slot.treatment === 'panel' || slot.treatment === 'outline') {
+      const r = slot.treatment === 'pill' ? blockH / 2 : slot.treatment === 'panel' ? u * 0.02 : 0;
+      roundRect(ctx, blockX, -pad * 0.7, blockW, blockH, r);
+      if (slot.treatment === 'outline') {
+        ctx.strokeStyle = hexAlpha(ink, 0.75);
+        ctx.lineWidth = Math.max(1, u * 0.003);
+        ctx.stroke();
+      } else {
+        ctx.fillStyle = slot.treatment === 'panel'
+          ? hexAlpha(base, 0.55)
+          : hexAlpha(slot.tone === 'accent' ? accent : ink, 0.18);
+        ctx.fill();
+      }
+    }
+
+    if (slot.treatment === 'bar') {
+      ctx.fillStyle = accent;
+      ctx.fillRect(-pad, 0, Math.max(2, u * 0.008), blockH - pad * 0.4);
+    }
+
+    ctx.fillStyle = tone;
+    lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
+
+    if (slot.treatment === 'underline') {
+      const y = lines.length * lineHeight + pad * 0.4;
+      ctx.fillStyle = accent;
+      ctx.fillRect(blockX + pad, y, Math.max(2, widest), Math.max(2, u * 0.006));
+    }
+
+    ctx.restore();
+  }
+
+  ctx.restore();
+  return true;
+}
+
+function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: number, h: number, r: number) {
+  const rr = Math.max(0, Math.min(r, Math.min(w, h) / 2));
+  ctx.beginPath();
+  ctx.moveTo(x + rr, y);
+  ctx.lineTo(x + w - rr, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + rr);
+  ctx.lineTo(x + w, y + h - rr);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - rr, y + h);
+  ctx.lineTo(x + rr, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - rr);
+  ctx.lineTo(x, y + rr);
+  ctx.quadraticCurveTo(x, y, x + rr, y);
+  ctx.closePath();
+}
+
+/** object-fit: cover, for a canvas. */
+export function coverRect(sw: number, sh: number, w: number, h: number) {
+  if (!sw || !sh) return { x: 0, y: 0, w, h };
+  const scale = Math.max(w / sw, h / sh);
+  const dw = sw * scale;
+  const dh = sh * scale;
+  return { x: (w - dw) / 2, y: (h - dh) / 2, w: dw, h: dh };
+}
+
+function drawCover(ctx: CanvasRenderingContext2D, src: CanvasImageSource, w: number, h: number) {
+  const anySrc = src as unknown as { videoWidth?: number; videoHeight?: number; width?: number; height?: number };
+  const sw = anySrc.videoWidth || anySrc.width || 0;
+  const sh = anySrc.videoHeight || anySrc.height || 0;
+  const r = coverRect(Number(sw), Number(sh), w, h);
+  ctx.drawImage(src, r.x, r.y, r.w, r.h);
+}

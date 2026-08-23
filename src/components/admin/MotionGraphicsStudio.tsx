@@ -10,7 +10,7 @@ import {
 import type { DirectorScene, TextElementStyle, TextAnimationKey, TextEffectKey } from '../../lib/creativeDirector';
 import { TEXT_ANIMATIONS, TEXT_EFFECTS } from '../../lib/creativeDirector';
 import {
-  renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
+  renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline, timelineAt,
   sceneElementRegions, sceneLayerRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
   createBackgroundVideo, createBackgroundImage, MOTION_FONT_DEFAULT,
   type RenderAspect, type SceneFrameOptions, type MotionTreatment,
@@ -24,10 +24,13 @@ import {
   CLIP_SECONDS_MIN, CLIP_SECONDS_MAX,
   type MotionConfig, type MotionStyle, type MotionDuration, type MotionTimeline,
 } from '../../lib/motionGraphics';
-import { resolveAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
+import { resolveAiVideoClips, releaseAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
 import AiVideoGenPicker from '../studio/AiVideoGenPicker';
 import { MOTION_TEMPLATES, DESIGN_STYLES, motionTemplateByKey, type MotionTemplate } from '../../data/motionTemplates';
 import { pickPreviewVoice } from '../../lib/voicePreview';
+import { drawTemplateFrame } from '../../lib/drawTemplate';
+import { DESIGN_TEMPLATES, type DesignTemplate } from '../../lib/designTemplates';
+import { downloadBlob } from '../../lib/studio';
 import {
   blankMotionProject, motionProjectFromTemplate, motionProjectFromPrompt,
   saveMotionProject, deleteMotionProject, duplicateMotionProject, loadMotionProjects,
@@ -211,7 +214,7 @@ function timeAgo(iso: string): string {
  */
 function MotionPreview({
   opts, scenes, editMode, sceneIndex, playing, playhead, selectedLayer,
-  onProgress, onPick, onMoveElement, onSelectLayer, onMoveLayer, className,
+  onProgress, onPick, onMoveElement, onSelectLayer, onMoveLayer, className, template,
 }: {
   opts: SceneFrameOptions;
   scenes: DirectorScene[];
@@ -229,6 +232,12 @@ function MotionPreview({
   /** Called while dragging a layer, with the cumulative normalised delta. */
   onMoveLayer?: (i: number, dx: number, dy: number) => void;
   className?: string;
+  /**
+   * When set, frames come from the shared design template rather than the
+   * bespoke scene renderer — the same definition Creative Studio renders as a
+   * still, so the two cannot drift apart.
+   */
+  template?: DesignTemplate | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{
@@ -253,8 +262,33 @@ function MotionPreview({
     const cw = canvas.width;
     const ch = canvas.height;
     const timeline = buildRenderTimeline(scenes, opts);
+
+    // A single paint path. There were three separate drawSceneFrame calls, and
+    // adding a template branch at each would be three chances to diverge.
+    const paint = (frame: number) => {
+      if (!template) { paint(frame); return; }
+      const { scene, t } = timelineAt(timeline, frame);
+      const current = scenes[scene.index];
+      // motionAt works in seconds; timelineAt reports a 0..1 fraction of the
+      // scene, so convert rather than feeding it a fraction.
+      const seconds = (t * scene.frames) / timeline.fps;
+      drawTemplateFrame(
+        ctx,
+        template,
+        {
+          brand: opts.businessName,
+          eyebrow: opts.directionLabel,
+          headline: current?.text || opts.hook || '',
+          subline: current?.voiceover || current?.direction || '',
+          meta: opts.cta || '',
+          cta: opts.cta || '',
+        },
+        cw,
+        ch,
+        { accent: opts.palette?.[0] ?? '#9a3412', t: seconds },
+      );
+    };
     const totalFrames = Math.max(1, timeline.totalFrames);
-    let frame = 0;
     let raf = 0;
 
     // Warm the brand webfont so captions render in it rather than the fallback.
@@ -262,14 +296,21 @@ function MotionPreview({
       void document.fonts.load(`700 16px ${MOTION_FONT_DEFAULT}`).catch(() => { /* fallback stays in the stack */ });
     }
 
-    // Keep uploaded video layers animating behind the captions.
-    (opts.layers ?? [])
-      .filter((l) => l.kind === 'video')
-      .forEach((l) => {
-        if (!l.video) return;
-        const p = l.video.play();
+    // Keep uploaded video layers animating behind the captions — but only while
+    // the film is actually playing. Left running under a frozen frame they burn
+    // a decode loop per layer for a picture nobody is watching.
+    const layerVideos = (opts.layers ?? [])
+      .filter((l) => l.kind === 'video' && l.video)
+      .map((l) => l.video as HTMLVideoElement);
+    const playLayerVideos = () => {
+      layerVideos.forEach((v) => {
+        const p = v.play();
         if (p) p.catch(() => { /* autoplay-blocked — the frame draws whatever is ready */ });
       });
+    };
+    const pauseLayerVideos = () => {
+      layerVideos.forEach((v) => { try { v.pause(); } catch { /* already detached */ } });
+    };
 
     const paintRegions = (si: number) => {
       const regions = sceneElementRegions(opts, scenes[si] ?? scenes[0], si);
@@ -316,7 +357,8 @@ function MotionPreview({
         timing.startFrame + Math.round(timing.frames * 0.5),
         Math.max(timing.startFrame, timing.endFrame - 1),
       );
-      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, settle);
+      pauseLayerVideos();
+      paint(settle);
       paintRegions(timing.index);
       return () => window.cancelAnimationFrame(raf);
     }
@@ -325,20 +367,33 @@ function MotionPreview({
 
     if (!playing) {
       // Paused: one frozen frame at the playhead position.
-      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, startFrame);
+      pauseLayerVideos();
+      paint(startFrame);
       return () => window.cancelAnimationFrame(raf);
     }
 
-    frame = startFrame;
-    const tick = () => {
-      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame);
-      onProgressRef.current?.(totalFrames > 1 ? frame / (totalFrames - 1) : 0);
-      frame = (frame + 1) % totalFrames;
+    playLayerVideos();
+    // Advance on elapsed wall-clock time at the timeline's own fps rather than
+    // one frame per animation frame. Counting animation frames played a 30fps
+    // film at 2× on a 60Hz screen and nearly 5× on a 144Hz one, so what the
+    // editor previewed never matched the exported MP4 — and the same project
+    // looked different on different monitors.
+    const fps = timeline.fps;
+    let startedAt = 0;
+    let lastDrawn = -1;
+    const tick = (now: number) => {
+      if (!startedAt) startedAt = now;
+      const frame = (startFrame + Math.floor(((now - startedAt) / 1000) * fps)) % totalFrames;
+      if (frame !== lastDrawn) {
+        lastDrawn = frame;
+        drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame);
+        onProgressRef.current?.(totalFrames > 1 ? frame / (totalFrames - 1) : 0);
+      }
       raf = window.requestAnimationFrame(tick);
     };
     raf = window.requestAnimationFrame(tick);
-    return () => { window.cancelAnimationFrame(raf); };
-  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead, selectedLayer]);
+    return () => { window.cancelAnimationFrame(raf); pauseLayerVideos(); };
+  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead, selectedLayer, template]);
 
   const pickAt = (e: React.PointerEvent<HTMLCanvasElement>): { kind: 'element' | 'layer'; key?: SceneElementKey; layerIndex?: number } | null => {
     const canvas = canvasRef.current;
@@ -764,6 +819,8 @@ export default function MotionGraphicsStudio() {
   // Editable preview — a selected scene freezes the canvas and lets clicks open
   // the element's field inline (headline, sub-line, brand lockup or call to action).
   const [editMode, setEditMode] = useState(false);
+  const [designKey, setDesignKey] = useState<string | null>(null);
+  const designTpl = designKey ? (DESIGN_TEMPLATES.find(t => t.key === designKey) ?? null) : null;
   const [editSceneIndex, setEditSceneIndex] = useState(0);
   const [editing, setEditing] = useState<{ key: SceneElementKey; label: string; value: string } | null>(null);
 
@@ -1148,8 +1205,10 @@ export default function MotionGraphicsStudio() {
     setRendering(true);
     setError(null);
     setProgress(0);
+    // Declared out here so the finally block can release the object URLs the
+    // AI-clip path minted, whichever way the render ends.
+    let footage: Awaited<ReturnType<typeof resolveAiVideoClips>> | undefined;
     try {
-      let footage;
       if (renderSource === 'aivideo') {
         footage = await resolveAiVideoClips({
           businessName: brief.business || 'NowOpen',
@@ -1171,15 +1230,17 @@ export default function MotionGraphicsStudio() {
         scenes,
         (p) => setProgress(p),
       );
-      const url = URL.createObjectURL(result.blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `motion-${brief.style}-${brief.aspect.toLowerCase()}.${result.mimeType.includes('mp4') ? 'mp4' : 'webm'}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      // downloadBlob keeps the object URL alive long enough for the browser to
+      // finish writing the file — revoking it on the next line raced the save
+      // for anything bigger than a few megabytes.
+      downloadBlob(
+        result.blob,
+        `motion-${brief.style}-${brief.aspect.toLowerCase()}.${result.mimeType.includes('mp4') ? 'mp4' : 'webm'}`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not render the video.');
     } finally {
+      if (footage) releaseAiVideoClips(footage);
       setRendering(false);
       setProgress(0);
     }
@@ -1931,9 +1992,31 @@ export default function MotionGraphicsStudio() {
                     {scenes.length} clips · {seconds}s · {formatChip} · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}
                   </span>
                 </div>
+                <div className="mx-3 mt-1 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400">Design template</span>
+                    <button type="button" onClick={() => setDesignKey(null)}
+                      aria-pressed={designKey === null}
+                      className={`px-2.5 min-h-[32px] rounded-lg text-[11px] font-semibold border transition ${designKey === null ? 'border-transparent bg-gray-900 text-white dark:bg-gray-700' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      Scene renderer
+                    </button>
+                    {DESIGN_TEMPLATES.map((t) => (
+                      <button key={t.key} type="button" onClick={() => setDesignKey(t.key)}
+                        aria-pressed={designKey === t.key}
+                        title={t.desc}
+                        className={`px-2.5 min-h-[32px] rounded-lg text-[11px] font-semibold border transition ${designKey === t.key ? 'border-transparent bg-purple-600 text-white' : 'border-purple-200 dark:border-purple-800/60 text-gray-600 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}>
+                        {t.label}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    A template animates here with the same geometry and timing Creative Studio renders as a still. "Scene renderer" keeps the original per-clip layout.
+                  </p>
+                </div>
                 <div className="flex-1 flex items-center justify-center min-h-[380px] bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 mx-3 my-2 p-3">
                   <div className="flex justify-center items-center" style={{ width: zoom === 'fit' ? '100%' : `${zoom}%`, height: '100%' }}>
                     <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex}
+                      template={designTpl}
                       playing={playing} playhead={playhead} selectedLayer={selectedLayer}
                       onProgress={onProgress} onPick={pickElement}
                       onMoveElement={onMoveElement}

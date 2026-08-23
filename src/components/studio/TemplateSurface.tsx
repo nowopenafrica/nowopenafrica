@@ -1,7 +1,7 @@
 import { useRef } from 'react';
 import {
   type DesignTemplate, type SlotRole, type SlotSpec,
-  slotBox, typePx, motionAt, settleTime, surfaceLayers, inkFor, hexAlpha, unitOf,
+  slotBox, typePx, motionAt, settleTime, surfaceLayers, inkFor, hexAlpha, unitOf, fontStack,
 } from '../../lib/designTemplates';
 
 // Renders a DesignTemplate. One component for stills and for motion frames.
@@ -216,6 +216,7 @@ export default function TemplateSurface({
           fontWeight: slot.weight ?? 600,
           lineHeight: (slot.size ?? 0.05) > 0.07 ? 1.03 : 1.25,
           letterSpacing: `${slot.tracking ?? 0}em`,
+          fontFamily: fontStack(slot.font ?? template.font),
           textTransform: slot.upper ? 'uppercase' : undefined,
           color: toneColor(slot),
           ...treatmentStyle(slot),
