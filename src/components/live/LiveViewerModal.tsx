@@ -116,7 +116,7 @@ export default function LiveViewerModal({ business, stream, onClose, onBook, onO
         <div className="absolute top-0 inset-x-0 p-3 sm:p-4 flex items-start justify-between bg-gradient-to-b from-black/70 to-transparent">
           <div className="flex items-center gap-2.5 min-w-0">
             <div className="w-9 h-9 rounded-full bg-gray-700 flex-shrink-0 overflow-hidden border border-white/20">
-              {business.logo_url && <img src={business.logo_url} alt={business.name} className="w-full h-full object-cover" />}
+              {business.logo_url && <img loading="lazy" decoding="async" src={business.logo_url} alt={business.name} className="w-full h-full object-cover" />}
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">

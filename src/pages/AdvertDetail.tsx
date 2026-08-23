@@ -295,7 +295,7 @@ export default function AdvertDetail() {
                       className="flex gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 transition"
                     >
                       <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
-                        {a.image_url && <img src={a.image_url} alt={a.title} className="w-full h-full object-cover" />}
+                        {a.image_url && <img loading="lazy" decoding="async" src={a.image_url} alt={a.title} className="w-full h-full object-cover" />}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{a.title}</p>

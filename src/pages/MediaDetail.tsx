@@ -428,7 +428,7 @@ export default function MediaDetail() {
                               onClick={() => setLightboxIndex(idx)}
                               className="aspect-video bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden group"
                             >
-                              <img src={img} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                              <img loading="lazy" decoding="async" src={img} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                             </button>
                           ))
                         ) : (
@@ -550,7 +550,7 @@ export default function MediaDetail() {
                       className="flex gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:border-pink-300 dark:hover:border-pink-700 transition"
                     >
                       <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
-                        {(s.thumbnail_url || s.image_url) && <img src={s.thumbnail_url || s.image_url} alt={s.title} className="w-full h-full object-cover" />}
+                        {(s.thumbnail_url || s.image_url) && <img loading="lazy" decoding="async" src={s.thumbnail_url || s.image_url} alt={s.title} className="w-full h-full object-cover" />}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{s.title}</p>
@@ -708,7 +708,7 @@ export default function MediaDetail() {
               <ChevronLeft size={32} />
             </button>
           )}
-          <img
+          <img loading="lazy" decoding="async"
             src={portfolio[lightboxIndex]}
             alt={`Portfolio ${lightboxIndex + 1}`}
             onClick={(e) => e.stopPropagation()}

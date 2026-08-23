@@ -197,7 +197,7 @@ function PropertyCard({ p, onOpen }: { p: PortalProperty; onOpen: () => void }) 
     >
       <div className="relative">
         {p.image ? (
-          <img src={p.image} alt={p.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
+          <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
         ) : (
           <div className="w-full h-44 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
             <Home size={36} className="text-blue-400 dark:text-gray-400" />
@@ -233,7 +233,7 @@ function FeaturedCard({ p, onOpen }: { p: PortalProperty; onOpen: () => void }) 
       className="text-left relative rounded-2xl overflow-hidden group h-56 w-full"
     >
       {p.image ? (
-        <img src={p.image} alt={p.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
+        <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
       ) : (
         <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600" />
       )}
@@ -279,7 +279,7 @@ function PropertyModal({
         {/* Gallery */}
         <div className="relative">
           {images.length > 0 ? (
-            <img src={images[idx]} alt={p.name} className="w-full h-60 sm:h-72 object-cover sm:rounded-t-2xl" />
+            <img loading="lazy" decoding="async" src={images[idx]} alt={p.name} className="w-full h-60 sm:h-72 object-cover sm:rounded-t-2xl" />
           ) : (
             <div className="w-full h-60 bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center">
               <Home size={48} className="text-white/80" />

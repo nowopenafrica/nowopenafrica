@@ -94,7 +94,7 @@ export default function HealthCenter({ doctors, ctaLabel, hasPhone, phone, onBoo
             <div key={d.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl p-4">
               <div className="flex items-center gap-3">
                 {d.image ? (
-                  <img src={d.image} alt={d.name} className="w-14 h-14 rounded-full object-cover flex-shrink-0" />
+                  <img loading="lazy" decoding="async" src={d.image} alt={d.name} className="w-14 h-14 rounded-full object-cover flex-shrink-0" />
                 ) : (
                   <div className="w-14 h-14 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">
                     <Stethoscope size={22} className="text-blue-500 dark:text-blue-300" />

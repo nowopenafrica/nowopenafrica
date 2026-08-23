@@ -77,7 +77,7 @@ export default function BeautySalon({
           <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
             {looks.map((src, i) => (
               <button key={i} onClick={() => setLightbox(i)} className="aspect-square rounded-xl overflow-hidden group">
-                <img src={src} alt={`Look ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                <img loading="lazy" decoding="async" src={src} alt={`Look ${i + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
               </button>
             ))}
           </div>
@@ -92,7 +92,7 @@ export default function BeautySalon({
             {stylists.map((s) => (
               <div key={s.name} className="flex items-center gap-3">
                 {s.image ? (
-                  <img src={s.image} alt={s.name} className="w-12 h-12 rounded-full object-cover" />
+                  <img loading="lazy" decoding="async" src={s.image} alt={s.name} className="w-12 h-12 rounded-full object-cover" />
                 ) : (
                   <div className="w-12 h-12 rounded-full bg-pink-100 dark:bg-pink-900/30 flex items-center justify-center text-pink-600 dark:text-pink-300 font-bold">{s.name.charAt(0)}</div>
                 )}
@@ -114,7 +114,7 @@ export default function BeautySalon({
             {list.map((t) => (
               <li key={t.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
                 {t.image ? (
-                  <img src={t.image} alt={t.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                  <img loading="lazy" decoding="async" src={t.image} alt={t.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
                 ) : (
                   <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-pink-100 to-rose-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center flex-shrink-0">
                     <Scissors size={20} className="text-pink-400 dark:text-gray-400" />
@@ -149,7 +149,7 @@ export default function BeautySalon({
           <div className="absolute inset-0 bg-black/80" />
           <button onClick={() => setLightbox(null)} aria-label="Close" className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><X size={22} /></button>
           <button onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! - 1 + looks.length) % looks.length); }} aria-label="Previous" className="absolute left-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronLeft size={24} /></button>
-          <img src={looks[lightbox]} alt="Look" className="relative max-h-[85vh] max-w-full rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+          <img loading="lazy" decoding="async" src={looks[lightbox]} alt="Look" className="relative max-h-[85vh] max-w-full rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
           <button onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! + 1) % looks.length); }} aria-label="Next" className="absolute right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronRight size={24} /></button>
         </div>
       )}

@@ -86,7 +86,7 @@ export default function ManufacturingHub({ items, certifications = [], hasPhone,
           <div key={p.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
             <div className="relative">
               {p.image ? (
-                <img src={p.image} alt={p.name} className="w-full h-28 sm:h-32 object-cover" />
+                <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-28 sm:h-32 object-cover" />
               ) : (
                 <div className="w-full h-28 sm:h-32 bg-gradient-to-br from-slate-100 to-gray-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                   <Factory size={26} className="text-slate-400 dark:text-gray-400" />

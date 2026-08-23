@@ -1,0 +1,398 @@
+import { useCallback, useEffect, useRef, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import toast from 'react-hot-toast';
+import { Mic, MicOff, Loader2, X, Ear } from 'lucide-react';
+import {
+  stripWakePhrase, parseVoiceCommand, matchCategory, searchUrlFor, replyFor,
+} from '../lib/voiceCommands';
+import { detectLocation, isGeolocationSupported } from '../lib/geolocation';
+import {
+  loadAlwaysListen, saveAlwaysListen, micPermissionState, shouldListen,
+  type MicPermission,
+} from '../lib/voiceWake';
+
+// Voice control for the platform: "NowOpen AI — I need a barber in my area".
+//
+// WHAT THE BROWSER ALLOWS
+//
+// Hands-free with NO tapping is possible, with one unavoidable caveat: the very
+// first grant of microphone permission needs a gesture. After that the browser
+// remembers it for the origin, so every later visit starts listening on page
+// load — the page opens already waiting for "NowOpen AI".
+//
+// What is NOT possible is listening while the browser or tab is closed. A page
+// does not run then, and the web has no background wake-word service. That needs
+// a native app or an OS assistant integration; it is a platform boundary, not
+// something code here can work around.
+//
+// So: opt in once (that tap grants the microphone), and from then on it is
+// automatic whenever the site is open — see lib/voiceWake for the state rules,
+// including stopping when the tab is hidden and reacting to permission being
+// revoked in browser settings.
+//
+// Support is uneven: Chrome and Edge (desktop + Android) implement
+// SpeechRecognition; Safari's is partial and often silently unavailable. When it
+// is missing the button hides itself rather than offering something broken.
+
+type Listening = 'off' | 'listening' | 'working';
+
+interface SpeechRecognitionLike extends EventTarget {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  maxAlternatives: number;
+  start: () => void;
+  stop: () => void;
+  abort: () => void;
+  onresult: ((e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void) | null;
+  onerror: ((e: { error?: string }) => void) | null;
+  onend: (() => void) | null;
+}
+
+const getRecogniser = (): (new () => SpeechRecognitionLike) | null => {
+  if (typeof window === 'undefined') return null;
+  const w = window as unknown as Record<string, unknown>;
+  return (w.SpeechRecognition || w.webkitSpeechRecognition) as (new () => SpeechRecognitionLike) | null;
+};
+
+/** Speak the confirmation, where the browser can. Never required. */
+const say = (text: string) => {
+  try {
+    if (!('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 1.05;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  } catch { /* silence is fine */ }
+};
+
+export default function VoiceAssistant() {
+  const navigate = useNavigate();
+  const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
+  // Read inside the recogniser callbacks, which are registered once.
+  const openRef = useRef(false);
+  const requireWakeRef = useRef(true);
+  // Read by recognition.onend, which is registered once and must not close over
+  // a stale value — this is what keeps the hands-free loop alive.
+  const keepListeningRef = useRef(false);
+
+  const [supported, setSupported] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [state, setState] = useState<Listening>('off');
+  const [heard, setHeard] = useState('');
+  const [reply, setReply] = useState('');
+  const [requireWake, setRequireWake] = useState(true);
+  // Hands-free: opted in once, then automatic on every visit.
+  const [alwaysListen, setAlwaysListen] = useState(loadAlwaysListen);
+  const [permission, setPermission] = useState<MicPermission>('unknown');
+  const [tabVisible, setTabVisible] = useState(
+    typeof document === 'undefined' ? true : !document.hidden,
+  );
+
+  useEffect(() => { openRef.current = open; }, [open]);
+  useEffect(() => { requireWakeRef.current = requireWake; }, [requireWake]);
+  useEffect(() => { setSupported(!!getRecogniser()); }, []);
+
+  // Read the permission once, then follow it: revoking the mic in browser
+  // settings has to stop the assistant without a reload.
+  useEffect(() => {
+    let status: PermissionStatus | null = null;
+    let cancelled = false;
+    const sync = () => { if (!cancelled) void micPermissionState().then(setPermission); };
+    sync();
+    (async () => {
+      try {
+        status = await navigator.permissions?.query({ name: 'microphone' as PermissionName });
+        status?.addEventListener('change', sync);
+      } catch { /* Permissions API unavailable — the one read above stands */ }
+    })();
+    return () => { cancelled = true; status?.removeEventListener('change', sync); };
+  }, []);
+
+  // Stop when the tab goes away; pick up again when it returns.
+  useEffect(() => {
+    const onVisibility = () => setTabVisible(!document.hidden);
+    document.addEventListener('visibilitychange', onVisibility);
+    return () => document.removeEventListener('visibilitychange', onVisibility);
+  }, []);
+
+  const runIntent = useCallback(async (command: string) => {
+    const intent = parseVoiceCommand(command);
+
+    if (intent.kind === 'navigate') {
+      setReply(replyFor(intent));
+      say(replyFor(intent));
+      navigate(intent.path);
+      setOpen(false);
+      return;
+    }
+
+    if (intent.kind === 'unknown') {
+      const message = replyFor(intent);
+      setReply(message);
+      say(message);
+      return;
+    }
+
+    // A search. Resolve the caller's area only when they actually asked for it.
+    setState('working');
+    let location: string | null = null;
+    if (intent.nearMe && isGeolocationSupported()) {
+      try {
+        location = (await detectLocation()).label;
+      } catch {
+        toast('Couldn\'t get your location — searching everywhere instead.');
+      }
+    }
+    // Prefer a real platform category so the directory filters properly, and
+    // fall back to the spoken words when nothing matches.
+    const query = matchCategory(intent.query) || intent.query;
+    const message = replyFor(intent, location);
+    setReply(message);
+    say(message);
+    navigate(searchUrlFor(query, location));
+    setOpen(false);
+  }, [navigate]);
+
+  const handleTranscript = useCallback((transcript: string) => {
+    setHeard(transcript);
+    const afterWake = stripWakePhrase(transcript);
+    if (requireWakeRef.current) {
+      // Not addressed to us — keep listening without acting.
+      if (afterWake === null) return;
+      if (!afterWake) {
+        setReply('Listening…');
+        return;
+      }
+      void runIntent(afterWake);
+      return;
+    }
+    // Tap-to-talk: the tap was the activation, so a wake phrase is optional.
+    void runIntent(afterWake ?? transcript);
+  }, [runIntent]);
+
+  const stop = useCallback(() => {
+    setState('off');
+    try { recognitionRef.current?.stop(); } catch { /* already stopped */ }
+  }, []);
+
+  const start = useCallback(() => {
+    const Recogniser = getRecogniser();
+    if (!Recogniser) return;
+    try { recognitionRef.current?.abort(); } catch { /* nothing running */ }
+
+    const recognition = new Recogniser();
+    recognition.lang = 'en-NG';
+    recognition.continuous = false; // ends on silence; restarted below
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+
+    recognition.onresult = (e) => {
+      const transcript = e.results?.[0]?.[0]?.transcript || '';
+      if (transcript) handleTranscript(transcript);
+    };
+    recognition.onerror = (e) => {
+      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
+        setState('off');
+        setOpen(false);
+        toast.error('Microphone access is blocked. Allow it in your browser settings to use voice.');
+      }
+    };
+    recognition.onend = () => {
+      // Recognition stops itself after every utterance and after silence. As
+      // long as it should still be listening, restart it — that loop is what
+      // makes hands-free work without the user touching anything.
+      if (keepListeningRef.current) {
+        try { recognition.start(); } catch { /* already restarting */ }
+      } else {
+        setState('off');
+      }
+    };
+
+    recognitionRef.current = recognition;
+    try {
+      recognition.start();
+      setState('listening');
+    } catch {
+      setState('off');
+    }
+  }, [handleTranscript]);
+
+  useEffect(() => () => { try { recognitionRef.current?.abort(); } catch { /* gone */ } }, []);
+
+  // The single source of truth for whether the microphone should be running.
+  const wantListening = shouldListen({ alwaysListen, permission, tabVisible, panelOpen: open });
+  useEffect(() => { keepListeningRef.current = wantListening; }, [wantListening]);
+
+  // Drive the recogniser from that. This is what starts listening on page load
+  // with no click at all, once hands-free is on and permission already granted.
+  useEffect(() => {
+    if (!supported) return;
+    if (wantListening && state === 'off') {
+      if (!open) setReply('Listening for “NowOpen AI”…');
+      start();
+    } else if (!wantListening && state !== 'off') {
+      stop();
+    }
+    // `state` is intentionally read, not depended on, to avoid a start/stop loop.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantListening, supported]);
+
+  const openPanel = (wake: boolean) => {
+    // With hands-free on the user is already talking to a wake phrase; don't
+    // silently switch them to tap-to-talk just because they opened the panel.
+    const useWake = alwaysListen ? true : wake;
+    setRequireWake(useWake);
+    requireWakeRef.current = useWake;
+    setHeard('');
+    setReply(useWake ? 'Say “NowOpen AI…”' : 'Listening — what do you need?');
+    setOpen(true);
+    openRef.current = true;
+    keepListeningRef.current = true;
+    start();
+  };
+
+  const closePanel = () => {
+    setOpen(false);
+    openRef.current = false;
+    // Closing the panel is not switching hands-free off — the effect below
+    // decides whether the microphone stays live.
+    if (!alwaysListen) {
+      keepListeningRef.current = false;
+      stop();
+    }
+  };
+
+  if (!supported) return null;
+
+  return (
+    <>
+      {!open && (
+        <button
+          onClick={() => openPanel(false)}
+          aria-label={wantListening ? 'NowOpen AI is listening' : 'Voice search'}
+          title={wantListening
+            ? 'Listening for “NowOpen AI” — tap to open'
+            : 'Voice search — or say “NowOpen AI”'}
+          className={`fixed bottom-24 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition ${
+            wantListening ? 'bg-red-600 text-white' : 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
+          }`}
+        >
+          <Mic size={20} />
+          {/* Standing indication that the mic is live — never listen silently. */}
+          {wantListening && (
+            <span className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping" aria-hidden />
+          )}
+        </button>
+      )}
+
+      {open && (
+        <div
+          className="fixed inset-x-0 bottom-0 z-50 p-4 sm:p-6 flex justify-center"
+          role="dialog"
+          aria-modal="true"
+          aria-label="Voice assistant"
+        >
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-gray-800 shadow-2xl border border-gray-200 dark:border-gray-700 p-5">
+            <div className="flex items-start justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <span className={`relative flex items-center justify-center w-10 h-10 rounded-full ${
+                  state === 'listening' ? 'bg-red-600' : 'bg-gray-900 dark:bg-white'
+                }`}>
+                  {state === 'working'
+                    ? <Loader2 size={18} className="text-white dark:text-gray-900 animate-spin" />
+                    : <Mic size={18} className="text-white dark:text-gray-900" />}
+                  {state === 'listening' && (
+                    <span className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping" />
+                  )}
+                </span>
+                <div>
+                  <p className="text-sm font-bold text-gray-900 dark:text-white">NowOpen AI</p>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {state === 'listening' ? 'Listening…' : state === 'working' ? 'Working…' : 'Paused'}
+                  </p>
+                </div>
+              </div>
+              <button onClick={closePanel} aria-label="Close voice assistant"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+                <X size={18} />
+              </button>
+            </div>
+
+            <p className="mt-4 text-sm text-gray-900 dark:text-white min-h-[1.25rem]">
+              {heard ? `“${heard}”` : reply}
+            </p>
+            {heard && reply && (
+              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{reply}</p>
+            )}
+
+            {/* Hands-free opt-in. The click both saves the preference and (on
+                first use) grants the microphone, which is the one gesture the
+                browser insists on — every later visit starts on its own. */}
+            <label className="mt-4 flex items-start gap-2.5 rounded-xl border border-gray-200 dark:border-gray-700 p-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={alwaysListen}
+                onChange={(e) => {
+                  const on = e.target.checked;
+                  setAlwaysListen(on);
+                  saveAlwaysListen(on);
+                  if (on) {
+                    setRequireWake(true);
+                    requireWakeRef.current = true;
+                    keepListeningRef.current = true;
+                    start();
+                  }
+                }}
+                className="mt-0.5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              />
+              <span>
+                <span className="block text-xs font-semibold text-gray-900 dark:text-white">
+                  Listen automatically for “NowOpen AI”
+                </span>
+                <span className="block text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                  Starts on its own whenever NowOpen is open — no tapping. It can&apos;t
+                  listen while your browser is closed, and it pauses when you switch tabs.
+                </span>
+                {permission === 'denied' && (
+                  <span className="block text-[11px] text-amber-700 dark:text-amber-400 mt-1">
+                    Microphone is blocked for this site — allow it in your browser settings first.
+                  </span>
+                )}
+              </span>
+            </label>
+
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => { const next = !requireWake; setRequireWake(next); requireWakeRef.current = next; }}
+                aria-pressed={requireWake}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition ${
+                  requireWake
+                    ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent'
+                    : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700'
+                }`}
+              >
+                <Ear size={13} /> {requireWake ? 'Wake phrase on' : 'Wake phrase off'}
+              </button>
+              {state === 'off' ? (
+                <button onClick={start}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                  <Mic size={13} /> Resume
+                </button>
+              ) : (
+                <button onClick={stop}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300">
+                  <MicOff size={13} /> Pause
+                </button>
+              )}
+            </div>
+
+            <p className="mt-3 text-[11px] text-gray-400 dark:text-gray-500">
+              Try “I need a barber in my area”, “find a wedding photographer”, or “open my dashboard”.
+            </p>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}

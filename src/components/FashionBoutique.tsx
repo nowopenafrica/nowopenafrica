@@ -100,7 +100,7 @@ export default function FashionBoutique({ items, hasPhone, onAddToCart, onWhatsA
             <div key={item.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <div className="relative">
                 {item.image ? (
-                  <img src={item.image} alt={item.name} className="w-full h-40 sm:h-56 object-cover" />
+                  <img loading="lazy" decoding="async" src={item.image} alt={item.name} className="w-full h-40 sm:h-56 object-cover" />
                 ) : (
                   <div className="w-full h-40 sm:h-56 bg-gradient-to-br from-fuchsia-100 to-purple-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                     <Shirt size={36} className="text-fuchsia-400 dark:text-gray-400" />

@@ -113,7 +113,7 @@ export default function RestaurantMenu({
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {specials.map((item) => (
               <div key={item.id} className="relative rounded-2xl overflow-hidden border border-orange-200 dark:border-orange-900/40 bg-white dark:bg-gray-800">
-                {item.image && <img src={item.image} alt={item.name} className="w-full h-32 object-cover" />}
+                {item.image && <img loading="lazy" decoding="async" src={item.image} alt={item.name} className="w-full h-32 object-cover" />}
                 <span className="absolute top-2 left-2 bg-orange-500 text-white text-[11px] font-semibold px-2 py-0.5 rounded-md inline-flex items-center gap-1"><Flame size={11} /> Special</span>
                 <div className="p-3">
                   <div className="flex items-center justify-between gap-2">
@@ -137,7 +137,7 @@ export default function RestaurantMenu({
             {list.map((item) => (
               <li key={item.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
                 {item.image ? (
-                  <img src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                  <img loading="lazy" decoding="async" src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
                 ) : (
                   <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-orange-100 to-amber-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center flex-shrink-0">
                     <UtensilsCrossed size={22} className="text-orange-400 dark:text-gray-400" />

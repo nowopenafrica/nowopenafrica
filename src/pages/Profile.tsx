@@ -195,7 +195,7 @@ export default function Profile() {
               <div className="relative">
                 <div className="w-32 h-32 bg-gray-300 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
                   {formData.profile_image_url ? (
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={formData.profile_image_url}
                       alt={formData.name}
                       className="w-28 h-28 rounded-full object-cover"
@@ -476,7 +476,7 @@ export default function Profile() {
                 >
                   <div className="h-32 overflow-hidden">
                     {business.image_url ? (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={business.image_url}
                         alt={business.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
@@ -517,7 +517,7 @@ export default function Profile() {
                 >
                   <div className="h-32 overflow-hidden">
                     {service.image_url ? (
-                      <img
+                      <img loading="lazy" decoding="async"
                         src={service.image_url}
                         alt={service.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition duration-300"

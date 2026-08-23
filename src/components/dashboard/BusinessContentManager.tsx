@@ -646,7 +646,7 @@ export default function BusinessContentManager({ businessId, businessName, categ
                     {products.map(p => (
                       <li key={p.id} className="flex items-center gap-3 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg">
                         {p.image_url
-                          ? <img src={p.image_url} alt={p.name} className="w-12 h-12 rounded object-cover flex-shrink-0" />
+                          ? <img loading="lazy" decoding="async" src={p.image_url} alt={p.name} className="w-12 h-12 rounded object-cover flex-shrink-0" />
                           : <div className="w-12 h-12 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0"><Package size={18} className="text-gray-400" /></div>}
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
@@ -687,7 +687,7 @@ export default function BusinessContentManager({ businessId, businessName, categ
                               </div>
                             </>
                           ) : (
-                            <img src={g.image_url} alt={g.caption || 'Gallery photo'} className="w-full h-20 object-cover rounded-lg" />
+                            <img loading="lazy" decoding="async" src={g.image_url} alt={g.caption || 'Gallery photo'} className="w-full h-20 object-cover rounded-lg" />
                           )}
                           <button
                             onClick={() => handleDelete('business_gallery', g.id, g.caption || 'this reel')}

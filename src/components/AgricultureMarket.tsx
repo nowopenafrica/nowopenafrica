@@ -77,7 +77,7 @@ export default function AgricultureMarket({ items, hasPhone, onAddToCart, onWhat
           <div key={p.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
             <div className="relative">
               {p.image ? (
-                <img src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
+                <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
               ) : (
                 <div className="w-full h-28 sm:h-36 bg-gradient-to-br from-green-100 to-lime-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                   <Sprout size={28} className="text-green-400 dark:text-gray-400" />

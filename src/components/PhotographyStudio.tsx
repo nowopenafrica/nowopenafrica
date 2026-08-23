@@ -92,7 +92,7 @@ export default function PhotographyStudio({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {shownPortfolio.map((shot, i) => (
               <button key={i} onClick={() => setLightbox(i)} className="relative aspect-square rounded-xl overflow-hidden group">
-                <img src={shot.src} alt={`${shot.genre} shot`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                <img loading="lazy" decoding="async" src={shot.src} alt={`${shot.genre} shot`} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 <span className="absolute bottom-1.5 left-1.5 bg-black/60 text-white text-[10px] font-medium px-1.5 py-0.5 rounded">{shot.genre}</span>
               </button>
             ))}
@@ -108,7 +108,7 @@ export default function PhotographyStudio({
             {shownPackages.map((p) => (
               <div key={p.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
                 {p.image ? (
-                  <img src={p.image} alt={p.name} className="w-full h-36 object-cover" />
+                  <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-36 object-cover" />
                 ) : (
                   <div className="w-full h-36 bg-gradient-to-br from-indigo-100 to-purple-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                     <Camera size={30} className="text-indigo-400 dark:text-gray-400" />
@@ -145,7 +145,7 @@ export default function PhotographyStudio({
           <div className="absolute inset-0 bg-black/80" />
           <button onClick={() => setLightbox(null)} aria-label="Close" className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><X size={22} /></button>
           <button onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! - 1 + shownPortfolio.length) % shownPortfolio.length); }} aria-label="Previous" className="absolute left-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronLeft size={24} /></button>
-          <img src={shownPortfolio[lightbox].src} alt="Portfolio" className="relative max-h-[85vh] max-w-full rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
+          <img loading="lazy" decoding="async" src={shownPortfolio[lightbox].src} alt="Portfolio" className="relative max-h-[85vh] max-w-full rounded-xl object-contain" onClick={(e) => e.stopPropagation()} />
           <button onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! + 1) % shownPortfolio.length); }} aria-label="Next" className="absolute right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronRight size={24} /></button>
         </div>
       )}

@@ -86,7 +86,7 @@ export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhats
             <div key={p.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <div className="relative">
                 {p.image ? (
-                  <img src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
+                  <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
                 ) : (
                   <div className="w-full h-28 sm:h-36 bg-gradient-to-br from-amber-100 to-orange-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                     <ShoppingBag size={28} className="text-amber-400 dark:text-gray-400" />

@@ -744,7 +744,7 @@ export default function BusinessDetail() {
               <div className="relative">
                 <div className="w-16 h-16 sm:w-32 sm:h-32 bg-gray-300 dark:bg-gray-600 rounded-full border-2 sm:border-4 border-white dark:border-gray-800 shadow-lg flex items-center justify-center overflow-hidden">
                   {business.logo_url ? (
-                    <img
+                    <img loading="lazy" decoding="async"
                       src={business.logo_url}
                       alt={business.name}
                       className="w-full h-full object-cover"
@@ -1451,7 +1451,7 @@ export default function BusinessDetail() {
                     {products.map((product) => (
                       <div key={product.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
                         {product.image ? (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={product.image}
                             alt={product.name}
                             className="w-full h-24 sm:h-32 md:h-48 object-cover"
@@ -1628,7 +1628,7 @@ export default function BusinessDetail() {
                             onMeasured={(w, h) => noteGalleryDim(item.url, w, h)}
                           />
                         ) : (
-                          <img
+                          <img loading="lazy" decoding="async"
                             src={item.url}
                             alt={item.caption || `${business.name} gallery ${index + 1}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
@@ -2014,7 +2014,7 @@ export default function BusinessDetail() {
               className="max-w-full max-h-full object-contain rounded-lg"
             />
           ) : (
-            <img
+            <img loading="lazy" decoding="async"
               src={visibleGallery[lightboxIndex].url}
               alt={visibleGallery[lightboxIndex].caption || `${business.name} gallery ${lightboxIndex + 1}`}
               onClick={(e) => e.stopPropagation()}

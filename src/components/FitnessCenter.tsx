@@ -95,7 +95,7 @@ export default function FitnessCenter({ items, ctaLabel, hasPhone, onBook, onWha
             {classes.map((c) => (
               <div key={c.id} className="flex bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
                 {c.image ? (
-                  <img src={c.image} alt={c.name} className="w-28 object-cover flex-shrink-0" />
+                  <img loading="lazy" decoding="async" src={c.image} alt={c.name} className="w-28 object-cover flex-shrink-0" />
                 ) : (
                   <div className="w-28 bg-gradient-to-br from-orange-100 to-amber-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center flex-shrink-0">
                     <Dumbbell size={26} className="text-orange-400 dark:text-gray-400" />

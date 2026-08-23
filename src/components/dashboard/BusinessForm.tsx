@@ -643,7 +643,7 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-hidden flex items-center justify-center flex-shrink-0">
             {formData.logo_url ? (
-              <img src={formData.logo_url} alt="Business logo" className="w-full h-full object-cover" />
+              <img loading="lazy" decoding="async" src={formData.logo_url} alt="Business logo" className="w-full h-full object-cover" />
             ) : (
               <ImageIcon size={24} className="text-gray-400" />
             )}
@@ -696,7 +696,7 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
         <div className="flex items-center gap-4">
           <div className="w-32 h-20 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-hidden flex items-center justify-center flex-shrink-0">
             {formData.image_url ? (
-              <img src={formData.image_url} alt="Business cover" className="w-full h-full object-cover" />
+              <img loading="lazy" decoding="async" src={formData.image_url} alt="Business cover" className="w-full h-full object-cover" />
             ) : (
               <ImageIcon size={24} className="text-gray-400" />
             )}

@@ -84,7 +84,7 @@ export default function MusicEntertainment({
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
             {gallery.map((p, i) => (
               <button key={i} onClick={() => setLightbox(i)} className="relative rounded-xl overflow-hidden group aspect-[4/3]">
-                <img src={p.src} alt={p.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
+                <img loading="lazy" decoding="async" src={p.src} alt={p.label} className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/70 to-transparent" />
                 <span className="absolute bottom-1.5 left-2 right-2 text-white text-[11px] font-medium truncate">{p.label}</span>
               </button>
@@ -138,7 +138,7 @@ export default function MusicEntertainment({
           <button onClick={() => setLightbox(null)} aria-label="Close" className="absolute top-4 right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><X size={22} /></button>
           <button onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! - 1 + gallery.length) % gallery.length); }} aria-label="Previous" className="absolute left-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronLeft size={24} /></button>
           <figure className="relative max-w-full" onClick={(e) => e.stopPropagation()}>
-            <img src={gallery[lightbox].src} alt={gallery[lightbox].label} className="max-h-[80vh] max-w-full rounded-xl object-contain" />
+            <img loading="lazy" decoding="async" src={gallery[lightbox].src} alt={gallery[lightbox].label} className="max-h-[80vh] max-w-full rounded-xl object-contain" />
             <figcaption className="mt-2 text-center text-sm text-white/80">{gallery[lightbox].label}</figcaption>
           </figure>
           <button onClick={(e) => { e.stopPropagation(); setLightbox((i) => (i! + 1) % gallery.length); }} aria-label="Next" className="absolute right-4 w-10 h-10 flex items-center justify-center rounded-full bg-white/10 text-white hover:bg-white/20"><ChevronRight size={24} /></button>

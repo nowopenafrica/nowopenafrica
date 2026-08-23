@@ -119,7 +119,7 @@ export default function PharmacyStorefront({ items, hasPhone, onAddToCart, onWha
               <div key={m.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                 <div className="flex gap-3 p-3">
                   {m.image ? (
-                    <img src={m.image} alt={m.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                    <img loading="lazy" decoding="async" src={m.image} alt={m.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-green-100 to-emerald-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center flex-shrink-0">
                       <Pill size={22} className="text-green-500 dark:text-gray-400" />

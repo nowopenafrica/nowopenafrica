@@ -90,7 +90,7 @@ export default function EducationCenter({ courses, ctaLabel, hasPhone, onBook, o
           {filtered.map((c) => (
             <div key={c.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
               {c.image ? (
-                <img src={c.image} alt={c.name} className="w-full h-36 object-cover" />
+                <img loading="lazy" decoding="async" src={c.image} alt={c.name} className="w-full h-36 object-cover" />
               ) : (
                 <div className="w-full h-36 bg-gradient-to-br from-indigo-100 to-blue-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                   <GraduationCap size={32} className="text-indigo-400 dark:text-gray-400" />

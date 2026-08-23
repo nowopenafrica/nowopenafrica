@@ -91,7 +91,7 @@ export default function LiveSection({ business, onBook, onOpenCart }: LiveSectio
       </p>
 
       <div className="relative rounded-2xl overflow-hidden bg-gray-900 aspect-video max-w-2xl">
-        <img
+        <img loading="lazy" decoding="async"
           src={business.image_url || business.logo_url}
           alt={business.name}
           className={`w-full h-full object-cover ${liveStream ? '' : 'opacity-50 grayscale'}`}
@@ -147,7 +147,7 @@ export default function LiveSection({ business, onBook, onOpenCart }: LiveSectio
                 onClick={() => setWatching(r)}
                 className="relative rounded-xl overflow-hidden aspect-video bg-gray-800 group"
               >
-                <img src={business.image_url || business.logo_url} alt={r.title} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition" />
+                <img loading="lazy" decoding="async" src={business.image_url || business.logo_url} alt={r.title} className="w-full h-full object-cover opacity-70 group-hover:opacity-90 transition" />
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="w-9 h-9 rounded-full bg-white/90 flex items-center justify-center">
                     <Play size={14} className="fill-gray-900 text-gray-900 ml-0.5" />

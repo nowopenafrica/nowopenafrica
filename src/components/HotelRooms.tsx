@@ -81,7 +81,7 @@ export default function HotelRooms({
               return (
                 <div key={room.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
                   {room.image ? (
-                    <img src={room.image} alt={room.name} className="w-full h-44 object-cover" />
+                    <img loading="lazy" decoding="async" src={room.image} alt={room.name} className="w-full h-44 object-cover" />
                   ) : (
                     <div className="w-full h-44 bg-gradient-to-br from-teal-100 to-cyan-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                       <BedDouble size={36} className="text-teal-500 dark:text-gray-400" />

@@ -86,7 +86,7 @@ export default function TravelAgency({
           <div key={p.id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden flex flex-col">
             {p.image && (
               <div className="relative aspect-[16/10]">
-                <img src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-full object-cover" />
                 {p.service_category && (
                   <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 text-white px-2.5 py-1 text-[11px] font-semibold backdrop-blur">
                     <MapPin size={12} /> {p.service_category}

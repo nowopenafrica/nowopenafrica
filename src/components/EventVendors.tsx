@@ -100,7 +100,7 @@ export default function EventVendors({ vendors, ctaLabel, hasPhone, onBook, onWh
           return (
             <div key={v.id} className={`flex flex-col bg-white dark:bg-gray-800 border rounded-2xl overflow-hidden transition ${inBundle ? 'border-fuchsia-500 ring-1 ring-fuchsia-500' : 'border-gray-200 dark:border-gray-700'}`}>
               {v.image ? (
-                <img src={v.image} alt={v.name} className="w-full h-36 object-cover" />
+                <img loading="lazy" decoding="async" src={v.image} alt={v.name} className="w-full h-36 object-cover" />
               ) : (
                 <div className="w-full h-36 bg-gradient-to-br from-fuchsia-100 to-purple-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                   <PartyPopper size={30} className="text-fuchsia-400 dark:text-gray-400" />
