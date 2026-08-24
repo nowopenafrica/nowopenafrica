@@ -369,60 +369,6 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Get the app */}
-      <section className="py-16 bg-gray-900 text-white">
-        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-6">
-          <h2 className="text-xl sm:text-3xl md:text-4xl font-bold">Coming to Android and iOS</h2>
-          <p className="text-gray-300 max-w-xl mx-auto">
-            The NowOpen Africa app is coming to Android and iOS — discover businesses,
-            book placements and manage your listings from your pocket.
-          </p>
-
-          <div className="flex flex-row items-center justify-center gap-3 sm:gap-4 pt-2">
-            {/* Google Play badge — flex-1/min-w-0 lets both badges shrink to
-                fit side by side on narrow phones instead of wrapping */}
-            <Link
-              to="/waitlist"
-              aria-label="Google Play — coming soon, join the waitlist"
-              className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-[190px] sm:max-w-[224px] px-3 sm:px-5 py-2.5 sm:py-3 bg-black border border-gray-700 rounded-xl hover:border-gray-500 hover:bg-gray-800 transition"
-            >
-              <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0" aria-hidden="true">
-                <path d="M3.6 1.8 13.7 12 3.6 22.2c-.4-.2-.6-.6-.6-1.2V3c0-.6.2-1 .6-1.2Z" fill="#00D7FE" />
-                <path d="m17.2 8.5-3.5 3.5-10.1-10.2c.2-.1.5-.1.8.1l12.8 6.6Z" fill="#00F076" />
-                <path d="M17.2 15.5 4.4 22.1c-.3.2-.6.2-.8.1L13.7 12l3.5 3.5Z" fill="#F63448" />
-                <path d="m20.9 13.6-3.7 1.9-3.5-3.5 3.5-3.5 3.7 1.9c1.1.6 1.1 2.6 0 3.2Z" fill="#FFC900" />
-              </svg>
-              <span className="text-left min-w-0">
-                <span className="block text-[8px] sm:text-[10px] uppercase tracking-wide text-gray-400 truncate">Coming soon on</span>
-                <span className="block text-sm sm:text-lg font-semibold leading-tight truncate">Google Play</span>
-              </span>
-            </Link>
-
-            {/* App Store badge */}
-            <Link
-              to="/waitlist"
-              aria-label="App Store — coming soon, join the waitlist"
-              className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0 max-w-[190px] sm:max-w-[224px] px-3 sm:px-5 py-2.5 sm:py-3 bg-black border border-gray-700 rounded-xl hover:border-gray-500 hover:bg-gray-800 transition"
-            >
-              <svg viewBox="0 0 24 24" className="w-6 h-6 sm:w-7 sm:h-7 flex-shrink-0 fill-white" aria-hidden="true">
-                <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8.98-.2 1.92-.86 3.32-.8 1.68.14 2.94.8 3.77 2.01-3.47 2.08-2.92 6.66.55 8.05-.64 1.67-1.47 3.32-2.72 2.91ZM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25Z" />
-              </svg>
-              <span className="text-left min-w-0">
-                <span className="block text-[8px] sm:text-[10px] uppercase tracking-wide text-gray-400 truncate">Coming soon on the</span>
-                <span className="block text-sm sm:text-lg font-semibold leading-tight truncate">App Store</span>
-              </span>
-            </Link>
-          </div>
-
-          <p className="text-sm text-gray-400">
-            Africa is{' '}
-            <Link to="/waitlist" className="text-blue-400 hover:text-blue-300 underline">
-              NowOpen
-            </Link>{' '}
-            to be first in line when the apps launch — the web platform is ready for you today.
-          </p>
-        </div>
-      </section>
 
 
 
