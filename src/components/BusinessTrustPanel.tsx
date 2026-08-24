@@ -59,6 +59,8 @@ export default function BusinessTrustPanel({
   // different clock. Tenure only needs a stable per-mount reading.
   const [now] = useState(() => Date.now());
   const summary = useMemo(() => publicTrustSummary(business, now), [business, now]);
+  // Has the team confirmed anything at all? Drives how much room the panel takes.
+  const hasEvidence = summary.confirmedCount > 0;
 
   const established = business.created_at
     ? new Date(business.created_at).getFullYear()
@@ -79,7 +81,15 @@ export default function BusinessTrustPanel({
       className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden"
     >
       <div className="flex items-start gap-4 p-4">
-        <ScoreRing score={summary.score} ringClass={summary.tier.ring} />
+        {/* The ring is earned, not given.
+            With nothing confirmed the panel still rendered a 68px dial reading
+            e.g. "22" beside "0 of 7 checks confirmed" — two denominators
+            competing for the same glance, and a big number that reads as a
+            verdict on the business when it only measures profile completeness.
+            Nothing is hidden either way: the score, the tier and all seven
+            checks stay on the panel; only the visual weight follows the
+            evidence. */}
+        {hasEvidence && <ScoreRing score={summary.score} ringClass={summary.tier.ring} />}
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h2 className="inline-flex items-center gap-1.5 text-sm font-bold text-gray-900 dark:text-white">
@@ -89,6 +99,11 @@ export default function BusinessTrustPanel({
             <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold uppercase tracking-wide ${summary.tier.badge}`}>
               {summary.tier.label}
             </span>
+            {!hasEvidence && (
+              <span className="text-[11px] font-bold tabular-nums text-gray-500 dark:text-gray-400">
+                {summary.score}/100
+              </span>
+            )}
           </div>
           <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">
             {summary.tier.blurb} {summary.confirmedCount} of {summary.totalCount} checks confirmed by our team.

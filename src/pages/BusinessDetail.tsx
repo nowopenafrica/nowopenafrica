@@ -118,6 +118,17 @@ interface TabConfig {
   id: string;
   label: string;
   icon: React.ReactNode;
+  /**
+   * How many items are behind the tab, where that is knowable.
+   *
+   * Shown beside the label so a visitor can see a tab is empty before spending
+   * a tap on it — on this page four of six tabs were empty for a young listing,
+   * and the only way to discover that was to open each one.
+   *
+   * undefined means "not a countable tab" (Overview, Live, Contact), which is
+   * different from 0 and must not render a badge.
+   */
+  count?: number;
 }
 
 // Sample data for tabs
@@ -178,6 +189,17 @@ export default function BusinessDetail() {
     if (id === 'overview') next.delete('tab');
     else next.set('tab', id);
     setSearchParams(next, { replace: true });
+  };
+
+  /**
+   * Which contact channel a visitor actually used.
+   *
+   * The page tracked business_viewed and nothing else, so we knew a listing got
+   * looked at and nothing about whether it earned a call — which is the only
+   * number an owner weighs when deciding the listing is worth paying for.
+   */
+  const trackContact = (channel: 'phone' | 'email' | 'website' | 'whatsapp') => {
+    track('business_contact_clicked', { channel }, business?.id);
   };
   const [content, setContent] = useState<BusinessContent>(EMPTY_CONTENT);
   const [enquiry, setEnquiry] = useState<{ context?: string } | null>(null);
@@ -322,9 +344,13 @@ export default function BusinessDetail() {
   useEffect(() => {
     if (!business) return undefined;
     if (isSample) {
+      // noindex is what keeps demo data out of search results, and it stays.
+      // The title does not need to lie to achieve that: it read "Page Not
+      // Found" on a page visibly rendering a business, so the browser tab, the
+      // history entry and any bookmark all disagreed with the screen.
       return applySeo({
-        title: 'Page Not Found — NowOpen Africa',
-        description: 'The listing you are looking for is not available.',
+        title: `${business.name ?? 'Sample listing'} (sample) — NowOpen Africa`,
+        description: 'A sample listing used to demonstrate NowOpen Africa. Not a real business.',
         path: window.location.pathname,
         robots: 'noindex, nofollow',
       });
@@ -659,13 +685,13 @@ export default function BusinessDetail() {
 
   const tabs: TabConfig[] = [
     { id: 'overview', label: 'Overview', icon: <Grid size={18} /> },
-    { id: 'services', label: getTabLabel(business?.category, 'services', 'Services'), icon: <ShoppingBag size={18} /> },
-    { id: 'products', label: getTabLabel(business?.category, 'products', 'Products'), icon: <Package size={18} /> },
-    { id: 'gallery', label: getTabLabel(business?.category, 'gallery', 'Gallery'), icon: <Image size={18} /> },
+    { id: 'services', label: getTabLabel(business?.category, 'services', 'Services'), icon: <ShoppingBag size={18} />, count: services.length },
+    { id: 'products', label: getTabLabel(business?.category, 'products', 'Products'), icon: <Package size={18} />, count: products.length },
+    { id: 'gallery', label: getTabLabel(business?.category, 'gallery', 'Gallery'), icon: <Image size={18} />, count: gallery.length },
     // Premium, verified-only feature — unconfigured/unverified businesses
     // keep the plain tab set.
     ...(business?.verified ? [{ id: 'live', label: '🔴 Live', icon: <Radio size={18} /> }] : []),
-    { id: 'reviews', label: 'Reviews', icon: <Star size={18} /> },
+    { id: 'reviews', label: 'Reviews', icon: <Star size={18} />, count: reviews.length },
     { id: 'contact', label: 'Contact', icon: <Phone size={18} /> },
   ];
 
@@ -734,7 +760,7 @@ export default function BusinessDetail() {
         <div className="mb-4 sm:mb-8">
           <Link
             to="/businesses"
-            className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium text-sm"
+            className="inline-flex items-center gap-2 min-h-[44px] -ml-1 pl-1 pr-2 rounded-lg text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <ArrowLeft size={18} />
             Back to Businesses
@@ -865,6 +891,7 @@ export default function BusinessDetail() {
                 <a
                   href={telHref(String(business.phone))}
                   onClick={() => {
+                    trackContact('phone');
                     // Desktop browsers often have no telephony handler, so a
                     // bare tel: click looks dead — surface the number too.
                     navigator.clipboard?.writeText(String(business.phone).trim()).then(
@@ -872,7 +899,7 @@ export default function BusinessDetail() {
                       () => toast(`Call ${business.phone}`)
                     );
                   }}
-                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
+                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition text-xs sm:text-sm"
                 >
                   <Phone size={14} className="sm:hidden" />
                   <Phone size={16} className="hidden sm:block" />
@@ -884,7 +911,8 @@ export default function BusinessDetail() {
                   href={whatsappHref(String(business.phone), business.location, `Hi ${business.name}, I found you on NowOpen Africa and I'd like to make an enquiry.`)!}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition text-xs sm:text-sm"
+                  onClick={() => trackContact('whatsapp')}
+                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] bg-green-600 text-white font-medium rounded-lg hover:bg-green-700 transition text-xs sm:text-sm"
                 >
                   <MessageCircle size={14} className="sm:hidden" />
                   <MessageCircle size={16} className="hidden sm:block" />
@@ -893,7 +921,7 @@ export default function BusinessDetail() {
               )}
               <button
                 onClick={() => setEnquiry({})}
-                className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-xs sm:text-sm"
+                className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-xs sm:text-sm"
               >
                 <Mail size={14} className="sm:hidden" />
                 <Mail size={16} className="hidden sm:block" />
@@ -902,7 +930,7 @@ export default function BusinessDetail() {
               {reservationModule && (
                 <button
                   onClick={() => setBooking({ moduleKey: reservationModule.key })}
-                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 sm:py-3 bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition text-xs sm:text-sm"
+                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] bg-purple-600 text-white font-medium rounded-lg hover:bg-purple-700 transition text-xs sm:text-sm"
                 >
                   <CalendarCheck size={14} className="sm:hidden" />
                   <CalendarCheck size={16} className="hidden sm:block" />
@@ -914,7 +942,7 @@ export default function BusinessDetail() {
                   href={business.website}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-2.5 sm:py-3 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-xs sm:text-sm"
+                  className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-xs sm:text-sm"
                 >
                   <Globe size={14} className="sm:hidden" />
                   <Globe size={16} className="hidden sm:block" />
@@ -951,7 +979,7 @@ export default function BusinessDetail() {
                   }}
                   onClick={() => setActiveTab(tab.id)}
                   className={`
-                    flex items-center gap-1.5 py-2.5 px-3 sm:gap-2 sm:py-4 sm:px-6 text-xs sm:text-sm font-medium rounded-t-lg transition-all duration-200 whitespace-nowrap flex-shrink-0
+                    flex items-center gap-1.5 min-h-[44px] px-3 sm:gap-2 sm:px-6 text-xs sm:text-sm font-medium rounded-t-lg transition-all duration-200 whitespace-nowrap flex-shrink-0
                     ${
                       activeTab === tab.id
                         ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 bg-blue-50 dark:bg-blue-900/30'
@@ -961,6 +989,19 @@ export default function BusinessDetail() {
                 >
                   {tab.icon}
                   {tab.label}
+                  {typeof tab.count === 'number' && (
+                    <span
+                      className={`tabular-nums text-[10px] font-bold px-1.5 py-0.5 rounded-full ${
+                        tab.count === 0
+                          ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 dark:text-gray-500'
+                          : activeTab === tab.id
+                            ? 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300'
+                            : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                      }`}
+                    >
+                      {tab.count}
+                    </span>
+                  )}
                 </button>
               ))}
             </div>
@@ -977,79 +1018,68 @@ export default function BusinessDetail() {
                   <BusinessTimeline business={business} config={clockConfig} />
                 </div>
                 
+                {/* Identity facts only.
+                    Phone, email, website and the map used to be repeated here
+                    verbatim from the Contact tab, and category/services were
+                    split across two columns for no reason. Overview now answers
+                    "who is this?" and hands off to Contact for "how do I reach
+                    them?" — one fact, one home, so they cannot drift apart. */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Business Information</h3>
-                    <div className="space-y-4">
+                    <dl className="space-y-4">
                       <div className="flex items-start gap-3">
                         <ShoppingBag size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
                         <div>
-                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Business Name</p>
-                          <p className="text-sm text-gray-900 dark:text-white">{business.name}</p>
+                          <dt className="text-xs font-medium text-gray-600 dark:text-gray-400">Business Name</dt>
+                          <dd className="text-sm text-gray-900 dark:text-white">{business.name}</dd>
                         </div>
                       </div>
+                      {business.category && (
+                        <div className="flex items-start gap-3">
+                          <Grid size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
+                          <div>
+                            <dt className="text-xs font-medium text-gray-600 dark:text-gray-400">Category</dt>
+                            <dd className="text-sm text-gray-900 dark:text-white">{business.category}</dd>
+                          </div>
+                        </div>
+                      )}
                       {business.location && (
                         <div className="flex items-start gap-3">
                           <MapPin size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
                           <div>
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Location</p>
-                            <p className="text-sm text-gray-900 dark:text-white">{business.location}</p>
+                            <dt className="text-xs font-medium text-gray-600 dark:text-gray-400">Location</dt>
+                            <dd className="text-sm text-gray-900 dark:text-white">{business.location}</dd>
                           </div>
-                        </div>
-                      )}
-                      {business.phone && (
-                        <div className="flex items-start gap-3">
-                          <Phone size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Phone</p>
-                            <p className="text-sm text-gray-900 dark:text-white">{business.phone}</p>
-                          </div>
-                        </div>
-                      )}
-                      {business.email && (
-                        <div className="flex items-start gap-3">
-                          <Mail size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Email</p>
-                            <p className="text-sm text-gray-900 dark:text-white">{business.email}</p>
-                          </div>
-                        </div>
-                      )}
-                      {business.website && (
-                        <div className="flex items-start gap-3">
-                          <Globe size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                          <div>
-                            <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Website</p>
-                            <p className="text-sm text-gray-900 dark:text-white">
-                              <a href={business.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-700">
-                                {business.website}
-                              </a>
-                            </p>
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-
-                  <div>
-                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Business Details</h3>
-                    <div className="space-y-3">
-                      {business.category && (
-                        <div>
-                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Category</p>
-                          <p className="text-sm text-gray-900 dark:text-white">{business.category}</p>
                         </div>
                       )}
                       {business.services && (
-                        <div>
-                          <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Services</p>
-                          <p className="text-sm text-gray-900 dark:text-white">{business.services}</p>
+                        <div className="flex items-start gap-3">
+                          <Package size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
+                          <div>
+                            <dt className="text-xs font-medium text-gray-600 dark:text-gray-400">Services</dt>
+                            <dd className="text-sm text-gray-900 dark:text-white">{business.services}</dd>
+                          </div>
                         </div>
                       )}
-                      <div className="sm:col-span-2">
-                        <OpeningHoursPanel hours={business.opening_hours || business.hours} timeZone={business.timezone} />
-                      </div>
-                    </div>
+                    </dl>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveTab('contact');
+                        document.getElementById('biz-tab-contact')?.focus();
+                      }}
+                      className="mt-5 inline-flex items-center gap-2 min-h-[44px] px-4 rounded-xl border border-gray-200 dark:border-gray-700 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                    >
+                      <Phone size={16} />
+                      Phone, email &amp; directions
+                    </button>
+                  </div>
+
+                  <div>
+                    <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Opening Hours</h3>
+                    <OpeningHoursPanel hours={business.opening_hours || business.hours} timeZone={business.timezone} />
                   </div>
                 </div>
 
@@ -1075,36 +1105,13 @@ export default function BusinessDetail() {
                   </div>
                 )}
 
-                {/* Location map */}
-                {business.location && (
-                  <div className="mt-8">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-semibold text-gray-900 dark:text-white flex items-center gap-2">
-                        <MapPin size={20} className="text-blue-600 dark:text-blue-400" />
-                        Location
-                      </h3>
-                      <a
-                        href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.location)}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-sm text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium"
-                      >
-                        <Navigation size={16} />
-                        Get Directions
-                      </a>
-                    </div>
-                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">{business.location}</p>
-                    <div className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700 h-72">
-                      <iframe
-                        title={`Map of ${business.name}`}
-                        src={`https://maps.google.com/maps?q=${encodeURIComponent(business.location)}&z=14&output=embed`}
-                        className="w-full h-full border-0"
-                        loading="lazy"
-                        referrerPolicy="no-referrer-when-downgrade"
-                      />
-                    </div>
-                  </div>
-                )}
+                {/* The map lives on the Contact tab only.
+                    The identical Google embed was rendered here as well, so
+                    every profile mounted two third-party iframes for one
+                    address — and this copy sat on the DEFAULT tab, meaning
+                    every visitor paid for it whether or not they wanted
+                    directions. Overview keeps the address as text and hands off
+                    to Contact, which is where "how do I get there" belongs. */}
               </div>
             )}
 
@@ -1614,7 +1621,7 @@ export default function BusinessDetail() {
                                 // lightbox left open would point at the wrong
                                 // item once the list changes.
                                 onClick={() => { setGalleryFilter(f.key); setLightboxIndex(null); }}
-                                className={`whitespace-nowrap px-3.5 py-1.5 rounded-full text-xs font-medium border transition ${
+                                className={`whitespace-nowrap inline-flex items-center min-h-[44px] px-3.5 rounded-full text-xs font-medium border transition ${
                                   active
                                     ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900 border-transparent'
                                     : 'bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
@@ -1846,46 +1853,66 @@ export default function BusinessDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div>
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Get in Touch</h3>
-                    <div className="space-y-4">
+                    {/* Every row is the action, not a printout of it.
+                        These were four blocks of plain text: on a phone, the
+                        number a visitor came for could not be dialled, only
+                        copied by hand. Whole rows are the hit area so the target
+                        clears 44px without inventing extra buttons. */}
+                    <div className="space-y-2">
                       {business.location && (
-                        <div className="flex items-start gap-3">
+                        <a
+                          href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.location)}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-start gap-3 -mx-2 px-2 py-2 min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
                           <MapPin size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Address</p>
-                            <p className="text-sm text-gray-900 dark:text-white">{business.location}</p>
+                            <p className="text-sm text-gray-900 dark:text-white break-words">{business.location}</p>
                           </div>
-                        </div>
+                        </a>
                       )}
                       {business.phone && (
-                        <div className="flex items-start gap-3">
+                        <a
+                          href={telHref(String(business.phone))}
+                          onClick={() => trackContact('phone')}
+                          className="flex items-start gap-3 -mx-2 px-2 py-2 min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
                           <Phone size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Phone</p>
-                            <p className="text-sm text-gray-900 dark:text-white">{business.phone}</p>
+                            <p className="text-sm text-gray-900 dark:text-white break-words">{business.phone}</p>
                           </div>
-                        </div>
+                        </a>
                       )}
                       {business.email && (
-                        <div className="flex items-start gap-3">
+                        <a
+                          href={`mailto:${business.email}`}
+                          onClick={() => trackContact('email')}
+                          className="flex items-start gap-3 -mx-2 px-2 py-2 min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
                           <Mail size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Email</p>
-                            <p className="text-sm text-gray-900 dark:text-white">{business.email}</p>
+                            <p className="text-sm text-gray-900 dark:text-white break-words">{business.email}</p>
                           </div>
-                        </div>
+                        </a>
                       )}
                       {business.website && (
-                        <div className="flex items-start gap-3">
+                        <a
+                          href={business.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => trackContact('website')}
+                          className="flex items-start gap-3 -mx-2 px-2 py-2 min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+                        >
                           <Globe size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
-                          <div>
+                          <div className="min-w-0">
                             <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Website</p>
-                            <p className="text-sm text-gray-900 dark:text-white">
-                              <a href={business.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-700">
-                                {business.website}
-                              </a>
-                            </p>
+                            <p className="text-sm text-blue-600 dark:text-blue-400 break-all">{business.website}</p>
                           </div>
-                        </div>
+                        </a>
                       )}
                     </div>
                   </div>
@@ -1922,7 +1949,7 @@ export default function BusinessDetail() {
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.location)}`}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition"
+                        className="inline-flex items-center justify-center gap-1 min-h-[44px] px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         <Navigation size={16} />
                         Get Directions
@@ -2089,6 +2116,7 @@ export default function BusinessDetail() {
           <div className="flex gap-2">
             <a
               href={telHref(String(business.phone))}
+              onClick={() => trackContact('phone')}
               className="flex-1 inline-flex items-center justify-center gap-2 min-h-[48px] rounded-xl bg-blue-600 text-white text-sm font-semibold"
             >
               <Phone size={16} /> Call
@@ -2098,6 +2126,7 @@ export default function BusinessDetail() {
                 href={whatsappHref(String(business.phone), business.location, `Hi ${business.name}, I found you on NowOpen Africa and I'd like to make an enquiry.`)!}
                 target="_blank"
                 rel="noopener noreferrer"
+                onClick={() => trackContact('whatsapp')}
                 className="flex-1 inline-flex items-center justify-center gap-2 min-h-[48px] rounded-xl bg-green-600 text-white text-sm font-semibold"
               >
                 <MessageCircle size={16} /> WhatsApp

@@ -35,6 +35,9 @@ export type EventName =
   | 'signin'
   | 'business_created'
   | 'business_viewed'
+  // A visitor acted on a listing's contact details. business_viewed alone
+  // measures attention; this measures the outcome an owner is paying for.
+  | 'business_contact_clicked'
   | 'search_performed'
   | 'enquiry_sent'
   | 'booking_started'
