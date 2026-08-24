@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import {
@@ -68,7 +68,19 @@ export default function AdminDashboard() {
   }, []);
 
   const [checkingRole, setCheckingRole] = useState(true);
-  const [activeTab, setActiveTab] = useState<AdminTab>('overview');
+  /**
+   * The open section lives in the URL.
+   *
+   * Without it an admin could not send a colleague "look at the deletion
+   * requests", a refresh dropped them back on Overview part-way through a
+   * review queue, and Back left the console entirely rather than returning to
+   * the previous section. `replace` so stepping through sections does not bury
+   * the page they came from.
+   *
+   * Validated against the tabs this ROLE may open, so a hand-edited ?tab= can
+   * never put an editor in front of a section the permission layer withholds.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
   const [trustReviewBiz, setTrustReviewBiz] = useState<{ id: string; name: string } | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ table: DeletableTable; id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -513,6 +525,15 @@ export default function AdminDashboard() {
   ];
   const tabs = allTabs.filter(t => canAccessTab(role, t.id));
 
+  const tabParam = searchParams.get('tab');
+  const activeTab: AdminTab = tabs.some(t => t.id === tabParam) ? (tabParam as AdminTab) : 'overview';
+  const setActiveTab = (id: AdminTab) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === 'overview') next.delete('tab');
+    else next.set('tab', id);
+    setSearchParams(next, { replace: true });
+  };
+
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
@@ -538,14 +559,14 @@ export default function AdminDashboard() {
           <div className="flex items-center gap-3">
             <button
               onClick={fetchAll}
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
+              className="inline-flex items-center gap-2 px-4 min-h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
             >
               <RefreshCw size={14} />
               Refresh
             </button>
             <Link
               to="/dashboard"
-              className="inline-flex items-center gap-2 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
+              className="inline-flex items-center gap-2 px-4 min-h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
             >
               <ArrowLeft size={14} />
               My Dashboard
@@ -553,14 +574,32 @@ export default function AdminDashboard() {
           </div>
         </div>
 
-        {/* Stats */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-          {tabs.map(t => (
+        {/* The count cards ARE the navigation, so they need to say so. They
+            were plain buttons: nothing announced them as a group, nothing
+            announced which one was open, and the only selected cue was a 2px
+            border — invisible to a screen reader and easy to miss by eye. */}
+        <div role="tablist" aria-label="Admin sections" className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+          {tabs.map((t, i) => (
             <button
               key={t.id}
+              id={`admin-tab-${t.id}`}
+              role="tab"
+              type="button"
+              aria-selected={activeTab === t.id}
+              aria-controls="admin-tabpanel"
+              tabIndex={activeTab === t.id ? 0 : -1}
+              onKeyDown={(e) => {
+                if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                e.preventDefault();
+                const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                setActiveTab(next.id);
+                document.getElementById(`admin-tab-${next.id}`)?.focus();
+              }}
               onClick={() => setActiveTab(t.id)}
-              className={`bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-left hover:shadow-md transition border-2 ${
-                activeTab === t.id ? 'border-purple-500' : 'border-transparent'
+              className={`bg-white dark:bg-gray-800 rounded-xl shadow p-5 text-left hover:shadow-md transition border-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
+                activeTab === t.id
+                  ? 'border-purple-500 ring-1 ring-purple-200 dark:ring-purple-900'
+                  : 'border-transparent'
               }`}
             >
               <div className="flex items-center justify-between mb-2">
@@ -581,7 +620,7 @@ export default function AdminDashboard() {
               placeholder={`Search ${tabs.find(t => t.id === activeTab)?.label.toLowerCase()}...`}
               value={search}
               onChange={e => setSearch(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
+              className="w-full pl-10 pr-4 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-purple-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
             />
           </div>
         )}
@@ -628,19 +667,48 @@ export default function AdminDashboard() {
             { label: 'Live media services', value: mediaServices.length },
           ];
           return (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-8">
+            <div id="admin-tabpanel" role="tabpanel" aria-labelledby="admin-tab-overview" className="bg-white dark:bg-gray-800 rounded-xl shadow-lg p-6 space-y-8">
               <div>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">Needs attention</h2>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Open items across the platform — click to jump in.</p>
-                <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
-                  {action.map((a) => (
-                    <button key={a.label} onClick={() => setActiveTab(a.tab)} className={`rounded-xl p-4 text-left transition hover:opacity-90 ${tone[a.tone]}`}>
-                      <a.icon size={18} />
-                      <div className="mt-2 text-2xl font-extrabold">{a.value}</div>
-                      <div className="text-xs font-medium opacity-80">{a.label}</div>
-                    </button>
-                  ))}
-                </div>
+                {/* Only queues with something in them. Every row rendered as a
+                    coloured alert card whatever its count, so four red and amber
+                    tiles reading "0" sat beside the two that actually needed
+                    work — a panel called "needs attention" that mostly did not.
+                    Empty queues move to a quiet line underneath, so the colour
+                    on this panel always means something. */}
+                {(() => {
+                  const open = action.filter((a) => Number(a.value) > 0);
+                  const clear = action.filter((a) => !(Number(a.value) > 0));
+                  return (
+                    <>
+                      {open.length > 0 ? (
+                        <div className="mt-4 grid grid-cols-2 lg:grid-cols-4 gap-3">
+                          {open.map((a) => (
+                            <button
+                              key={a.label}
+                              onClick={() => setActiveTab(a.tab)}
+                              className={`rounded-xl p-4 text-left transition hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-purple-500 ${tone[a.tone]}`}
+                            >
+                              <a.icon size={18} />
+                              <div className="mt-2 text-2xl font-extrabold tabular-nums">{a.value}</div>
+                              <div className="text-xs font-medium opacity-80">{a.label}</div>
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="mt-4 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-300 p-4 text-sm font-medium">
+                          Nothing waiting on you. Every queue is clear.
+                        </p>
+                      )}
+                      {open.length > 0 && clear.length > 0 && (
+                        <p className="mt-3 text-xs text-gray-400 dark:text-gray-500">
+                          Clear: {clear.map((a) => a.label.toLowerCase()).join(', ')}.
+                        </p>
+                      )}
+                    </>
+                  );
+                })()}
               </div>
               <div>
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">Platform health</h2>
@@ -659,7 +727,7 @@ export default function AdminDashboard() {
 
         {/* Tables */}
         {activeTab !== 'overview' && (
-        <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
+        <div id="admin-tabpanel" role="tabpanel" aria-labelledby={`admin-tab-${activeTab}`} className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden">
           {loading ? (
             <p className="text-gray-600 dark:text-gray-400 p-8 text-center">Loading platform data...</p>
           ) : (
@@ -693,7 +761,7 @@ export default function AdminDashboard() {
                               value={u.role || 'business'}
                               onChange={e => updateUserRole(u.id, e.target.value)}
                               title={ROLE_DESCRIPTIONS[(u.role as keyof typeof ROLE_DESCRIPTIONS) || 'business']}
-                              className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                              className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                             >
                               {ASSIGNABLE_ROLES.map(r => (
                                 <option key={r} value={r} title={ROLE_DESCRIPTIONS[r]}>{ROLE_LABELS[r]}</option>
@@ -711,7 +779,7 @@ export default function AdminDashboard() {
                               value={(u as any).plan || 'starter'}
                               onChange={e => updateUserPlan(u.id, e.target.value)}
                               title="Change / upgrade this business's plan"
-                              className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                              className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                             >
                               {BUSINESS_TIERS.map(t => (
                                 <option key={t.id} value={t.id}>{t.name}</option>
@@ -734,7 +802,7 @@ export default function AdminDashboard() {
                             <button
                               onClick={() => deleteRow('users', u.id, `profile for ${u.email}`)}
                               title="Delete profile row (the auth account must be removed from the Supabase dashboard)"
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -767,7 +835,7 @@ export default function AdminDashboard() {
                     {filteredBusinesses.map(b => (
                       <tr key={b.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
-                          <Link to={b.username ? `/${b.username}` : `/businesses/${b.id}`} className="hover:text-blue-600">{b.name}</Link>
+                          <Link to={b.username ? `/${b.username}` : `/businesses/${b.id}`} className="inline-flex items-center min-h-[44px] hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded">{b.name}</Link>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{b.category}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{b.location || '—'}</td>
@@ -779,7 +847,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-sm">
                           <button
                             onClick={() => toggleVerified(b.id, !b.verified)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition ${
+                            className={`inline-flex items-center gap-1 px-2 min-h-[44px] rounded text-xs font-medium transition ${
                               b.verified
                                 ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -794,7 +862,7 @@ export default function AdminDashboard() {
                           <select
                             value={b.status || 'open'}
                             onChange={e => updateStatus('businesses', b.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                           >
                             <option value="open">open</option>
                             <option value="closed">closed</option>
@@ -805,14 +873,14 @@ export default function AdminDashboard() {
                             <button
                               onClick={() => setTrustReviewBiz({ id: b.id, name: b.name })}
                               title="Review trust & verification"
-                              className="p-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
                             >
                               <ShieldCheck size={16} />
                             </button>
                             {canDelete(role) && (
                               <button
                                 onClick={() => deleteRow('businesses', b.id, b.name)}
-                                className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                                className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                               >
                                 <Trash2 size={16} />
                               </button>
@@ -854,7 +922,7 @@ export default function AdminDashboard() {
                           <td className="px-4 py-3 text-sm">
                             <button
                               onClick={() => setTrustReviewBiz({ id: d.business_id, name: bizName })}
-                              className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
+                              className="inline-flex items-center gap-1 px-2.5 min-h-[44px] text-xs bg-emerald-600 text-white rounded-lg hover:bg-emerald-700"
                             >
                               <Eye size={13} /> Review
                             </button>
@@ -970,14 +1038,14 @@ export default function AdminDashboard() {
                                 <button
                                   onClick={() => resolveDeletionRequest(r, 'approved')}
                                   disabled={resolvingReq === r.id}
-                                  className="px-2.5 py-1.5 text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
+                                  className="px-2.5 min-h-[44px] text-xs bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
                                 >
                                   {resolvingReq === r.id ? '…' : 'Approve & delete'}
                                 </button>
                                 <button
                                   onClick={() => resolveDeletionRequest(r, 'rejected')}
                                   disabled={resolvingReq === r.id}
-                                  className="px-2.5 py-1.5 text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
+                                  className="px-2.5 min-h-[44px] text-xs border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50"
                                 >
                                   Reject
                                 </button>
@@ -1015,7 +1083,7 @@ export default function AdminDashboard() {
                     {filteredAdverts.map(a => (
                       <tr key={a.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
-                          <Link to={`/adverts/${a.id}`} className="hover:text-blue-600">{a.title}</Link>
+                          <Link to={`/adverts/${a.id}`} className="inline-flex items-center min-h-[44px] hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded">{a.title}</Link>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{a.category || a.type || '—'}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{a.location || '—'}</td>
@@ -1026,7 +1094,7 @@ export default function AdminDashboard() {
                           <select
                             value={a.status || 'active'}
                             onChange={e => updateStatus('advertisements', a.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                           >
                             <option value="active">active</option>
                             <option value="pending">pending</option>
@@ -1037,7 +1105,7 @@ export default function AdminDashboard() {
                           {canDelete(role) && (
                             <button
                               onClick={() => deleteRow('advertisements', a.id, a.title)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1068,7 +1136,7 @@ export default function AdminDashboard() {
                     {filteredMedia.map(m => (
                       <tr key={m.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
-                          <Link to={`/media/${m.id}`} className="hover:text-blue-600">{m.title}</Link>
+                          <Link to={`/media/${m.id}`} className="inline-flex items-center min-h-[44px] hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded">{m.title}</Link>
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.service_type}</td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{m.pricing ? `$${m.pricing}` : '—'}</td>
@@ -1076,7 +1144,7 @@ export default function AdminDashboard() {
                           <select
                             value={m.status || 'open'}
                             onChange={e => updateStatus('media_services', m.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                           >
                             <option value="open">open</option>
                             <option value="closed">closed</option>
@@ -1086,7 +1154,7 @@ export default function AdminDashboard() {
                           {canDelete(role) && (
                             <button
                               onClick={() => deleteRow('media_services', m.id, m.title)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1150,7 +1218,7 @@ export default function AdminDashboard() {
                           <select
                             value={b.status || 'pending'}
                             onChange={e => updateStatus('business_bookings', b.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                           >
                             <option value="pending">pending</option>
                             <option value="confirmed">confirmed</option>
@@ -1162,7 +1230,7 @@ export default function AdminDashboard() {
                           {canDelete(role) && (
                             <button
                               onClick={() => deleteRow('business_bookings', b.id, `booking from ${b.customer_name}`)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1204,7 +1272,7 @@ export default function AdminDashboard() {
                           <select
                             value={p.status || 'lead'}
                             onChange={e => updateStatus('payment_intents', p.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                           >
                             <option value="lead">lead</option>
                             <option value="initiated">initiated</option>
@@ -1216,7 +1284,7 @@ export default function AdminDashboard() {
                           {canDelete(role) && (
                             <button
                               onClick={() => deleteRow('payment_intents', p.id, p.item_title)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1254,7 +1322,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-sm">
                           <button
                             onClick={() => toggleWaitlistInvited(w.id, !w.invited)}
-                            className={`inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium transition ${
+                            className={`inline-flex items-center gap-1 px-2 min-h-[44px] rounded text-xs font-medium transition ${
                               w.invited
                                 ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'
                                 : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
@@ -1268,7 +1336,7 @@ export default function AdminDashboard() {
                           {canDelete(role) && (
                             <button
                               onClick={() => deleteRow('waitlist', w.id, w.email)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1310,7 +1378,7 @@ export default function AdminDashboard() {
                           <select
                             value={r.status || 'new'}
                             onChange={e => updateStatus('business_registrations', r.id, e.target.value)}
-                            className="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
                           >
                             <option value="new">new</option>
                             <option value="contacted">contacted</option>
@@ -1322,7 +1390,7 @@ export default function AdminDashboard() {
                           {canDelete(role) && (
                             <button
                               onClick={() => deleteRow('business_registrations', r.id, r.business_name)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1346,7 +1414,7 @@ export default function AdminDashboard() {
                     </p>
                     <Link
                       to="/admin-creator?section=applications"
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 transition"
+                      className="inline-flex items-center gap-1.5 px-3 min-h-[44px] bg-purple-600 text-white text-xs font-semibold rounded-lg hover:bg-purple-700 transition"
                     >
                       <ClipboardList size={14} /> Open Applications Review
                     </Link>
@@ -1428,7 +1496,7 @@ export default function AdminDashboard() {
                           {canDelete(role) && (
                             <button
                               onClick={() => deleteRow('platform_enquiries', e.id, `enquiry from ${e.name}`)}
-                              className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
                               <Trash2 size={16} />
                             </button>
@@ -1468,11 +1536,14 @@ export default function AdminDashboard() {
                           aria-label="Homepage video slider"
                           disabled={heroSaving}
                           onClick={() => updateHero({ videoEnabled: !hero.videoEnabled })}
-                          className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
-                            hero.videoEnabled ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
-                          }`}
+                          // The 25px track stays the visual; the button around
+                          // it carries the 44px target, so the switch looks the
+                          // same and is no longer a 25px thing to hit.
+                          className="group relative inline-flex h-[44px] w-12 shrink-0 items-center justify-center rounded-full disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                         >
-                          <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${hero.videoEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                          <span className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${hero.videoEnabled ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${hero.videoEnabled ? 'translate-x-6' : 'translate-x-1'}`} />
+                          </span>
                         </button>
                       </div>
 
@@ -1495,11 +1566,11 @@ export default function AdminDashboard() {
                             aria-label="Fade banner text between videos"
                             disabled={heroSaving}
                             onClick={() => updateHero({ textSyncWithVideo: !hero.textSyncWithVideo })}
-                            className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
-                              hero.textSyncWithVideo ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'
-                            }`}
+                            className="relative inline-flex h-[44px] w-12 shrink-0 items-center justify-center rounded-full disabled:opacity-60 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
                           >
-                            <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${hero.textSyncWithVideo ? 'translate-x-6' : 'translate-x-1'}`} />
+                            <span className={`relative inline-flex h-7 w-12 items-center rounded-full transition ${hero.textSyncWithVideo ? 'bg-purple-600' : 'bg-gray-300 dark:bg-gray-600'}`}>
+                              <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${hero.textSyncWithVideo ? 'translate-x-6' : 'translate-x-1'}`} />
+                            </span>
                           </button>
                         </div>
                       )}
@@ -1584,7 +1655,7 @@ export default function AdminDashboard() {
                           <span className="text-sm font-medium text-gray-700 dark:text-gray-300 truncate">{v.name}</span>
                           <button
                             onClick={() => deleteHeroVideo(v.name)}
-                            className="p-1.5 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                            className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             title="Delete video"
                           >
                             <Trash2 size={16} />
