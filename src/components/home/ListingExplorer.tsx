@@ -184,8 +184,10 @@ export default function ListingExplorer({
   const filtersOn = Boolean(location.trim()) || category !== 'all';
 
   return (
-    <section aria-label="Browse listings" className="py-8 bg-gray-50 dark:bg-gray-900">
+    <section aria-labelledby="explorer-heading" className="py-8 bg-gray-50 dark:bg-gray-900">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+
+        <h2 id="explorer-heading" className="sr-only">Browse businesses, ad placements and creative services</h2>
 
         {/* Row 1 — filter, search, type, sort */}
         <form onSubmit={onSubmit} className="flex flex-wrap items-center gap-2">
@@ -228,7 +230,7 @@ export default function ListingExplorer({
           </div>
 
           {/* Type toggle. Real tabs: the grid below is its panel. */}
-          <div role="tablist" aria-label="Listing type" className="inline-flex p-1 rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
+          <div role="tablist" aria-label="Listing type" className="inline-flex rounded-xl bg-gray-100 dark:bg-gray-800 border border-gray-200 dark:border-gray-700">
             {TYPES.map((t, i) => {
               const on = type === t.key;
               return (
@@ -249,7 +251,7 @@ export default function ListingExplorer({
                     setCategory('all');
                     document.getElementById(`explorer-tab-${next.key}`)?.focus();
                   }}
-                  className={`px-3 min-h-[36px] rounded-lg text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                  className={`px-3 min-h-[44px] rounded-[10px] text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                     on
                       ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm'
                       : 'text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
@@ -304,7 +306,7 @@ export default function ListingExplorer({
               type="button"
               onClick={() => scrollChips(-1)}
               aria-label="Scroll categories left"
-              className="hidden sm:inline-flex absolute left-0 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              className="hidden sm:inline-flex absolute left-0 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-[44px] h-[44px] rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm text-gray-500 hover:text-gray-900 dark:hover:text-white"
             >
               <ChevronLeft size={16} />
             </button>
@@ -325,7 +327,7 @@ export default function ListingExplorer({
               type="button"
               onClick={() => scrollChips(1)}
               aria-label="Scroll categories right"
-              className="hidden sm:inline-flex absolute right-0 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-8 h-8 rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm text-gray-500 hover:text-gray-900 dark:hover:text-white"
+              className="hidden sm:inline-flex absolute right-0 top-1/2 -translate-y-1/2 z-10 items-center justify-center w-[44px] h-[44px] rounded-full bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 shadow-sm text-gray-500 hover:text-gray-900 dark:hover:text-white"
             >
               <ChevronRight size={16} />
             </button>
@@ -378,7 +380,7 @@ function Chip({ label, count, on, onClick }: { label: string; count: number; on:
       type="button"
       onClick={onClick}
       aria-pressed={on}
-      className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-full border text-xs font-semibold whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+      className={`flex-shrink-0 inline-flex items-center gap-1.5 px-3.5 min-h-[44px] rounded-full border text-xs font-semibold whitespace-nowrap transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
         on
           ? 'border-transparent bg-gray-900 dark:bg-white text-white dark:text-gray-900'
           : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'

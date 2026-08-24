@@ -208,10 +208,10 @@ export default function Home() {
           {/* CTAs fade with the copy — see the wrapper above for why they
               also need visibility, not just opacity. */}
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link to="/businesses" className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition shadow-lg">
+            <Link to="/businesses" className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition shadow-lg">
               Explore businesses <ArrowRight size={18} />
             </Link>
-            <Link to="/waitlist" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition">
+            <Link to="/waitlist" className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition">
               List your business
             </Link>
           </div>
@@ -222,8 +222,17 @@ export default function Home() {
 
 
 
+
+
+
+
+      {/* Browse — search, type toggle, category chips and the card grid,
+          in one block. Replaces the standalone search band and the separate
+          tabbed listings section. */}
+      <ListingExplorer businesses={businesses} adverts={adverts} mediaServices={mediaServices} />
+
       {/* Industry Operating Systems */}
-      <section className="py-16 bg-white dark:bg-gray-800/40 border-y border-gray-100 dark:border-gray-800">
+      <section className="pt-16 pb-10 bg-white dark:bg-gray-800/40 border-t border-gray-100 dark:border-gray-800">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">
@@ -257,7 +266,7 @@ export default function Home() {
           <div className="mt-8 text-center">
             <Link
               to="/platform"
-              className="inline-flex items-center gap-2 px-6 py-3 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-lg hover:opacity-90 transition"
+              className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-lg hover:opacity-90 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Explore the platform <ArrowRight size={18} />
             </Link>
@@ -265,16 +274,8 @@ export default function Home() {
         </div>
       </section>
 
-
-
-
-      {/* Browse — search, type toggle, category chips and the card grid,
-          in one block. Replaces the standalone search band and the separate
-          tabbed listings section. */}
-      <ListingExplorer businesses={businesses} adverts={adverts} mediaServices={mediaServices} />
-
       {/* Stats band */}
-      <section className="pt-12" aria-label="NowOpen Africa at a glance">
+      <section className="pt-2 pb-16 bg-white dark:bg-gray-800/40 border-b border-gray-100 dark:border-gray-800" aria-label="NowOpen Africa at a glance">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid grid-cols-2 sm:grid-cols-4 divide-x divide-gray-200 dark:divide-gray-800 rounded-2xl border border-gray-100 dark:border-gray-800 bg-white dark:bg-gray-800 overflow-hidden">
             {/* Real numbers only.
@@ -308,7 +309,6 @@ export default function Home() {
         </div>
       </section>
 
-
       {/* Features Section */}
       <section className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -329,6 +329,8 @@ export default function Home() {
           </div>
         </div>
       </section>
+
+
 
 
 
@@ -362,7 +364,7 @@ export default function Home() {
           </div>
           <p className="mt-6 text-sm text-blue-200">
             Registering a business?{' '}
-            <Link to="/digital-forms" className="underline hover:text-white">
+            <Link to="/digital-forms" className="inline-flex items-center min-h-[44px] underline hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded">
               Use our digital forms
             </Link>
           </p>

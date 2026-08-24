@@ -274,7 +274,7 @@ export default function VoiceAssistant() {
           title={wantListening
             ? 'Listening for “NowOpen AI” — tap to open'
             : 'Voice search — or say “NowOpen AI”'}
-          className={`fixed bottom-24 right-5 z-40 w-12 h-12 rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition ${
+          className={`fixed bottom-24 right-5 z-40 w-[46px] h-[46px] rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition ${
             wantListening ? 'bg-red-600 text-white' : 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
           }`}
         >

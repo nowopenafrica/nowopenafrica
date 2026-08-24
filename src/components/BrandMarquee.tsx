@@ -46,7 +46,7 @@ export default function BrandMarquee({ brands }: BrandMarqueeProps) {
       </>
     );
     const cls =
-      'flex items-center gap-2.5 flex-shrink-0 grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition';
+      'flex items-center gap-2.5 flex-shrink-0 min-h-[44px] px-1 rounded-lg grayscale opacity-70 hover:grayscale-0 hover:opacity-100 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500';
     return brand.href ? (
       <Link key={i} to={brand.href} className={cls}>
         {inner}
