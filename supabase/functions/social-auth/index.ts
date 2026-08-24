@@ -78,14 +78,23 @@ async function currentUser(req: Request) {
   return error ? null : data.user;
 }
 
-async function ownsBusiness(userId: string, businessId: string): Promise<boolean> {
-  const { data } = await supabase
-    .from("businesses")
-    .select("id")
-    .eq("id", businessId)
-    .eq("user_id", userId)
-    .maybeSingle();
-  return Boolean(data);
+/**
+ * May this caller link or unlink a social account for this business?
+ *
+ * Was owner-only, which left the permissions half-done: publishing now allows
+ * owner/manager/editor, so a manager could post through an account but not
+ * connect one — they would be told they did not own a business they had been
+ * given the keys to. The RPC is evaluated as the calling user.
+ */
+async function canManageChannels(req: Request, businessId: string): Promise<boolean> {
+  const authed = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } },
+  });
+  const { data, error } = await authed.rpc("has_business_role", {
+    biz: businessId,
+    roles: ["owner", "manager", "editor"],
+  });
+  return !error && data === true;
 }
 
 async function saveAccount(userId: string, businessId: string, account: ProviderAccount) {
@@ -124,7 +133,9 @@ async function handleAuthorize(req: Request, params: URLSearchParams): Promise<R
   const user = await currentUser(req);
   if (!user) return jsonResponse({ error: "Not signed in." }, 401);
   if (!businessId) return jsonResponse({ error: "Missing business id." }, 400);
-  if (!(await ownsBusiness(user.id, businessId))) return jsonResponse({ error: "You don't own that business." }, 403);
+  if (!(await canManageChannels(req, businessId))) {
+    return jsonResponse({ error: "You do not have permission to connect channels for that business." }, 403);
+  }
 
   await supabase.rpc("prune_social_auth_pending");
 
@@ -204,13 +215,18 @@ async function handleDisconnect(req: Request, params: URLSearchParams): Promise<
   const user = await currentUser(req);
   if (!user) return jsonResponse({ error: "Not signed in." }, 401);
   if (!businessId || !provider) return jsonResponse({ error: "Missing provider or business id." }, 400);
-  if (!(await ownsBusiness(user.id, businessId))) return jsonResponse({ error: "You don't own that business." }, 403);
+  if (!(await canManageChannels(req, businessId))) {
+    return jsonResponse({ error: "You do not have permission to disconnect channels for that business." }, 403);
+  }
 
+  // Business-scoped, not user-scoped. With `.eq("user_id", user.id)` a
+  // connection made by a colleague could not be removed by anyone else — the
+  // account kept publishing and nobody on the team could revoke it, which is
+  // the one operation that has to always work.
   const { error } = await supabase
     .from("social_connections")
     .delete()
     .eq("business_id", businessId)
-    .eq("user_id", user.id)
     .eq("provider", provider);
   if (error) return jsonResponse({ error: "Could not disconnect." }, 500);
   return jsonResponse({ ok: true });
@@ -225,7 +241,24 @@ function handleCapabilities(): Response {
     tiktok: tiktokConfigured(),
   };
   const supported = Object.keys(PROVIDERS);
-  return jsonResponse({ configured, supported, origin: appOrigin() });
+
+  // The exact callback URL each provider's developer console has to whitelist.
+  // Every platform rejects the handshake unless it matches character for
+  // character, and it was previously only derivable by reading this file — so
+  // "needs setup" was a dead end with no way to find out what to paste where.
+  const redirectUris: Record<string, string> = {};
+  for (const key of supported) redirectUris[key] = redirectUri(key);
+
+  // Which secret each channel is waiting on, so the message can name it.
+  const requiredSecrets: Record<string, string[]> = {
+    instagram: ["META_APP_ID", "META_APP_SECRET"],
+    facebook: ["META_APP_ID", "META_APP_SECRET"],
+    linkedin: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"],
+    x: ["X_CLIENT_ID", "X_CLIENT_SECRET"],
+    tiktok: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
+  };
+
+  return jsonResponse({ configured, supported, origin: appOrigin(), redirectUris, requiredSecrets });
 }
 
 Deno.serve(async (req: Request) => {

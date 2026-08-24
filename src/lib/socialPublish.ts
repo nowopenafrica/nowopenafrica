@@ -21,6 +21,10 @@ export interface Capabilities {
   configured: Record<string, boolean>;
   supported: string[];
   origin: string;
+  /** The exact callback URL each provider's developer console must whitelist. */
+  redirectUris?: Record<string, string>;
+  /** Which project secrets a channel is still waiting on. */
+  requiredSecrets?: Record<string, string[]>;
 }
 
 /**

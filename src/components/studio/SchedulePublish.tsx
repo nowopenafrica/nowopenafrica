@@ -535,9 +535,22 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                             We won't post here — it appears on your plan as a reminder.
                           </span>
                         )}
+                        {/* Name the secrets and hand over the exact callback URL,
+                            so "needs setup" is an instruction rather than a
+                            dead end. The URL has to match character for
+                            character or the platform rejects the handshake. */}
                         {!isConnected && mode === 'setup' && (
                           <span className="block text-[11px] font-normal text-amber-600 dark:text-amber-400">
-                            Add this platform's developer app to switch it on.
+                            Needs {(capabilities?.requiredSecrets?.[c.key] ?? []).join(' and ') || 'its developer app'} set on the project.
+                            {capabilities?.redirectUris?.[c.key] && (
+                              <button
+                                type="button"
+                                onClick={() => copyText(capabilities.redirectUris![c.key], 'Callback URL copied — paste it into the developer console')}
+                                className="ml-1 underline hover:no-underline"
+                              >
+                                Copy callback URL
+                              </button>
+                            )}
                           </span>
                         )}
                       </span>

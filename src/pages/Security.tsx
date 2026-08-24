@@ -111,7 +111,7 @@ export default function Security() {
         <div className="flex items-center gap-3">
           <ShieldCheck size={22} className="text-blue-600 dark:text-blue-400" />
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Security</h1>
-          <Link to="/dashboard" className="ml-auto inline-flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+          <Link to="/dashboard" className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
             <ArrowLeft size={15} /> Dashboard
           </Link>
         </div>

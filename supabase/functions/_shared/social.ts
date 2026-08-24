@@ -359,7 +359,15 @@ export function linkedinConfigured(): boolean {
 
 export function linkedinAuthorizeUrl(redirectUri: string, state: string): string {
   const { clientId } = linkedinConfig();
-  const scope = "r_liteprofile r_emailaddress w_member_social".split(" ").join("%20");
+  // These have to match the endpoint we actually call. The code requested the
+  // legacy r_liteprofile / r_emailaddress pair but then read the profile from
+  // https://api.linkedin.com/v2/userinfo — the OpenID Connect endpoint, which
+  // needs `openid` and `profile` and returns 403 without them. LinkedIn would
+  // have failed every connection at "could not fetch your profile".
+  //
+  // email is not requested because nothing here uses it: w_member_social is
+  // what allows posting, and openid + profile are what identify the account.
+  const scope = "openid profile w_member_social".split(" ").join("%20");
   return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${scope}`;
 }
 
@@ -427,7 +435,17 @@ async function linkedinPublish(input: PublishInput): Promise<PublishResult> {
     const asset = reg.json.value.asset;
     const bytes = await fetch(input.media.url).then((r) => (r.ok ? r.arrayBuffer() : null));
     if (!bytes) return { ok: false, error: "LinkedIn: could not download the image for upload." };
-    const up = await fetch(uploadUrl, { method: "POST", body: bytes, headers: { "Content-Type": "application/octet-stream" } });
+    // The upload URL is still a LinkedIn API endpoint and expects the bearer
+    // token; without it the PUT comes back 401 and the post silently loses its
+    // image.
+    const up = await fetch(uploadUrl, {
+      method: "POST",
+      body: bytes,
+      headers: {
+        "Content-Type": "application/octet-stream",
+        Authorization: `Bearer ${input.accessToken}`,
+      },
+    });
     if (!up.ok && up.status !== 201) return { ok: false, error: `LinkedIn: image upload failed (${up.status})` };
 
     const share = await jsonPost("https://api.linkedin.com/v2/ugcPosts", {
