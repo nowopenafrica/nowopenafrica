@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -160,7 +160,25 @@ export default function BusinessDetail() {
   const { user } = useAuth();
   const [business, setBusiness] = useState<any | null>(null);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState('overview');
+  /**
+   * Tab state lives in the URL, not in useState alone.
+   *
+   * Without it "send me their menu" is impossible — every tab was the same
+   * address, so a shared link always landed on Overview. Refresh lost the tab,
+   * and Back left the business entirely instead of returning to the previous
+   * tab, which is the behaviour a visitor actually expects.
+   *
+   * `replace` on tab changes, so flicking through tabs does not bury the page
+   * a visitor came from under six history entries.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const activeTab = searchParams.get('tab') || 'overview';
+  const setActiveTab = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === 'overview') next.delete('tab');
+    else next.set('tab', id);
+    setSearchParams(next, { replace: true });
+  };
   const [content, setContent] = useState<BusinessContent>(EMPTY_CONTENT);
   const [enquiry, setEnquiry] = useState<{ context?: string } | null>(null);
   const [booking, setBooking] = useState<{ moduleKey: string; itemId?: string } | null>(null);
@@ -910,10 +928,27 @@ export default function BusinessDetail() {
         {/* Tabs Navigation */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl mb-8">
           <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="flex space-x-2 px-6 overflow-x-auto" aria-label="Tabs">
-              {tabs.map((tab) => (
+            {/* A real tablist. These were plain buttons marked aria-current="page",
+                which is the attribute for "this is the current page" in a nav —
+                so a screen reader announced six unrelated buttons with no sense
+                of a group, no selected state, and no arrow-key movement. */}
+            <div role="tablist" aria-label="Business sections" className="flex space-x-2 px-6 overflow-x-auto">
+              {tabs.map((tab, i) => (
                 <button
                   key={tab.id}
+                  id={`biz-tab-${tab.id}`}
+                  role="tab"
+                  type="button"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls="biz-tabpanel"
+                  tabIndex={activeTab === tab.id ? 0 : -1}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                    e.preventDefault();
+                    const next = tabs[(i + (e.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length];
+                    setActiveTab(next.id);
+                    document.getElementById(`biz-tab-${next.id}`)?.focus();
+                  }}
                   onClick={() => setActiveTab(tab.id)}
                   className={`
                     flex items-center gap-1.5 py-2.5 px-3 sm:gap-2 sm:py-4 sm:px-6 text-xs sm:text-sm font-medium rounded-t-lg transition-all duration-200 whitespace-nowrap flex-shrink-0
@@ -923,17 +958,16 @@ export default function BusinessDetail() {
                         : 'text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700'
                     }
                   `}
-                  aria-current={activeTab === tab.id ? 'page' : undefined}
                 >
                   {tab.icon}
                   {tab.label}
                 </button>
               ))}
-            </nav>
+            </div>
           </div>
 
           {/* Tab Content */}
-          <div className="p-4 sm:p-6 md:p-8">
+          <div id="biz-tabpanel" role="tabpanel" aria-labelledby={`biz-tab-${activeTab}`} className="p-4 sm:p-6 md:p-8">
             {/* Overview Tab */}
             {activeTab === 'overview' && (
               <div className="animate-fadeIn">
@@ -2037,6 +2071,44 @@ export default function BusinessDetail() {
           )}
         </div>
       )}
+
+      {/*
+        Sticky action bar, phones only.
+        
+        The primary job of this page is "get in touch with this business", and
+        the Call button sat 598px down the page — gone the moment a visitor
+        scrolled to the menu they came to read. Deciding to call happens AFTER
+        reading, which is exactly when the button had disappeared.
+
+        Hidden on sm: and up, where the header CTAs stay within reach, and only
+        rendered when there is a number to call. pb-[env(safe-area-inset-bottom)]
+        keeps it clear of the iPhone home indicator.
+      */}
+      {business?.phone && (
+        <div className="sm:hidden fixed bottom-0 inset-x-0 z-40 border-t border-gray-200 dark:border-gray-700 bg-white/95 dark:bg-gray-900/95 backdrop-blur px-3 pt-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))]">
+          <div className="flex gap-2">
+            <a
+              href={telHref(String(business.phone))}
+              className="flex-1 inline-flex items-center justify-center gap-2 min-h-[48px] rounded-xl bg-blue-600 text-white text-sm font-semibold"
+            >
+              <Phone size={16} /> Call
+            </a>
+            {whatsappHref(String(business.phone), business.location, `Hi ${business.name}, I found you on NowOpen Africa and I'd like to make an enquiry.`) && (
+              <a
+                href={whatsappHref(String(business.phone), business.location, `Hi ${business.name}, I found you on NowOpen Africa and I'd like to make an enquiry.`)!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex-1 inline-flex items-center justify-center gap-2 min-h-[48px] rounded-xl bg-green-600 text-white text-sm font-semibold"
+              >
+                <MessageCircle size={16} /> WhatsApp
+              </a>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Clears the fixed bar so the last of the page is never trapped behind it. */}
+      {business?.phone && <div aria-hidden="true" className="sm:hidden h-20" />}
     </div>
   );
 }
