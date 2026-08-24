@@ -174,7 +174,12 @@ export function scheduleLabel(iso: string): string {
 
 export function createJob(draft: { title: string; caption: string; hashtags: string; scheduledAt: string; channels: string[]; media?: PublishMedia; channelHandles?: Record<string, string> }): PublishJob {
   return {
-    id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    // A real uuid, because this id is now also the primary key of the
+    // server-side queue row and the key publishing is de-duplicated on
+    // (social_publish_log is unique per job_id + channel).
+    id: typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
     ...draft,
     status: 'scheduled',
     createdAt: new Date().toISOString(),

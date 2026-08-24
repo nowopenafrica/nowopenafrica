@@ -14,7 +14,11 @@ import {
   fetchCapabilities, authorizeUrl, openConnectPopup, getServerConnections,
   disconnectConnection, publishPost, ServerConnection, Capabilities,
 } from '../../lib/socialPublish';
+import {
+  fetchScheduledPosts, enqueueScheduledPost, cancelScheduledPost, markScheduledPostHandled,
+} from '../../lib/scheduledPosts';
 import AiGenerateToggle from './AiGenerateToggle';
+import { localDateISO } from '../../lib/dates';
 
 interface Props {
   business: Business;
@@ -47,7 +51,7 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
   const [title, setTitle] = useState(prefill?.title ?? '');
   const [caption, setCaption] = useState(prefill?.text ?? '');
   const [hashtags, setHashtags] = useState('');
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(() => localDateISO());
   const [time, setTime] = useState('09:00');
   const [selected, setSelected] = useState<string[]>(() => state.channels.filter((c) => c.connected).map((c) => c.key));
   const [media, setMedia] = useState<PublishJob['media'] | null>(null);
@@ -108,6 +112,28 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
     savePublisher(business.id, state);
   }, [state, business.id]);
 
+  /**
+   * Reconcile with the server queue.
+   *
+   * The cron publishes due posts whether or not this tab is open, so when it
+   * is opened the server holds the truth about what actually went out. Server
+   * rows replace their local twins by id; drafts the server has never seen
+   * (queued while offline) are kept so nobody loses work.
+   */
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const remote = await fetchScheduledPosts(business.id);
+      if (cancelled || remote === null) return; // could not ask — keep the local copy
+      setState((prev) => {
+        const byId = new Map(remote.map((j) => [j.id, j]));
+        const localOnly = prev.jobs.filter((j) => !byId.has(j.id));
+        return { ...prev, jobs: [...remote, ...localOnly] };
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [business.id]);
+
   // Consume any prefill from the AI Content tab once, on mount.
   useEffect(() => {
     if (prefill) onClearPrefill?.();
@@ -133,6 +159,10 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
   const publishToAll = async (id: string) => {
     if (publishingIds.current.has(id)) return;
     publishingIds.current.add(id);
+    // Take it off the server queue first. Publishing is idempotent per channel
+    // via social_publish_log, but there is no reason to let the cron pick up a
+    // job a person is already pushing through by hand.
+    void markScheduledPostHandled(id);
     const job = stateRef.current.jobs.find((j) => j.id === id);
     if (!job) { publishingIds.current.delete(id); return; }
 
@@ -273,13 +303,22 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
     if (immediate) {
       publishToAll(job.id);
       toast.success('Publishing…');
-    } else {
-      toast.success(`Scheduled for ${scheduleLabel(at)}`);
+      return;
     }
+    // Hand it to the server so it goes out on time whether or not this tab is
+    // open. If that fails we say so rather than showing "Scheduled" for
+    // something only this browser knows about.
+    const queued = await enqueueScheduledPost(business.id, job);
+    toast.success(
+      queued
+        ? `Scheduled for ${scheduleLabel(at)}`
+        : `Saved on this device for ${scheduleLabel(at)} — we could not reach the scheduler, so keep this tab open or try again.`,
+    );
   };
 
   const remove = (id: string) => {
     setState((prev) => ({ ...prev, jobs: prev.jobs.filter((j) => j.id !== id) }));
+    void cancelScheduledPost(id); // also take it off the server queue
     toast.success('Removed from the queue');
   };
 
@@ -385,11 +424,7 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                   const isSelected = selected.includes(c.key);
                   return (
                     <button key={c.key} onClick={() => pickChannel(c.key)}
-                      className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${isSelected
-                        ? 'border-transparent text-white bg-purple-600'
-                        : isConnected
-                          ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'
-                          : 'border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:text-purple-500'}`}>
+                      className={`inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border transition ${isSelected ? 'border-transparent text-white bg-purple-600' : isConnected ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:text-purple-500'} min-h-[44px]`}>
                       <Icon size={13} /> {c.label}
                       {isSelected && <CheckCircle2 size={12} />}
                     </button>

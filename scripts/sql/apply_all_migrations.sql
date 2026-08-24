@@ -2275,6 +2275,7 @@ CREATE POLICY "Public can view social media staging" ON storage.objects
 -- update their own row. Registration stays open — the token is the opaque
 -- device identifier. Full rationale in supabase/migrations/.
 DROP POLICY IF EXISTS "Anyone can update a push token" ON device_push_tokens;
+DROP POLICY IF EXISTS "Users update their own push token" ON device_push_tokens;
 CREATE POLICY "Users update their own push token" ON device_push_tokens
   FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());
 
@@ -3327,3 +3328,270 @@ ALTER TABLE os_form_applications
 -- constraint already refuses duplicate onboards.
 ALTER TABLE os_onboarding
   ADD COLUMN IF NOT EXISTS source_reference text;
+
+-- ===== 20240816000000_open_status_timezone.sql =====
+-- Public open/closed + business timezone. "Open now" must come from the
+-- business's own hours in the business's own timezone, never from the viewer's
+-- device or a category guess. `open_status` is the owner's explicit override
+-- (NULL = derive from the hours); the CHECK stops any other value reaching the
+-- public badge.
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS timezone    text;
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS open_status text;
+
+ALTER TABLE public.businesses DROP CONSTRAINT IF EXISTS businesses_open_status_check;
+ALTER TABLE public.businesses ADD CONSTRAINT businesses_open_status_check
+  CHECK (open_status IS NULL OR open_status IN ('open', 'closed'));
+
+CREATE INDEX IF NOT EXISTS idx_businesses_open_status ON public.businesses (open_status)
+  WHERE open_status IS NOT NULL;
+
+-- ===== 20240817000000_business_opening_hours.sql =====
+-- The column the whole open/closed layer reads. It was assumed to exist by the
+-- migration above but never actually created, so the profile panel, the "Open
+-- now" badge and the directory's open-now filter had nothing to read and the
+-- Business form had nothing to save into. Free text by design: the form's
+-- opening-hours editor writes a canonical always-parseable string, while older
+-- rows keep whatever prose they hold.
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS opening_hours text;
+ALTER TABLE public.businesses ADD COLUMN IF NOT EXISTS hours         text;
+
+UPDATE public.businesses
+   SET opening_hours = hours
+ WHERE opening_hours IS NULL
+   AND hours IS NOT NULL
+   AND btrim(hours) <> '';
+
+-- ===== 20240818000000_role_escalation_guard.sql =====
+-- is_admin() reads users.role, and every admin policy is USING (is_admin()) —
+-- so whoever can write that column owns the platform. Two routes could:
+-- (1) handle_new_user() copied the role out of raw_user_meta_data, which is
+-- supplied by whoever calls the public signup endpoint, so a signup carrying
+-- {"data":{"role":"admin"}} created an admin account outright; (2) the
+-- own-profile UPDATE policy has no WITH CHECK, so any signed-in user could
+-- PATCH their own row to role='admin' with just the public anon key. Both are
+-- closed below. Full rationale in supabase/migrations/.
+--
+-- AFTER RUNNING, check nobody escalated already:
+--   SELECT id, email, role FROM public.users WHERE role = 'admin';
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_requested text := NEW.raw_user_meta_data->>'role';
+  -- Allowlist. 'admin' is deliberately absent: it is granted by an existing
+  -- admin or the service role, never claimed at registration.
+  v_role text := CASE
+    WHEN v_requested = 'media_service' THEN 'media_service'
+    ELSE 'business'
+  END;
+  v_is_business boolean := v_role <> 'media_service';
+BEGIN
+  INSERT INTO public.users (
+    id, email, role, phone,
+    plan, plan_status, plan_billing_cycle, plan_renews_at, plan_updated_at
+  )
+  VALUES (
+    NEW.id,
+    NEW.email,
+    v_role,
+    NEW.raw_user_meta_data->>'phone',
+    CASE WHEN v_is_business THEN 'business-pro' ELSE 'starter' END,
+    CASE WHEN v_is_business THEN 'trialing'     ELSE 'active'  END,
+    CASE WHEN v_is_business THEN 'trial'        ELSE NULL      END,
+    CASE WHEN v_is_business THEN now() + interval '3 months'   ELSE NULL END,
+    now()
+  )
+  ON CONFLICT (id) DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+CREATE OR REPLACE FUNCTION public.guard_user_role_column()
+RETURNS trigger
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  -- Service role (edge functions) and existing admins may set roles; for
+  -- everyone else the column is frozen to whatever it already was.
+  IF auth.role() IS DISTINCT FROM 'service_role' AND NOT public.is_admin() THEN
+    NEW.role := OLD.role;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS guard_user_role_column ON public.users;
+CREATE TRIGGER guard_user_role_column
+  BEFORE UPDATE ON public.users
+  FOR EACH ROW EXECUTE FUNCTION public.guard_user_role_column();
+
+ALTER TABLE public.users DROP CONSTRAINT IF EXISTS users_role_check;
+ALTER TABLE public.users ADD CONSTRAINT users_role_check
+  CHECK (role IS NULL OR role IN ('business', 'media_service', 'admin')) NOT VALID;
+
+-- ===== 20240819000000_gallery_schedule.sql =====
+-- Scheduled OpenReels: scheduled_for NULL (the default, and every existing row)
+-- means live now. The public SELECT policy hides anything dated in the future so
+-- a queued reel is invisible even to a direct table query, while owners keep
+-- seeing their own. Full rationale in supabase/migrations/.
+ALTER TABLE public.business_gallery
+  ADD COLUMN IF NOT EXISTS scheduled_for timestamptz;
+
+-- Public readers only see what is already due.
+DROP POLICY IF EXISTS "Anyone can view business gallery" ON public.business_gallery;
+DROP POLICY IF EXISTS "Public can view business gallery" ON public.business_gallery;
+DROP POLICY IF EXISTS "Public can view due gallery items" ON public.business_gallery;
+CREATE POLICY "Public can view due gallery items" ON public.business_gallery
+  FOR SELECT USING (scheduled_for IS NULL OR scheduled_for <= now());
+
+-- Owners keep full sight of their own, including anything still queued.
+DROP POLICY IF EXISTS "Owners view own gallery" ON public.business_gallery;
+CREATE POLICY "Owners view own gallery" ON public.business_gallery
+  FOR SELECT TO authenticated USING (
+    EXISTS (
+      SELECT 1 FROM public.businesses b
+      WHERE b.id = business_gallery.business_id
+        AND b.user_id = auth.uid()
+    )
+    OR public.is_admin()
+  );
+
+-- Ordering the profile feed by publish time needs an index once a business has
+-- a real backlog.
+CREATE INDEX IF NOT EXISTS idx_business_gallery_scheduled
+  ON public.business_gallery (business_id, scheduled_for);
+
+-- ===========================================================================
+-- Server-side social scheduling (20260825000000_social_scheduled_posts.sql)
+-- Required before publish-due-posts can post anything on a schedule.
+-- ===========================================================================
+
+-- Server-side queue for Studio's Schedule & Publish.
+--
+-- The queue used to live entirely in localStorage (see lib/publisher.ts), which
+-- meant a "scheduled" post existed in exactly one browser on one device and
+-- could only ever go out while that tab happened to be open and looking at the
+-- page. Clearing site data lost the schedule. Nothing server-side knew a post
+-- was due, so automatic publishing was not possible at all.
+--
+-- Moving the queue here is what makes `publish-due-posts` able to run on a cron
+-- and post on the owner's behalf while nobody is watching.
+
+CREATE TABLE IF NOT EXISTS public.social_scheduled_posts (
+  id             uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  business_id    uuid NOT NULL REFERENCES public.businesses(id) ON DELETE CASCADE,
+  -- Who queued it. Kept for the audit trail; permission comes from the
+  -- business, not from this column, so a colleague can manage the same queue.
+  created_by     uuid REFERENCES auth.users(id) ON DELETE SET NULL,
+
+  title          text,
+  caption        text,
+  hashtags       text,
+  channels       text[] NOT NULL DEFAULT '{}',
+  -- { name, url, type } — the same shape the publish function stages.
+  media          jsonb,
+
+  scheduled_at   timestamptz NOT NULL,
+
+  -- scheduled → publishing → published | failed, or cancelled by the owner.
+  -- 'publishing' is a claim marker: the cron sets it before doing any network
+  -- work so two overlapping runs cannot post the same row twice.
+  status         text NOT NULL DEFAULT 'scheduled'
+                 CHECK (status IN ('scheduled','publishing','published','failed','cancelled')),
+  attempts       int NOT NULL DEFAULT 0,
+  last_error     text,
+  -- Per-channel outcome from the last run, for the UI to explain itself.
+  results        jsonb,
+  published_at   timestamptz,
+
+  created_at     timestamptz NOT NULL DEFAULT now(),
+  updated_at     timestamptz NOT NULL DEFAULT now()
+);
+
+-- The cron's only query: due, still waiting, not exhausted.
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_due
+  ON public.social_scheduled_posts (status, scheduled_at)
+  WHERE status IN ('scheduled', 'publishing');
+
+CREATE INDEX IF NOT EXISTS idx_scheduled_posts_business
+  ON public.social_scheduled_posts (business_id, scheduled_at DESC);
+
+ALTER TABLE public.social_scheduled_posts ENABLE ROW LEVEL SECURITY;
+
+-- Anyone on the business's team may see the queue. Publishing on behalf of a
+-- business is a team activity: gating it on businesses.user_id meant a manager
+-- could not see, let alone schedule, the posts they were hired to run.
+DROP POLICY IF EXISTS "Team reads scheduled posts" ON public.social_scheduled_posts;
+CREATE POLICY "Team reads scheduled posts" ON public.social_scheduled_posts
+  FOR SELECT TO authenticated
+  USING (public.is_business_member(business_id));
+
+-- Writing is narrower than reading: staff can watch the calendar, but only
+-- owners, managers and editors put something on it.
+DROP POLICY IF EXISTS "Editors queue scheduled posts" ON public.social_scheduled_posts;
+CREATE POLICY "Editors queue scheduled posts" ON public.social_scheduled_posts
+  FOR INSERT TO authenticated
+  WITH CHECK (public.has_business_role(business_id, ARRAY['owner','manager','editor']));
+
+DROP POLICY IF EXISTS "Editors update scheduled posts" ON public.social_scheduled_posts;
+CREATE POLICY "Editors update scheduled posts" ON public.social_scheduled_posts
+  FOR UPDATE TO authenticated
+  USING (public.has_business_role(business_id, ARRAY['owner','manager','editor']))
+  WITH CHECK (public.has_business_role(business_id, ARRAY['owner','manager','editor']));
+
+DROP POLICY IF EXISTS "Editors delete scheduled posts" ON public.social_scheduled_posts;
+CREATE POLICY "Editors delete scheduled posts" ON public.social_scheduled_posts
+  FOR DELETE TO authenticated
+  USING (public.has_business_role(business_id, ARRAY['owner','manager','editor']));
+
+-- updated_at maintenance.
+CREATE OR REPLACE FUNCTION public.touch_scheduled_post()
+RETURNS trigger LANGUAGE plpgsql SET search_path = public AS $$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_touch_scheduled_post ON public.social_scheduled_posts;
+CREATE TRIGGER trg_touch_scheduled_post
+  BEFORE UPDATE ON public.social_scheduled_posts
+  FOR EACH ROW EXECUTE FUNCTION public.touch_scheduled_post();
+
+-- A client must never be able to mark its own post published, or reset the
+-- attempt counter to get around the retry ceiling — those columns belong to
+-- the publisher. RLS cannot restrict individual columns, so the trigger keeps
+-- them at their stored values for anyone who is not the service role.
+CREATE OR REPLACE FUNCTION public.guard_scheduled_post_columns()
+RETURNS trigger LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  -- auth.uid() is null for the service role, which is the publisher.
+  IF auth.uid() IS NULL THEN
+    RETURN NEW;
+  END IF;
+
+  NEW.attempts     := OLD.attempts;
+  NEW.published_at := OLD.published_at;
+  NEW.results      := OLD.results;
+  NEW.last_error   := OLD.last_error;
+
+  -- A person may cancel, or put a failed post back in the queue. They may not
+  -- declare it published.
+  IF NEW.status IS DISTINCT FROM OLD.status
+     AND NEW.status NOT IN ('scheduled', 'cancelled') THEN
+    NEW.status := OLD.status;
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_guard_scheduled_post ON public.social_scheduled_posts;
+CREATE TRIGGER trg_guard_scheduled_post
+  BEFORE UPDATE ON public.social_scheduled_posts
+  FOR EACH ROW EXECUTE FUNCTION public.guard_scheduled_post_columns();
