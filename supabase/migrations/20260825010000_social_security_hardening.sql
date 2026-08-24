@@ -41,7 +41,10 @@ CREATE OR REPLACE FUNCTION public.prune_social_auth_pending()
 RETURNS void
 LANGUAGE sql SECURITY DEFINER SET search_path = public
 AS $$
-  DELETE FROM public.social_auth_pending WHERE expires_at < now();
+  -- Body unchanged from the original migration. social_auth_pending has no
+  -- expires_at column — the handshake window is derived from created_at.
+  DELETE FROM public.social_auth_pending
+  WHERE created_at < now() - interval '10 minutes';
 $$;
 
 -- ---------------------------------------------------------------------------
