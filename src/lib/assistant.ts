@@ -190,8 +190,12 @@ export function assistantReply(business: Business, raw: string): AssistantReply 
         '',
         ...items.map((i) => `• ${i.label}: ${i.earned}/${i.max}`),
         '',
-        `Full 11-dimension score: ${health11.score}/100 (${health11.label}).`,
-        `Biggest opportunity: ${health11.weakest.label} (${health11.weakest.score}/100) — ${health11.weakest.tip}`,
+        health11.score !== null
+          ? `Full 11-dimension score: ${health11.score}/100 (${health11.label}), from the ${health11.measuredCount} dimensions we can measure so far.`
+          : 'The 11-dimension score needs at least two measurable signals — publish a post, add an offer or collect a review to start it.',
+        ...(health11.weakest
+          ? [`Biggest opportunity: ${health11.weakest.label} (${health11.weakest.score}/100) — ${health11.weakest.tip}`]
+          : []),
         '',
         `Coach tip: ${tips[0]?.tip}`,
       ].join('\n'),

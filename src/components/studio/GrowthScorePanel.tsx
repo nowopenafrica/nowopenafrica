@@ -12,7 +12,7 @@ interface Props {
 
 export default function GrowthScorePanel({ business, onNavigate }: Props) {
   const health = marketingHealth(business);
-  const [openDim, setOpenDim] = useState(health.weakest.key);
+  const [openDim, setOpenDim] = useState(health.weakest?.key ?? '');
 
   return (
     <div className="space-y-5">
@@ -43,19 +43,29 @@ export default function GrowthScorePanel({ business, onNavigate }: Props) {
                 </defs>
               </svg>
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-3xl font-bold text-gray-900 dark:text-white">{health.score}</span>
-                <span className="text-[10px] text-gray-400">/ 100</span>
+                <span className="text-3xl font-bold text-gray-900 dark:text-white">{health.score ?? '—'}</span>
+                <span className="text-[10px] text-gray-400">{health.score === null ? 'no data' : '/ 100'}</span>
               </div>
             </div>
             <div>
               <p className="text-lg font-bold text-gray-900 dark:text-white">{health.label}</p>
-              <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-                Weakest: {health.weakest.emoji} {health.weakest.label} · Strongest: {health.strongest.emoji} {health.strongest.label}
-              </p>
-              <button onClick={() => setOpenDim(health.weakest.key)}
-                className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-green-600 dark:text-green-400 hover:underline">
-                Focus on your biggest opportunity <ArrowRight size={12} />
-              </button>
+              {/* Only ever names a measured dimension. This used to point at
+                  whichever seeded number happened to be smallest. */}
+              {health.weakest && health.strongest ? (
+                <>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                    Weakest: {health.weakest.emoji} {health.weakest.label} · Strongest: {health.strongest.emoji} {health.strongest.label}
+                  </p>
+                  <button onClick={() => setOpenDim(health.weakest!.key)}
+                    className="mt-2 inline-flex items-center gap-1 min-h-[44px] text-xs font-semibold text-green-600 dark:text-green-400 hover:underline">
+                    Focus on your biggest opportunity <ArrowRight size={12} />
+                  </button>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                  Publish a post, add an offer or collect a review and this starts scoring.
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -72,12 +82,16 @@ export default function GrowthScorePanel({ business, onNavigate }: Props) {
                 <button onClick={() => setOpenDim(open ? '' : d.key)} className="w-full text-left">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-semibold text-gray-900 dark:text-white">{d.emoji} {d.label}</span>
-                    <span className="font-bold text-gray-600 dark:text-gray-300">{d.score}/100</span>
+                    {d.score === null
+                      ? <span className="font-medium text-gray-400 dark:text-gray-500">Not tracked yet</span>
+                      : <span className="font-bold text-gray-600 dark:text-gray-300 tabular-nums">{d.score}/100</span>}
                   </div>
-                  <div className="mt-1.5 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
-                    <div className={`h-full rounded-full ${d.score >= 70 ? 'bg-green-500' : d.score >= 45 ? 'bg-amber-500' : 'bg-red-500'}`}
-                      style={{ width: `${d.score}%` }} />
-                  </div>
+                  {d.score !== null && (
+                    <div className="mt-1.5 h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
+                      <div className={`h-full rounded-full ${d.score >= 70 ? 'bg-green-500' : d.score >= 45 ? 'bg-amber-500' : 'bg-red-500'}`}
+                        style={{ width: `${d.score}%` }} />
+                    </div>
+                  )}
                 </button>
                 {open && (
                   <div className="mt-2.5 space-y-2">

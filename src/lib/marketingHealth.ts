@@ -1,13 +1,22 @@
 // NowOpen Studio — Business Growth Score (11 dimensions).
 //
-// A fuller, 11-part growth score than the classic marketing health score: it
-// blends real on-device signals (profile fields, planner output, promos,
-// reviews, loyalty) with deterministic seeded estimates (reach, engagement,
-// followers, ads) so every dimension returns 0–100. The weakest dimension
-// becomes the "biggest opportunity" the Growth Score panel leads with.
+// Every dimension here is measured or it is null. There is no estimate layer.
+//
+// It used to "blend real on-device signals with deterministic seeded
+// estimates" — meaning seven of the eleven had `rng() * n` added to them, and
+// reach, followers, engagement, bookings and advertising had no data source at
+// all behind the noise. Because the generator was seeded from the business id
+// the numbers never moved, so they read as measurements that had simply
+// plateaued. The weakest dimension drives the "biggest opportunity" this panel
+// leads with AND the advice the site assistant gives the owner, so a business
+// could be told for weeks to fix whichever number the seed happened to make
+// smallest.
+//
+// Unmeasured dimensions now return null: they stay listed, so an owner can see
+// what the platform intends to measure, but they carry no number, cannot be
+// the "weakest", and are excluded from the headline average.
 
 import { Business } from '../types';
-import { hashString, mulberry32 } from './videoCreator';
 import { computeAnalytics } from './analytics';
 import { isOrderingCategory, loadClockConfig, getBusinessHealth } from './businessStatus';
 
@@ -15,18 +24,23 @@ export interface HealthDimension {
   key: string;
   label: string;
   emoji: string;
-  score: number;
+  /** null = nothing measures this yet. Not the same as a score of zero. */
+  score: number | null;
   detail: string;
   tip: string;
   module: 'home' | 'social' | 'planner' | 'promotions' | 'loyalty' | 'campaigns' | 'analytics' | 'copywriter' | 'live-promo' | 'card';
 }
 
 export interface MarketingHealth {
-  score: number;
+  /** null when fewer than two dimensions are measured. */
+  score: number | null;
   label: string;
   dimensions: HealthDimension[];
-  weakest: HealthDimension;
-  strongest: HealthDimension;
+  /** Lowest MEASURED dimension, or null when nothing is measured. */
+  weakest: HealthDimension | null;
+  strongest: HealthDimension | null;
+  /** How many of the dimensions currently have a data source. */
+  measuredCount: number;
 }
 
 export const GROWTH_DIMENSIONS = [
@@ -51,31 +65,48 @@ function profileCompleteness(business: Business): number {
 export function marketingHealth(business: Business, _now = new Date()): MarketingHealth {
   const analytics = computeAnalytics(business);
   const clockHealth = getBusinessHealth(business, loadClockConfig(business));
-  const rng = mulberry32(hashString(`${business.id}:growth11`));
 
   const clamp = (n: number) => Math.max(0, Math.min(100, Math.round(n)));
 
+  // --- Measured ------------------------------------------------------------
   const profile = clamp(profileCompleteness(business));
-  const content = clamp((analytics.publishedThisWeek / 3) * 55 + rng() * 45);
-  const engagement = clamp((business.rating || 3.5) * 10 + rng() * 50);
-  const promotions = clamp((analytics.promoStats.live * 25 + analytics.promoStats.scheduled * 12 + analytics.promoStats.shared * 8) + rng() * 40);
-  const reach = clamp(30 + rng() * 40 + analytics.score / 4);
-  // getBusinessHealth now reports null when too little is measured to average
-  // honestly, so consistency leans on the planner signal alone in that case
-  // rather than treating "unknown" as a zero contribution it can't distinguish.
+
+  // Posting cadence against the 3-a-week target. Was this plus rng() * 45,
+  // so a business that had published nothing could still score 40.
+  const content = clamp((analytics.publishedThisWeek / 3) * 55);
+
+  const promotions = clamp(
+    analytics.promoStats.live * 25 + analytics.promoStats.scheduled * 12 + analytics.promoStats.shared * 8,
+  );
+
   const consistency = clamp((analytics.publishedThisWeek / 3) * 60 + (clockHealth.score ?? 0) / 4);
-  const reviews = clamp(
-    (analytics.reviewStats.avg > 0 ? (analytics.reviewStats.avg / 5) * 60 : 20) +
-    (analytics.reviewStats.total > 0 ? Math.min(analytics.reviewStats.responded / analytics.reviewStats.total, 1) * 40 : 0),
-  );
-  const bookings = clamp((isOrderingCategory(business.category) ? 35 : 20) + rng() * 45 + (business.rating || 3.5) * 5);
-  const followers = clamp(25 + rng() * 40 + analytics.score / 5);
-  const advertising = clamp(20 + rng() * 50 + analytics.promoStats.total * 5);
-  const loyalty = clamp(
-    analytics.loyalty.members > 0
-      ? Math.min(analytics.loyalty.members / 50, 1) * 70 + Math.min(analytics.loyalty.active / 20, 1) * 30
-      : 15 + rng() * 25,
-  );
+
+  // Only once there is a review to average. The old formula floored an
+  // unreviewed business at 20, which is a score nobody had earned.
+  const reviews = analytics.reviewStats.total > 0
+    ? clamp(
+        (analytics.reviewStats.avg / 5) * 60 +
+        Math.min(analytics.reviewStats.responded / analytics.reviewStats.total, 1) * 40,
+      )
+    : null;
+
+  // Only once somebody has joined. Was `15 + rng() * 25` for an empty scheme.
+  const loyalty = analytics.loyalty.members > 0
+    ? clamp(
+        Math.min(analytics.loyalty.members / 50, 1) * 70 +
+        Math.min(analytics.loyalty.active / 20, 1) * 30,
+      )
+    : null;
+
+  // --- Not measured --------------------------------------------------------
+  // No analytics layer exists, so none of these have a source. They were
+  // `30 + rng() * 40`, `25 + rng() * 40`, `rating * 10 + rng() * 50` and so on:
+  // a real-looking number for something the platform never observed.
+  const engagement = null;
+  const reach = null;
+  const bookings = null;
+  const followers = null;
+  const advertising = null;
 
   const dimensions: HealthDimension[] = [
     { key: 'profile', label: 'Profile & card', emoji: '🪪', score: profile, detail: 'How complete your NowOpen profile and business card are.', tip: 'Fill every field — add photos, hours, website and services.', module: 'card' },
@@ -91,15 +122,33 @@ export function marketingHealth(business: Business, _now = new Date()): Marketin
     { key: 'loyalty', label: 'Loyalty', emoji: '💛', score: loyalty, detail: `${analytics.loyalty.members} members · ${analytics.loyalty.visits} visits · ${analytics.loyalty.redemptions} redemptions.`, tip: analytics.loyalty.members < 20 ? 'Sign up regulars to your loyalty programme — repeat customers spend more.' : 'Reward your most loyal members to keep them coming back.', module: 'loyalty' },
   ];
 
-  const score = clamp(dimensions.reduce((sum, d) => sum + d.score, 0) / dimensions.length);
-  const sorted = [...dimensions].sort((a, b) => a.score - b.score);
-  const label = score >= 80 ? 'Growing Fast' : score >= 60 ? 'On Track' : score >= 40 ? 'Building Momentum' : 'Needs a Push';
+  // Average only what is measured, and report nothing below two — an
+  // "average" of one number is not a growth score. The unmeasured dimensions
+  // stay in `dimensions` so the panel can list them as pending.
+  const measured = dimensions.filter(
+    (d): d is HealthDimension & { score: number } => d.score !== null,
+  );
+  const score = measured.length >= 2
+    ? clamp(measured.reduce((sum, d) => sum + d.score, 0) / measured.length)
+    : null;
+
+  // weakest drives the "biggest opportunity" this panel leads with and the
+  // advice the assistant gives, so it may only ever be a measured dimension.
+  const sorted = [...measured].sort((a, b) => a.score - b.score);
+
+  const label = score === null
+    ? 'Not enough data yet'
+    : score >= 80 ? 'Growing Fast'
+    : score >= 60 ? 'On Track'
+    : score >= 40 ? 'Building Momentum'
+    : 'Needs a Push';
 
   return {
     score,
     label,
     dimensions,
-    weakest: sorted[0],
-    strongest: sorted[sorted.length - 1],
+    weakest: sorted[0] ?? null,
+    strongest: sorted[sorted.length - 1] ?? null,
+    measuredCount: measured.length,
   };
 }

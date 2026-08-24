@@ -68,9 +68,11 @@ export default function DailyGrowthDashboard({ business, onGo }: Props) {
             <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-lg px-3 py-1.5">
               {brief.followers.toLocaleString()} followers
             </span>
-            <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-lg px-3 py-1.5">
-              {health.weakest.emoji} Focus: {health.weakest.label}
-            </span>
+            {health.weakest && (
+              <span className="inline-flex items-center gap-1.5 bg-white/15 rounded-lg px-3 py-1.5">
+                {health.weakest.emoji} Focus: {health.weakest.label}
+              </span>
+            )}
           </div>
         </div>
 
@@ -134,7 +136,11 @@ export default function DailyGrowthDashboard({ business, onGo }: Props) {
             </div>
             <div>
               <p className="text-sm font-bold text-gray-900 dark:text-white">{health.label}</p>
-              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">{health.weakest.emoji} Weakest: {health.weakest.label}</p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+                {health.weakest
+                  ? <>{health.weakest.emoji} Weakest: {health.weakest.label}</>
+                  : `${health.measuredCount} of ${health.dimensions.length} dimensions tracked so far`}
+              </p>
               <button onClick={() => onGo('score')}
                 className="mt-2 text-xs font-semibold text-purple-600 dark:text-purple-400 hover:underline">
                 Open 11-dimension panel →
