@@ -249,9 +249,18 @@ describe('businessStatus — pulse', () => {
 });
 
 describe('businessStatus — scores', () => {
-  it('returns bounded streak and reliability scores', () => {
+  // These used to assert only that the invented numbers were in range, which
+  // is exactly what a fabricated metric passes. What matters is that an
+  // unmeasured signal reports nothing rather than a plausible number.
+  it('reports nothing for streak and reliability until something measures them', () => {
     const config = defaultClockConfig(biz);
-    expect(getOpenStreak(biz, config)).toBeGreaterThanOrEqual(0);
+    expect(getOpenStreak(biz, config)).toBeNull();
+    expect(getOpeningReliability(biz, config)).toBeNull();
+  });
+
+  it('returns bounded scores once they are recorded', () => {
+    const config = { ...defaultClockConfig(biz), streakDays: 12, reliabilityScore: 88 };
+    expect(getOpenStreak(biz, config)).toBe(12);
     const rel = getOpeningReliability(biz, config);
     expect(rel).toBeGreaterThanOrEqual(0);
     expect(rel).toBeLessThanOrEqual(100);
@@ -262,12 +271,27 @@ describe('businessStatus — scores', () => {
     expect(getOpenStreak(biz, { ...defaultClockConfig(biz), openedDays: 0 })).toBe(0);
   });
 
-  it('computes health with weighted parts', () => {
+  it('computes health only from parts that have a data source', () => {
     const health = getBusinessHealth(biz, defaultClockConfig(biz));
     expect(health.parts.length).toBeGreaterThan(0);
-    expect(health.score).toBeGreaterThanOrEqual(0);
-    expect(health.score).toBeLessThanOrEqual(100);
-    expect(['Excellent', 'Good', 'Needs attention', 'Critical']).toContain(healthLabel(health.score));
+
+    // Response time, promotions, live sessions, activity and orders have no
+    // data source yet; they are listed so the owner can see what is coming,
+    // but they must never carry a number.
+    const unmeasured = ['Response time', 'Promotions', 'Live sessions', 'Activity', 'Orders & bookings'];
+    for (const label of unmeasured) {
+      expect(health.parts.find((p) => p.label === label)?.score).toBeNull();
+    }
+
+    // The headline may only average what is actually known.
+    const known = health.parts.filter((p) => p.score !== null);
+    if (known.length >= 2) {
+      const expected = Math.round(known.reduce((sum, p) => sum + (p.score as number), 0) / known.length);
+      expect(health.score).toBe(expected);
+      expect(['Excellent', 'Good', 'Needs attention', 'Critical']).toContain(healthLabel(health.score as number));
+    } else {
+      expect(health.score).toBeNull();
+    }
   });
 });
 
@@ -308,17 +332,27 @@ describe('businessStatus — reminders and coach', () => {
     const closed = { ...defaultClockConfig(biz), manualOverride: 'closed' as const, openedDays: 0 };
     const coach = getCoachReminder(biz, closed, nineAM);
     expect(coach).not.toBeNull();
-    expect(coach?.message).toContain('3.8x');
+    expect(coach?.message).toContain("haven't opened today");
+    // The nudge used to assert "3.8x more profile views" as fact. There is no
+    // analytics layer to have measured that, and an owner would repeat it.
+    expect(coach?.message).not.toMatch(/\d+(\.\d+)?x more/);
     expect(getCoachReminder(biz, { ...defaultClockConfig(biz), manualOverride: 'open' as const }, nineAM)).toBeNull();
   });
 });
 
 describe('businessStatus — staff, opening assistant and notifications', () => {
-  it('staff state is bounded and clock-in aware', () => {
-    const state = getStaffState(biz, defaultClockConfig(biz));
-    expect(state.total).toBeGreaterThanOrEqual(2);
-    expect(state.available).toBeGreaterThanOrEqual(0);
-    expect(state.available).toBeLessThanOrEqual(state.total);
+  it('has no staff state until the owner sets a roster', () => {
+    // The headcount used to be invented, so a sole trader could be told that
+    // 7 of their 12 staff were on duty.
+    expect(getStaffState(biz, defaultClockConfig(biz))).toBeNull();
+  });
+
+  it('staff state is bounded and clock-in aware once a roster exists', () => {
+    const state = getStaffState(biz, { ...defaultClockConfig(biz), staffTotal: 6, staffClockedIn: 4 });
+    expect(state).not.toBeNull();
+    expect(state!.total).toBe(6);
+    expect(state!.available).toBe(4);
+    expect(state!.available).toBeLessThanOrEqual(state!.total);
   });
 
   it('AI opening pack is deterministic and references the business', () => {

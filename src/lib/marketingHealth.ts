@@ -60,7 +60,10 @@ export function marketingHealth(business: Business, _now = new Date()): Marketin
   const engagement = clamp((business.rating || 3.5) * 10 + rng() * 50);
   const promotions = clamp((analytics.promoStats.live * 25 + analytics.promoStats.scheduled * 12 + analytics.promoStats.shared * 8) + rng() * 40);
   const reach = clamp(30 + rng() * 40 + analytics.score / 4);
-  const consistency = clamp((analytics.publishedThisWeek / 3) * 60 + clockHealth.score / 4);
+  // getBusinessHealth now reports null when too little is measured to average
+  // honestly, so consistency leans on the planner signal alone in that case
+  // rather than treating "unknown" as a zero contribution it can't distinguish.
+  const consistency = clamp((analytics.publishedThisWeek / 3) * 60 + (clockHealth.score ?? 0) / 4);
   const reviews = clamp(
     (analytics.reviewStats.avg > 0 ? (analytics.reviewStats.avg / 5) * 60 : 20) +
     (analytics.reviewStats.total > 0 ? Math.min(analytics.reviewStats.responded / analytics.reviewStats.total, 1) * 40 : 0),

@@ -179,6 +179,8 @@ export interface BusinessClockConfig {
   deliveryActive?: boolean;
   appointmentOnly?: boolean;
   staffClockedIn?: number | null;
+  /** Roster size. Without it there is no honest "x of y on duty" to show. */
+  staffTotal?: number | null;
   lastOpenedAt?: string | null;
   streakDays?: number | null;
   openedDays?: number | null;
@@ -195,6 +197,7 @@ export function defaultClockConfig(business: Business): BusinessClockConfig {
     deliveryActive: false,
     appointmentOnly: false,
     staffClockedIn: null,
+    staffTotal: null,
     lastOpenedAt: null,
     streakDays: null,
     openedDays: null,
@@ -323,16 +326,6 @@ export interface TimelineEvent {
   kind: TimelineKind;
 }
 
-const TIMELINE_POOL: { kind: TimelineKind; emoji: string; label: string }[] = [
-  { kind: 'offer', emoji: '🏷️', label: 'Posted an offer — Buy 2 Get 1 Free' },
-  { kind: 'offer', emoji: '🎁', label: 'Shared a daily offer with followers' },
-  { kind: 'product', emoji: '📦', label: 'Added a new product to your store' },
-  { kind: 'product', emoji: '✨', label: 'Listed a new service' },
-  { kind: 'live', emoji: '📹', label: 'Started a live session' },
-  { kind: 'menu', emoji: '🍽️', label: 'Updated your menu' },
-  { kind: 'flash', emoji: '⚡', label: 'Launched a flash promotion' },
-  { kind: 'orders', emoji: '🧾', label: 'Received new orders' },
-];
 
 export function buildBusinessTimeline(business: Business, config: BusinessClockConfig, now: Date): TimelineEvent[] {
   const day = now.getDay();
@@ -344,18 +337,13 @@ export function buildBusinessTimeline(business: Business, config: BusinessClockC
 
   if (openAt !== null && !slot.closed && openAt >= 0) {
     events.push({ time: toTimeString(openAt), label: 'Opened for the day', emoji: '🟢', kind: 'opened' });
-    const rng = mulberry32(hashString(`${business.id}:${dateKey(now)}:timeline`));
-    const count = 2 + Math.floor(rng() * 3);
-    const used = new Set<number>();
-    const dayLength = Math.max(60, (closeAt || 1440) - openAt);
-    for (let i = 0; i < count; i++) {
-      const offset = Math.floor(rng() * dayLength);
-      const at = openAt + offset;
-      if (at >= mins || used.has(at)) continue;
-      used.add(at);
-      const entry = pick(rng, TIMELINE_POOL);
-      events.push({ time: toTimeString(at), label: entry.label, emoji: entry.emoji, kind: entry.kind });
-    }
+    // Two to four entries were drawn from TIMELINE_POOL here — "Received new
+    // orders", "Posted an offer — Buy 2 Get 1 Free", "Started a live session".
+    // A wrong number is bad; a fabricated activity LOG is worse, because it
+    // tells an owner they did something they did not, and they go looking for
+    // the orders. Real events come from loadTimelineEvents(); the only entries
+    // built here are the ones derivable from the configured hours and the
+    // current status.
     if (closeAt !== null && closeAt <= 1440) {
       events.push({ time: toTimeString(closeAt), label: 'Closed for the day', emoji: '🔚', kind: 'closed' });
     }
@@ -456,59 +444,102 @@ export function buildBusinessPulse(businesses: Business[], now: Date): BusinessP
 
 // --- Scores ---------------------------------------------------------------------
 
-export function getOpenStreak(business: Business, config: BusinessClockConfig): number {
+/** Days opened on the trot, or null when nothing has counted them yet. */
+export function getOpenStreak(_business: Business, config: BusinessClockConfig): number | null {
   if (config.openedDays === 0) return 0;
   if (typeof config.streakDays === 'number') return config.streakDays;
-  const rng = mulberry32(hashString(`${business.id}:streak`));
-  return 1 + Math.floor(rng() * 47);
+  // Was `1 + rng() * 47`, so a brand-new listing could greet its owner with a
+  // 35-day opening streak it had never earned.
+  return null;
 }
 
-export function getOpeningReliability(business: Business, config: BusinessClockConfig): number {
+/** Scheduled vs actual opening, or null when it has not been measured. */
+export function getOpeningReliability(_business: Business, config: BusinessClockConfig): number | null {
   if (typeof config.reliabilityScore === 'number') return Math.max(0, Math.min(100, config.reliabilityScore));
-  const rng = mulberry32(hashString(`${business.id}:reliability`));
-  return 62 + Math.floor(rng() * 38);
+  // Was `62 + rng() * 38`, i.e. never below 62% and never earned.
+  return null;
 }
 
 export interface HealthPart {
   label: string;
-  score: number;
+  /** null = nothing measures this yet. Not the same as zero. */
+  score: number | null;
 }
 
 export interface BusinessHealth {
-  score: number;
+  /** null when too little is measured to average honestly. */
+  score: number | null;
   parts: HealthPart[];
 }
 
-function profileCompleteness(business: Business): number {
-  let score = 0;
-  const checks: boolean[] = [
-    Boolean(business.name),
-    Boolean(business.description && business.description.length > 20),
-    Boolean(business.image_url || business.logo_url),
-    Boolean(business.phone),
-    Boolean(business.location),
-    Boolean(business.website),
-    Boolean(business.category),
-    Boolean(business.rating),
-    Boolean(business.status),
-  ];
-  score = Math.round((checks.filter(Boolean).length / checks.length) * 100);
-  return score;
+/**
+ * The profile fields the score is built from, each with the label an owner
+ * would recognise.
+ *
+ * Named rather than counted so the dashboard can say WHICH fields are missing.
+ * "Profile completeness 78%" tells an owner they have work to do without
+ * telling them what it is; "add a website and a longer description" is the
+ * same fact they can actually act on.
+ */
+const PROFILE_CHECKS: { label: string; has: (b: Business) => boolean }[] = [
+  { label: 'Business name', has: (b) => Boolean(b.name) },
+  { label: 'A description over 20 characters', has: (b) => Boolean(b.description && b.description.length > 20) },
+  { label: 'A logo or cover image', has: (b) => Boolean(b.image_url || b.logo_url) },
+  { label: 'Phone number', has: (b) => Boolean(b.phone) },
+  { label: 'Location', has: (b) => Boolean(b.location) },
+  { label: 'Website', has: (b) => Boolean(b.website) },
+  { label: 'Category', has: (b) => Boolean(b.category) },
+  { label: 'At least one review', has: (b) => Boolean(b.rating) },
+  { label: 'Opening status', has: (b) => Boolean(b.status) },
+];
+
+/** Which profile fields are still empty, in the order an owner should fill them. */
+export function profileGaps(business: Business): string[] {
+  return PROFILE_CHECKS.filter((c) => !c.has(business)).map((c) => c.label);
 }
 
+function profileCompleteness(business: Business): number {
+  const done = PROFILE_CHECKS.filter((c) => c.has(business)).length;
+  return Math.round((done / PROFILE_CHECKS.length) * 100);
+}
+
+/**
+ * The owner-facing health breakdown.
+ *
+ * Five of these eight rows used to be `Math.floor(rng() * n)` — response time,
+ * promotions, live sessions, activity, and orders & bookings were invented, and
+ * the headline percentage was their average with the three real ones. Because
+ * the generator was seeded from the business id the numbers were STABLE, which
+ * is worse than visibly random: they read as a tracked measurement that simply
+ * was not moving. An owner would have read "Response time 68%" on an account
+ * with no enquiries at all and gone looking for what to fix.
+ *
+ * A row with no data source now returns null and the UI says so. The headline
+ * averages only what is actually measured, and reports nothing at all if fewer
+ * than two rows are known — an "average" of one number is not a health score.
+ * This is the rule the public Trust Panel already follows; the dashboard an
+ * owner makes decisions from should not be held to a lower standard.
+ */
 export function getBusinessHealth(business: Business, config: BusinessClockConfig): BusinessHealth {
-  const rng = mulberry32(hashString(`${business.id}:health`));
+  const reviews = typeof business.rating === 'number' && business.rating > 0
+    ? Math.round((business.rating / 5) * 100)
+    : null;
   const parts: HealthPart[] = [
     { label: 'Profile completeness', score: profileCompleteness(business) },
-    { label: 'Response time', score: 55 + Math.floor(rng() * 46) },
     { label: 'Opening consistency', score: getOpeningReliability(business, config) },
-    { label: 'Reviews', score: Math.round(((business.rating || 3.5) / 5) * 100) },
-    { label: 'Promotions', score: 30 + Math.floor(rng() * 71) },
-    { label: 'Live sessions', score: 20 + Math.floor(rng() * 81) },
-    { label: 'Activity', score: 40 + Math.floor(rng() * 61) },
-    { label: 'Orders & bookings', score: 35 + Math.floor(rng() * 66) },
+    { label: 'Reviews', score: reviews },
+    // No data source yet. Listed rather than dropped so the owner can see what
+    // the platform intends to measure, and that it is not measuring it yet.
+    { label: 'Response time', score: null },
+    { label: 'Promotions', score: null },
+    { label: 'Live sessions', score: null },
+    { label: 'Activity', score: null },
+    { label: 'Orders & bookings', score: null },
   ];
-  const score = Math.round(parts.reduce((sum, p) => sum + p.score, 0) / parts.length);
+  const known = parts.filter((p): p is HealthPart & { score: number } => p.score !== null);
+  const score = known.length >= 2
+    ? Math.round(known.reduce((sum, p) => sum + p.score, 0) / known.length)
+    : null;
   return { score, parts };
 }
 
@@ -584,9 +615,15 @@ export function getCoachReminder(business: Business, config: BusinessClockConfig
   const hour = now.getHours();
   if (hour < 8 || hour > 19) return null;
   const streak = getOpenStreak(business, config);
-  if (streak >= 7) return null;
+  if (streak !== null && streak >= 7) return null;
+  // "3.8x more profile views" was asserted here as fact. There is no analytics
+  // layer to have measured it, and a made-up multiplier is exactly the kind of
+  // claim an owner would repeat to someone else. The nudge works without it.
+  const tail = streak && streak > 0
+    ? ` Open now to keep your ${streak}-day streak alive.`
+    : ' Customers searching right now will see you as closed.';
   return {
-    message: `You haven't opened today. Businesses that open daily receive 3.8x more profile views. Open now to keep your ${streak === 0 ? '' : `${streak}-day`} streak alive.`,
+    message: `You haven't opened today.${tail}`,
     cta: 'Open Now',
   };
 }
@@ -598,12 +635,18 @@ export interface StaffState {
   total: number;
 }
 
-export function getStaffState(business: Business, config: BusinessClockConfig): StaffState {
-  const rng = mulberry32(hashString(`${business.id}:staff`));
-  const total = 2 + Math.floor(rng() * 13);
+/**
+ * Who is clocked in, or null when there is no roster.
+ *
+ * The headcount itself used to be invented (`2 + rng() * 13`), so the card
+ * could tell a sole trader that 7 of their 12 staff were on duty.
+ */
+export function getStaffState(_business: Business, config: BusinessClockConfig): StaffState | null {
+  const total = config.staffTotal;
+  if (typeof total !== 'number' || total <= 0) return null;
   const available = typeof config.staffClockedIn === 'number'
     ? Math.max(0, Math.min(total, config.staffClockedIn))
-    : Math.max(1, Math.min(total, 2 + Math.floor(rng() * total)));
+    : 0;
   return { available, total };
 }
 

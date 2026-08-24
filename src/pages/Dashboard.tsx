@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -20,7 +20,7 @@ import MediaForm from '../components/dashboard/MediaForm';
 import MediaList from '../components/dashboard/MediaList';
 import BusinessClockCard from '../components/dashboard/BusinessClockCard';
 import BusinessTimeline from '../components/BusinessTimeline';
-import { loadClockConfig, getBusinessHealth } from '../lib/businessStatus';
+import { loadClockConfig, getBusinessHealth, profileGaps } from '../lib/businessStatus';
 import { applySeo } from '../lib/seo';
 
 type TabId = 'overview' | 'businesses' | 'adverts' | 'media' | 'inbox';
@@ -77,7 +77,23 @@ export default function Dashboard() {
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [userRole, setUserRole] = useState<string>('user');
   const [planState, setPlanState] = useState<PlanState>(DEFAULT_PLAN_STATE);
-  const [activeTab, setActiveTab] = useState<TabId>('overview');
+  /**
+   * Tab state lives in the URL.
+   *
+   * Without it an owner could not bookmark "my bookings", a refresh dumped them
+   * back on Overview mid-task, and browser Back left the dashboard altogether
+   * instead of returning to the previous tab. `replace` so flicking between
+   * tabs does not bury the page they arrived from.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const tabParam = searchParams.get('tab');
+  const activeTab: TabId = TABS.some(t => t.id === tabParam) ? (tabParam as TabId) : 'overview';
+  const setActiveTab = (id: TabId) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === 'overview') next.delete('tab');
+    else next.set('tab', id);
+    setSearchParams(next, { replace: true });
+  };
 
   // Which entity's form is open, and which row it's editing (null = create)
   const [showForm, setShowForm] = useState(false);
@@ -280,29 +296,32 @@ export default function Dashboard() {
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          {/* Wraps. Five actions in a nowrap row ran 32px past a 375px screen,
+              and because an ancestor clips the overflow rather than scrolling
+              it, Sign Out was simply unreachable on a phone. */}
+          <div className="flex flex-wrap items-center gap-2 sm:gap-3">
             <NotificationsBell userId={user.id} />
             <Link
               to="/studio"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium"
+              className="inline-flex items-center gap-1.5 px-4 min-h-[44px] bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition text-sm font-medium"
             >
               <Sparkles size={14} /> Studio
             </Link>
             <Link
               to="/profile"
-              className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
+              className="inline-flex items-center justify-center px-4 min-h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
             >
               Edit Profile
             </Link>
             <Link
               to="/security"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
+              className="inline-flex items-center gap-1.5 px-4 min-h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
             >
               <Shield size={14} /> Security
             </Link>
             <button
               onClick={handleSignOut}
-              className="flex items-center gap-2 px-4 py-2 bg-red-500 text-white hover:bg-red-600 rounded-lg transition text-sm font-medium"
+              className="flex items-center gap-2 px-4 min-h-[44px] bg-red-500 text-white hover:bg-red-600 rounded-lg transition text-sm font-medium"
             >
               <LogOut size={16} />
               Sign Out
@@ -326,13 +345,13 @@ export default function Dashboard() {
               <div className="flex items-center gap-2">
                 <Link
                   to="/admin-creator"
-                  className="px-6 py-2 bg-white text-purple-600 font-medium rounded-lg hover:bg-gray-100 transition"
+                  className="inline-flex items-center justify-center px-6 min-h-[44px] bg-white text-purple-600 font-medium rounded-lg hover:bg-gray-100 transition"
                 >
                   Admin Creator
                 </Link>
                 <Link
                   to="/admin"
-                  className="px-6 py-2 bg-white/20 text-white font-medium rounded-lg hover:bg-white/30 transition"
+                  className="inline-flex items-center justify-center px-6 min-h-[44px] bg-white/20 text-white font-medium rounded-lg hover:bg-white/30 transition"
                 >
                   Open Admin Panel
                 </Link>
@@ -344,12 +363,28 @@ export default function Dashboard() {
         {/* Tabs */}
         <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg mb-8">
           <div className="border-b border-gray-200 dark:border-gray-700 overflow-x-auto">
-            <nav className="flex px-4" aria-label="Dashboard tabs">
-              {TABS.map(tab => (
+            {/* A real tablist. These were plain buttons inside a <nav>, so a
+                screen reader announced five unrelated links with no group, no
+                selected state and no arrow-key movement between them. */}
+            <div role="tablist" aria-label="Dashboard sections" className="flex px-4">
+              {TABS.map((tab, i) => (
                 <button
                   key={tab.id}
+                  id={`dash-tab-${tab.id}`}
+                  role="tab"
+                  type="button"
+                  aria-selected={activeTab === tab.id}
+                  aria-controls="dash-tabpanel"
+                  tabIndex={activeTab === tab.id ? 0 : -1}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                    e.preventDefault();
+                    const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+                    openTab(next.id);
+                    document.getElementById(`dash-tab-${next.id}`)?.focus();
+                  }}
                   onClick={() => openTab(tab.id)}
-                  className={`flex items-center gap-2 py-4 px-4 text-sm font-medium whitespace-nowrap border-b-2 transition ${
+                  className={`flex items-center gap-2 min-h-[44px] px-4 text-sm font-medium whitespace-nowrap border-b-2 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
                     activeTab === tab.id
                       ? 'text-blue-600 dark:text-blue-400 border-blue-600'
                       : 'text-gray-600 dark:text-gray-400 border-transparent hover:text-gray-900 dark:hover:text-white'
@@ -359,10 +394,10 @@ export default function Dashboard() {
                   {tab.label}
                 </button>
               ))}
-            </nav>
+            </div>
           </div>
 
-          <div className="p-6">
+          <div id="dash-tabpanel" role="tabpanel" aria-labelledby={`dash-tab-${activeTab}`} className="p-6">
             {/* Overview */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
@@ -392,7 +427,7 @@ export default function Dashboard() {
                   </div>
                   <Link
                     to="/pricing"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition"
+                    className="inline-flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition"
                   >
                     {onTrial ? 'Choose a plan' : isFreePlan ? (upgradeTier ? `Upgrade to ${upgradeTier.name}` : 'View plans') : 'Manage plan'}
                     <ArrowUpRight size={15} />
@@ -424,23 +459,69 @@ export default function Dashboard() {
                       <div className="flex items-center gap-2 mb-3">
                         <Activity size={16} className="text-purple-600 dark:text-purple-400" />
                         <h3 className="font-bold text-gray-900 dark:text-white text-sm">Business Health</h3>
-                        <span className="ml-auto text-sm font-bold text-gray-900 dark:text-white">{primaryHealth.score}%</span>
+                        <span className="ml-auto text-sm font-bold text-gray-900 dark:text-white">
+                          {primaryHealth.score === null ? '—' : `${primaryHealth.score}%`}
+                        </span>
                       </div>
                       <div className="space-y-2.5">
-                        {primaryHealth.parts.map((p) => (
+                        {/* Measured rows get a bar. Five of these eight used to
+                            be seeded random numbers, and because the seed was
+                            the business id they never moved — so they read as a
+                            real measurement stuck at 68%. The unmeasured ones
+                            are now one line at the bottom rather than five
+                            identical "Not tracked yet" rows, which is honest but
+                            reads as a broken panel. */}
+                        {primaryHealth.parts.filter((p) => p.score !== null).map((p) => (
                           <div key={p.label}>
                             <div className="flex items-center justify-between text-xs mb-1">
                               <span className="text-gray-600 dark:text-gray-400">{p.label}</span>
-                              <span className="font-semibold text-gray-900 dark:text-white">{p.score}%</span>
+                              <span className="font-semibold text-gray-900 dark:text-white tabular-nums">{p.score}%</span>
                             </div>
                             <div className="h-1.5 rounded-full bg-gray-200 dark:bg-gray-700 overflow-hidden">
                               <div
-                                className={`h-full rounded-full ${p.score >= 70 ? 'bg-green-500' : p.score >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
+                                className={`h-full rounded-full ${(p.score as number) >= 70 ? 'bg-green-500' : (p.score as number) >= 50 ? 'bg-amber-500' : 'bg-red-500'}`}
                                 style={{ width: `${p.score}%` }}
                               />
                             </div>
                           </div>
                         ))}
+
+                        {/* The one score we can measure, turned into the work it
+                            implies. "78%" tells an owner they have something to
+                            do without telling them what. */}
+                        {(() => {
+                          const gaps = profileGaps(primaryBusiness);
+                          if (gaps.length === 0) return null;
+                          return (
+                            <div className="rounded-lg bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-900/40 p-3">
+                              <p className="text-xs font-semibold text-blue-900 dark:text-blue-200">
+                                To finish your profile, add {gaps.length === 1 ? 'one thing' : `${gaps.length} things`}:
+                              </p>
+                              <ul className="mt-1.5 space-y-1">
+                                {gaps.slice(0, 4).map((g) => (
+                                  <li key={g} className="text-[11px] text-blue-800 dark:text-blue-300">• {g}</li>
+                                ))}
+                              </ul>
+                              <button
+                                type="button"
+                                onClick={() => { setEditingId(primaryBusiness.id); openTab('businesses'); }}
+                                className="mt-2 inline-flex items-center min-h-[44px] px-3 rounded-lg bg-blue-600 text-white text-xs font-semibold hover:bg-blue-700 transition"
+                              >
+                                Edit profile
+                              </button>
+                            </div>
+                          );
+                        })()}
+
+                        {(() => {
+                          const pending = primaryHealth.parts.filter((p) => p.score === null).map((p) => p.label);
+                          if (pending.length === 0) return null;
+                          return (
+                            <p className="text-[11px] text-gray-400 dark:text-gray-500 pt-1 border-t border-gray-100 dark:border-gray-700">
+                              Not tracked yet: {pending.join(', ')}. These start once there is activity to measure.
+                            </p>
+                          );
+                        })()}
                       </div>
                     </div>
                   </div>
@@ -476,13 +557,13 @@ export default function Dashboard() {
                     <div className="flex justify-center gap-2">
                       <button
                         onClick={() => openTab(card.tab)}
-                        className="px-4 py-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-medium"
+                        className="inline-flex items-center justify-center px-4 min-h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg text-sm font-medium"
                       >
                         Manage
                       </button>
                       <button
                         onClick={() => openCreateForm(card.tab)}
-                        className={`inline-flex items-center gap-1 px-4 py-2 text-white rounded-lg text-sm font-medium ${card.btn}`}
+                        className={`inline-flex items-center gap-1 px-4 min-h-[44px] text-white rounded-lg text-sm font-medium ${card.btn}`}
                       >
                         <Plus size={14} />
                         {card.cta}
@@ -537,7 +618,7 @@ export default function Dashboard() {
                             <select
                               value={b.status || 'pending'}
                               onChange={(e) => updateBookingStatus(b.id, e.target.value)}
-                              className="px-2.5 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white flex-shrink-0"
+                              className="px-2.5 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg text-xs bg-white dark:bg-gray-800 dark:text-white flex-shrink-0"
                             >
                               <option value="pending">Pending</option>
                               <option value="confirmed">Confirmed</option>
@@ -590,7 +671,7 @@ export default function Dashboard() {
                   {!showForm && (
                     <button
                       onClick={() => openCreateForm('businesses')}
-                      className="inline-flex items-center gap-1 px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium"
+                      className="inline-flex items-center gap-1 px-4 min-h-[44px] bg-blue-600 text-white hover:bg-blue-700 rounded-lg text-sm font-medium"
                     >
                       <Plus size={14} />
                       Add Business
@@ -649,7 +730,7 @@ export default function Dashboard() {
                   {!showForm && (
                     <button
                       onClick={() => openCreateForm('adverts')}
-                      className="inline-flex items-center gap-1 px-4 py-2 bg-purple-600 text-white hover:bg-purple-700 rounded-lg text-sm font-medium"
+                      className="inline-flex items-center gap-1 px-4 min-h-[44px] bg-purple-600 text-white hover:bg-purple-700 rounded-lg text-sm font-medium"
                     >
                       <Plus size={14} />
                       Create Advert
@@ -671,7 +752,7 @@ export default function Dashboard() {
                   {!showForm && (
                     <button
                       onClick={() => openCreateForm('media')}
-                      className="inline-flex items-center gap-1 px-4 py-2 bg-pink-600 text-white hover:bg-pink-700 rounded-lg text-sm font-medium"
+                      className="inline-flex items-center gap-1 px-4 min-h-[44px] bg-pink-600 text-white hover:bg-pink-700 rounded-lg text-sm font-medium"
                     >
                       <Plus size={14} />
                       Add Service

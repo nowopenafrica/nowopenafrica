@@ -81,7 +81,7 @@ export default function NotificationsBell({ userId }: { userId: string }) {
       <button
         onClick={() => setOpen((o) => !o)}
         aria-label="Notifications"
-        className="relative inline-flex items-center justify-center w-10 h-10 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+        className="relative inline-flex items-center justify-center w-[44px] h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
       >
         <Bell size={18} />
         {unread > 0 && (
@@ -96,7 +96,7 @@ export default function NotificationsBell({ userId }: { userId: string }) {
           <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 dark:border-gray-700">
             <span className="text-sm font-bold text-gray-900 dark:text-white">Notifications</span>
             {unread > 0 && (
-              <button onClick={onMarkAll} className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
+              <button onClick={onMarkAll} className="inline-flex items-center gap-1 min-h-[44px] px-1 rounded text-xs font-medium text-blue-600 dark:text-blue-400 hover:underline">
                 <CheckCheck size={13} /> Mark all read
               </button>
             )}

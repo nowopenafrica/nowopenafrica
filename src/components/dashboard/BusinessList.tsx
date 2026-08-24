@@ -118,7 +118,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
             {onManageContent && (
               <button
                 onClick={() => onManageContent(business)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                className="inline-flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
               >
                 <LayoutGrid size={13} /> Manage content
               </button>
@@ -180,7 +180,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                   <button
                     onClick={() => onEdit(business.id)}
                     aria-label={`Edit ${business.name}`}
-                    className="p-1 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition"
+                    className="inline-flex items-center justify-center w-[44px] h-[44px] text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition"
                   >
                     <Edit2 size={16} />
                   </button>
@@ -189,7 +189,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                       onClick={() => onManageContent(business)}
                       aria-label={`Manage content for ${business.name}`}
                       title="Services, products, gallery & reviews"
-                      className="p-1 text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition"
+                      className="inline-flex items-center justify-center w-[44px] h-[44px] text-purple-600 dark:text-purple-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded transition"
                     >
                       <LayoutGrid size={16} />
                     </button>
@@ -199,7 +199,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                       onClick={() => onManageTrust(business)}
                       aria-label={`Trust & verification for ${business.name}`}
                       title="Trust & verification"
-                      className="p-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
+                      className="inline-flex items-center justify-center w-[44px] h-[44px] text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
                     >
                       <ShieldCheck size={16} />
                     </button>
@@ -209,7 +209,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                       onClick={() => onManageTeam(business)}
                       aria-label={`Manage team for ${business.name}`}
                       title="Team & roles"
-                      className="p-1 text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition"
+                      className="inline-flex items-center justify-center w-[44px] h-[44px] text-indigo-600 dark:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-900/30 rounded transition"
                     >
                       <Users size={16} />
                     </button>
@@ -219,7 +219,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                       onClick={() => onGoLive(business)}
                       aria-label={`Go live for ${business.name}`}
                       title="NowOpen Live — go live or schedule a stream"
-                      className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                      className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                     >
                       <Radio size={16} />
                     </button>
@@ -233,7 +233,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                       onClick={() => setRequestTarget(business)}
                       aria-label={`Request deletion of ${business.name}`}
                       title="Request deletion (an admin will review)"
-                      className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                      className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                     >
                       <Trash2 size={16} />
                     </button>
