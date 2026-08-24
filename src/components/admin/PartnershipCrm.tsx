@@ -133,7 +133,7 @@ export default function PartnershipCrm() {
       <div className="flex flex-wrap items-center gap-2">
         {(['Pipeline', 'Campaign packs'] as const).map((t) => (
           <button key={t} onClick={() => setTab(t)}
-            className={`inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border transition ${tab === t ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
+            className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border transition ${tab === t ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
             {t === 'Pipeline' ? <Users size={13} /> : <Rocket size={13} />} {t}
           </button>
         ))}

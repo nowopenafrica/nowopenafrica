@@ -139,7 +139,7 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
               {briefing.join(' ')}
             </p>
             {stats.pendingApprovals > 0 && (
-              <Link to="/admin" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium bg-white text-purple-700 px-3.5 .5 rounded-lg hover:bg-purple-50 min-h-[44px]">
+              <Link to="/admin" className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium bg-white text-purple-700 px-3.5 rounded-lg hover:bg-purple-50 min-h-[44px]">
                 Clear approvals <ArrowRight size={14} />
               </Link>
             )}
@@ -166,7 +166,7 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
                   key={a.label}
                   onClick={() => onOpenModule?.(a.module)}
                   disabled={!onOpenModule}
-                  className="inline-flex items-center rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 .5 text-left hover:bg-amber-100 dark:hover:bg-amber-900/40 transition disabled:opacity-100 min-h-[44px]"
+                  className="inline-flex items-center rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-3 text-left hover:bg-amber-100 dark:hover:bg-amber-900/40 transition disabled:opacity-100 min-h-[44px]"
                 >
                   <div className="text-lg font-black text-amber-700 dark:text-amber-300">{a.value}</div>
                   <div className="text-[11px] font-medium text-amber-800 dark:text-amber-200">{a.label}</div>
@@ -237,22 +237,22 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
             </div>
             {onOpenModule && (
               <div className="mt-4 flex flex-wrap gap-2">
-                <button onClick={() => onOpenModule('workforce')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                <button onClick={() => onOpenModule('workforce')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                   Workforce Directory <ArrowRight size={12} />
                 </button>
-                <button onClick={() => onOpenModule('work-board')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                <button onClick={() => onOpenModule('work-board')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                   Work Board <ArrowRight size={12} />
                 </button>
-                <button onClick={() => onOpenModule('approvals')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+                <button onClick={() => onOpenModule('approvals')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                   Approvals Hub <ArrowRight size={12} />
                 </button>
-                <button onClick={() => onOpenModule('knowledge')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                <button onClick={() => onOpenModule('knowledge')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                   Knowledge Base <ArrowRight size={12} />
                 </button>
-                <button onClick={() => onOpenModule('launch')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                <button onClick={() => onOpenModule('launch')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                   Launch Control <ArrowRight size={12} />
                 </button>
-                <button onClick={() => onOpenModule('press-room')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                <button onClick={() => onOpenModule('press-room')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                   Press Room <ArrowRight size={12} />
                 </button>
               </div>
@@ -269,21 +269,21 @@ export default function CommandCenter({ onOpenModule }: { onOpenModule?: (id: st
       <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Jump in</h3>
         <div className="flex flex-wrap gap-2">
-          <Link to="/admin" className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+          <Link to="/admin" className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
             Admin console <ArrowRight size={12} />
           </Link>
           {onOpenModule && (
             <>
-              <button onClick={() => onOpenModule('social')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+              <button onClick={() => onOpenModule('social')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 Social Media Department <ArrowRight size={12} />
               </button>
-              <button onClick={() => onOpenModule('campaign-factory')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+              <button onClick={() => onOpenModule('campaign-factory')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 Campaign Factory <ArrowRight size={12} />
               </button>
-              <button onClick={() => onOpenModule('video-templates')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+              <button onClick={() => onOpenModule('video-templates')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 Video Template Library <ArrowRight size={12} />
               </button>
-              <button onClick={() => onOpenModule('founder')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+              <button onClick={() => onOpenModule('founder')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 Founder Dashboard <ArrowRight size={12} />
               </button>
             </>

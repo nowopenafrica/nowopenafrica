@@ -42,7 +42,7 @@ export default function DesignStudioHub({ business, initialTab = GROUPS[0].key }
         <div className="flex flex-wrap gap-2">
           {GROUPS.map((g) => (
             <button key={g.key} onClick={() => { setGroupKey(g.key); setSeed(null); }}
-              className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-semibold border transition ${groupKey === g.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
+              className={`inline-flex items-center px-3 rounded-lg text-xs font-semibold border transition ${groupKey === g.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
               {g.label}
             </button>
           ))}

@@ -89,11 +89,18 @@ export default function Adverts() {
         const { data, error: supabaseError } = await supabase
           .from('advertisements').select('*').order('created_at', { ascending: false });
         if (supabaseError) throw new Error(supabaseError.message || 'Database query failed');
+        // The sample set only exists in dev (see populateData SAMPLES_ENABLED),
+        // so in production this deliberately leaves the list empty rather than
+        // inventing placements that nobody can actually book.
         setAdverts(data && data.length > 0 ? data : (generateAdverts() as Advertisement[]));
-      } catch (err: any) {
-        console.error('Error fetching adverts, showing sample data:', err);
-        setAdverts(generateAdverts() as Advertisement[]);
         setError(null);
+      } catch (err: any) {
+        // Keep the error. Swallowing it here meant a failed query rendered as
+        // "No placements match your filters" — indistinguishable from an empty
+        // catalogue, which is how a live outage stayed invisible.
+        console.error('Error fetching adverts:', err);
+        setAdverts(generateAdverts() as Advertisement[]);
+        setError(err?.message || 'Could not load placements.');
       } finally {
         setLoading(false);
       }
@@ -147,7 +154,7 @@ export default function Adverts() {
           </span>
           <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-2xl">Book premium ad placements from billboards to broadcast</h1>
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
-            {adverts.length}+ verified placements across outdoor, transit, digital, broadcast and print. Filter by medium, location and budget.
+            {adverts.length > 0 ? `${adverts.length}+ verified placements` : 'Verified placements'} across outdoor, transit, digital, broadcast and print. Filter by medium, location and budget.
           </p>
         </div>
       </section>
@@ -166,6 +173,7 @@ export default function Adverts() {
             </div>
             <LocationAutocomplete value={locationFilter} onChange={setLocationFilter} extraOptions={adverts.map((a) => a.location ?? '')} placeholder="Filter by location…" className="py-2.5" />
             <select
+              aria-label="Filter by category"
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setActiveGroup(null); }}
               className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
@@ -236,7 +244,30 @@ export default function Adverts() {
         ) : filteredAdverts.length === 0 ? (
           <div className="text-center py-16">
             <Megaphone size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
-            <p className="text-gray-600 dark:text-gray-400">No placements match your filters.</p>
+            {/* Three different situations that used to share one message: the
+                request failed, the catalogue is genuinely empty, or the
+                visitor's own filters excluded everything. */}
+            {error ? (
+              <>
+                <p className="text-gray-900 dark:text-white font-medium">We couldn&apos;t load the placements.</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">Please check your connection and try again.</p>
+                <button
+                  onClick={() => window.location.reload()}
+                  className="mt-4 inline-flex items-center px-4 py-2 rounded-lg bg-blue-600 text-white text-sm font-medium hover:bg-blue-700 transition"
+                >
+                  Retry
+                </button>
+              </>
+            ) : adverts.length === 0 ? (
+              <>
+                <p className="text-gray-900 dark:text-white font-medium">No placements are published yet.</p>
+                <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                  New advertising inventory is added regularly — check back soon.
+                </p>
+              </>
+            ) : (
+              <p className="text-gray-600 dark:text-gray-400">No placements match your filters.</p>
+            )}
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">

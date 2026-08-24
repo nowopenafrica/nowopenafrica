@@ -242,6 +242,7 @@ export default function Businesses() {
             </div>
             <LocationAutocomplete value={location} onChange={setLocation} extraOptions={businesses.map((b) => b.location)} placeholder="Filter by location…" className="py-2.5" />
             <select
+              aria-label="Filter by category"
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setActiveGroup(null); }}
               className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"

@@ -226,11 +226,17 @@ function Portrait() {
 
 export default function Founder() {
   useEffect(() => {
+    // The portrait is optional — the page falls back to a monogram when
+    // public/founder-portrait.jpg is absent, which it is by default. Metadata
+    // has no such fallback: pointing og:image and schema.org at a missing file
+    // gave every share of this page a blank card and handed Google a 404 for
+    // the organisation logo. These use assets that always exist; swap them for
+    // the portrait once a real headshot ships.
     const org = {
       '@type': 'Organization',
       name: 'NowOpen Africa',
       url: SITE_URL,
-      logo: `${SITE_URL}/founder-portrait.jpg`,
+      logo: `${SITE_URL}/icon-512.png`,
     };
     const person = {
       '@context': 'https://schema.org',
@@ -239,7 +245,7 @@ export default function Founder() {
       jobTitle: FOUNDER_ROLE,
       description: CANONICAL_DESCRIPTOR + ' ' + SHORT_BIO,
       url: `${SITE_URL}/founder`,
-      image: `${SITE_URL}/founder-portrait.jpg`,
+      image: `${SITE_URL}/og-image.png`,
       worksFor: org,
       founder: undefined,
       knowsAbout: ['Brand Design', 'Product Design', 'Motion Graphics', 'African Commerce', 'Entrepreneurship', 'Startups'],
@@ -262,7 +268,7 @@ export default function Founder() {
       title: `${FOUNDER_NAME} — ${FOUNDER_ROLE} of NowOpen Africa`,
       description: CANONICAL_DESCRIPTOR + ' ' + SHORT_BIO,
       path: '/founder',
-      image: '/founder-portrait.jpg',
+      image: '/og-image.png',
       type: 'profile',
       jsonLd: [person, profilePage],
     });

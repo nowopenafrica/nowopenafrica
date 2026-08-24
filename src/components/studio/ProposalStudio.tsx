@@ -110,7 +110,7 @@ export default function ProposalStudio({ business }: Props) {
           <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <FileSignature size={16} className="text-purple-600 dark:text-purple-400" /> New proposal / quote
           </h3>
-          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> New proposal</>}
           </button>
         </div>
@@ -223,27 +223,27 @@ export default function ProposalStudio({ business }: Props) {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {p.status !== 'sent' && p.status !== 'accepted' && p.status !== 'declined' && (
-                    <button onClick={() => send(p)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+                    <button onClick={() => send(p)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                       <Send size={13} /> Send on WhatsApp
                     </button>
                   )}
                   {p.status !== 'accepted' && p.status !== 'declined' && (
-                    <button onClick={() => setStatus(p.id, 'accepted')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
+                    <button onClick={() => setStatus(p.id, 'accepted')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                       <CheckCircle2 size={13} /> Accept
                     </button>
                   )}
                   {p.status !== 'accepted' && p.status !== 'declined' && (
-                    <button onClick={() => setStatus(p.id, 'declined')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition min-h-[44px]">
+                    <button onClick={() => setStatus(p.id, 'declined')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition min-h-[44px]">
                       Decline
                     </button>
                   )}
-                  <button onClick={() => copyDoc(p)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
+                  <button onClick={() => copyDoc(p)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
                     {copiedId === p.id ? 'Copied!' : 'Copy doc'} <Copy size={13} />
                   </button>
-                  <button onClick={() => download(p)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
+                  <button onClick={() => download(p)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
                     <Download size={13} /> Download
                   </button>
-                  <button onClick={() => removeProposal(p.id)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
+                  <button onClick={() => removeProposal(p.id)} className="inline-flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                     <Trash2 size={13} />
                   </button>
                 </div>

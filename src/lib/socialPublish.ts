@@ -23,6 +23,29 @@ export interface Capabilities {
   origin: string;
 }
 
+/**
+ * What a channel can genuinely do right now.
+ *
+ *   live    — a provider exists AND this project has its developer app, so the
+ *             account is signed in through the platform and posts go out
+ *   setup   — a provider exists but no credentials, so it cannot post at all
+ *   manual  — no provider; we can keep it on the plan, we cannot post to it
+ *   unknown — the service has not answered yet
+ *
+ * Pure, and exported, because the panel used to derive this inline and got it
+ * wrong in both directions: every channel offered the same "Connect" button
+ * (so an owner could believe WhatsApp Status posts were going out), and when
+ * the capabilities call failed the fallback quietly marked Instagram
+ * unpostable too.
+ */
+export type ChannelMode = 'live' | 'setup' | 'manual' | 'unknown';
+
+export function channelModeFor(key: string, caps: Capabilities | null): ChannelMode {
+  if (!caps) return 'unknown';
+  if (!caps.supported.includes(key)) return 'manual';
+  return caps.configured[key] === true ? 'live' : 'setup';
+}
+
 /** Which channels have developer credentials wired up in this project. */
 export async function fetchCapabilities(): Promise<Capabilities> {
   const res = await fetch(`${fnUrl('social-auth')}?action=capabilities`, { headers: await authHeaders() });

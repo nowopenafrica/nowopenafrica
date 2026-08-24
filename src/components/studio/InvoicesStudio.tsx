@@ -118,7 +118,7 @@ export default function InvoicesStudio({ business }: Props) {
           <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Receipt size={16} className="text-purple-600 dark:text-purple-400" /> New invoice
           </h3>
-          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> New invoice</>}
           </button>
         </div>
@@ -237,24 +237,24 @@ export default function InvoicesStudio({ business }: Props) {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {inv.status !== 'paid' && (
-                    <button onClick={() => setStatus(inv.id, 'paid')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
+                    <button onClick={() => setStatus(inv.id, 'paid')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                       <CheckCircle2 size={13} /> Mark paid
                     </button>
                   )}
                   {inv.status === 'draft' && (
-                    <button onClick={() => setStatus(inv.id, 'sent')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+                    <button onClick={() => setStatus(inv.id, 'sent')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                       <Clock size={13} /> Mark sent
                     </button>
                   )}
-                  <button onClick={() => sendInvoice(inv)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+                  <button onClick={() => sendInvoice(inv)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                     <Send size={13} /> Send on WhatsApp
                   </button>
                   {st === 'overdue' && (
-                    <button onClick={() => remind(inv)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-amber-500 text-amber-950 hover:bg-amber-400 transition min-h-[44px]">
+                    <button onClick={() => remind(inv)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-amber-500 text-amber-950 hover:bg-amber-400 transition min-h-[44px]">
                       <AlertCircle size={13} /> Payment reminder
                     </button>
                   )}
-                  <button onClick={() => removeInvoice(inv.id)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
+                  <button onClick={() => removeInvoice(inv.id)} className="inline-flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                     <Trash2 size={13} />
                   </button>
                 </div>

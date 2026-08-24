@@ -272,7 +272,7 @@ export default function PressRoom() {
               { name: 'Brand guidelines', icon: FileText },
             ].map((d) => (
               <button key={d.name} onClick={() => toast.success(`"${d.name}" — final asset lands here once exported.`)}
-                className="w-full flex items-center gap-2.5 px-3 .5 rounded-lg border border-gray-200 dark:border-gray-700 text-left hover:border-purple-300 dark:hover:border-purple-700 hover:bg-gray-50 dark:hover:bg-gray-900/40 transition min-h-[44px]">
+                className="w-full flex items-center gap-2.5 px-3 rounded-lg border border-gray-200 dark:border-gray-700 text-left hover:border-purple-300 dark:hover:border-purple-700 hover:bg-gray-50 dark:hover:bg-gray-900/40 transition min-h-[44px]">
                 <d.icon size={15} className="text-purple-600 dark:text-purple-400 shrink-0" />
                 <span className="text-xs font-medium text-gray-700 dark:text-gray-200 flex-1">{d.name}</span>
                 <Download size={13} className="text-gray-400 shrink-0" />

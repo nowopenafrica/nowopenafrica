@@ -114,7 +114,7 @@ export default function ContentPlanner({ business }: Props) {
             <span className="w-2.5 h-2.5 rounded-sm bg-green-500" /> {published} published
           </span>
           <button onClick={autoPlan}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition">
+            className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-sm font-medium border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition min-h-[44px]">
             <Sparkles size={15} /> Auto-plan month
           </button>
           <button onClick={() => { setShowForm((v) => !v); setDate(new Date(year, month, 1).toISOString().slice(0, 10)); }}

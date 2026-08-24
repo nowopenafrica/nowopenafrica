@@ -2,14 +2,22 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
   X, Plus, Trash2, Loader2, Upload, Tag, Package, Image as ImageIcon, Star, Inbox, Mail, Phone,
-  Check, Ban, CalendarClock, ShoppingCart, Camera, Play,
+  Check, Ban, CalendarClock, ShoppingCart, Camera, Play, Share2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { getActiveFeatures } from '../../data/categoryFeatures';
 import { getTabLabel } from '../../data/categoryTabLabels';
 import { compressImage } from '../../lib/imageCompression';
-import BusReelCapture from './BusReelCapture';
+import OpenReelCapture from './OpenReelCapture';
+import { reelLimitForPlan, DEFAULT_BUSINESS_PLAN, TRIAL_TIER } from '../../data/pricingPlans';
+import { isVideoUrl, videoThumbnailSrc } from '../../lib/galleryMedia';
+import { localDateTimeNow } from '../../lib/dates';
+import { captureVideoPoster } from '../../lib/openReel';
+import { POSTER_SUFFIX, shareReel } from '../../lib/reelShare';
+import { parseVideoEmbed, embedRejectionReason } from '../../lib/videoEmbeds';
+import VideoEmbedFrame from '../VideoEmbedFrame';
+import GalleryThumb from '../GalleryThumb';
 import AiGenerateToggle from '../studio/AiGenerateToggle';
 
 interface BusinessContentManagerProps {
@@ -42,6 +50,22 @@ const STATUS_STYLES: Record<string, string> = {
 export default function BusinessContentManager({ businessId, businessName, category, enabledModules, onClose }: BusinessContentManagerProps) {
   const { user } = useAuth();
   const features = getActiveFeatures(category, enabledModules);
+
+  // How long an OpenReel recording may run on this owner's plan. Starts at the
+  // free tier's allowance so a slow plan lookup can never grant more than paid
+  // for; a trial counts as Business Pro, matching the module gate in
+  // BusinessForm.
+  const [reelSeconds, setReelSeconds] = useState(() => reelLimitForPlan(DEFAULT_BUSINESS_PLAN));
+  useEffect(() => {
+    if (!user) return;
+    supabase.from('users').select('plan, plan_status').eq('id', user.id).maybeSingle()
+      .then(({ data }) => {
+        if (!data) return;
+        const d = data as { plan?: string | null; plan_status?: string | null };
+        const effective = d.plan_status === 'trialing' ? TRIAL_TIER : (d.plan || DEFAULT_BUSINESS_PLAN);
+        setReelSeconds(reelLimitForPlan(effective));
+      });
+  }, [user]);
   // Real Estate turns the Products tab into a property manager with extra fields.
   const isRealEstate = category === 'Real Estate';
   // Food categories turn the Products tab into a menu manager.
@@ -132,6 +156,9 @@ export default function BusinessContentManager({ businessId, businessName, categ
   const [price, setPrice] = useState('');
   const [imageUrl, setImageUrl] = useState('');
   const [caption, setCaption] = useState('');
+  // Empty = publish immediately. A datetime-local value, so it means the
+  // owner's own wall clock rather than UTC.
+  const [scheduledFor, setScheduledFor] = useState('');
   const [stock, setStock] = useState('');
   // Real Estate property attributes (Products tab only)
   const [listingType, setListingType] = useState('sale');
@@ -193,7 +220,7 @@ export default function BusinessContentManager({ businessId, businessName, categ
   const [svcCategory, setSvcCategory] = useState('');
 
   const resetForm = () => {
-    setName(''); setDescription(''); setPrice(''); setImageUrl(''); setCaption(''); setStock('');
+    setName(''); setDescription(''); setPrice(''); setImageUrl(''); setCaption(''); setStock(''); setScheduledFor('');
     setListingType('sale'); setPropertyType(''); setBedrooms(''); setBathrooms('');
     setAreaSqm(''); setPropertyLocation(''); setIsFeatured(false);
     setMenuCategory(''); setIsSpecial(false); setIsRecommended(false);
@@ -244,6 +271,46 @@ export default function BusinessContentManager({ businessId, businessName, categ
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // What was pasted into the URL field, so the form can preview it and explain
+  // an unusable link before anything is saved.
+  const pastedEmbed = useMemo(() => parseVideoEmbed(imageUrl.trim()), [imageUrl]);
+  const pastedError = useMemo(() => {
+    const raw = imageUrl.trim();
+    // Only complain about something that looks like a link attempt.
+    if (!raw || !/[./]/.test(raw)) return null;
+    return embedRejectionReason(raw);
+  }, [imageUrl]);
+
+  /**
+   * Share one reel. The link points at /r/<id> rather than the profile, because
+   * that route is server-rendered with this item's own Open Graph tags — a
+   * crawler reading the SPA would only ever see the generic homepage card.
+   */
+  const shareReelItem = useCallback(async (
+    galleryId: string,
+    mediaUrl: string,
+    caption?: string | null,
+  ) => {
+    const isVideo = isVideoUrl(mediaUrl);
+    const pending = isVideo ? toast.loading('Preparing the video to share…') : null;
+    try {
+      // Shares the file itself where the browser allows it, so the reel actually
+      // plays in WhatsApp (and can go to Status) instead of arriving as a card.
+      const outcome = await shareReel({
+        mediaUrl, isVideo, businessName, caption, galleryId,
+      });
+      if (pending) toast.dismiss(pending);
+      if (outcome === 'copied') {
+        toast.success('Share link copied — paste it into WhatsApp or anywhere else.');
+      } else if (outcome === 'link') {
+        toast.success('Shared as a link.');
+      }
+    } catch (err: any) {
+      if (pending) toast.dismiss(pending);
+      toast.error(`Could not share: ${err?.message || 'unknown error'}`);
+    }
+  }, [businessName]);
+
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file || !user) return;
@@ -270,11 +337,31 @@ export default function BusinessContentManager({ businessId, businessName, categ
         contentType = file.type;
       }
 
-      const path = `${user.id}/content-${Date.now()}.${ext}`;
+      const stamp = Date.now();
+      const path = `${user.id}/content-${stamp}.${ext}`;
       const { error } = await supabase.storage
         .from('business-images')
         .upload(path, uploadFile, { cacheControl: '3600', upsert: false, contentType });
       if (error) throw error;
+
+      // Uploaded videos get the same still as recorded ones, so their share
+      // cards have an og:image. Best-effort — see lib/reelShare for why the
+      // poster lives at a derivable path rather than in a column.
+      if (isVideo) {
+        try {
+          const poster = await captureVideoPoster(file);
+          if (poster) {
+            await supabase.storage
+              .from('business-images')
+              .upload(`${user.id}/content-${stamp}${POSTER_SUFFIX}`, poster, {
+                cacheControl: '3600', upsert: true, contentType: 'image/jpeg',
+              });
+          }
+        } catch {
+          /* share card falls back to the cover image */
+        }
+      }
+
       const { data } = supabase.storage.from('business-images').getPublicUrl(path);
       setImageUrl(data.publicUrl);
       toast.success(isImage ? 'Image uploaded' : 'Video uploaded');
@@ -408,11 +495,7 @@ export default function BusinessContentManager({ businessId, businessName, categ
         }]));
       } else {
         if (!imageUrl.trim()) { toast.error('Upload a photo or paste an image URL first'); setSaving(false); return; }
-        ({ error } = await supabase.from('business_gallery').insert([{
-          business_id: businessId,
-          image_url: imageUrl.trim(),
-          caption: caption.trim() || null,
-        }]));
+        error = await insertGalleryRow(imageUrl.trim(), caption.trim() || null, scheduledFor);
       }
       if (error) throw error;
       toast.success('Added');
@@ -462,10 +545,60 @@ export default function BusinessContentManager({ businessId, businessName, categ
 
   const inputCls = 'w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm';
 
-  const handleCameraCapture = (url: string, _type: 'photo' | 'video') => {
-    setImageUrl(url);
+  /**
+   * Insert one gallery row. Shared by the Add form and the camera, which is the
+   * fix for a real bug: the camera only ever put the uploaded URL into the form
+   * field, so a recording landed in storage and never in the gallery — while
+   * OpenReel had already said "Reel added". Both paths now do the same insert.
+   *
+   * Returns the error rather than throwing, so callers keep their own messaging.
+   */
+  const insertGalleryRow = useCallback(async (
+    mediaUrl: string,
+    galleryCaption: string | null,
+    scheduleLocal?: string,
+  ): Promise<{ message: string } | null> => {
+    const row: Record<string, unknown> = {
+      business_id: businessId,
+      image_url: mediaUrl,
+      caption: galleryCaption,
+    };
+    // A future time keeps the reel off the public profile until then.
+    // `scheduleLocal` is a datetime-local value, so it means the owner's own
+    // wall clock — which is what they intended.
+    if (scheduleLocal) {
+      const when = new Date(scheduleLocal);
+      if (!Number.isNaN(when.getTime())) row.scheduled_for = when.toISOString();
+    }
+    let { error } = await supabase.from('business_gallery').insert([row]);
+    // Publish now rather than refuse the upload when the scheduling migration
+    // hasn't been applied yet.
+    if (error && /scheduled_for/.test(error.message)) {
+      const { scheduled_for, ...rest } = row;
+      void scheduled_for;
+      ({ error } = await supabase.from('business_gallery').insert([rest]));
+      if (!error) {
+        toast('Added, but scheduling needs the latest migration (scripts/sql/apply_all_migrations.sql) — it is live now.');
+      }
+    }
+    return error ? { message: error.message } : null;
+  }, [businessId]);
+
+  const handleCameraCapture = useCallback(async (url: string, type: 'photo' | 'video') => {
     setShowCamera(false);
-  };
+    // Put it in the gallery straight away. Anything else means the owner records
+    // a reel, is told it was added, and finds an empty gallery.
+    const err = await insertGalleryRow(url, caption.trim() || null, scheduledFor);
+    if (err) {
+      // Keep the URL in the form so the upload isn't lost — they can retry Add.
+      setImageUrl(url);
+      toast.error(`Uploaded, but could not add to the gallery: ${err.message}`);
+      return;
+    }
+    toast.success(type === 'photo' ? 'Photo added to your gallery' : 'Reel added to your gallery');
+    resetForm();
+    fetchAll();
+  }, [insertGalleryRow, caption, scheduledFor, fetchAll]);
 
   return (
     <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
@@ -673,15 +806,30 @@ export default function BusinessContentManager({ businessId, businessName, categ
 
             {tab === 'gallery' && (
               gallery.length === 0
-                ? <p className="text-sm text-gray-500 dark:text-gray-400">No reels yet — upload or capture your first BusReel below. They appear on your profile's Gallery tab.</p>
+                ? <p className="text-sm text-gray-500 dark:text-gray-400">No reels yet — upload or capture your first OpenReel below. They appear on your profile's Gallery tab.</p>
                 : <ul className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
                     {gallery.map(g => {
-                      const isVideo = /\.(mp4|webm|ogg|mov)$/i.test(g.image_url);
+                      const isVideo = isVideoUrl(g.image_url);
+                      const embed = parseVideoEmbed(g.image_url);
                       return (
                         <li key={g.id} className="relative group">
-                          {isVideo ? (
+                          {embed ? (
+                            // A linked platform video: show its badge rather
+                            // than an iframe, so a grid of tiles doesn't load
+                            // half a dozen third-party players at once.
+                            <div className="w-full h-20 rounded-lg bg-gray-900 flex flex-col items-center justify-center gap-1">
+                              <Play size={16} className="text-white fill-white" />
+                              <span className="text-[9px] font-semibold uppercase tracking-wide text-gray-300">{embed.label}</span>
+                            </div>
+                          ) : isVideo ? (
                             <>
-                              <video src={g.image_url} className="w-full h-20 object-cover rounded-lg" muted preload="metadata" />
+                              {/* Poster still where one exists; falls back to a
+                                  seeked video frame for older reels. */}
+                              <GalleryThumb
+                                url={g.image_url}
+                                alt={g.caption || 'Reel thumbnail'}
+                                className="w-full h-20 object-cover rounded-lg"
+                              />
                               <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-lg">
                                 <Play size={18} className="text-white fill-white" />
                               </div>
@@ -695,6 +843,23 @@ export default function BusinessContentManager({ businessId, businessName, categ
                             className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded opacity-0 group-hover:opacity-100 transition"
                           >
                             <Trash2 size={12} />
+                          </button>
+                          {g.scheduled_for && new Date(g.scheduled_for).getTime() > Date.now() && (
+                            <span
+                              className="absolute bottom-1 left-1 right-1 text-[9px] font-semibold text-center bg-amber-500/90 text-white rounded px-1 py-0.5 truncate"
+                              title={`Publishes ${new Date(g.scheduled_for).toLocaleString()}`}
+                            >
+                              {new Date(g.scheduled_for).toLocaleDateString(undefined, { day: 'numeric', month: 'short' })}
+                              {' · '}
+                              {new Date(g.scheduled_for).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
+                            </span>
+                          )}
+                          <button
+                            onClick={() => shareReelItem(g.id, g.image_url, g.caption)}
+                            aria-label="Share reel"
+                            className="absolute top-1 left-1 p-1 bg-black/60 text-white rounded opacity-0 group-hover:opacity-100 transition"
+                          >
+                            <Share2 size={12} />
                           </button>
                         </li>
                       );
@@ -729,7 +894,7 @@ export default function BusinessContentManager({ businessId, businessName, categ
             {!activeModule && tab !== 'reviews' && tab !== 'enquiries' && (
               <form onSubmit={handleAdd} className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                  Add {tab === 'services' ? (isHotel ? 'a room' : isFitness ? 'a class or plan' : isBeauty ? 'a treatment' : isHealth ? 'a doctor' : isEducation ? 'a programme' : isPhoto ? 'a package' : isTransport ? 'a route' : isEvents ? 'a vendor' : isLegal ? 'a practice area' : isFinance ? 'a product' : 'a service') : tab === 'products' ? (isRealEstate ? 'a property' : isMenu ? 'a menu item' : isCarDealer ? 'a vehicle' : isPharmacy ? 'a medicine' : isFashion ? 'an item' : isAgriculture ? 'produce' : isRetail ? 'a product' : 'a product') : 'a BusReel'}
+                  Add {tab === 'services' ? (isHotel ? 'a room' : isFitness ? 'a class or plan' : isBeauty ? 'a treatment' : isHealth ? 'a doctor' : isEducation ? 'a programme' : isPhoto ? 'a package' : isTransport ? 'a route' : isEvents ? 'a vendor' : isLegal ? 'a practice area' : isFinance ? 'a product' : 'a service') : tab === 'products' ? (isRealEstate ? 'a property' : isMenu ? 'a menu item' : isCarDealer ? 'a vehicle' : isPharmacy ? 'a medicine' : isFashion ? 'an item' : isAgriculture ? 'produce' : isRetail ? 'a product' : 'a product') : 'an OpenReel'}
                 </p>
 
                 {tab !== 'gallery' && (
@@ -997,15 +1162,58 @@ export default function BusinessContentManager({ businessId, businessName, categ
                           onClick={() => setShowCamera(true)}
                           className="inline-flex items-center justify-center gap-2 px-4 py-2 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition text-sm flex-shrink-0"
                         >
-                          <Camera size={14} /> BusReel Camera
+                          <Camera size={14} /> OpenReel Camera
                         </button>
                       )}
                       <input
-                        type="url" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
-                        placeholder="…or paste an image/video URL"
+                        type="text" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+                        placeholder="…or paste a link — YouTube, TikTok, Instagram, Vimeo or an image/video URL"
                         className={inputCls}
                       />
                     </div>
+
+                    {/* Live preview of whatever was pasted, so nothing is saved
+                        blind. A platform link plays in that platform's own
+                        player; a direct file plays or renders inline. */}
+                    {imageUrl.trim() && (
+                      pastedEmbed ? (
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">
+                            {pastedEmbed.label} preview
+                          </p>
+                          <VideoEmbedFrame
+                            url={imageUrl.trim()}
+                            className="w-full max-w-xs"
+                            title={`${pastedEmbed.label} preview`}
+                          />
+                        </div>
+                      ) : pastedError ? (
+                        <p className="text-xs text-amber-700 dark:text-amber-400">{pastedError}</p>
+                      ) : isVideoUrl(imageUrl.trim()) ? (
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Video preview</p>
+                          <video
+                            src={videoThumbnailSrc(imageUrl.trim())}
+                            controls
+                            muted
+                            playsInline
+                            preload="metadata"
+                            className="w-full max-w-xs rounded-lg bg-black"
+                          />
+                        </div>
+                      ) : (
+                        <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                          <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Image preview</p>
+                          <img loading="lazy" decoding="async"
+                            src={imageUrl.trim()}
+                            alt="Preview of the pasted link"
+                            className="w-full max-w-xs rounded-lg object-cover"
+                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
+                          />
+                        </div>
+                      )
+                    )}
+
                     <AiGenerateToggle
                       width={1024}
                       height={1024}
@@ -1015,11 +1223,32 @@ export default function BusinessContentManager({ businessId, businessName, categ
                   </>
                 )}
                 {tab === 'gallery' && (
-                  <input
-                    type="text" value={caption} onChange={e => setCaption(e.target.value)}
-                    placeholder="Caption (optional)"
-                    className={inputCls}
-                  />
+                  <>
+                    <input
+                      type="text" value={caption} onChange={e => setCaption(e.target.value)}
+                      placeholder="Caption (optional)"
+                      className={inputCls}
+                    />
+                    <div>
+                      <label htmlFor="reel-schedule" className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">
+                        <CalendarClock size={12} className="inline mr-1 -mt-px" />
+                        Publish later (optional)
+                      </label>
+                      <input
+                        id="reel-schedule"
+                        type="datetime-local"
+                        value={scheduledFor}
+                        min={localDateTimeNow()}
+                        onChange={e => setScheduledFor(e.target.value)}
+                        className={inputCls}
+                      />
+                      <p className="mt-1 text-[11px] text-gray-400 dark:text-gray-500">
+                        {scheduledFor
+                          ? `Hidden from your profile until ${new Date(scheduledFor).toLocaleString()}.`
+                          : 'Leave empty to publish as soon as you add it.'}
+                      </p>
+                    </div>
+                  </>
                 )}
 
                 <button
@@ -1028,7 +1257,7 @@ export default function BusinessContentManager({ businessId, businessName, categ
                   className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
                 >
                   {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                  {saving ? 'Adding…' : `Add ${tab === 'services' ? 'Service' : tab === 'products' ? 'Product' : 'BusReel'}`}
+                  {saving ? 'Adding…' : `Add ${tab === 'services' ? 'Service' : tab === 'products' ? 'Product' : 'OpenReel'}`}
                 </button>
               </form>
             )}
@@ -1037,8 +1266,9 @@ export default function BusinessContentManager({ businessId, businessName, categ
       </div>
 
       {showCamera && user && (
-        <BusReelCapture
+        <OpenReelCapture
           userId={user.id}
+          maxSeconds={reelSeconds}
           onCaptured={handleCameraCapture}
           onClose={() => setShowCamera(false)}
         />

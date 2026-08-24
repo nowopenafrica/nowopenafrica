@@ -212,12 +212,12 @@ export default function BrandCardStudio({ business }: { business: Business }) {
                         e.target.value = '';
                       }} />
                     <button onClick={() => photoInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
+                      className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                       <Upload size={13} /> {settings.holderPhoto ? 'Replace' : 'Upload'}
                     </button>
                     {settings.holderPhoto && (
                       <button onClick={() => update({ holderPhoto: '' })}
-                        className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 min-h-[44px]">
+                        className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 min-h-[44px]">
                         <X size={13} /> Remove
                       </button>
                     )}

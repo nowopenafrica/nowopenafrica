@@ -140,7 +140,7 @@ export default function CampaignAnalytics({ business, onNavigate }: Props) {
             <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 p-8 text-center">
               <CalendarDays size={20} className="mx-auto mb-2 text-gray-300 dark:text-gray-600" />
               <p className="text-xs text-gray-500 dark:text-gray-400">No content planned yet. Add a week in the Content Planner and watch this chart come alive.</p>
-              <button onClick={() => onNavigate('planner')} className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium bg-purple-600 text-white px-3 .5 rounded-lg hover:bg-purple-700 transition min-h-[44px]">
+              <button onClick={() => onNavigate('planner')} className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium bg-purple-600 text-white px-3 rounded-lg hover:bg-purple-700 transition min-h-[44px]">
                 Open Content Planner <ArrowRight size={12} />
               </button>
             </div>

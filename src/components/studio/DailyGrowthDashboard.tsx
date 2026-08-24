@@ -155,7 +155,7 @@ export default function DailyGrowthDashboard({ business, onGo }: Props) {
           </h4>
           {DEPT_ACTIONS.map((a) => (
             <button key={a.dept} onClick={() => onGo(a.dept)}
-              className="w-full flex items-center justify-between text-left rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 .5 hover:border-purple-300 dark:hover:border-purple-600 transition min-h-[44px]">
+              className="w-full flex items-center justify-between text-left rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 hover:border-purple-300 dark:hover:border-purple-600 transition min-h-[44px]">
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                 <span>{a.emoji}</span> {a.label}
               </span>

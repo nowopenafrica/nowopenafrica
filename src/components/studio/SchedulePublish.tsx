@@ -13,6 +13,7 @@ import {
 import {
   fetchCapabilities, authorizeUrl, openConnectPopup, getServerConnections,
   disconnectConnection, publishPost, ServerConnection, Capabilities,
+  channelModeFor,
 } from '../../lib/socialPublish';
 import {
   fetchScheduledPosts, enqueueScheduledPost, cancelScheduledPost, markScheduledPostHandled,
@@ -59,12 +60,36 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
   const [connecting, setConnecting] = useState<string | null>(null);
   const [handleDraft, setHandleDraft] = useState('');
   const [capabilities, setCapabilities] = useState<Capabilities | null>(null);
+  /**
+   * Whether we managed to ask the server what it can post to.
+   *
+   * The failure used to be swallowed (`.catch(() => {})`), which is the worst
+   * possible outcome: with no capabilities every channel looked
+   * handle-connectable, so all ten offered "Connect" and none of them could
+   * actually post. Now an unreachable service says so.
+   */
+  const [capsState, setCapsState] = useState<'loading' | 'ready' | 'unreachable'>('loading');
   const [serverConnections, setServerConnections] = useState<Record<string, ServerConnection>>({});
   const serverConnectionsRef = useRef(serverConnections);
   const publishingIds = useRef<Set<string>>(new Set());
 
   // Which channels can be connected with real OAuth in this project.
   const realChannels = capabilities?.configured ?? {};
+
+  /**
+   * What a channel can genuinely do, from the server's own answer.
+   *
+   *   live   — there is a provider AND credentials, so OAuth and real posting
+   *   setup  — a provider exists but this project has no developer app for it
+   *   manual — no provider at all; we can track it, we cannot post to it
+   *
+   * Every channel previously offered the same "Connect" button. Clicking it on
+   * a channel with no provider asked for a handle, showed a green "connected"
+   * link, and then silently simulated every post — so an owner could believe
+   * their WhatsApp Status and Pinterest posts were going out for weeks.
+   */
+  const channelMode = (key: string) => channelModeFor(key, capabilities);
+  const liveChannelCount = SOCIAL_CHANNELS.filter((c) => realChannels[c.key] === true).length;
   const serverConnected = new Set(Object.keys(serverConnections));
   const localConnected = new Set(state.channels.filter((c) => c.connected).map((c) => c.key));
   const connectedKeys = new Set<string>([...localConnected, ...serverConnected]);
@@ -91,7 +116,10 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
 
   useEffect(() => {
     let cancelled = false;
-    fetchCapabilities().then((c) => { if (!cancelled) setCapabilities(c); }).catch(() => {});
+    setCapsState('loading');
+    fetchCapabilities()
+      .then((c) => { if (!cancelled) { setCapabilities(c); setCapsState('ready'); } })
+      .catch(() => { if (!cancelled) setCapsState('unreachable'); });
     refreshConnections();
     return () => { cancelled = true; };
   }, [business.id, refreshConnections]);
@@ -222,6 +250,14 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
   // otherwise the legacy "type your handle" simulation. Resolves true when the
   // channel ended up connected (real OAuth path only).
   const startConnect = async (key: string): Promise<boolean> => {
+    // A channel whose provider exists but has no developer app cannot be
+    // connected at all. Falling through to the handle prompt here was how a
+    // channel could look connected from the composer while the panel called it
+    // unavailable — two parts of the same screen disagreeing.
+    if (channelMode(key) === 'setup') {
+      toast.error(`${channelLabel(key)} needs its developer app connected before it can post.`);
+      return false;
+    }
     setConnecting(key);
     if (realChannels[key]) {
       setHandleDraft('');
@@ -424,7 +460,7 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                   const isSelected = selected.includes(c.key);
                   return (
                     <button key={c.key} onClick={() => pickChannel(c.key)}
-                      className={`inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border transition ${isSelected ? 'border-transparent text-white bg-purple-600' : isConnected ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:text-purple-500'} min-h-[44px]`}>
+                      className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border transition ${isSelected ? 'border-transparent text-white bg-purple-600' : isConnected ? 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700' : 'border-dashed border-gray-300 dark:border-gray-600 text-gray-400 dark:text-gray-500 hover:text-purple-500'} min-h-[44px]`}>
                       <Icon size={13} /> {c.label}
                       {isSelected && <CheckCircle2 size={12} />}
                     </button>
@@ -455,25 +491,60 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
         <div className="lg:col-span-2">
           <div className="lg:sticky lg:top-6 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
             <h4 className="text-sm font-bold text-gray-900 dark:text-white mb-1">Connected channels</h4>
-            <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">Link a channel to schedule posts to it.</p>
+            {capsState === 'unreachable' ? (
+              <p className="text-xs text-amber-700 dark:text-amber-400 mb-3">
+                We can't reach the publishing service, so we can't tell which channels are ready.
+                Anything you queue is saved and will go out once the connection is back.
+              </p>
+            ) : capsState === 'loading' ? (
+              <p className="text-xs text-gray-400 dark:text-gray-500 mb-3">Checking which channels are ready…</p>
+            ) : (
+              <p className="text-xs text-gray-500 dark:text-gray-400 mb-3">
+                {liveChannelCount > 0
+                  ? `Sign in to a channel and we post to it for you. ${liveChannelCount} of ${SOCIAL_CHANNELS.length} can post right now.`
+                  : 'No channel can post yet — each one needs its developer app connected first.'}
+              </p>
+            )}
             <div className="space-y-2">
               {SOCIAL_CHANNELS.map((c) => {
                 const Icon = CHANNEL_ICONS[c.key] ?? Send;
                 const isConnected = connectedKeys.has(c.key);
                 const isConnecting = connecting === c.key;
-                const isReal = realChannels[c.key] === true;
+                const mode = channelMode(c.key);
+                const isReal = mode === 'live';
                 const handle = displayHandle(c.key);
+                const liveConnection = serverConnections[c.key];
                 return (
                   <div key={c.key} className={`rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2 ${isConnected ? '' : 'border-dashed'}`}>
                     <div className="flex items-center gap-3">
                       <Icon size={16} className={`shrink-0 ${isConnected ? 'text-purple-500' : 'text-gray-300 dark:text-gray-600'}`} />
-                      <span className={`text-sm font-medium flex-1 ${isConnected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>
+                      <span className={`text-sm font-medium flex-1 min-w-0 ${isConnected ? 'text-gray-900 dark:text-white' : 'text-gray-400 dark:text-gray-500'}`}>
                         {c.label}
-                        {isConnected && handle && <span className="block text-[11px] font-normal text-gray-400 dark:text-gray-500">@{handle.replace(/^@/, '')}</span>}
-                        {isConnected && serverConnections[c.key] && <span className="ml-1 text-[10px] font-bold uppercase text-green-500">real</span>}
+                        {liveConnection
+                          ? <span className="ml-1 text-[10px] font-bold uppercase text-green-600 dark:text-green-400">posts for real</span>
+                          : mode === 'setup'
+                            ? <span className="ml-1 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400">needs setup</span>
+                            : mode === 'manual'
+                              ? <span className="ml-1 text-[10px] font-bold uppercase text-gray-400 dark:text-gray-500">reminder only</span>
+                              : null}
+                        {isConnected && handle && <span className="block text-[11px] font-normal text-gray-400 dark:text-gray-500 truncate">@{handle.replace(/^@/, '')}</span>}
+                        {/* Say plainly what a non-live "connected" channel does,
+                            rather than leaving a green link icon to imply posting. */}
+                        {isConnected && !liveConnection && (
+                          <span className="block text-[11px] font-normal text-gray-400 dark:text-gray-500">
+                            We won't post here — it appears on your plan as a reminder.
+                          </span>
+                        )}
+                        {!isConnected && mode === 'setup' && (
+                          <span className="block text-[11px] font-normal text-amber-600 dark:text-amber-400">
+                            Add this platform's developer app to switch it on.
+                          </span>
+                        )}
                       </span>
-                      {isConnected && <Link2 size={13} className="text-green-500 shrink-0" />}
-                      {isConnected ? (
+                      {liveConnection && <Link2 size={13} className="text-green-500 shrink-0" />}
+                      {mode === 'setup' && !isConnected ? (
+                        <span className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 shrink-0">Unavailable</span>
+                      ) : isConnected ? (
                         <button onClick={() => disconnect(c.key)}
                           className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                           Disconnect
@@ -503,10 +574,10 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                           onChange={(e) => setHandleDraft(e.target.value)}
                           placeholder="your account handle"
                           onKeyDown={(e) => { if (e.key === 'Enter') confirmConnect(c.key); }}
-                          className="flex-1 min-w-0 px-2.5 .5 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center"
+                          className="flex-1 min-w-0 px-2.5 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center"
                         />
                         <button onClick={() => confirmConnect(c.key)}
-                          className="inline-flex items-center gap-1 px-3 .5 rounded-lg text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+                          className="inline-flex items-center gap-1 px-3 rounded-lg text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                           <CheckCircle2 size={11} /> Connect
                         </button>
                       </div>

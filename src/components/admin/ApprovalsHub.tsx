@@ -295,7 +295,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                         <p className="mt-2 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">{r.reason}</p>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button type="button" disabled={actioning !== null} onClick={() => void decide(r, 'approved')}
-                            className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
+                            className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                             {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
                             Approve
                           </button>
@@ -312,7 +312,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                               />
                               <div className="mt-2 flex items-center gap-2">
                                 <button type="button" disabled={actioning !== null} onClick={() => void decide(r, 'rejected', rejectNote)}
-                                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
+                                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                                   {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
                                   Send back with note
                                 </button>
@@ -324,7 +324,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                             </div>
                           ) : (
                             <button type="button" disabled={actioning !== null} onClick={() => { setRejectingId(r.id); setRejectNote(''); }}
-                              className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
+                              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                               {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
                               Reject
                             </button>

@@ -129,6 +129,7 @@ export default function Media() {
               />
             </div>
             <select
+              aria-label="Filter by category"
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setActiveGroup(null); }}
               className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"

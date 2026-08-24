@@ -717,7 +717,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
         <div className="flex flex-wrap gap-1.5">
           {EXAMPLES.map((ex) => (
             <button key={ex} onClick={() => setBrief(ex)}
-              className="inline-flex items-center gap-1 px-3 .5 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition min-h-[44px]">
+              className="inline-flex items-center gap-1 px-3 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition min-h-[44px]">
               <Lightbulb size={11} /> {ex.slice(0, 40)}{ex.length > 40 ? '…' : ''}
             </button>
           ))}
@@ -930,7 +930,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <p className="text-sm font-bold text-gray-900 dark:text-white">{s.text}</p>
                           <button onClick={() => regenerateOne(s.order)} disabled={rendering}
-                            className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition disabled:opacity-50 min-h-[44px]">
+                            className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition disabled:opacity-50 min-h-[44px]">
                             <RefreshCcw size={11} /> Regenerate Scene {s.order}
                           </button>
                         </div>
@@ -1480,7 +1480,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                   value={publishHashtags}
                   onChange={(e) => setPublishHashtags(e.target.value)}
                   placeholder="#Foodie #NigerianFood #NowOpenAfrica"
-                  className="mt-2 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 py-2 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="flex items-center mt-2 w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 px-3 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]"
                 />
                 <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {SOCIAL_CHANNELS.map((c) => {
@@ -1496,7 +1496,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                   })}
                 </div>
                 <button onClick={publishNow} disabled={publishing || !rendered}
-                  className="mt-3 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition disabled:opacity-50">
+                  className="mt-3 inline-flex items-center gap-2 px-5 rounded-lg bg-green-600 text-white text-sm font-bold hover:bg-green-700 transition disabled:opacity-50 min-h-[44px]">
                   {publishing ? <RefreshCcw size={15} className="animate-spin" /> : <Send size={15} />}
                   {publishing ? 'Publishing…' : 'Publish everywhere'}
                 </button>

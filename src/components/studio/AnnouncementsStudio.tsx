@@ -87,7 +87,7 @@ export default function AnnouncementsStudio({ business }: Props) {
             <Megaphone size={16} className="text-purple-600 dark:text-purple-400" /> New announcement
           </h3>
           <button onClick={() => (showForm ? setShowForm(false) : openForm())}
-            className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+            className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> Compose</>}
           </button>
         </div>
@@ -154,16 +154,16 @@ export default function AnnouncementsStudio({ business }: Props) {
                     <p className="text-[11px] text-gray-400 mt-2">{announcementLabel(a.type)} · {new Date(`${a.date}T00:00:00`).toLocaleDateString()}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => togglePin(a.id)} title={a.pinned ? 'Unpin' : 'Pin'} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
+                    <button onClick={() => togglePin(a.id)} title={a.pinned ? 'Unpin' : 'Pin'} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
                       {a.pinned ? <PinOff size={13} /> : <Pin size={13} />}
                     </button>
-                    <button onClick={() => copy(a)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+                    <button onClick={() => copy(a)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                       {copiedId === a.id ? 'Copied!' : 'Copy'} <Copy size={13} />
                     </button>
-                    <button onClick={() => share(a)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
+                    <button onClick={() => share(a)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                       <Send size={13} /> WhatsApp
                     </button>
-                    <button onClick={() => remove(a.id)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
+                    <button onClick={() => remove(a.id)} className="inline-flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                       <Trash2 size={13} />
                     </button>
                   </div>

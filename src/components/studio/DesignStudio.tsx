@@ -1897,7 +1897,7 @@ export default function DesignStudio({
           <div className="flex gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
             {(['image', 'video'] as const).map((m) => (
               <button key={m} onClick={() => setExportMode(m)}
-                className={`flex-1 px-3 .5 rounded-md text-xs font-bold uppercase tracking-wide transition ${exportMode === m ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'} min-h-[44px] items-center`}>
+                className={`flex-1 px-3 rounded-md text-xs font-bold uppercase tracking-wide transition ${exportMode === m ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'} min-h-[44px] items-center`}>
                 {m === 'image' ? 'Image' : 'Video'}
               </button>
             ))}
@@ -1931,7 +1931,7 @@ export default function DesignStudio({
                 <div className="flex flex-wrap gap-1.5">
                   {VIDEO_SECONDS.map((s) => (
                     <button key={s} onClick={() => setVideoSeconds(s)}
-                      className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-bold border transition ${videoSeconds === s ? 'border-transparent text-white bg-gray-900 dark:bg-gray-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
+                      className={`inline-flex items-center px-3 rounded-lg text-xs font-bold border transition ${videoSeconds === s ? 'border-transparent text-white bg-gray-900 dark:bg-gray-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                       {s}s
                     </button>
                   ))}

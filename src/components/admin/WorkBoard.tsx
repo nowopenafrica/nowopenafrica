@@ -394,12 +394,12 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
             {humanOwner && (
               humanOwner.status === 'clocked-in' ? (
                 <button type="button" disabled={saving} onClick={() => void toggleClock(false)}
-                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
+                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />} Clock out
                 </button>
               ) : (
                 <button type="button" disabled={saving} onClick={() => void toggleClock(true)}
-                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
+                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Clock in
                 </button>
               )
@@ -430,7 +430,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
               <div className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
                 {WORK_KINDS.map((k) => (
                   <button key={k} type="button" onClick={() => setFormKind(k)}
-                    className={`inline-flex items-center px-2 .5 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'} min-h-[44px]`}>
+                    className={`inline-flex items-center px-2 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'} min-h-[44px]`}>
                     {WORK_KIND_LABELS[k]}
                   </button>
                 ))}

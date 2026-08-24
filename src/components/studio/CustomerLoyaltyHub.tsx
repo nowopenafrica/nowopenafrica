@@ -151,10 +151,10 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={shareProgram} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-white text-rose-600 hover:bg-rose-50 transition min-h-[44px]">
+            <button onClick={shareProgram} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-white text-rose-600 hover:bg-rose-50 transition min-h-[44px]">
               <Share2 size={13} /> Share programme
             </button>
-            <button onClick={() => onNavigate('promotions')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-white/20 hover:bg-white/30 transition min-h-[44px]">
+            <button onClick={() => onNavigate('promotions')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-white/20 hover:bg-white/30 transition min-h-[44px]">
               <WalletCards size={13} /> Design loyalty card
             </button>
           </div>
@@ -164,15 +164,15 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
       {/* Tabs */}
       <div className="flex gap-2">
         <button onClick={() => setTab('members')}
-          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'members' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
+          className={`inline-flex items-center px-3.5 rounded-lg text-sm font-medium transition ${tab === 'members' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Members ({customers.length})
         </button>
         <button onClick={() => setTab('program')}
-          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'program' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
+          className={`inline-flex items-center px-3.5 rounded-lg text-sm font-medium transition ${tab === 'program' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Programme
         </button>
         <button onClick={() => setTab('activity')}
-          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'activity' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
+          className={`inline-flex items-center px-3.5 rounded-lg text-sm font-medium transition ${tab === 'activity' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Activity ({txns.length})
         </button>
       </div>
@@ -257,14 +257,14 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
                       <div className="flex items-center gap-1.5">
                         <input type="number" min="0" value={spend[c.id] || ''} onChange={(e) => setSpend({ ...spend, [c.id]: e.target.value })}
                           placeholder={program.spendPerPoint > 0 ? 'Amount spent (₦)' : 'Add a visit'}
-                          className="inline-flex items-center w-36 px-3 .5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
-                        <button onClick={() => logVisit(c)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
+                          className="inline-flex items-center w-36 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                        <button onClick={() => logVisit(c)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                           <CheckCircle2 size={13} /> Add visit
                         </button>
                       </div>
                       {options.length > 0 ? (
                         <select value={redeem[c.id] || ''} onChange={(e) => { setRedeem({ ...redeem, [c.id]: e.target.value }); doRedeem(c, e.target.value); }}
-                          className="inline-flex items-center px-3 .5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
+                          className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
                           <option value="">Redeem reward…</option>
                           {options.map((o) => (
                             <option key={o.id} value={o.id}>{o.label}{o.cost > 0 ? ` (${o.cost} pts)` : ''}</option>
@@ -273,10 +273,10 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
                       ) : (
                         <span className="text-[11px] text-gray-400">Earn more to unlock rewards</span>
                       )}
-                      <button onClick={() => sendBalance(c)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+                      <button onClick={() => sendBalance(c)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                         <Send size={13} /> Balance
                       </button>
-                      <button onClick={() => removeMember(c)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
+                      <button onClick={() => removeMember(c)} className="inline-flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                         <Trash2 size={13} />
                       </button>
                     </div>

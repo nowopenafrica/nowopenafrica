@@ -10,7 +10,7 @@ import { supabase } from '../lib/supabase';
 import {
   HUB_RELATIONSHIPS, HUB_RELATIONSHIP_TYPES, hubRelationshipById,
   schemaFor, validateForm, hasErrors, missingRequiredAgreements,
-  createFormSubmission, toApplicationRow, isAllowedUpload, formatFileSize,
+  createFormSubmission, toNewApplicationRow, isAllowedUpload, formatFileSize,
   MAX_UPLOAD_MB,
   type HubRelationshipType, type FormField, type FormSchema,
   type UploadedFile, type FormApplication,
@@ -411,12 +411,24 @@ export default function Forms() {
     // Honeypot filled → look like a success but persist nothing (bot trap).
     if (!(honeypotRef.current && honeypotRef.current.value)) {
       try {
-        const { error } = await supabase.from('os_form_applications').insert([toApplicationRow(app)]).select();
+        // No .select() here, deliberately. Applications are submitted by people
+        // who are not signed in: the table grants anon INSERT but restricts
+        // SELECT to admins, and `.select()` makes PostgREST read the new row
+        // back — which RLS then denies. The insert had already succeeded, but the
+        // read-back error looked like a failed submission, so every application
+        // was quietly diverted to localStorage and never reached the dashboard.
+        const { error } = await supabase
+          .from('os_form_applications')
+          .insert([toNewApplicationRow(app)]);
         if (error) {
+          // Keep the reason: this was swallowed before, which is why the cause
+          // had to be guessed at from a misleading on-screen note.
+          console.error('Application insert failed:', error.message, error);
           saveLocalSubmission(app);
           setFallback(true);
         }
-      } catch {
+      } catch (err) {
+        console.error('Application insert threw:', err);
         saveLocalSubmission(app);
         setFallback(true);
       }
@@ -454,10 +466,21 @@ export default function Forms() {
                 separately executed.
               </span>
             </div>
+            {/* An applicant should be told plainly that it did not go through,
+                and what to do — not handed a database table name. The technical
+                reason is logged for whoever runs the platform. */}
             {fallback && (
-              <p className="mt-4 text-[11px] font-medium text-amber-600 dark:text-amber-400">
-                Saved as a local demo submission — connect the os_form_applications migration to store it in the database.
-              </p>
+              <div className="mt-4 rounded-lg border border-amber-300 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/30 p-3 text-left">
+                <p className="text-xs font-semibold text-amber-900 dark:text-amber-200">
+                  We couldn&apos;t reach our servers, so this hasn&apos;t been submitted yet.
+                </p>
+                <p className="mt-1 text-[11px] text-amber-800 dark:text-amber-300">
+                  Your answers are saved on this device — reopen this form on the same browser to send
+                  it again. If it keeps failing, email{' '}
+                  <a href="mailto:hello@nowopenafrica.com" className="underline">hello@nowopenafrica.com</a>{' '}
+                  with your reference above.
+                </p>
+              </div>
             )}
           </div>
         </div>

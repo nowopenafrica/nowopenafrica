@@ -146,7 +146,7 @@ export default function BrandKitStudio({ business }: { business: Business }) {
           </span>
           {imageToScan && (
             <button onClick={extract} disabled={extracting}
-              className="inline-flex items-center gap-2 px-3 .5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 min-h-[44px]">
+              className="inline-flex items-center gap-2 px-3 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 min-h-[44px]">
               {extracting ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Re-scan logo
             </button>
           )}

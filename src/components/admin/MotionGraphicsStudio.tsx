@@ -538,7 +538,7 @@ function SceneStrip({
           Click a scene card to edit · drag to reorder
         </span>
         <button onClick={onReset} title="Reset the timeline to the designed order"
-          className="inline-flex items-center gap-1 px-2 .5 rounded-lg text-[11px] font-semibold border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 transition min-h-[44px]">
+          className="inline-flex items-center gap-1 px-2 rounded-lg text-[11px] font-semibold border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 transition min-h-[44px]">
           <RotateCcw size={12} /> Reset
         </button>
       </div>
@@ -1407,11 +1407,11 @@ export default function MotionGraphicsStudio() {
                       </span>
                     </span>
                     <span className="w-4 h-4 rounded-full shrink-0" style={swatchStyle(p.palette)} />
-                    <button onClick={() => openProject(p)} className="inline-flex items-center gap-1 px-3 .5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white transition min-h-[44px]">
+                    <button onClick={() => openProject(p)} className="inline-flex items-center gap-1 px-3 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 text-white transition min-h-[44px]">
                       Open in Studio
                     </button>
                     <button onClick={() => { deleteMotionProject(p.id); setProjects(loadMotionProjects()); }} aria-label={`Delete ${p.name}`}
-                      className="inline-flex items-center px-2 .5 rounded-lg text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition min-h-[44px]">
+                      className="inline-flex items-center px-2 rounded-lg text-xs text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 transition min-h-[44px]">
                       <Trash2 size={13} />
                     </button>
                   </div>
@@ -1452,7 +1452,7 @@ export default function MotionGraphicsStudio() {
           </div>
           <div className="mt-4 flex flex-wrap items-center gap-3">
             <button onClick={buildFromPrompt}
-              className="inline-flex items-center gap-2 px-4 .5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition min-h-[44px]">
+              className="inline-flex items-center gap-2 px-4 rounded-xl bg-purple-600 hover:bg-purple-700 text-white text-sm font-semibold transition min-h-[44px]">
               <Sparkles size={15} /> Build motion project
             </button>
             {aiError && <p role="alert" className="text-xs text-red-600 dark:text-red-400">{aiError}</p>}
@@ -1473,17 +1473,17 @@ export default function MotionGraphicsStudio() {
             {/* Editor workspace top bar */}
             <div className="flex flex-wrap items-center gap-2 px-3 py-2 border-b border-gray-100 dark:border-gray-700">
               <button onClick={() => setMode('quick')} title="Back to Quick Create"
-                className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition min-h-[44px]">
+                className="inline-flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-semibold text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 transition min-h-[44px]">
                 <ArrowLeft size={14} /> Back
               </button>
               <div className="w-px h-5 bg-gray-200 dark:bg-gray-700" />
               <label className="block min-w-[160px]">
                 <span className="sr-only">Project name</span>
                 <input value={project.name} onChange={(e) => patch({ name: e.target.value })} aria-label="Project name"
-                  className="flex items-center w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                  className="flex items-center w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
               </label>
               <select value={project.status} onChange={(e) => patch({ status: e.target.value as MotionProjectStatus })} aria-label="Status"
-                className="inline-flex items-center px-2 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
+                className="inline-flex items-center px-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                 {MOTION_PROJECT_STATUSES.map((s) => (
                   <option key={s} value={s}>{MOTION_PROJECT_STATUS_LABELS[s]}</option>
                 ))}
@@ -1506,15 +1506,15 @@ export default function MotionGraphicsStudio() {
                   {playing ? <Pause size={14} /> : <Play size={14} className="ml-0.5" />}
                 </button>
                 <button onClick={saveNow} title="Save now (already autosaves)"
-                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 transition min-h-[44px]">
+                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 transition min-h-[44px]">
                   <Save size={13} /> Save
                 </button>
                 <button onClick={shareProject} title="Copy a share link for this project"
-                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 transition min-h-[44px]">
+                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 transition min-h-[44px]">
                   <Share2 size={13} /> Share
                 </button>
                 <button onClick={downloadVideo} disabled={rendering}
-                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white transition min-h-[44px]">
+                  className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold bg-purple-600 hover:bg-purple-700 disabled:opacity-60 text-white transition min-h-[44px]">
                   {rendering ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
                   {rendering ? `Filming ${Math.round(progress * 100)}%` : 'Export'}
                 </button>
@@ -1707,19 +1707,19 @@ export default function MotionGraphicsStudio() {
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             <button onClick={() => onAddClip()} title="Add a new clip after the selected one"
-                              className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                              className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                               <Plus size={12} /> Add clip
                             </button>
                             <button onClick={() => onSplitClip(selScene.id)} title="Split this clip in two"
-                              className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                              className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                               <Scissors size={12} /> Split
                             </button>
                             <button onClick={() => onDuplicateClip(selScene.id)} title="Duplicate this clip"
-                              className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                              className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                               <Copy size={12} /> Duplicate
                             </button>
                             <button onClick={() => onRemoveClip(selScene.id)} title="Remove this clip"
-                              className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition min-h-[44px]">
+                              className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition min-h-[44px]">
                               <Trash2 size={12} /> Remove
                             </button>
                           </div>
@@ -1743,7 +1743,7 @@ export default function MotionGraphicsStudio() {
                         <div className="flex flex-wrap gap-1.5">
                           {DURATIONS.map((d) => (
                             <button key={d.key} onClick={() => editBrief({ duration: d.key })} aria-pressed={brief.duration === d.key}
-                              className={`inline-flex items-center px-2.5 .5 rounded-lg text-[11px] font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
+                              className={`inline-flex items-center px-2.5 rounded-lg text-[11px] font-semibold transition ${brief.duration === d.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
                               {d.label}<span className="ml-1 font-normal opacity-70">{d.hint}</span>
                             </button>
                           ))}
@@ -1791,7 +1791,7 @@ export default function MotionGraphicsStudio() {
                           <label className="block">
                             <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Entrance</span>
                             <select value={clipMotion.animation} onChange={(e) => applyClipMotion({ animation: (e.target.value || undefined) as TextAnimationKey })}
-                              className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
+                              className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                               <option value="">Designed (or per-caption mix)</option>
                               {TEXT_ANIMATIONS.map((a) => (
                                 <option key={a.key} value={a.key}>{a.label}</option>
@@ -1801,7 +1801,7 @@ export default function MotionGraphicsStudio() {
                           <label className="block">
                             <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Effect</span>
                             <select value={clipMotion.effect} onChange={(e) => applyClipMotion({ effect: (e.target.value || undefined) as TextEffectKey })}
-                              className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
+                              className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                               <option value="">Designed (or per-caption mix)</option>
                               {TEXT_EFFECTS.map((f) => (
                                 <option key={f.key} value={f.key}>{f.label}</option>
@@ -1819,23 +1819,23 @@ export default function MotionGraphicsStudio() {
                     </section>
                     <label className="block">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Brand lockup</span>
-                      <input value={brief.business} onChange={(e) => editBrief({ business: e.target.value })} className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                      <input value={brief.business} onChange={(e) => editBrief({ business: e.target.value })} className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                     </label>
                     <label className="block">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Mark emoji</span>
-                      <input value={brief.logoEmoji} onChange={(e) => editBrief({ logoEmoji: e.target.value })} className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                      <input value={brief.logoEmoji} onChange={(e) => editBrief({ logoEmoji: e.target.value })} className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                     </label>
                     <label className="block">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Headline</span>
-                      <input value={brief.headline} onChange={(e) => editBrief({ headline: e.target.value })} className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                      <input value={brief.headline} onChange={(e) => editBrief({ headline: e.target.value })} className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                     </label>
                     <label className="block">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Sub-line (voiceover strip)</span>
-                      <input value={brief.subhead} onChange={(e) => editBrief({ subhead: e.target.value })} className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                      <input value={brief.subhead} onChange={(e) => editBrief({ subhead: e.target.value })} className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                     </label>
                     <label className="block">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Call to action (end card)</span>
-                      <input value={brief.cta} onChange={(e) => editBrief({ cta: e.target.value })} className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                      <input value={brief.cta} onChange={(e) => editBrief({ cta: e.target.value })} className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                     </label>
                   </div>
                 )}
@@ -1879,7 +1879,7 @@ export default function MotionGraphicsStudio() {
                         const s = STYLES.find((x) => x.key === e.target.value);
                         if (s) editBrief({ style: s.key, headline: s.defaults.headline, subhead: s.defaults.subhead, cta: s.defaults.cta, logoEmoji: s.defaults.logoEmoji });
                       }}
-                        className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
+                        className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                         {STYLES.map((s) => <option key={s.key} value={s.key}>{s.emoji} {s.label}</option>)}
                       </select>
                     </label>
@@ -1938,7 +1938,7 @@ export default function MotionGraphicsStudio() {
                     <label className="block">
                       <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Status</span>
                       <select value={project.status} onChange={(e) => patch({ status: e.target.value as MotionProjectStatus })}
-                        className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
+                        className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                         {MOTION_PROJECT_STATUSES.map((s) => (
                           <option key={s} value={s}>{MOTION_PROJECT_STATUS_LABELS[s]}</option>
                         ))}
@@ -1950,10 +1950,10 @@ export default function MotionGraphicsStudio() {
                       <div className="flex justify-between gap-2"><dt className="text-gray-400">Format</dt><dd className="font-semibold text-gray-700 dark:text-gray-200 tabular-nums">{formatChip} · {RENDER_DIMENSIONS[brief.aspect].width}×{RENDER_DIMENSIONS[brief.aspect].height}</dd></div>
                     </dl>
                     <div className="flex flex-wrap gap-1.5">
-                      <button onClick={duplicate} className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                      <button onClick={duplicate} className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                         <Copy size={12} /> Duplicate
                       </button>
-                      <button onClick={remove} className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition min-h-[44px]">
+                      <button onClick={remove} className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold bg-red-50 dark:bg-red-900/20 text-red-600 dark:text-red-400 hover:bg-red-100 dark:hover:bg-red-900/40 transition min-h-[44px]">
                         <Trash2 size={12} /> Delete
                       </button>
                     </div>
@@ -2038,7 +2038,7 @@ export default function MotionGraphicsStudio() {
                         <input autoFocus value={editing.value}
                           onChange={(e) => setEditing({ ...editing, value: e.target.value })}
                           onKeyDown={(e) => { if (e.key === 'Enter') commitEdit(); if (e.key === 'Escape') setEditing(null); }}
-                          className="flex items-center w-full px-2 .5 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white min-h-[44px]" />
+                          className="flex items-center w-full px-2 text-sm rounded-md border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white min-h-[44px]" />
                         <div className="flex gap-2 justify-end">
                           <button onClick={() => setEditing(null)} className="inline-flex items-center px-2.5 text-[11px] font-semibold rounded-md border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 min-h-[44px]">Cancel</button>
                           <button onClick={commitEdit} className="inline-flex items-center px-2.5 text-[11px] font-semibold rounded-md bg-purple-600 text-white min-h-[44px]">Save</button>
@@ -2053,7 +2053,7 @@ export default function MotionGraphicsStudio() {
                   <div className="flex flex-wrap gap-1">
                     {FORMATS.map((f) => (
                       <button key={f.key} onClick={() => pickFormat(f)} aria-pressed={formatChip === f.key} title={`${f.hint} · ${RENDER_DIMENSIONS[f.aspect].width}×${RENDER_DIMENSIONS[f.aspect].height}`}
-                        className={`inline-flex items-center px-2.5 .5 rounded-lg text-[11px] font-semibold transition ${formatChip === f.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
+                        className={`inline-flex items-center px-2.5 rounded-lg text-[11px] font-semibold transition ${formatChip === f.key ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
                         {f.key}
                       </button>
                     ))}
@@ -2061,7 +2061,7 @@ export default function MotionGraphicsStudio() {
                   <div className="flex items-center gap-1">
                     {ZOOMS.map((z) => (
                       <button key={z.key} onClick={() => setZoom(z.key)} aria-pressed={zoom === z.key}
-                        className={`inline-flex items-center px-2.5 .5 rounded-lg text-[11px] font-semibold transition ${zoom === z.key ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
+                        className={`inline-flex items-center px-2.5 rounded-lg text-[11px] font-semibold transition ${zoom === z.key ? 'bg-gray-900 dark:bg-white text-white dark:text-gray-900' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
                         {z.label}
                       </button>
                     ))}
@@ -2133,7 +2133,7 @@ export default function MotionGraphicsStudio() {
                     { key: 'aivideo', label: 'AI video gen' },
                   ] as const).map((o) => (
                     <button key={o.key} type="button" onClick={() => editRender({ source: o.key })} aria-pressed={renderSource === o.key}
-                      className={`inline-flex items-center px-3 .5 rounded-md text-xs font-bold transition ${renderSource === o.key ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700'} min-h-[44px]`}>
+                      className={`inline-flex items-center px-3 rounded-md text-xs font-bold transition ${renderSource === o.key ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700'} min-h-[44px]`}>
                       {o.label}
                     </button>
                   ))}

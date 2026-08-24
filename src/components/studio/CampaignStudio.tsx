@@ -138,7 +138,7 @@ export default function CampaignStudio({ business }: Props) {
               <Mail size={16} className="text-purple-600 dark:text-purple-400" /> Email · {goalLabel}
             </h2>
             <button onClick={() => copy('email')}
-              className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
               {copied === 'email' ? 'Copied!' : 'Copy'} <Copy size={12} />
             </button>
           </div>
@@ -152,11 +152,11 @@ export default function CampaignStudio({ business }: Props) {
               <MessageCircle size={16} className="text-green-600 dark:text-green-400" /> SMS · {goalLabel} <span className="text-[10px] font-medium text-gray-400">({sms.length}/160 chars)</span>
             </h2>
             <div className="flex gap-2">
-              <button onClick={sendSms} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
+              <button onClick={sendSms} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                 <Send size={12} /> Send via WhatsApp
               </button>
               <button onClick={() => copy('sms')}
-                className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                 {copied === 'sms' ? 'Copied!' : 'Copy'} <Copy size={12} />
               </button>
             </div>

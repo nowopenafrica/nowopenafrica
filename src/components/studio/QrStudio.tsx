@@ -102,7 +102,7 @@ export default function QrStudio({ business }: { business: Business }) {
         </div>
 
         <button onClick={download} disabled={!qr || downloading}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 .5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 min-h-[44px]">
+          className="w-full inline-flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 min-h-[44px]">
           {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download QR
         </button>
 

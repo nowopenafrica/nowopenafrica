@@ -112,7 +112,7 @@ export default function LivePromoCenter({ business, onNavigate }: Props) {
             <div>
               <h3 className="text-sm font-bold">Suggested next promo</h3>
               <p className="text-xs mt-1 opacity-90 leading-relaxed">Weekend offers are the fastest way to pull customers in. Schedule one for this {new Date().toLocaleDateString(undefined, { weekday: 'long' })}.</p>
-              <button onClick={useSuggestion} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium bg-white text-purple-700 px-3 .5 rounded-lg hover:bg-purple-50 transition min-h-[44px]">
+              <button onClick={useSuggestion} className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium bg-white text-purple-700 px-3 rounded-lg hover:bg-purple-50 transition min-h-[44px]">
                 Use this idea <ArrowRight size={14} />
               </button>
             </div>
@@ -125,7 +125,7 @@ export default function LivePromoCenter({ business, onNavigate }: Props) {
               <CalendarClock size={16} className="text-purple-600 dark:text-purple-400" /> Promotion lifecycle
             </h3>
             <button onClick={() => setShowForm((v) => !v)}
-              className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               <Plus size={15} /> {showForm ? 'Close' : 'New promotion'}
             </button>
           </div>
@@ -180,7 +180,7 @@ export default function LivePromoCenter({ business, onNavigate }: Props) {
             <div className="flex flex-wrap gap-2">
               {CHANNELS.map((c) => (
                 <button key={c} onClick={() => setChannels((prev) => prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c])}
-                  className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-medium capitalize transition ${channels.includes(c) ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
+                  className={`inline-flex items-center px-3 rounded-lg text-xs font-medium capitalize transition ${channels.includes(c) ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
                   {c}
                 </button>
               ))}
@@ -228,22 +228,22 @@ export default function LivePromoCenter({ business, onNavigate }: Props) {
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {st === 'scheduled' && (
-                      <button onClick={() => setLive(p.id)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
+                      <button onClick={() => setLive(p.id)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                         <CheckCircle2 size={13} /> Go live
                       </button>
                     )}
                     {st === 'live' && (
-                      <button onClick={() => end(p.id)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
+                      <button onClick={() => end(p.id)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                         <Clock size={13} /> End
                       </button>
                     )}
-                    <button onClick={() => share(p)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
+                    <button onClick={() => share(p)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                       <Send size={13} /> WhatsApp
                     </button>
-                    <button onClick={() => onNavigate('promotions')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+                    <button onClick={() => onNavigate('promotions')} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                       <WalletCards size={13} /> Design asset
                     </button>
-                    <button onClick={() => remove(p.id)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
+                    <button onClick={() => remove(p.id)} className="inline-flex items-center gap-1.5 px-2.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                       <Trash2 size={13} />
                     </button>
                   </div>

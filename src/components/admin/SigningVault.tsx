@@ -188,7 +188,7 @@ export default function SigningVault() {
                   <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5">{d.counterparty_email}</p>
                 </div>
                 <button type="button" onClick={() => openSign(d)}
-                  className="shrink-0 inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
+                  className="shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
                   <PenSquare size={11} /> Capture signature
                 </button>
               </div>
@@ -275,14 +275,14 @@ export default function SigningVault() {
               <input value={signerName}
                 onChange={(e) => setSignerName(e.target.value)}
                 aria-label="Signer name"
-                className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </label>
             <label className="block">
               <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Signer email</span>
               <input type="email" value={signerEmail}
                 onChange={(e) => setSignerEmail(e.target.value)}
                 aria-label="Signer email"
-                className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
               <span className="mt-1 block text-[10px] text-gray-400">Must match the counterparty on the document.</span>
             </label>
             <label className="block">
@@ -290,7 +290,7 @@ export default function SigningVault() {
               <select value={method}
                 onChange={(e) => setMethod(e.target.value as SigningMethod)}
                 aria-label="Signing method"
-                className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
+                className="flex items-center mt-1 w-full px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                 {SIGNING_METHODS.map((m) => (
                   <option key={m} value={m}>{SIGNING_METHOD_LABELS[m]}</option>
                 ))}
@@ -300,7 +300,7 @@ export default function SigningVault() {
               <p className="text-[11px] font-semibold text-red-600 dark:text-red-400">{signError}</p>
             )}
             <button type="submit" disabled={busy}
-              className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition min-h-[44px]">
+              className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition min-h-[44px]">
               {busy ? <Loader2 size={13} className="animate-spin" /> : <PenSquare size={13} />} Capture signature
             </button>
           </form>

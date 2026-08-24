@@ -103,7 +103,7 @@ export default function OneClickCampaigns({ business }: Props) {
         </div>
 
         <div className="space-y-2">
-          <button onClick={regenerate} className="w-full inline-flex items-center justify-center gap-2 px-4 .5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+          <button onClick={regenerate} className="w-full inline-flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             <Rocket size={15} /> Generate one-click campaign
           </button>
           <div className="grid grid-cols-2 gap-2">

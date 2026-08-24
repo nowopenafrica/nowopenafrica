@@ -5,6 +5,7 @@ import { Loader2, Upload, ImageIcon, CheckCircle, XCircle, X, Plus, Check, Locat
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { detectLocation } from '../../lib/geolocation';
+import OpeningHoursEditor from './OpeningHoursEditor';
 import { BUSINESS_CATEGORY_GROUPS, BUSINESS_CATEGORIES } from '../../data/categories';
 import { getCategoryFeatures, getModuleByKey, MODULE_LIBRARY } from '../../data/categoryFeatures';
 import { moduleLimitForPlan, getBusinessTier } from '../../data/pricingPlans';
@@ -57,6 +58,8 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
     image_url: '',
     logo_url: '',
     status: 'open' as 'open' | 'closed',
+    // Free text, but written by OpeningHoursEditor so it always parses back.
+    opening_hours: '',
     // Owner-selected booking modules. null = all of the category's modules.
     enabled_modules: null as string[] | null,
   });
@@ -68,6 +71,9 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
   const [planName, setPlanName] = useState('your');
   const [showAddModules, setShowAddModules] = useState(false);
   const [detectingLoc, setDetectingLoc] = useState(false);
+  // False when this database has no opening_hours column, so the editor can
+  // say why hours never stick instead of silently discarding them.
+  const [hoursStorageReady, setHoursStorageReady] = useState(true);
 
   const useMyLocation = async () => {
     setDetectingLoc(true);
@@ -107,6 +113,10 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
       .maybeSingle();
 
     if (data) {
+      // `select('*')` returns exactly the columns that exist, so a row carrying
+      // neither key proves the opening-hours migration hasn't been applied here
+      // — and that anything the editor saves will be dropped.
+      setHoursStorageReady('opening_hours' in data || 'hours' in data);
       setFormData({
         name: data.name || '',
         username: data.username || '',
@@ -120,6 +130,8 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
         image_url: data.image_url || '',
         logo_url: data.logo_url || '',
         status: data.status || 'open',
+        // `hours` is the older column name some rows still carry.
+        opening_hours: data.opening_hours || data.hours || '',
         enabled_modules: data.enabled_modules ?? null,
       });
       if (data.username) setUsernameEdited(true);
@@ -280,13 +292,16 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
       let { error } = await save(payload);
       // Gracefully degrade if a new column's migration hasn't been applied
       // yet — retry without it so the rest of the profile still saves.
-      if (error && /enabled_modules|secondary_categories/.test(error.message)) {
-        const { enabled_modules, secondary_categories, ...rest } = payload;
+      if (error && /enabled_modules|secondary_categories|opening_hours/.test(error.message)) {
+        const missing = ['enabled_modules', 'secondary_categories', 'opening_hours']
+          .filter((c) => error!.message.includes(c));
+        const { enabled_modules, secondary_categories, opening_hours, ...rest } = payload;
         void enabled_modules;
         void secondary_categories;
+        void opening_hours;
         ({ error } = await save(rest));
         if (!error) {
-          alert('Saved — but module selection needs the latest migration (scripts/sql/apply_all_migrations.sql) to take effect.');
+          alert(`Saved — but ${missing.join(' and ')} needs the latest migration (scripts/sql/apply_all_migrations.sql) to take effect.`);
         }
       }
 
@@ -636,6 +651,14 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
           </select>
         </div>
       </div>
+
+      {/* Opening hours — drives the public "Open now" badge and the directory's
+          open-now filter, both of which read businesses.opening_hours. */}
+      <OpeningHoursEditor
+        value={formData.opening_hours}
+        storageReady={hoursStorageReady}
+        onChange={(opening_hours) => setFormData((prev) => ({ ...prev, opening_hours }))}
+      />
 
       {/* Profile photo (logo) */}
       <div>

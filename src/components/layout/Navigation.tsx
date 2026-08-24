@@ -166,15 +166,18 @@
                     <button
                       onClick={() => setIsOpen(!isOpen)}
                       className="lg:hidden p-1.5"
+                      aria-label={isOpen ? 'Close menu' : 'Open menu'}
+                      aria-expanded={isOpen}
+                      aria-controls="mobile-menu"
                     >
-                      {isOpen ? <X size={24} /> : <Menu size={24} />}
+                      {isOpen ? <X size={24} aria-hidden="true" /> : <Menu size={24} aria-hidden="true" />}
                     </button>
                   </div>
                 </div>
               </div>
 
               {isOpen && (
-                <div className="lg:hidden pb-4 space-y-2">
+                <div id="mobile-menu" className="lg:hidden pb-4 space-y-2">
                   <div className="px-4 py-2 sm:hidden">
                     <CurrencySelector />
                   </div>

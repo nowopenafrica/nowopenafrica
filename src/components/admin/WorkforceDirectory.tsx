@@ -232,7 +232,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
           { id: 'permissions' as const, label: 'Permissions' },
         ]).map((v) => (
           <button key={v.id} type="button" onClick={() => setView(v.id)}
-            className={`inline-flex items-center px-3 .5 rounded-md text-xs font-semibold transition ${view === v.id ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'} min-h-[44px]`}>
+            className={`inline-flex items-center px-3 rounded-md text-xs font-semibold transition ${view === v.id ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'} min-h-[44px]`}>
             {v.label}
           </button>
         ))}
@@ -304,7 +304,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
             <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
               {members.map((m) => (
                 <button key={m.id} type="button" onClick={() => { setSelectedId(m.id); setView('directory'); }}
-                  className="flex items-center gap-2 rounded-lg border border-gray-100 dark:border-gray-700 px-2 .5 text-left hover:border-purple-300 dark:hover:border-purple-700 transition min-h-[44px]">
+                  className="flex items-center gap-2 rounded-lg border border-gray-100 dark:border-gray-700 px-2 text-left hover:border-purple-300 dark:hover:border-purple-700 transition min-h-[44px]">
                   {m.kind === 'ai' ? <Bot size={13} className="text-emerald-500 shrink-0" /> : <User size={13} className="text-blue-500 shrink-0" />}
                   <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate">{m.name}</span>
                   <span className={`ml-auto shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${permissionForMember(m) >= 4 ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300' : permissionForMember(m) >= 2 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
@@ -402,7 +402,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
               <div className="mt-1 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
                 {(['ai', 'human'] as WorkforceKind[]).map((k) => (
                   <button key={k} type="button" onClick={() => setFormKind(k)}
-                    className={`inline-flex items-center px-2 .5 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'} min-h-[44px]`}>
+                    className={`inline-flex items-center px-2 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'} min-h-[44px]`}>
                     {k === 'ai' ? 'AI agent' : 'Human'}
                   </button>
                 ))}

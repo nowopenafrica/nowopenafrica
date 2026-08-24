@@ -188,7 +188,7 @@ export default function PlatformCampaigns() {
                 </span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => void advance(c)} aria-label={`Advance ${c.name}`}
-                    className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                    className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                     Next <ArrowRight size={11} />
                   </button>
                   <button aria-label={`Remove ${c.name}`} onClick={() => void remove(c.id)} className="inline-flex items-center justify-center w-[44px] h-[44px] rounded-lg text-gray-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"><Trash2 size={14} /></button>

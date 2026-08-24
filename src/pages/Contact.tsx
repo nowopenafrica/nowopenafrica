@@ -75,19 +75,19 @@ export default function Contact() {
           <form onSubmit={handleSubmit} className="lg:col-span-3 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-6 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Your name</label>
-                <input value={name} onChange={(e) => setName(e.target.value)} required
+                <label htmlFor="contact-name" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Your name</label>
+                <input id="contact-name" name="name" autoComplete="name" value={name} onChange={(e) => setName(e.target.value)} required
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Your email</label>
-                <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
+                <label htmlFor="contact-email" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Your email</label>
+                <input id="contact-email" name="email" autoComplete="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required
                   className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm" />
               </div>
             </div>
             <div>
-              <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Message</label>
-              <textarea value={message} onChange={(e) => setMessage(e.target.value)} required rows={6}
+              <label htmlFor="contact-message" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Message</label>
+              <textarea id="contact-message" name="message" value={message} onChange={(e) => setMessage(e.target.value)} required rows={6}
                 className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                 placeholder="How can we help?" />
             </div>

@@ -168,7 +168,7 @@ export default function MarketingAssistant({ business, onNavigate, title = 'AI B
           <input value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') ask(input); }}
             placeholder="Ask me anything — e.g. “write a caption for my new product”"
-            className="flex-1 px-3.5 .5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center" />
+            className="flex-1 px-3.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center" />
           <button onClick={() => ask(input)} disabled={!input.trim() || thinking}
             className="w-[44px] h-[44px] rounded-xl bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
             <Send size={16} />

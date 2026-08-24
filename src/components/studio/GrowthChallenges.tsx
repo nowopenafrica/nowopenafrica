@@ -86,11 +86,11 @@ export default function GrowthChallenges({ business, onNavigate }: Props) {
       {/* Tabs */}
       <div className="flex gap-2">
         <button onClick={() => setTab('open')}
-          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'open' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
+          className={`inline-flex items-center px-3.5 rounded-lg text-sm font-medium transition ${tab === 'open' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Open ({cards.filter((c) => !c.complete).length})
         </button>
         <button onClick={() => setTab('done')}
-          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'done' ? 'bg-green-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
+          className={`inline-flex items-center px-3.5 rounded-lg text-sm font-medium transition ${tab === 'done' ? 'bg-green-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Completed ({cards.filter((c) => c.complete).length})
         </button>
       </div>

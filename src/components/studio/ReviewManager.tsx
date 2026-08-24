@@ -202,7 +202,7 @@ export default function ReviewManager({ business }: Props) {
                       className="w-full min-h-[70px] rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-3 text-sm text-gray-800 dark:text-gray-200 leading-relaxed resize-y focus:outline-none" />
                     <div className="flex justify-end mt-2">
                       <button onClick={() => reply(r)}
-                        className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+                        className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                         <Send size={12} /> Post reply
                       </button>
                     </div>

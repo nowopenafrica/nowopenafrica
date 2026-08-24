@@ -35,7 +35,7 @@ export default function AiVideoGenPicker({
               type="button"
               onClick={() => onTier(t.key)}
               aria-pressed={tier === t.key}
-              className={`inline-flex items-center px-3 .5 rounded-md text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${ tier === t.key ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700' } min-h-[44px]`}
+              className={`inline-flex items-center px-3 rounded-md text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${ tier === t.key ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700' } min-h-[44px]`}
             >
               {t.label}
             </button>

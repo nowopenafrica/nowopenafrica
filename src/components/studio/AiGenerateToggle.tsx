@@ -29,7 +29,7 @@ export default function AiGenerateToggle({
         type="button"
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
-        className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition min-h-[44px]"
+        className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition min-h-[44px]"
       >
         <Sparkles size={13} /> {label}
         <ChevronDown size={12} className={`transition-transform ${open ? 'rotate-180' : ''}`} />

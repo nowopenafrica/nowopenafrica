@@ -78,14 +78,14 @@ export default function SocialStudioHub({ business, onNavigate, initialTab = 'da
       <div className="flex flex-wrap items-center gap-2">
         {DEPARTMENTS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border transition ${tab === t.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
+            className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border transition ${tab === t.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
             <t.icon size={13} /> {t.label}
           </button>
         ))}
         <span className="w-px h-6 bg-gray-200 dark:bg-gray-700 mx-1 hidden sm:block" />
         {TOOLS.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
-            className={`inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border transition ${tab === t.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
+            className={`inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border transition ${tab === t.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
             <t.icon size={13} /> {t.label}
           </button>
         ))}

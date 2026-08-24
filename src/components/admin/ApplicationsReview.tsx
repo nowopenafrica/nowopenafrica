@@ -266,14 +266,14 @@ export default function ApplicationsReview() {
             <input value={search} onChange={(e) => setSearch(e.target.value)}
               aria-label="Search applications"
               placeholder="Search by name, email or reference…"
-              className="flex items-center w-full pl-8 pr-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+              className="flex items-center w-full pl-8 pr-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           </div>
           <label className="flex items-center gap-1.5">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Status</span>
             <select value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | ApplicationStatus)}
               aria-label="Filter by status"
-              className="inline-flex items-center px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
+              className="inline-flex items-center px-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
               <option value="all">All statuses</option>
               {APPLICATION_STATUSES.map((s) => (
                 <option key={s} value={s}>{APPLICATION_STATUS_LABELS[s]}</option>
@@ -436,11 +436,11 @@ export default function ApplicationsReview() {
             </label>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setRejectTarget(null)}
-                className="inline-flex items-center px-3 .5 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
+                className="inline-flex items-center px-3 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                 Cancel
               </button>
               <button type="submit" disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition min-h-[44px]">
+                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition min-h-[44px]">
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />} Reject application
               </button>
             </div>

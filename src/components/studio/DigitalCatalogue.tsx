@@ -81,16 +81,16 @@ export default function DigitalCatalogue({ business }: Props) {
             <p className="text-[11px] text-gray-400 mt-1">{catalogue.items.length} items · {formatCataloguePrice(totalValue) === 'Ask' ? 'mixed pricing' : `value ${formatCataloguePrice(totalValue)}`}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
+            <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> Add item</>}
             </button>
-            <button onClick={copy} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
+            <button onClick={copy} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
               <Copy size={14} /> Copy
             </button>
-            <button onClick={download} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
+            <button onClick={download} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
               <Download size={14} /> Download
             </button>
-            <button onClick={share} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
+            <button onClick={share} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
               <Send size={14} /> Share on WhatsApp
             </button>
           </div>
