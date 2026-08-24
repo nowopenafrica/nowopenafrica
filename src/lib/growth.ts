@@ -152,9 +152,12 @@ export function healthTips(business: Business): { tip: string; module: GrowthPla
   if (String(business.description || '').trim().length < 60)
     tips.push({ tip: 'A fuller description keeps visitors on your profile longer and improves search ranking.', module: 'copywriter' });
   if (!business.logo_url)
-    tips.push({ tip: 'Profiles with a logo look 3× more professional. Upload one in the Brand Kit.', module: 'brand-kit' });
+    // Was "look 3× more professional" — an invented multiplier stated as fact,
+    // the same class of claim removed from the opening-hours coach. The nudge
+    // stands on its own without a statistic nobody measured.
+    tips.push({ tip: 'A logo makes your profile look finished, and every Studio export picks it up automatically. Upload one in the Brand Kit.', module: 'brand-kit' });
   if (tips.length < 3)
-    tips.push({ tip: 'Keep posting weekly — businesses that post 4× a month get far more profile views.', module: 'social' });
+    tips.push({ tip: 'Keep posting weekly — a steady feed is what keeps you in front of customers.', module: 'social' });
   if (tips.length < 4)
     tips.push({ tip: 'Put your profile link and its QR on your business card for flyers, receipts and your storefront window.', module: 'card' });
   return tips.slice(0, 4);
