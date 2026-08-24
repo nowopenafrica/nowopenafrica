@@ -166,14 +166,25 @@ export default function Home() {
             onTextVisibilityChange={sliderDrivesText ? setTextVisible : undefined}
           />
         )}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col items-center justify-center gap-6">
-          <div
-            className="text-center space-y-6"
-            style={{
-              opacity: textVisible ? 1 : 0,
-              transition: 'opacity 2s ease-in-out',
-            }}
-          >
+        <div
+          className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col items-center justify-center gap-6"
+          style={{
+            opacity: textVisible ? 1 : 0,
+            // The CTAs fade with the copy, and unlike the copy they are
+            // interactive — so opacity alone is not enough. A button at
+            // opacity 0 is still clickable and still in the tab order, which
+            // means someone can activate a control they cannot see.
+            //
+            // `visibility` fixes both: it removes the subtree from hit-testing
+            // AND from the accessibility tree and tab order. The 2s delay
+            // applies only while hiding, so it disappears after the fade
+            // finishes rather than snapping out at the start; showing has no
+            // delay, so it reappears immediately and then fades up.
+            visibility: textVisible ? 'visible' : 'hidden',
+            transition: `opacity 2s ease-in-out, visibility 0s linear ${textVisible ? '0s' : '2s'}`,
+          }}
+        >
+          <div className="text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.6)' }}>
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
               Built for Africa's 100M+ businesses
@@ -194,7 +205,8 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Always-visible CTAs (outside the fading block) */}
+          {/* CTAs fade with the copy — see the wrapper above for why they
+              also need visibility, not just opacity. */}
           <div className="flex flex-wrap items-center justify-center gap-3">
             <Link to="/businesses" className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition shadow-lg">
               Explore businesses <ArrowRight size={18} />
