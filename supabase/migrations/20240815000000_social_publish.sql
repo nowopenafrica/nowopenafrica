@@ -33,8 +33,9 @@ CREATE TABLE IF NOT EXISTS public.social_connections (
   account_id        text NOT NULL,
   -- Display name / handle for the UI.
   account_name      text,
-  -- Tokens. Never exposed to the client. Stored plaintext at rest for now;
-  -- encrypt at the column level (e.g. pgsodium) before go-live.
+  -- Tokens. Never exposed to the client, and encrypted at rest by
+  -- functions/_shared/tokenCrypto.ts (AES-256-GCM, keyed by SOCIAL_TOKEN_KEY).
+  -- See 20260825010000_social_security_hardening.sql.
   access_token      text NOT NULL,
   refresh_token     text,
   token_expires_at  timestamptz,

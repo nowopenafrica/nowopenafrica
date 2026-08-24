@@ -24,6 +24,7 @@ import {
   linkedinConfigured, xConfigured, tiktokConfigured, ProviderAccount,
 } from "../_shared/social.ts";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
+import { encryptToken } from "../_shared/tokenCrypto.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -94,8 +95,11 @@ async function saveAccount(userId: string, businessId: string, account: Provider
     provider: account.provider,
     account_id: account.accountId,
     account_name: account.accountName ?? null,
-    access_token: account.accessToken,
-    refresh_token: account.refreshToken ?? null,
+    // Wrapped before it ever reaches a row. See _shared/tokenCrypto.ts —
+    // RLS keeps this table away from the API, encryption keeps it out of a
+    // leaked backup.
+    access_token: await encryptToken(account.accessToken),
+    refresh_token: await encryptToken(account.refreshToken ?? null),
     token_expires_at: account.expiresAt?.toISOString() ?? null,
     scope: account.scope ?? null,
     meta: account.meta ?? null,

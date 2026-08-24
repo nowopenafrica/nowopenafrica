@@ -9,6 +9,7 @@
 
 // deno-lint-ignore-file no-explicit-any
 import { providerFor, PROVIDER_LABELS, PublishMedia } from "./social.ts";
+import { encryptToken, decryptToken } from "./tokenCrypto.ts";
 
 export interface PublishMediaInput {
   name: string;
@@ -60,29 +61,38 @@ async function stageMedia(supabase: any, jobId: string, media: PublishMediaInput
   return { name: media.name, url: data.publicUrl, type: media.type };
 }
 
+/**
+ * The usable access token for a connection, refreshing it if it is nearly out.
+ *
+ * Tokens are stored wrapped (see tokenCrypto.ts), so everything here works on
+ * decrypted values in memory and re-wraps anything it writes back.
+ */
 async function ensureFreshToken(supabase: any, channel: string, conn: {
   id: string; access_token: string; refresh_token: string | null; token_expires_at: string | null;
 }): Promise<string> {
   const provider = providerFor(channel);
+  const accessToken = (await decryptToken(conn.access_token)) ?? "";
+  const refreshToken = await decryptToken(conn.refresh_token);
+
   const expiresAt = conn.token_expires_at ? new Date(conn.token_expires_at).getTime() : 0;
   const nearExpiry = expiresAt > 0 && expiresAt - Date.now() < 24 * 60 * 60 * 1000;
-  if (!nearExpiry || !conn.refresh_token) return conn.access_token;
+  if (!nearExpiry || !refreshToken) return accessToken;
 
   try {
     const fresh = await provider.refresh({
-      accessToken: conn.access_token,
-      refreshToken: conn.refresh_token,
+      accessToken,
+      refreshToken,
       expiresAt: new Date(expiresAt),
     });
     await supabase.from("social_connections").update({
-      access_token: fresh.accessToken,
-      refresh_token: fresh.refreshToken ?? conn.refresh_token,
+      access_token: await encryptToken(fresh.accessToken),
+      refresh_token: await encryptToken(fresh.refreshToken ?? refreshToken),
       token_expires_at: fresh.expiresAt?.toISOString() ?? null,
     }).eq("id", conn.id);
     return fresh.accessToken;
   } catch (e) {
     console.error(`Token refresh failed for ${channel}:`, e);
-    return conn.access_token; // best effort — the publish surfaces the real error
+    return accessToken; // best effort — the publish surfaces the real error
   }
 }
 
@@ -154,7 +164,12 @@ export async function publishChannel(
     return { channel, ok: true, externalId: existing.external_id ?? undefined, message: "Already published." };
   }
 
-  const accessToken = await ensureFreshToken(supabase, channel, conn);
+  let accessToken: string;
+  try {
+    accessToken = await ensureFreshToken(supabase, channel, conn);
+  } catch (e) {
+    return { channel, ok: false, error: e instanceof Error ? e.message : `Could not read the ${label} credentials.` };
+  }
 
   let media: PublishMedia | null = null;
   if (job.media) {
