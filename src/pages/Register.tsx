@@ -16,6 +16,15 @@ export default function Register() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
+  /**
+   * Which fields the person has finished with.
+   *
+   * Errors only appear once a field has been left (or submit is attempted), so
+   * nobody is told their email is invalid while they are still on the first
+   * character of it.
+   */
+  const [touched, setTouched] = useState<Record<string, boolean>>({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
 
@@ -28,20 +37,56 @@ export default function Register() {
     });
   }, []);
 
+  /**
+   * Field-level errors, recomputed each render.
+   *
+   * These used to be three `toast.error` calls fired on submit. A toast is not
+   * attached to the field it is about, does not survive long enough to act on,
+   * and leaves nothing for a screen reader to associate with the input — so
+   * the only way to learn a password was too short was to submit and watch a
+   * message disappear. Each rule now renders next to its own field and is
+   * wired up with aria-invalid / aria-describedby.
+   */
+  const errors: Record<string, string> = {};
+  const id = identifier.trim();
+  if (!id) {
+    errors.identifier = 'Enter your email address or phone number.';
+  } else if (!isEmail(id)) {
+    // Not an email, so it has to be a usable phone number. Without this the
+    // form accepted anything: normalizePhone('asdf') returns just "+", which
+    // went to the auth provider and came back as an error nobody could act on.
+    const digits = id.replace(/[^\d]/g, '');
+    if (digits.length < 7) {
+      errors.identifier = 'That does not look like an email address or a phone number.';
+    } else if (!id.trim().startsWith('+')) {
+      errors.identifier = 'Include the country code, starting with + (e.g. +234 801 234 5678).';
+    }
+  }
+  if (!password) {
+    errors.password = 'Choose a password.';
+  } else if (password.length < 8) {
+    errors.password = 'Use at least 8 characters.';
+  } else if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
+    errors.password = 'Include both letters and numbers.';
+  }
+  if (confirmPassword && password !== confirmPassword) {
+    errors.confirmPassword = 'Both passwords must match.';
+  } else if (!confirmPassword) {
+    errors.confirmPassword = 'Re-enter your password.';
+  }
+
+  const showError = (field: string) =>
+    (touched[field] || submitAttempted) && errors[field] ? errors[field] : null;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
-    if (password !== confirmPassword) {
-      toast.error('Passwords do not match');
-      return;
-    }
+    setSubmitAttempted(true);
 
-    if (password.length < 8) {
-      toast.error('Password must be at least 8 characters');
-      return;
-    }
-    if (!/[a-zA-Z]/.test(password) || !/[0-9]/.test(password)) {
-      toast.error('Password must include both letters and numbers');
+    if (Object.keys(errors).length > 0) {
+      // Send focus to the first problem rather than announcing it and leaving
+      // the person to hunt for which field it meant.
+      const first = ['identifier', 'password', 'confirmPassword'].find((f) => errors[f]);
+      if (first) document.getElementById(first)?.focus();
       return;
     }
 
@@ -76,7 +121,7 @@ export default function Register() {
           {!pendingPhone && (
             <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
               Already have an account?{' '}
-              <Link to="/login" className="font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500">
+              <Link to="/login" className="inline-flex items-center min-h-[44px] font-medium text-blue-600 dark:text-blue-400 hover:text-blue-500 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 rounded">
                 Sign in
               </Link>
             </p>
@@ -86,7 +131,17 @@ export default function Register() {
         {pendingPhone ? (
           <PhoneOtpForm phone={pendingPhone} onVerified={() => navigate('/dashboard')} />
         ) : (
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+        <form
+          className="mt-8 space-y-6"
+          // Our own messages are the single source of truth. The browser's
+          // built-in bubbles fired first on the `required` attributes, so they
+          // blocked the submit, focused whichever field they picked, and our
+          // specific messages never rendered — the person saw a generic native
+          // tooltip that vanished on the next click. `required` stays on each
+          // input for semantics and assistive tech.
+          noValidate
+          onSubmit={handleSubmit}
+        >
           <div className="space-y-4">
             <div>
               <label htmlFor="identifier" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -102,12 +157,23 @@ export default function Register() {
                   maxLength={120}
                   value={identifier}
                   onChange={(e) => setIdentifier(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  onBlur={() => setTouched((t) => ({ ...t, identifier: true }))}
+                  aria-invalid={showError('identifier') ? true : undefined}
+                  aria-describedby={showError('identifier') ? 'identifier-error' : 'identifier-hint'}
+                  className={`appearance-none block w-full px-3 min-h-[44px] pl-10 border rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                    showError('identifier')
+                      ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                   placeholder="you@email.com or +234 801 234 5678"
                 />
-                <AtSign className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <AtSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sign up with an email or a phone number — include the country code for phone (e.g. +234).</p>
+              {showError('identifier') ? (
+                <p id="identifier-error" role="alert" className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{showError('identifier')}</p>
+              ) : (
+                <p id="identifier-hint" className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sign up with an email or a phone number — include the country code for phone (e.g. +234).</p>
+              )}
             </div>
 
             <div>
@@ -125,13 +191,24 @@ export default function Register() {
                   maxLength={128}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 pl-10 pr-10 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  onBlur={() => setTouched((t) => ({ ...t, password: true }))}
+                  aria-invalid={showError('password') ? true : undefined}
+                  aria-describedby={showError('password') ? 'password-error' : 'password-hint'}
+                  className={`appearance-none block w-full px-3 min-h-[44px] pl-10 pr-12 border rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                    showError('password')
+                      ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                   placeholder="Create a password"
                 />
-                <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <PasswordToggle shown={showPassword} onToggle={() => setShowPassword(!showPassword)} />
               </div>
-              <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">At least 8 characters, with letters and numbers.</p>
+              {showError('password') ? (
+                <p id="password-error" role="alert" className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{showError('password')}</p>
+              ) : (
+                <p id="password-hint" className="mt-1 text-xs text-gray-500 dark:text-gray-400">At least 8 characters, with letters and numbers.</p>
+              )}
             </div>
 
             <div>
@@ -147,12 +224,22 @@ export default function Register() {
                   required
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  onBlur={() => setTouched((t) => ({ ...t, confirmPassword: true }))}
+                  aria-invalid={showError('confirmPassword') ? true : undefined}
+                  aria-describedby={showError('confirmPassword') ? 'confirm-error' : undefined}
+                  className={`appearance-none block w-full px-3 min-h-[44px] pl-10 pr-12 border rounded-lg placeholder-gray-400 focus:outline-none focus:ring-2 ${
+                    showError('confirmPassword')
+                      ? 'border-red-500 dark:border-red-500 focus:ring-red-500'
+                      : 'border-gray-300 dark:border-gray-600 focus:ring-blue-500 focus:border-blue-500'
+                  }`}
                   placeholder="Confirm your password"
                 />
-                <Lock className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
                 <PasswordToggle shown={showConfirm} onToggle={() => setShowConfirm(!showConfirm)} field="password confirmation" />
               </div>
+              {showError('confirmPassword') && (
+                <p id="confirm-error" role="alert" className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{showError('confirmPassword')}</p>
+              )}
             </div>
 
             <div>
@@ -165,12 +252,12 @@ export default function Register() {
                   name="role"
                   value={role}
                   onChange={(e) => setRole(e.target.value as 'business' | 'media_service')}
-                  className="appearance-none block w-full px-3 py-2 pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  className="appearance-none block w-full px-3 min-h-[44px] pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 >
                   <option value="business">Business</option>
                   <option value="media_service">Media Service</option>
                 </select>
-                <User className="absolute left-3 top-2.5 h-5 w-5 text-gray-400" />
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
               </div>
             </div>
           </div>
@@ -179,7 +266,7 @@ export default function Register() {
             <button
               type="submit"
               disabled={loading}
-              className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="group relative w-full flex items-center justify-center min-h-[48px] px-4 border border-transparent text-sm font-medium rounded-lg text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? 'Creating account...' : 'Create account'}
             </button>

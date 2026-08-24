@@ -91,7 +91,7 @@ export default function Waitlist() {
       toast.success('Welcome to the waitlist!');
     } catch (err: any) {
       console.error('Waitlist signup failed:', err);
-      toast.error(`Could not join the waitlist: ${err.message || 'unknown error'}`);
+      toast.error('Could not join the waitlist just now. Please try again in a moment.');
     } finally {
       setSubmitting(false);
     }
@@ -113,13 +113,13 @@ export default function Waitlist() {
           <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
             <Link
               to="/"
-              className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
+              className="inline-flex items-center justify-center px-6 min-h-[44px] bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
             >
               Explore the Platform
             </Link>
             <Link
               to="/pricing"
-              className="px-6 py-3 bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
+              className="inline-flex items-center justify-center px-6 min-h-[44px] bg-gray-100 dark:bg-gray-700 text-gray-800 dark:text-gray-100 font-medium rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition"
             >
               See Pricing
             </Link>
@@ -170,49 +170,60 @@ export default function Waitlist() {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 text-center sm:text-left">Takes 30 seconds. No payment needed.</p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
+                <label htmlFor="waitlist-name" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
                 <input
+                  id="waitlist-name"
+                  name="name"
+                  autoComplete="name"
                   type="text"
                   required
                   value={form.name}
                   onChange={e => setForm({ ...form, name: e.target.value })}
                   placeholder="Amina Okafor"
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
+                  className="w-full px-4 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                 />
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Email address</label>
+                <label htmlFor="waitlist-email" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Email address</label>
                 <div className="relative">
                   <Mail className="absolute left-3 top-3.5 text-gray-400" size={18} />
                   <input
+                    id="waitlist-email"
+                    name="email"
+                    autoComplete="email"
                     type="email"
                     required
                     value={form.email}
                     onChange={e => setForm({ ...form, email: e.target.value })}
                     placeholder="you@business.com"
-                    className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
+                    className="w-full pl-10 pr-4 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                   />
                 </div>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">I am a…</label>
+                <label htmlFor="waitlist-type" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">I am a…</label>
                 <select
+                  id="waitlist-type"
+                  name="business_type"
                   required
                   value={form.business_type}
                   onChange={e => setForm({ ...form, business_type: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
+                  className="w-full px-4 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                 >
                   <option value="" disabled>Select what describes you best</option>
                   {BUSINESS_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
+                <label htmlFor="waitlist-country" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Country</label>
                 <select
+                  id="waitlist-country"
+                  name="country"
+                  autoComplete="country-name"
                   required
                   value={form.country}
                   onChange={e => setForm({ ...form, country: e.target.value })}
-                  className="w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
+                  className="w-full px-4 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-white dark:bg-gray-800"
                 >
                   <option value="" disabled>Select your country</option>
                   {COUNTRIES.map(c => <option key={c} value={c}>{c}</option>)}

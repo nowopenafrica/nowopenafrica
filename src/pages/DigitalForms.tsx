@@ -107,6 +107,15 @@ const EMPTY_FORM: FormData = {
   socialMedia: {},
 };
 
+const FORM_SECTIONS: { id: string; label: string; icon: React.ReactNode }[] = [
+  { id: 'basic', label: 'Basic Info', icon: <FileText size={16} /> },
+  { id: 'profile', label: 'Business Profile', icon: <Tag size={16} /> },
+  { id: 'services', label: 'Services', icon: <ShoppingBag size={16} /> },
+  { id: 'products', label: 'Products', icon: <ShoppingBag size={16} /> },
+  { id: 'verification', label: 'Verification', icon: <ShieldCheck size={16} /> },
+  { id: 'social', label: 'Social Media', icon: <Link size={16} /> },
+];
+
 export default function DigitalForms() {
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [activeSection, setActiveSection] = useState('basic');
@@ -210,7 +219,7 @@ export default function DigitalForms() {
             {(formData.registrationNumber || formData.verificationDocUrl) && ' The verification details you added will help us fast-track your verified badge.'}
           </p>
           <div className="pt-2 flex flex-col sm:flex-row gap-3 justify-center">
-            <RouterLink to="/" className="px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition">
+            <RouterLink to="/" className="inline-flex items-center justify-center px-6 min-h-[44px] bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition">
               Back to Home
             </RouterLink>
             <button
@@ -225,9 +234,9 @@ export default function DigitalForms() {
     );
   }
 
-  const inputCls = "w-full px-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm";
+  const inputCls = "w-full px-4 min-h-[44px] py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm";
   const labelCls = "block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2";
-  const checkboxRowCls = "flex items-center gap-2 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition";
+  const checkboxRowCls = "flex items-center gap-2 px-3 min-h-[44px] border border-gray-200 dark:border-gray-700 rounded-lg cursor-pointer text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition";
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -235,7 +244,7 @@ export default function DigitalForms() {
         <div className="mb-8">
           <RouterLink
             to="/"
-            className="inline-flex items-center gap-2 text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium text-sm"
+            className="inline-flex items-center gap-2 min-h-[44px] pr-2 rounded-lg text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
           >
             <ArrowLeft size={18} />
             Back to Home
@@ -256,21 +265,26 @@ export default function DigitalForms() {
         {/* Progress Navigation */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl mb-8">
           <div className="border-b border-gray-200 dark:border-gray-700">
-            <nav className="flex space-x-2 px-6 overflow-x-auto" aria-label="Form Sections">
-              {[
-                { id: 'basic', label: 'Basic Info', icon: <FileText size={16} /> },
-                { id: 'profile', label: 'Business Profile', icon: <Tag size={16} /> },
-                { id: 'services', label: 'Services', icon: <ShoppingBag size={16} /> },
-                { id: 'products', label: 'Products', icon: <ShoppingBag size={16} /> },
-                { id: 'verification', label: 'Verification', icon: <ShieldCheck size={16} /> },
-                { id: 'social', label: 'Social Media', icon: <Link size={16} /> },
-              ].map((section) => (
+            <div role="tablist" aria-label="Form sections" className="flex space-x-2 px-6 overflow-x-auto">
+              {FORM_SECTIONS.map((section, i) => (
                 <button
                   key={section.id}
+                  id={`df-tab-${section.id}`}
+                  role="tab"
                   type="button"
+                  aria-selected={activeSection === section.id}
+                  aria-controls="df-tabpanel"
+                  tabIndex={activeSection === section.id ? 0 : -1}
+                  onKeyDown={(e) => {
+                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+                    e.preventDefault();
+                    const next = FORM_SECTIONS[(i + (e.key === 'ArrowRight' ? 1 : FORM_SECTIONS.length - 1)) % FORM_SECTIONS.length];
+                    setActiveSection(next.id);
+                    document.getElementById(`df-tab-${next.id}`)?.focus();
+                  }}
                   onClick={() => setActiveSection(section.id)}
                   className={`
-                    flex items-center gap-2 py-3 px-4 text-sm font-medium rounded-t-lg transition-all duration-200 whitespace-nowrap flex-shrink-0
+                    flex items-center gap-2 min-h-[44px] px-4 text-sm font-medium rounded-t-lg transition-all duration-200 whitespace-nowrap flex-shrink-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500
                     ${
                       activeSection === section.id
                         ? 'text-blue-600 dark:text-blue-400 border-b-2 border-blue-600 bg-blue-50 dark:bg-blue-900/30'
@@ -282,12 +296,17 @@ export default function DigitalForms() {
                   {section.label}
                 </button>
               ))}
-            </nav>
+            </div>
           </div>
         </div>
 
         {/* Form */}
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8">
+        <div
+          id="df-tabpanel"
+          role="tabpanel"
+          aria-labelledby={`df-tab-${activeSection}`}
+          className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8"
+        >
           <form onSubmit={handleSubmit} className="space-y-8">
             {/* Basic Info Section */}
             {activeSection === 'basic' && (
@@ -296,8 +315,8 @@ export default function DigitalForms() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className={labelCls}>Business Name *</label>
-                    <input
+                    <label htmlFor="df-businessName" className={labelCls}>Business Name *</label>
+                    <input id="df-businessName" autoComplete="organization"
                       type="text"
                       value={formData.businessName}
                       onChange={(e) => setFormData({ ...formData, businessName: e.target.value })}
@@ -308,8 +327,8 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>Category *</label>
-                    <select
+                    <label htmlFor="df-category" className={labelCls}>Category *</label>
+                    <select id="df-category"
                       value={formData.category}
                       onChange={(e) => setFormData({ ...formData, category: e.target.value })}
                       className={inputCls}
@@ -328,8 +347,8 @@ export default function DigitalForms() {
                 </div>
 
                 <div className="mt-6">
-                  <label className={labelCls}>Description *</label>
-                  <textarea
+                  <label htmlFor="df-description" className={labelCls}>Description *</label>
+                  <textarea id="df-description"
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
                     className={inputCls}
@@ -341,8 +360,8 @@ export default function DigitalForms() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                   <div>
-                    <label className={labelCls}>Phone</label>
-                    <input
+                    <label htmlFor="df-phone" className={labelCls}>Phone</label>
+                    <input id="df-phone" autoComplete="tel"
                       type="tel"
                       value={formData.phone}
                       onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
@@ -352,10 +371,10 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>WhatsApp Number</label>
+                    <label htmlFor="df-whatsapp" className={labelCls}>WhatsApp Number</label>
                     <div className="relative">
                       <MessageCircle className="absolute left-3 top-3.5 text-gray-400" size={18} />
-                      <input
+                      <input id="df-whatsapp" autoComplete="tel"
                         type="tel"
                         value={formData.whatsapp}
                         onChange={(e) => setFormData({ ...formData, whatsapp: e.target.value })}
@@ -366,8 +385,8 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>Email</label>
-                    <input
+                    <label htmlFor="df-email" className={labelCls}>Email</label>
+                    <input id="df-email" autoComplete="email"
                       type="email"
                       value={formData.email}
                       onChange={(e) => setFormData({ ...formData, email: e.target.value })}
@@ -379,8 +398,8 @@ export default function DigitalForms() {
 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
                   <div>
-                    <label className={labelCls}>Website</label>
-                    <input
+                    <label htmlFor="df-website" className={labelCls}>Website</label>
+                    <input id="df-website" autoComplete="url"
                       type="url"
                       value={formData.website}
                       onChange={(e) => setFormData({ ...formData, website: e.target.value })}
@@ -390,8 +409,8 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>Year Established</label>
-                    <input
+                    <label htmlFor="df-yearEstablished" className={labelCls}>Year Established</label>
+                    <input id="df-yearEstablished"
                       type="number"
                       min="1900"
                       max={new Date().getFullYear()}
@@ -403,8 +422,8 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>Team Size</label>
-                    <select
+                    <label htmlFor="df-employeeCount" className={labelCls}>Team Size</label>
+                    <select id="df-employeeCount"
                       value={formData.employeeCount}
                       onChange={(e) => setFormData({ ...formData, employeeCount: e.target.value })}
                       className={inputCls}
@@ -418,10 +437,10 @@ export default function DigitalForms() {
                 </div>
 
                 <div className="mt-6">
-                  <label className={labelCls}>Location *</label>
+                  <label htmlFor="df-location" className={labelCls}>Location *</label>
                   <div className="relative">
                     <MapPin className="absolute left-3 top-3 text-gray-400" size={20} />
-                    <input
+                    <input id="df-location" autoComplete="street-address"
                       type="text"
                       value={formData.location}
                       onChange={(e) => setFormData({ ...formData, location: e.target.value })}
@@ -442,8 +461,8 @@ export default function DigitalForms() {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div>
-                      <label className={labelCls}>Logo Image URL</label>
-                      <input
+                      <label htmlFor="df-logoUrl" className={labelCls}>Logo Image URL</label>
+                      <input id="df-logoUrl"
                         type="url"
                         value={formData.logoUrl}
                         onChange={(e) => setFormData({ ...formData, logoUrl: e.target.value })}
@@ -452,8 +471,8 @@ export default function DigitalForms() {
                       />
                     </div>
                     <div>
-                      <label className={labelCls}>Cover Photo URL</label>
-                      <input
+                      <label htmlFor="df-coverImageUrl" className={labelCls}>Cover Photo URL</label>
+                      <input id="df-coverImageUrl"
                         type="url"
                         value={formData.coverImageUrl}
                         onChange={(e) => setFormData({ ...formData, coverImageUrl: e.target.value })}
@@ -464,8 +483,8 @@ export default function DigitalForms() {
                   </div>
 
                   <div className="mt-6">
-                    <label className={labelCls}>Typical Pricing</label>
-                    <input
+                    <label htmlFor="df-pricing" className={labelCls}>Typical Pricing</label>
+                    <input id="df-pricing"
                       type="text"
                       value={formData.pricing}
                       onChange={(e) => setFormData({ ...formData, pricing: e.target.value })}
@@ -475,8 +494,8 @@ export default function DigitalForms() {
                   </div>
 
                   <div className="mt-6">
-                    <label className={labelCls}>Service / Delivery Area</label>
-                    <input
+                    <label htmlFor="df-serviceArea" className={labelCls}>Service / Delivery Area</label>
+                    <input id="df-serviceArea"
                       type="text"
                       value={formData.serviceArea}
                       onChange={(e) => setFormData({ ...formData, serviceArea: e.target.value })}
@@ -499,7 +518,7 @@ export default function DigitalForms() {
                           type="checkbox"
                           checked={formData.paymentMethods.includes(method)}
                           onChange={() => toggleInArray('paymentMethods', method)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="w-5 h-5 flex-shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         {method}
                       </label>
@@ -520,13 +539,15 @@ export default function DigitalForms() {
                           type="checkbox"
                           checked={formData.languages.includes(lang)}
                           onChange={() => toggleInArray('languages', lang)}
-                          className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                          className="w-5 h-5 flex-shrink-0 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                         />
                         {lang}
                       </label>
                     ))}
                   </div>
+                  <label htmlFor="df-languagesOther" className="sr-only">Other languages</label>
                   <input
+                    id="df-languagesOther"
                     type="text"
                     value={formData.languagesOther}
                     onChange={(e) => setFormData({ ...formData, languagesOther: e.target.value })}
@@ -547,12 +568,17 @@ export default function DigitalForms() {
                       return (
                         <div key={key} className="flex flex-wrap items-center gap-3 px-3 py-2 border border-gray-200 dark:border-gray-700 rounded-lg">
                           <span className="w-24 sm:w-28 text-sm font-medium text-gray-700 dark:text-gray-300 flex-shrink-0">{label}</span>
-                          <label className="flex items-center gap-1.5 text-xs text-gray-600 dark:text-gray-400 flex-shrink-0">
+                          {/* Each control names its day. The visible text is
+                              only "Closed" and the times had no label at all,
+                              so a screen reader read seven identical rows with
+                              no way to tell Monday from Sunday. */}
+                          <label className="flex items-center gap-1.5 min-h-[44px] text-xs text-gray-600 dark:text-gray-400 flex-shrink-0 cursor-pointer">
                             <input
                               type="checkbox"
                               checked={day.closed}
                               onChange={(e) => updateDay(key, { closed: e.target.checked })}
-                              className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                              aria-label={`${label} — closed all day`}
+                              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                             />
                             Closed
                           </label>
@@ -562,14 +588,16 @@ export default function DigitalForms() {
                                 type="time"
                                 value={day.open}
                                 onChange={(e) => updateDay(key, { open: e.target.value })}
-                                className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs sm:text-sm flex-1"
+                                aria-label={`${label} — opening time`}
+                                className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg text-xs sm:text-sm flex-1"
                               />
                               <span className="text-gray-400 text-xs">to</span>
                               <input
                                 type="time"
                                 value={day.close}
                                 onChange={(e) => updateDay(key, { close: e.target.value })}
-                                className="px-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-lg text-xs sm:text-sm flex-1"
+                                aria-label={`${label} — closing time`}
+                                className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded-lg text-xs sm:text-sm flex-1"
                               />
                             </div>
                           )}
@@ -587,8 +615,8 @@ export default function DigitalForms() {
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-6">Services Offered</h2>
 
                 <div>
-                  <label className={labelCls}>Services (comma separated)</label>
-                  <textarea
+                  <label htmlFor="df-services" className={labelCls}>Services (comma separated)</label>
+                  <textarea id="df-services"
                     value={formData.services}
                     onChange={(e) => setFormData({ ...formData, services: e.target.value })}
                     className={inputCls}
@@ -598,8 +626,8 @@ export default function DigitalForms() {
                 </div>
 
                 <div className="mt-6">
-                  <label className={labelCls}>Service Details</label>
-                  <textarea
+                  <label htmlFor="df-serviceDetails" className={labelCls}>Service Details</label>
+                  <textarea id="df-serviceDetails"
                     value={formData.serviceDetails}
                     onChange={(e) => setFormData({ ...formData, serviceDetails: e.target.value })}
                     className={inputCls}
@@ -616,8 +644,8 @@ export default function DigitalForms() {
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-6">Products Offered</h2>
 
                 <div>
-                  <label className={labelCls}>Products (comma separated)</label>
-                  <textarea
+                  <label htmlFor="df-products" className={labelCls}>Products (comma separated)</label>
+                  <textarea id="df-products"
                     value={formData.products}
                     onChange={(e) => setFormData({ ...formData, products: e.target.value })}
                     className={inputCls}
@@ -627,8 +655,8 @@ export default function DigitalForms() {
                 </div>
 
                 <div className="mt-6">
-                  <label className={labelCls}>Product Details</label>
-                  <textarea
+                  <label htmlFor="df-productDetails" className={labelCls}>Product Details</label>
+                  <textarea id="df-productDetails"
                     value={formData.productDetails}
                     onChange={(e) => setFormData({ ...formData, productDetails: e.target.value })}
                     className={inputCls}
@@ -653,8 +681,8 @@ export default function DigitalForms() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className={labelCls}>Business Registration Number</label>
-                    <input
+                    <label htmlFor="df-registrationNumber" className={labelCls}>Business Registration Number</label>
+                    <input id="df-registrationNumber"
                       type="text"
                       value={formData.registrationNumber}
                       onChange={(e) => setFormData({ ...formData, registrationNumber: e.target.value })}
@@ -663,8 +691,8 @@ export default function DigitalForms() {
                     />
                   </div>
                   <div>
-                    <label className={labelCls}>Tax ID / TIN</label>
-                    <input
+                    <label htmlFor="df-taxId" className={labelCls}>Tax ID / TIN</label>
+                    <input id="df-taxId"
                       type="text"
                       value={formData.taxId}
                       onChange={(e) => setFormData({ ...formData, taxId: e.target.value })}
@@ -675,8 +703,8 @@ export default function DigitalForms() {
                 </div>
 
                 <div className="mt-6">
-                  <label className={labelCls}>Registration Certificate / ID Document URL</label>
-                  <input
+                  <label htmlFor="df-verificationDocUrl" className={labelCls}>Registration Certificate / ID Document URL</label>
+                  <input id="df-verificationDocUrl"
                     type="url"
                     value={formData.verificationDocUrl}
                     onChange={(e) => setFormData({ ...formData, verificationDocUrl: e.target.value })}
@@ -694,10 +722,10 @@ export default function DigitalForms() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className={labelCls}>Facebook</label>
+                    <label htmlFor="df-socialMedia-facebook" className={labelCls}>Facebook</label>
                     <div className="relative">
                       <Facebook className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <input
+                      <input id="df-socialMedia-facebook"
                         type="url"
                         value={formData.socialMedia.facebook || ''}
                         onChange={(e) => setFormData({
@@ -711,10 +739,10 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>Instagram</label>
+                    <label htmlFor="df-socialMedia-instagram" className={labelCls}>Instagram</label>
                     <div className="relative">
                       <Instagram className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <input
+                      <input id="df-socialMedia-instagram"
                         type="url"
                         value={formData.socialMedia.instagram || ''}
                         onChange={(e) => setFormData({
@@ -728,10 +756,10 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>TikTok</label>
+                    <label htmlFor="df-socialMedia-tiktok" className={labelCls}>TikTok</label>
                     <div className="relative">
                       <Music2 className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <input
+                      <input id="df-socialMedia-tiktok"
                         type="url"
                         value={formData.socialMedia.tiktok || ''}
                         onChange={(e) => setFormData({
@@ -745,10 +773,10 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>X (Twitter)</label>
+                    <label htmlFor="df-socialMedia-x" className={labelCls}>X (Twitter)</label>
                     <div className="relative">
                       <XLogo className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <input
+                      <input id="df-socialMedia-x"
                         type="url"
                         value={formData.socialMedia.x || ''}
                         onChange={(e) => setFormData({
@@ -762,10 +790,10 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>YouTube</label>
+                    <label htmlFor="df-socialMedia-youtube" className={labelCls}>YouTube</label>
                     <div className="relative">
                       <Youtube className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <input
+                      <input id="df-socialMedia-youtube"
                         type="url"
                         value={formData.socialMedia.youtube || ''}
                         onChange={(e) => setFormData({
@@ -779,10 +807,10 @@ export default function DigitalForms() {
                   </div>
 
                   <div>
-                    <label className={labelCls}>LinkedIn</label>
+                    <label htmlFor="df-socialMedia-linkedin" className={labelCls}>LinkedIn</label>
                     <div className="relative">
                       <Linkedin className="absolute left-3 top-3 text-gray-400" size={20} />
-                      <input
+                      <input id="df-socialMedia-linkedin"
                         type="url"
                         value={formData.socialMedia.linkedin || ''}
                         onChange={(e) => setFormData({
@@ -803,7 +831,7 @@ export default function DigitalForms() {
               <button
                 type="button"
                 onClick={() => { setFormData(EMPTY_FORM); setActiveSection('basic'); }}
-                className="px-6 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm"
+                className="inline-flex items-center justify-center px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm"
               >
                 Reset Form
               </button>
@@ -812,7 +840,7 @@ export default function DigitalForms() {
                 <button
                   type="submit"
                   disabled={submitting}
-                  className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition text-sm disabled:opacity-50"
+                  className="inline-flex items-center justify-center gap-2 px-8 min-h-[48px] bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition text-sm disabled:opacity-50"
                 >
                   {submitting && <Loader2 size={16} className="animate-spin" />}
                   {submitting ? 'Submitting…' : 'Submit Registration'}
