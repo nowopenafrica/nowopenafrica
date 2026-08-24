@@ -157,10 +157,10 @@ export default function PlatformCampaigns() {
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Open a platform campaign</h3>
         <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr,auto] gap-2">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Campaign name…"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            className="inline-flex items-center px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           <input value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="Focus (e.g. Open every business on the map)…"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-          <button onClick={() => void add()} className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+            className="inline-flex items-center px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+          <button onClick={() => void add()} className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold bg-purple-600 text-white px-4 rounded-lg hover:bg-purple-700 transition min-h-[44px]">
             <Plus size={15} /> Add
           </button>
         </div>
@@ -188,10 +188,10 @@ export default function PlatformCampaigns() {
                 </span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => void advance(c)} aria-label={`Advance ${c.name}`}
-                    className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                    className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-semibold bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                     Next <ArrowRight size={11} />
                   </button>
-                  <button aria-label={`Remove ${c.name}`} onClick={() => void remove(c.id)} className="text-gray-300 hover:text-rose-500 transition"><Trash2 size={14} /></button>
+                  <button aria-label={`Remove ${c.name}`} onClick={() => void remove(c.id)} className="inline-flex items-center justify-center w-[44px] h-[44px] rounded-lg text-gray-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"><Trash2 size={14} /></button>
                 </div>
               </div>
               <div className="mt-3 flex flex-wrap items-center gap-2">

@@ -118,7 +118,7 @@ export default function InvoicesStudio({ business }: Props) {
           <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <Receipt size={16} className="text-purple-600 dark:text-purple-400" /> New invoice
           </h3>
-          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> New invoice</>}
           </button>
         </div>
@@ -128,9 +128,9 @@ export default function InvoicesStudio({ business }: Props) {
           <div className="mt-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <input value={customerName} onChange={(e) => setCustomerName(e.target.value)} placeholder="Customer name"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
               <input value={customerPhone} onChange={(e) => setCustomerPhone(e.target.value)} placeholder="Customer phone / WhatsApp (optional)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </div>
 
             <div className="space-y-2">
@@ -138,11 +138,11 @@ export default function InvoicesStudio({ business }: Props) {
               {items.map((item) => (
                 <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1fr,80px,120px,36px] gap-2 items-center">
                   <input value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} placeholder="Description (e.g. Service fee)"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <input type="number" min="1" value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} placeholder="Qty"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <input type="number" min="0" step="50" value={item.unitPrice} onChange={(e) => updateItem(item.id, { unitPrice: Number(e.target.value) })} placeholder="Unit price (₦)"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <button onClick={() => setItems(items.filter((i) => i.id !== item.id))} className="text-gray-400 hover:text-red-500 transition flex justify-center">
                     <Trash2 size={15} />
                   </button>
@@ -157,17 +157,17 @@ export default function InvoicesStudio({ business }: Props) {
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Tax (%)</label>
                 <input type="number" min="0" value={taxPct} onChange={(e) => setTaxPct(Number(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Discount (%)</label>
                 <input type="number" min="0" value={discountPct} onChange={(e) => setDiscountPct(Number(e.target.value) || 0)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Notes (optional)</label>
                 <input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Thanks for your business!"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
             </div>
 
@@ -181,7 +181,7 @@ export default function InvoicesStudio({ business }: Props) {
             </div>
 
             <div className="flex justify-end">
-              <button onClick={addInvoice} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+              <button onClick={addInvoice} className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 <Plus size={15} /> Create invoice
               </button>
             </div>
@@ -237,24 +237,24 @@ export default function InvoicesStudio({ business }: Props) {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {inv.status !== 'paid' && (
-                    <button onClick={() => setStatus(inv.id, 'paid')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition">
+                    <button onClick={() => setStatus(inv.id, 'paid')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                       <CheckCircle2 size={13} /> Mark paid
                     </button>
                   )}
                   {inv.status === 'draft' && (
-                    <button onClick={() => setStatus(inv.id, 'sent')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                    <button onClick={() => setStatus(inv.id, 'sent')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                       <Clock size={13} /> Mark sent
                     </button>
                   )}
-                  <button onClick={() => sendInvoice(inv)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                  <button onClick={() => sendInvoice(inv)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                     <Send size={13} /> Send on WhatsApp
                   </button>
                   {st === 'overdue' && (
-                    <button onClick={() => remind(inv)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-amber-500 text-amber-950 hover:bg-amber-400 transition">
+                    <button onClick={() => remind(inv)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-amber-500 text-amber-950 hover:bg-amber-400 transition min-h-[44px]">
                       <AlertCircle size={13} /> Payment reminder
                     </button>
                   )}
-                  <button onClick={() => removeInvoice(inv.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition">
+                  <button onClick={() => removeInvoice(inv.id)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                     <Trash2 size={13} />
                   </button>
                 </div>

@@ -118,7 +118,7 @@ export default function GrowthHome({ business, onNavigate }: Props) {
               const isDone = done.has(t.id);
               return (
                 <button key={t.id} onClick={() => toggle(t.id)}
-                  className={`w-full text-left flex items-start gap-3 px-3 py-2.5 rounded-xl border transition ${isDone ? 'border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  className={`w-full text-left flex items-start gap-3 px-3 .5 rounded-xl border transition ${isDone ? 'border-green-200 dark:border-green-900 bg-green-50 dark:bg-green-950/40' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                   {isDone
                     ? <CheckCircle2 size={17} className="mt-0.5 shrink-0 text-green-600 dark:text-green-400" />
                     : <Circle size={17} className="mt-0.5 shrink-0 text-gray-300 dark:text-gray-600" />}
@@ -161,7 +161,7 @@ export default function GrowthHome({ business, onNavigate }: Props) {
               {`Businesses that post once a week and run one promotion get far more profile views. Finish the plan above and watch your score climb.`}
             </p>
             <button onClick={() => onNavigate('assistant')}
-              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium bg-white text-purple-700 px-3.5 py-1.5 rounded-lg hover:bg-purple-50">
+              className="mt-3 inline-flex items-center gap-1.5 text-sm font-medium bg-white text-purple-700 px-3.5 .5 rounded-lg hover:bg-purple-50 min-h-[44px]">
               <Target size={14} /> Ask the Marketing Assistant
             </button>
           </div>

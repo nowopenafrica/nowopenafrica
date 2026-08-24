@@ -229,7 +229,7 @@ export function CanvasPanel({
             value={sel.text ?? ''}
             onChange={(e) => onChange(updateLayer(doc, sel.id, { text: e.target.value }))}
             aria-label={`${sel.name} text`}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm"
+            className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]"
           />
           <div className="flex items-center gap-2">
             <label className="text-[11px] font-semibold text-gray-600 dark:text-gray-300">Size</label>
@@ -242,7 +242,7 @@ export function CanvasPanel({
               type="color" value={sel.fill ?? '#ffffff'}
               onChange={(e) => onChange(updateLayer(doc, sel.id, { fill: e.target.value }))}
               aria-label="Text colour"
-              className="w-8 h-8 rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-transparent"
+              className="w-[44px] h-[44px] rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-transparent"
             />
           </div>
         </div>

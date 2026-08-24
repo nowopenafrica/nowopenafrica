@@ -98,11 +98,11 @@ export default function ContentPlanner({ business }: Props) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-1">
-          <button onClick={() => move(-1)} className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <button onClick={() => move(-1)} className="w-[44px] h-[44px] rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition">
             <ChevronLeft size={16} />
           </button>
           <h3 className="text-base font-bold text-gray-900 dark:text-white w-44 text-center">{monthLabel}</h3>
-          <button onClick={() => move(1)} className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <button onClick={() => move(1)} className="w-[44px] h-[44px] rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center hover:bg-gray-50 dark:hover:bg-gray-700 transition">
             <ChevronRight size={16} />
           </button>
         </div>
@@ -130,32 +130,32 @@ export default function ContentPlanner({ business }: Props) {
           <div>
             <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Title</label>
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekend offer post"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Platform</label>
             <select value={platform} onChange={(e) => setPlatform(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
               {PLATFORMS.map((p) => <option key={p}>{p}</option>)}
             </select>
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Date</label>
             <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Status</label>
             <div className="flex gap-2 pt-0.5">
               <button onClick={() => setStatus('planned')}
-                className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition ${status === 'planned' ? 'bg-amber-400 text-amber-950' : 'border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>Planned</button>
+                className={`flex-1 px-2 rounded-lg text-xs font-medium transition ${status === 'planned' ? 'bg-amber-400 text-amber-950' : 'border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'} min-h-[44px] items-center`}>Planned</button>
               <button onClick={() => setStatus('published')}
-                className={`flex-1 px-2 py-2 rounded-lg text-xs font-medium transition ${status === 'published' ? 'bg-green-500 text-white' : 'border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>Published</button>
+                className={`flex-1 px-2 rounded-lg text-xs font-medium transition ${status === 'published' ? 'bg-green-500 text-white' : 'border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300'} min-h-[44px] items-center`}>Published</button>
             </div>
           </div>
           <div className="sm:col-span-2 lg:col-span-4 flex justify-end items-end">
             <button onClick={addItem}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+              className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               <Plus size={15} /> Add to calendar
             </button>
           </div>

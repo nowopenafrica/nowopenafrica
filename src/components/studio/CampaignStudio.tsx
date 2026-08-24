@@ -94,7 +94,7 @@ export default function CampaignStudio({ business }: Props) {
           <div className="grid grid-cols-2 gap-2">
             {COPY_GOALS.map((g) => (
               <button key={g.key} onClick={() => setGoal(g.key)}
-                className={`text-left px-3 py-2 rounded-lg text-xs font-medium border transition ${goal === g.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                className={`inline-flex items-center text-left px-3 rounded-lg text-xs font-medium border transition ${goal === g.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                 {g.label}
               </button>
             ))}
@@ -119,12 +119,12 @@ export default function CampaignStudio({ business }: Props) {
         <div className="space-y-2">
           <div className="flex gap-2">
             <input value={draftTitle} onChange={(e) => setDraftTitle(e.target.value)} placeholder="Draft title (optional)"
-              className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-            <button onClick={saveDraft} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+              className="flex-1 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center" />
+            <button onClick={saveDraft} className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               <Save size={15} /> Save draft
             </button>
           </div>
-          <button onClick={downloadPack} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition">
+          <button onClick={downloadPack} className="w-full inline-flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
             <Download size={15} /> Download all-platform campaign pack
           </button>
         </div>
@@ -138,7 +138,7 @@ export default function CampaignStudio({ business }: Props) {
               <Mail size={16} className="text-purple-600 dark:text-purple-400" /> Email · {goalLabel}
             </h2>
             <button onClick={() => copy('email')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+              className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
               {copied === 'email' ? 'Copied!' : 'Copy'} <Copy size={12} />
             </button>
           </div>
@@ -152,11 +152,11 @@ export default function CampaignStudio({ business }: Props) {
               <MessageCircle size={16} className="text-green-600 dark:text-green-400" /> SMS · {goalLabel} <span className="text-[10px] font-medium text-gray-400">({sms.length}/160 chars)</span>
             </h2>
             <div className="flex gap-2">
-              <button onClick={sendSms} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition">
+              <button onClick={sendSms} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                 <Send size={12} /> Send via WhatsApp
               </button>
               <button onClick={() => copy('sms')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                 {copied === 'sms' ? 'Copied!' : 'Copy'} <Copy size={12} />
               </button>
             </div>

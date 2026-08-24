@@ -84,7 +84,11 @@ export function useCommandData(): CommandData {
         publishedPosts: backendPublished + local.publishedPosts,
         videoQueue: local.videoQueue,
         campaigns: local.campaigns,
-        uptime: 99.9,
+        // There is no uptime monitor wired up. This was a hardcoded 99.9 on the
+        // LIVE path, sitting among figures that are all real queries — so the
+        // one number nobody measured was the one that looked best, and it fed
+        // the founder score a permanent 10/10. Null until something watches it.
+        uptime: null,
       }));
       setSample(false);
     } catch {

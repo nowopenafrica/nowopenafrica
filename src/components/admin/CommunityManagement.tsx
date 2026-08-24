@@ -101,11 +101,11 @@ export default function CommunityManagement() {
       <div className="flex flex-wrap items-center gap-2">
         {(['all', 'advert', 'media_service', 'platform'] as const).map((k) => (
           <button key={k} onClick={() => setKind(k)}
-            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${kind === k ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+            className={`inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border transition ${kind === k ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
             {k === 'all' ? 'All' : KIND_LABEL[k]} <span className="opacity-70">({kinds[k] ?? 0})</span>
           </button>
         ))}
-        <Link to="/admin" className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+        <Link to="/admin" className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
           Admin console <ArrowRight size={12} />
         </Link>
       </div>
@@ -132,12 +132,12 @@ export default function CommunityManagement() {
               <p className="text-sm text-gray-600 dark:text-gray-300 mt-2 whitespace-pre-wrap">{e.message}</p>
               <div className="flex flex-wrap items-center gap-2 mt-3">
                 <button onClick={() => copy(e.email, 'Email')}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                   <Mail size={13} /> {e.email} <Copy size={12} className="opacity-60" />
                 </button>
                 {e.phone && (
                   <button onClick={() => copy(e.phone!, 'Phone')}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                    className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                     <Phone size={13} /> {e.phone} <Copy size={12} className="opacity-60" />
                   </button>
                 )}

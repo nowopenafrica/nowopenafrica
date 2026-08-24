@@ -79,7 +79,7 @@ export default function LandingPageBuilder({ business }: Props) {
         </ul>
       )}
       {s.ctaLabel && (
-        <a href="#preview" onClick={(e) => e.preventDefault()} className="mt-3 inline-block px-4 py-1.5 rounded-full text-xs font-bold text-white"
+        <a href="#preview" onClick={(e) => e.preventDefault()} className="inline-flex items-center mt-3 inline-block px-4 .5 rounded-full text-xs font-bold text-white min-h-[44px]"
           style={{ backgroundColor: page.accent }}>
           {s.ctaLabel}
         </a>
@@ -96,16 +96,16 @@ export default function LandingPageBuilder({ business }: Props) {
         <LayoutTemplate size={16} className="text-purple-600 dark:text-purple-400" />
         <span className="text-sm font-bold text-gray-900 dark:text-white mr-2">Landing page</span>
         <button onClick={save} disabled={saved}
-          className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition ${saved ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-default' : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+          className={`inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium transition ${saved ? 'bg-gray-100 dark:bg-gray-700 text-gray-400 cursor-default' : 'bg-purple-600 text-white hover:bg-purple-700'} min-h-[44px]`}>
           <Check size={13} /> {saved ? 'Saved' : 'Save changes'}
         </button>
-        <button onClick={copyLink} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+        <button onClick={copyLink} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
           <Link2 size={13} /> Copy link
         </button>
-        <button onClick={share} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition">
+        <button onClick={share} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
           <Share2 size={13} /> Share on WhatsApp
         </button>
-        <button onClick={downloadHtml} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+        <button onClick={downloadHtml} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
           <Download size={13} /> Download HTML
         </button>
       </div>
@@ -115,11 +115,11 @@ export default function LandingPageBuilder({ business }: Props) {
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Page settings</h3>
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
           <input value={page.title} onChange={(e) => persist({ ...page, title: e.target.value })}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Page title" />
+            className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" placeholder="Page title" />
           <input value={page.tagline} onChange={(e) => persist({ ...page, tagline: e.target.value })}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Tagline" />
+            className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" placeholder="Tagline" />
           <select value={page.theme} onChange={(e) => persist({ ...page, theme: e.target.value as LandingTheme })}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+            className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
             <option value="light">Light theme</option>
             <option value="dark">Dark theme</option>
           </select>
@@ -148,14 +148,14 @@ export default function LandingPageBuilder({ business }: Props) {
               return (
                 <div key={s.id} className={`rounded-xl border ${s.visible ? 'border-purple-200 dark:border-purple-800' : 'border-gray-200 dark:border-gray-700'} bg-gray-50 dark:bg-gray-900 overflow-hidden`}>
                   <button onClick={() => setOpenSection(open ? null : s.id)}
-                    className="w-full flex items-center justify-between px-3.5 py-2.5 text-left">
+                    className="w-full flex items-center justify-between px-3.5 .5 text-left min-h-[44px]">
                     <span className="flex items-center gap-2 text-sm font-semibold text-gray-800 dark:text-gray-100">
                       <span className={`w-2 h-2 rounded-full ${s.visible ? 'bg-green-500' : 'bg-gray-300 dark:bg-gray-600'}`} />
                       {SECTION_LABELS[s.type]}
                     </span>
                     <span className="flex items-center gap-1.5">
                       <button onClick={(e) => { e.stopPropagation(); updateSection(s.id, { visible: !s.visible }); }}
-                        className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition">
+                        className="inline-flex items-center gap-1 px-2 rounded-lg text-[10px] font-bold uppercase text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-700 transition min-h-[44px]">
                         {s.visible ? <Eye size={12} /> : <X size={12} />} {s.visible ? 'On' : 'Off'}
                       </button>
                       {open ? <ChevronUp size={14} className="text-gray-400" /> : <ChevronDown size={14} className="text-gray-400" />}
@@ -164,9 +164,9 @@ export default function LandingPageBuilder({ business }: Props) {
                   {open && (
                     <div className="px-3.5 pb-3.5 space-y-2.5 border-t border-gray-200 dark:border-gray-700 pt-3">
                       <input value={s.title} onChange={(e) => updateSection(s.id, { title: e.target.value })}
-                        className="w-full px-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Title" />
+                        className="flex items-center w-full px-2.5 .5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" placeholder="Title" />
                       <input value={s.subtitle} onChange={(e) => updateSection(s.id, { subtitle: e.target.value })}
-                        className="w-full px-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Subtitle" />
+                        className="flex items-center w-full px-2.5 .5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" placeholder="Subtitle" />
                       <textarea value={s.body} onChange={(e) => updateSection(s.id, { body: e.target.value })} rows={2}
                         className="w-full px-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Body text" />
                       <div>
@@ -203,9 +203,9 @@ export default function LandingPageBuilder({ business }: Props) {
                       </div>
                       <div className="flex items-center gap-2">
                         <input value={s.ctaLabel} onChange={(e) => updateSection(s.id, { ctaLabel: e.target.value })}
-                          className="flex-1 px-2.5 py-1.5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500" placeholder="Button label" />
+                          className="flex-1 px-2.5 .5 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center" placeholder="Button label" />
                         <button onClick={() => updateSection(s.id, { ctaLabel: ctaFor(business.category) })}
-                          className="px-2.5 py-1.5 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition">
+                          className="inline-flex items-center px-2.5 .5 text-xs font-medium text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-900/30 rounded-lg hover:bg-purple-100 dark:hover:bg-purple-900/50 transition min-h-[44px]">
                           <Plus size={12} /> Reset
                         </button>
                       </div>

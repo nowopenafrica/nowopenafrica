@@ -94,7 +94,7 @@ export default function BrandIdentityPanel({ business, identity, update, toggleV
               const on = identity.voice.includes(t.key);
               return (
                 <button key={t.key} onClick={() => toggleVoice(t.key)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition ${on ? 'border-transparent text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  className={`inline-flex items-center px-3 .5 rounded-full text-xs font-semibold border transition ${on ? 'border-transparent text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}
                   style={on ? { background: '#7c3aed' } : undefined}>
                   {on ? '✓ ' : ''}{t.label}
                 </button>
@@ -108,7 +108,7 @@ export default function BrandIdentityPanel({ business, identity, update, toggleV
           <div className="flex flex-wrap gap-2">
             {WRITING_STYLES.map((s) => (
               <button key={s.key} onClick={() => update({ writingStyle: s.key })}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${identity.writingStyle === s.key ? 'border-transparent text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-semibold border transition ${identity.writingStyle === s.key ? 'border-transparent text-white' : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}
                 style={identity.writingStyle === s.key ? { background: '#7c3aed' } : undefined}>
                 {s.label}
               </button>
@@ -126,7 +126,7 @@ export default function BrandIdentityPanel({ business, identity, update, toggleV
           <div className="flex flex-wrap gap-1.5 mb-3">
             {samples.map((s) => (
               <button key={s.tone} onClick={() => setTone(s.tone)}
-                className={`px-2.5 py-1 rounded-full text-[11px] font-semibold transition ${tone === s.tone ? 'text-white' : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600'}`}
+                className={`inline-flex items-center px-2.5 rounded-full text-[11px] font-semibold transition ${tone === s.tone ? 'text-white' : 'bg-white dark:bg-gray-800 text-gray-500 dark:text-gray-400 border border-gray-200 dark:border-gray-600'} min-h-[44px]`}
                 style={tone === s.tone ? { background: '#7c3aed' } : undefined}>
                 {s.tone}
               </button>

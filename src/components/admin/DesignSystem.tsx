@@ -75,11 +75,11 @@ export default function DesignSystem() {
       <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
         <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2"><MousePointerClick size={16} className="text-purple-600 dark:text-purple-400" /> Buttons</h3>
         <div className="mt-4 flex flex-wrap gap-3">
-          <button className="px-4 py-2 rounded-lg text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition">Primary</button>
-          <button className="px-4 py-2 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition">Secondary</button>
-          <button className="px-4 py-2 rounded-lg text-sm font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition">Ghost</button>
-          <button className="px-4 py-2 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition">Success</button>
-          <button className="px-4 py-2 rounded-lg text-sm font-semibold text-gray-400 cursor-not-allowed">Disabled</button>
+          <button className="inline-flex items-center px-4 rounded-lg text-sm font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">Primary</button>
+          <button className="inline-flex items-center px-4 rounded-lg text-sm font-semibold bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">Secondary</button>
+          <button className="inline-flex items-center px-4 rounded-lg text-sm font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">Ghost</button>
+          <button className="inline-flex items-center px-4 rounded-lg text-sm font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition min-h-[44px]">Success</button>
+          <button className="inline-flex items-center px-4 rounded-lg text-sm font-semibold text-gray-400 cursor-not-allowed min-h-[44px]">Disabled</button>
         </div>
         <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2 mt-6"><BadgeCheck size={16} className="text-purple-600 dark:text-purple-400" /> Badges</h3>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -93,8 +93,8 @@ export default function DesignSystem() {
       <section className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
         <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2"><Square size={16} className="text-purple-600 dark:text-purple-400" /> Form fields</h3>
         <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
-          <input placeholder="Text input" className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-          <select className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500">
+          <input placeholder="Text input" className="inline-flex items-center px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+          <select className="inline-flex items-center px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
             <option>Select</option><option>Option one</option>
           </select>
           <label className="flex items-center gap-2 text-sm text-gray-700 dark:text-gray-300">

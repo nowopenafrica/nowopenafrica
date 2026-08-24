@@ -104,7 +104,7 @@ export default function ExportCentre({ business }: { business: Business }) {
         </p>
 
         <button onClick={downloadEverything} disabled={bundling}
-          className="mb-5 inline-flex items-center gap-2 px-5 py-2.5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">
+          className="mb-5 inline-flex items-center gap-2 px-5 .5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 min-h-[44px]">
           {bundling ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} Download everything
         </button>
 
@@ -117,7 +117,7 @@ export default function ExportCentre({ business }: { business: Business }) {
                 <p className="text-[11px] text-gray-500 dark:text-gray-400">{r.detail}</p>
               </div>
               <button onClick={r.run} disabled={r.loading}
-                className="ml-auto inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50 flex-shrink-0">
+                className="ml-auto inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50 flex-shrink-0 min-h-[44px]">
                 {r.loading ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Save
               </button>
             </div>

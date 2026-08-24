@@ -57,9 +57,7 @@ export default function DailyGrowthDashboard({ business, onGo }: Props) {
               <p className="text-sm text-purple-100 mt-1">Your daily growth dashboard — {brief.date}.</p>
             </div>
             <button onClick={toggle}
-              className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition ${status === 'closed'
-                ? 'bg-white text-purple-700 hover:bg-purple-50'
-                : 'bg-white/15 hover:bg-white/25'}`}>
+              className={`inline-flex items-center gap-2 px-3.5 rounded-xl text-xs font-bold transition ${status === 'closed' ? 'bg-white text-purple-700 hover:bg-purple-50' : 'bg-white/15 hover:bg-white/25'} min-h-[44px]`}>
               <Power size={14} /> {brief.statusEmoji} {brief.statusLabel} · tap to {status === 'closed' ? 'open' : 'close'}
             </button>
           </div>
@@ -151,7 +149,7 @@ export default function DailyGrowthDashboard({ business, onGo }: Props) {
           </h4>
           {DEPT_ACTIONS.map((a) => (
             <button key={a.dept} onClick={() => onGo(a.dept)}
-              className="w-full flex items-center justify-between text-left rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 py-2.5 hover:border-purple-300 dark:hover:border-purple-600 transition">
+              className="w-full flex items-center justify-between text-left rounded-xl bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 px-4 .5 hover:border-purple-300 dark:hover:border-purple-600 transition min-h-[44px]">
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
                 <span>{a.emoji}</span> {a.label}
               </span>

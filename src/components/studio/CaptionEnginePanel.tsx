@@ -23,21 +23,19 @@ export default function CaptionEnginePanel({ business, onSchedule }: Props) {
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
         <select value={industry} onChange={(e) => setIndustry(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+          className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
           {VIDEO_INDUSTRIES.map((i) => <option key={i.key} value={i.key}>{i.emoji} {i.label}</option>)}
         </select>
         <div className="flex flex-wrap gap-1.5">
           {toneOptions().map((t) => (
             <button key={t.key || 'neutral'} onClick={() => setTone(t.key)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${tone === t.key
-                ? 'border-transparent text-white bg-purple-600'
-                : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+              className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-semibold border transition ${tone === t.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
               {t.label}
             </button>
           ))}
         </div>
         <button onClick={() => setTone(tone)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
           <Wand2 size={13} /> Regenerate
         </button>
       </div>
@@ -56,12 +54,12 @@ export default function CaptionEnginePanel({ business, onSchedule }: Props) {
               <p className="mt-2 text-xs text-purple-600 dark:text-purple-400 leading-relaxed">{o.hashtags}</p>
               <div className="mt-3 flex gap-2">
                 <button onClick={() => copyText(o.text, 'Caption copied')}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 transition">
+                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                   <Copy size={12} /> Copy
                 </button>
                 {onSchedule && (
                   <button onClick={() => onSchedule(o.title, o.text)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition">
+                    className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition min-h-[44px]">
                     <Send size={12} /> Schedule
                   </button>
                 )}

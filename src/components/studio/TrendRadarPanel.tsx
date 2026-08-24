@@ -34,11 +34,11 @@ export default function TrendRadarPanel({ business }: Props) {
         </div>
         <div className="flex items-center gap-2">
           <select value={market} onChange={(e) => setMarket(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+            className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
             {TREND_MARKETS.map((m) => <option key={m.key} value={m.key}>{m.flag} {m.label}</option>)}
           </select>
           <button onClick={() => setMarket(market)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+            className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
             <RefreshCw size={13} /> Refresh
           </button>
         </div>
@@ -61,11 +61,11 @@ export default function TrendRadarPanel({ business }: Props) {
         <p className="mt-3 text-sm text-gray-700 dark:text-gray-300 leading-relaxed">{radar.best.suggestedPost}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           <button onClick={() => copy(radar.best.suggestedPost, 'Post copied')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition">
+            className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-semibold bg-red-500 text-white hover:bg-red-600 transition min-h-[44px]">
             <Copy size={13} /> Copy post
           </button>
           <button onClick={() => copy(radar.best.suggestedReel, 'Reel idea copied')}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
+            className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-semibold border border-red-300 dark:border-red-700 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 transition min-h-[44px]">
             <Copy size={13} /> Copy reel idea
           </button>
         </div>

@@ -35,11 +35,7 @@ export default function AiVideoGenPicker({
               type="button"
               onClick={() => onTier(t.key)}
               aria-pressed={tier === t.key}
-              className={`px-3 py-1.5 rounded-md text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${
-                tier === t.key
-                  ? 'bg-purple-600 text-white shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700'
-              }`}
+              className={`inline-flex items-center px-3 .5 rounded-md text-xs font-bold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 ${ tier === t.key ? 'bg-purple-600 text-white shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:bg-white dark:hover:bg-gray-700' } min-h-[44px]`}
             >
               {t.label}
             </button>
@@ -51,7 +47,7 @@ export default function AiVideoGenPicker({
         <select
           value={current.key}
           onChange={(e) => onModel(e.target.value as AiVideoModel)}
-          className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+          className="inline-flex items-center rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]"
         >
           {models.map((m) => (
             <option key={m.key} value={m.key}>{m.label} · {m.maker} — {m.note}</option>

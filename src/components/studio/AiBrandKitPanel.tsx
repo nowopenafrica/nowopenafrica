@@ -114,7 +114,7 @@ export default function AiBrandKitPanel({ business, identity, palette }: Props) 
             </div>
             <p className="text-[11px] text-gray-500 dark:text-gray-400 flex-1">{it.detail}</p>
             <button onClick={it.run} disabled={busy === it.key}
-              className="inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50">
+              className="inline-flex items-center justify-center gap-1.5 px-3 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50 min-h-[44px]">
               {busy === it.key ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Download
             </button>
           </div>
@@ -123,11 +123,11 @@ export default function AiBrandKitPanel({ business, identity, palette }: Props) 
 
       {/* Email signature extras */}
       <div className="mt-4 flex flex-wrap items-center gap-2">
-        <button onClick={copySignature} className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+        <button onClick={copySignature} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
           {copied ? <Check size={13} className="text-green-600 dark:text-green-400" /> : <Copy size={13} />} Copy signature HTML
         </button>
         <button onClick={() => { downloadText(html, `${slugForFile(business.name)}-email-signature.html`, 'text/html;charset=utf-8'); toast.success('Signature HTML downloaded'); }}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+          className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
           <Download size={13} /> Download signature (.html)
         </button>
         <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-400 ml-auto">

@@ -717,7 +717,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
         <div className="flex flex-wrap gap-1.5">
           {EXAMPLES.map((ex) => (
             <button key={ex} onClick={() => setBrief(ex)}
-              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition">
+              className="inline-flex items-center gap-1 px-3 .5 rounded-full border border-dashed border-gray-300 dark:border-gray-600 text-xs text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition min-h-[44px]">
               <Lightbulb size={11} /> {ex.slice(0, 40)}{ex.length > 40 ? '…' : ''}
             </button>
           ))}
@@ -930,7 +930,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <p className="text-sm font-bold text-gray-900 dark:text-white">{s.text}</p>
                           <button onClick={() => regenerateOne(s.order)} disabled={rendering}
-                            className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg text-[11px] font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition disabled:opacity-50">
+                            className="inline-flex items-center gap-1 px-2.5 .5 rounded-lg text-[11px] font-bold bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-400 hover:text-purple-600 dark:hover:text-purple-300 transition disabled:opacity-50 min-h-[44px]">
                             <RefreshCcw size={11} /> Regenerate Scene {s.order}
                           </button>
                         </div>
@@ -1066,7 +1066,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                   accept="image/*,video/*"
                   multiple
                   onChange={(e) => addFiles(e.target.files)}
-                  className="block w-full text-xs text-gray-500 dark:text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-purple-600 file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-white hover:file:bg-purple-700"
+                  className="flex items-center block w-full text-xs text-gray-500 dark:text-gray-400 file:mr-3 file:rounded-lg file:border-0 file:bg-purple-600 file:px-3 file:.5 file:text-xs file:font-medium file:text-white hover:file:bg-purple-700 min-h-[44px]"
                 />
               </div>
 

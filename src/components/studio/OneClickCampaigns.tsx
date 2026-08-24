@@ -76,7 +76,7 @@ export default function OneClickCampaigns({ business }: Props) {
           <div className="grid grid-cols-2 gap-2">
             {COPY_GOALS.map((g) => (
               <button key={g.key} onClick={() => setGoal(g.key)}
-                className={`text-left px-3 py-2 rounded-lg text-xs font-medium border transition ${goal === g.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                className={`inline-flex items-center text-left px-3 rounded-lg text-xs font-medium border transition ${goal === g.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                 {g.label}
               </button>
             ))}
@@ -87,14 +87,14 @@ export default function OneClickCampaigns({ business }: Props) {
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Start date</label>
             <input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Length</label>
             <div className="flex gap-2">
               {CAMPAIGN_LENGTHS.map((n) => (
                 <button key={n} onClick={() => setDays(n)}
-                  className={`flex-1 px-2 py-2 rounded-lg text-sm font-bold border transition ${days === n ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'}`}>
+                  className={`flex-1 px-2 rounded-lg text-sm font-bold border transition ${days === n ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300'} min-h-[44px] items-center`}>
                   {n}d
                 </button>
               ))}
@@ -103,18 +103,18 @@ export default function OneClickCampaigns({ business }: Props) {
         </div>
 
         <div className="space-y-2">
-          <button onClick={regenerate} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition">
+          <button onClick={regenerate} className="w-full inline-flex items-center justify-center gap-2 px-4 .5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             <Rocket size={15} /> Generate one-click campaign
           </button>
           <div className="grid grid-cols-2 gap-2">
-            <button onClick={savePlan} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition">
+            <button onClick={savePlan} className="inline-flex items-center justify-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
               <Save size={14} /> Save
             </button>
-            <button onClick={download} className="inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+            <button onClick={download} className="inline-flex items-center justify-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
               <Download size={14} /> Download
             </button>
           </div>
-          <button onClick={broadcast} className="w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 transition">
+          <button onClick={broadcast} className="w-full inline-flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-bold bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
             <Send size={14} /> WhatsApp broadcast
           </button>
         </div>
@@ -174,7 +174,7 @@ export default function OneClickCampaigns({ business }: Props) {
                     <div className="flex items-center justify-between mb-1">
                       <span className="text-xs font-bold text-gray-900 dark:text-white">{s.platform} · {s.asset}</span>
                       <button onClick={() => copy(s.id, s.caption)}
-                        className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                        className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                         {copiedId === s.id ? 'Copied!' : 'Copy'} <Copy size={11} />
                       </button>
                     </div>

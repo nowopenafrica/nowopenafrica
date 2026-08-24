@@ -52,7 +52,7 @@ function OrgTreeNodeView({ node, onSelect }: { node: OrgNode; onSelect: (id: str
   return (
     <div className="mt-3">
       <button type="button" onClick={() => onSelect(node.member.id)}
-        className={`w-full rounded-lg border px-3 py-2 text-left transition hover:shadow-sm ${node.depth === 0 ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30'}`}>
+        className={`flex items-center w-full rounded-lg border px-3 text-left transition hover:shadow-sm ${node.depth === 0 ? 'border-purple-300 dark:border-purple-700 bg-purple-50 dark:bg-purple-900/20' : 'border-gray-100 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/30'} min-h-[44px]`}>
         <div className="flex items-center gap-2">
           {node.member.kind === 'ai'
             ? <Bot size={13} className="text-emerald-500 shrink-0" />
@@ -192,7 +192,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
           </p>
         </div>
         <button type="button" onClick={() => setShowForm((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 transition">
+          className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
           <Plus size={15} /> Add member
         </button>
       </div>
@@ -232,7 +232,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
           { id: 'permissions' as const, label: 'Permissions' },
         ]).map((v) => (
           <button key={v.id} type="button" onClick={() => setView(v.id)}
-            className={`px-3 py-1.5 rounded-md text-xs font-semibold transition ${view === v.id ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'}`}>
+            className={`inline-flex items-center px-3 .5 rounded-md text-xs font-semibold transition ${view === v.id ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'} min-h-[44px]`}>
             {v.label}
           </button>
         ))}
@@ -304,7 +304,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
             <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
               {members.map((m) => (
                 <button key={m.id} type="button" onClick={() => { setSelectedId(m.id); setView('directory'); }}
-                  className="flex items-center gap-2 rounded-lg border border-gray-100 dark:border-gray-700 px-2 py-1.5 text-left hover:border-purple-300 dark:hover:border-purple-700 transition">
+                  className="flex items-center gap-2 rounded-lg border border-gray-100 dark:border-gray-700 px-2 .5 text-left hover:border-purple-300 dark:hover:border-purple-700 transition min-h-[44px]">
                   {m.kind === 'ai' ? <Bot size={13} className="text-emerald-500 shrink-0" /> : <User size={13} className="text-blue-500 shrink-0" />}
                   <span className="text-[11px] font-medium text-gray-700 dark:text-gray-300 truncate">{m.name}</span>
                   <span className={`ml-auto shrink-0 px-1.5 py-0.5 rounded text-[9px] font-bold ${permissionForMember(m) >= 4 ? 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300' : permissionForMember(m) >= 2 ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600 dark:text-blue-300' : 'bg-gray-100 dark:bg-gray-800 text-gray-500 dark:text-gray-400'}`}>
@@ -402,7 +402,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
               <div className="mt-1 grid grid-cols-2 gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
                 {(['ai', 'human'] as WorkforceKind[]).map((k) => (
                   <button key={k} type="button" onClick={() => setFormKind(k)}
-                    className={`px-2 py-1.5 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}>
+                    className={`inline-flex items-center px-2 .5 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'} min-h-[44px]`}>
                     {k === 'ai' ? 'AI agent' : 'Human'}
                   </button>
                 ))}
@@ -411,24 +411,24 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Department</span>
               <select value={formDepartment} onChange={(e) => setFormDepartment(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
                 {DEPARTMENTS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
               </select>
             </label>
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Name</span>
               <input value={formName} onChange={(e) => setFormName(e.target.value)} placeholder={formKind === 'ai' ? 'e.g. Research Analyst' : 'e.g. Ada Obi'}
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2" />
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]" />
             </label>
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Title</span>
               <input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder={formKind === 'ai' ? 'Research Analyst' : 'Operations Lead'}
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2" />
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]" />
             </label>
           </div>
           <div className="flex justify-end">
             <button type="submit" disabled={!formName.trim() || saving}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+              className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
               {saving ? 'Saving…' : `Add ${formKind === 'ai' ? 'agent' : 'human'}`}
             </button>
@@ -441,7 +441,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Type</span>
           <select value={filters.kind} onChange={(e) => setFilters((f) => ({ ...f, kind: e.target.value as WorkforceFilters['kind'], status: 'all' }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">Everyone</option>
             <option value="ai">AI agents</option>
             <option value="human">Humans</option>
@@ -450,7 +450,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Department</span>
           <select value={filters.department} onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">All departments</option>
             {DEPARTMENTS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
           </select>
@@ -458,7 +458,7 @@ export default function WorkforceDirectory({ onOpenSection }: { onOpenSection?: 
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</span>
           <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">All statuses</option>
             {statusOptions.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
           </select>

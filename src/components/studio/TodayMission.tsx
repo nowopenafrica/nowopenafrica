@@ -61,9 +61,7 @@ export default function TodayMission({ business, onCompleted }: Props) {
 
       <div className="mt-4 flex items-center gap-3">
         <button onClick={complete} disabled={done}
-          className={`inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-sm font-semibold transition ${done
-            ? 'bg-green-600 text-white cursor-default'
-            : 'bg-purple-600 text-white hover:bg-purple-700'}`}>
+          className={`inline-flex items-center gap-1.5 px-4 rounded-xl text-sm font-semibold transition ${done ? 'bg-green-600 text-white cursor-default' : 'bg-purple-600 text-white hover:bg-purple-700'} min-h-[44px]`}>
           <CheckCircle2 size={15} /> {done ? 'Completed' : 'Mark complete'}
         </button>
         <div className="flex-1">

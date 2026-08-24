@@ -322,7 +322,7 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
             <div>
               <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Title</label>
               <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="e.g. Weekend offer"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Caption</label>
@@ -332,7 +332,7 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
             <div>
               <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Hashtags</label>
               <input value={hashtags} onChange={(e) => setHashtags(e.target.value)} placeholder="#WeekendDeals #NowOpenAfrica"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </div>
             <div>
               <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-2">Image or video</label>
@@ -344,14 +344,14 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                     : <img src={media.url} alt={media.name} className="h-12 w-12 rounded object-cover" />}
                   <span className="text-xs text-gray-600 dark:text-gray-300 truncate flex-1">{media.name}</span>
                   <button onClick={() => setMedia(null)} title="Remove file"
-                    className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
+                    className="inline-flex items-center justify-center w-[44px] h-[44px] rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
                     <X size={13} />
                   </button>
                 </div>
               ) : (
                 <>
                   <button onClick={() => fileInputRef.current?.click()}
-                    className="w-full inline-flex items-center justify-center gap-2 px-3 py-3 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-500 transition">
+                    className="w-full inline-flex items-center justify-center gap-2 px-3 min-h-[44px] rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:border-purple-400 hover:text-purple-500 transition">
                     <ImagePlus size={15} /> Upload image / video
                   </button>
                   <AiGenerateToggle
@@ -367,12 +367,12 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Date</label>
                 <input type="date" value={date} onChange={(e) => setDate(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Time</label>
                 <input type="time" value={time} onChange={(e) => setTime(e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
             </div>
 
@@ -401,11 +401,11 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
 
             <div className="flex flex-wrap gap-2 pt-1">
               <button onClick={() => schedule(true)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+                className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 <Send size={15} /> Publish now
               </button>
               <button onClick={() => schedule(false)}
-                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                 <CalendarClock size={15} /> Schedule for later
               </button>
             </div>
@@ -440,7 +440,7 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                       {isConnected && <Link2 size={13} className="text-green-500 shrink-0" />}
                       {isConnected ? (
                         <button onClick={() => disconnect(c.key)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                          className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                           Disconnect
                         </button>
                       ) : isConnecting ? (
@@ -450,13 +450,13 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                           </span>
                         ) : (
                           <button onClick={() => setConnecting(null)}
-                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                            className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                             Cancel
                           </button>
                         )
                       ) : (
                         <button onClick={() => startConnect(c.key)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition">
+                          className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-semibold border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition min-h-[44px]">
                           <Link2 size={11} /> Connect
                         </button>
                       )}
@@ -468,10 +468,10 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                           onChange={(e) => setHandleDraft(e.target.value)}
                           placeholder="your account handle"
                           onKeyDown={(e) => { if (e.key === 'Enter') confirmConnect(c.key); }}
-                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="flex-1 min-w-0 px-2.5 .5 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-xs focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center"
                         />
                         <button onClick={() => confirmConnect(c.key)}
-                          className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition">
+                          className="inline-flex items-center gap-1 px-3 .5 rounded-lg text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                           <CheckCircle2 size={11} /> Connect
                         </button>
                       </div>
@@ -529,7 +529,7 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                       const label = `${channelShort(k)}${handle ? ` · @${handle.replace(/^@/, '')}` : ''}`;
                       return job.status === 'published' ? (
                         <a key={k} href={url} target="_blank" rel="noreferrer"
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[11px] font-semibold hover:underline">
+                          className="inline-flex items-center gap-1 px-2 rounded-md bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 text-[11px] font-semibold hover:underline min-h-[44px]">
                           <Icon size={12} /> {label}
                         </a>
                       ) : (
@@ -541,24 +541,24 @@ export default function SchedulePublish({ business, prefill, onClearPrefill }: P
                     <div className="ml-auto flex items-center gap-2">
                       {job.caption && (
                         <button onClick={() => copyText([job.caption, job.hashtags].filter(Boolean).join('\n\n'), 'Post copied')}
-                          className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                          className="inline-flex items-center gap-1 px-2 rounded-md text-[11px] font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                           <Copy size={11} /> Copy post
                         </button>
                       )}
                       {job.status === 'scheduled' && (
                         <button onClick={() => publishToAll(job.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition">
+                          className="inline-flex items-center gap-1 px-2.5 rounded-md text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                           <Send size={11} /> Publish now
                         </button>
                       )}
                       {job.status === 'published' && job.simulated && (
                         <button onClick={() => publishToAll(job.id)}
-                          className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition">
+                          className="inline-flex items-center gap-1 px-2.5 rounded-md text-[11px] font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                           <RefreshCw size={11} /> Publish for real
                         </button>
                       )}
                       <button onClick={() => remove(job.id)} title="Delete"
-                        className="inline-flex items-center justify-center w-7 h-7 rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
+                        className="inline-flex items-center justify-center w-[44px] h-[44px] rounded-md text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-900/30 transition">
                         <Trash2 size={13} />
                       </button>
                     </div>

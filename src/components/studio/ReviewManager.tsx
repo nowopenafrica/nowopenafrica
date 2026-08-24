@@ -106,11 +106,11 @@ export default function ReviewManager({ business }: Props) {
 
       {/* Actions */}
       <div className="flex flex-wrap gap-2">
-        <button onClick={() => setShowAdd((v) => !v)} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+        <button onClick={() => setShowAdd((v) => !v)} className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
           <Plus size={15} /> {showAdd ? 'Close' : 'Add a review'}
         </button>
         {reviews.length === 0 && (
-          <button onClick={loadSamples} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <button onClick={loadSamples} className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-sm font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
             <Sparkles size={15} /> Load sample reviews
           </button>
         )}
@@ -122,7 +122,7 @@ export default function ReviewManager({ business }: Props) {
           <div>
             <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Customer</label>
             <input value={author} onChange={(e) => setAuthor(e.target.value)} placeholder="e.g. Aminata"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           </div>
           <div>
             <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Rating</label>
@@ -132,8 +132,8 @@ export default function ReviewManager({ business }: Props) {
             <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Review</label>
             <div className="flex gap-2">
               <input value={text} onChange={(e) => setText(e.target.value)} placeholder="What did the customer say?"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-              <button onClick={add} className="px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+                className="flex-1 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center" />
+              <button onClick={add} className="inline-flex items-center px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 Add
               </button>
             </div>
@@ -193,7 +193,7 @@ export default function ReviewManager({ business }: Props) {
                       <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 flex items-center gap-1.5">
                         <Sparkles size={11} /> AI-drafted reply
                       </p>
-                      <button onClick={() => suggest(r)} className="inline-flex items-center gap-1 text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline">
+                      <button onClick={() => suggest(r)} className="inline-flex items-center gap-1 min-h-[44px] px-2 rounded-lg text-[11px] font-medium text-purple-600 dark:text-purple-400 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
                         <MessageCircle size={11} /> Generate suggestion
                       </button>
                     </div>
@@ -202,7 +202,7 @@ export default function ReviewManager({ business }: Props) {
                       className="w-full min-h-[70px] rounded-lg border border-gray-200 dark:border-gray-600 bg-white dark:bg-gray-800 p-3 text-sm text-gray-800 dark:text-gray-200 leading-relaxed resize-y focus:outline-none" />
                     <div className="flex justify-end mt-2">
                       <button onClick={() => reply(r)}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+                        className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                         <Send size={12} /> Post reply
                       </button>
                     </div>

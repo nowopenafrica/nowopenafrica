@@ -76,19 +76,19 @@ export default function ContentFactory({ business, onDesign, onSchedule, onNavig
             <div>
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Goal</label>
               <select value={goal} onChange={(e) => setGoal(e.target.value as CopyGoal)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
                 {COPY_GOALS.map((g) => <option key={g.key} value={g.key}>{g.label}</option>)}
               </select>
             </div>
             <div>
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Platform</label>
               <select value={platform} onChange={(e) => setPlatform(e.target.value as CopyPlatform)}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
                 {COPY_PLATFORMS.map((p) => <option key={p.key} value={p.key}>{p.label}</option>)}
               </select>
             </div>
             <button onClick={downloadPack}
-              className="w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition">
+              className="w-full inline-flex items-center justify-center gap-1.5 px-4 rounded-xl text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               <Download size={13} /> Download full pack
             </button>
           </div>
@@ -101,19 +101,19 @@ export default function ContentFactory({ business, onDesign, onSchedule, onNavig
             )}
             <div className="mt-3 flex flex-wrap gap-2">
               <button onClick={() => copyText(caption, 'Caption copied')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 transition">
+                className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-semibold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 <Copy size={13} /> Copy
               </button>
               <button onClick={() => onDesign(GOAL_TO_TEMPLATE[goal])}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                 <PenTool size={13} /> Design this post
               </button>
               <button onClick={() => onSchedule(goalLabel, caption)}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition">
+                className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-semibold border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition min-h-[44px]">
                 <Send size={13} /> Schedule & publish
               </button>
               <button onClick={() => onNavigate('flyer')}
-                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-xs font-semibold border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                 🎬 Make a video with AI Video Creator
               </button>
             </div>

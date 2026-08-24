@@ -33,7 +33,7 @@ export default function CampaignMarketplace({ business }: Props) {
           </div>
         </div>
         <select value={industry} onChange={(e) => setIndustry(e.target.value)}
-          className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+          className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
           {VIDEO_INDUSTRIES.map((i) => <option key={i.key} value={i.key}>{i.emoji} {i.label}</option>)}
         </select>
       </div>
@@ -59,7 +59,7 @@ export default function CampaignMarketplace({ business }: Props) {
               <Tags size={11} /> {p.tags.slice(0, 3).join(' · ')}
             </div>
             <button onClick={() => launch(p.id)}
-              className="mt-4 inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition">
+              className="mt-4 inline-flex items-center justify-center gap-1.5 px-4 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-500 text-white hover:from-amber-600 hover:to-orange-600 transition min-h-[44px]">
               <Rocket size={13} /> Launch campaign
             </button>
           </div>

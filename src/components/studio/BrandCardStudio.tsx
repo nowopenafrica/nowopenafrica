@@ -59,16 +59,16 @@ export default function BrandCardStudio({ business }: { business: Business }) {
 
         <div className="flex flex-wrap gap-2">
           <button onClick={exportCardKit} disabled={exportingKit}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 min-h-[44px]">
             {exportingKit ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download card + QR
           </button>
-          <button onClick={exportCardPng} disabled={exporting} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+          <button onClick={exportCardPng} disabled={exporting} className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 min-h-[44px]">
             {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Card PNG
           </button>
-          <button onClick={printCard} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+          <button onClick={printCard} className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
             <Printer size={15} /> Print / Save as PDF
           </button>
-          <button onClick={nativeShare} className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+          <button onClick={nativeShare} className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
             <Share2 size={15} /> Share
           </button>
         </div>
@@ -87,11 +87,11 @@ export default function BrandCardStudio({ business }: { business: Business }) {
             <SmartIdFrontNode ref={smartIdFrontRef} business={business} settings={settings} />
             <div className="flex flex-wrap gap-2">
               <button onClick={exportSmartIdFrontPng} disabled={exportingSmartIdFront}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-3 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50 min-h-[44px]">
                 {exportingSmartIdFront ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Front PNG
               </button>
               <button onClick={exportSmartIdFrontPdf} disabled={exportingSmartIdFrontPdf}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-3 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 min-h-[44px]">
                 {exportingSmartIdFrontPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Front PDF
               </button>
             </div>
@@ -105,11 +105,11 @@ export default function BrandCardStudio({ business }: { business: Business }) {
             <SmartIdNode ref={smartIdRef} business={business} qr={qr} settings={settings} />
             <div className="flex flex-wrap gap-2">
               <button onClick={exportSmartIdPng} disabled={exportingSmartId}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-3 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50 min-h-[44px]">
                 {exportingSmartId ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Back PNG
               </button>
               <button onClick={exportSmartIdPdf} disabled={exportingSmartIdPdf}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-3 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 min-h-[44px]">
                 {exportingSmartIdPdf ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />} Back PDF
               </button>
             </div>
@@ -134,11 +134,11 @@ export default function BrandCardStudio({ business }: { business: Business }) {
                 {CARD_ACCENTS.map((a) => (
                   <button key={a.value} onClick={() => update({ accentColor: settings.accentColor === a.value ? '' : a.value })}
                     title={a.name}
-                    className={`w-7 h-7 rounded-full transition ${settings.accentColor === a.value ? 'ring-2 ring-offset-2 ring-purple-500 scale-110' : 'hover:scale-110'}`}
+                    className={`w-[44px] h-[44px] rounded-full transition ${settings.accentColor === a.value ? 'ring-2 ring-offset-2 ring-purple-500 scale-110' : 'hover:scale-110'}`}
                     style={{ background: a.value }} />
                 ))}
                 <button onClick={() => update({ accentColor: '' })}
-                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px] font-semibold border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                  className="inline-flex items-center gap-1 px-2 rounded-lg text-[11px] font-semibold border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                   Auto
                 </button>
               </div>
@@ -148,14 +148,14 @@ export default function BrandCardStudio({ business }: { business: Business }) {
               <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Tagline</label>
               <input value={settings.tagline} onChange={(e) => update({ tagline: e.target.value })}
                 placeholder="e.g. Your neighbourhood bakery"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </div>
 
             <div>
               <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Category label</label>
               <input value={settings.categoryLabel} onChange={(e) => update({ categoryLabel: e.target.value })}
                 placeholder={business.category || 'Business'}
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </div>
 
             <div>
@@ -189,14 +189,14 @@ export default function BrandCardStudio({ business }: { business: Business }) {
                   <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Holder name</label>
                   <input value={settings.holderName} onChange={(e) => update({ holderName: e.target.value })}
                     placeholder={business.name}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                 </div>
 
                 <div>
                   <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">Role / title</label>
                   <input value={settings.holderRole} onChange={(e) => update({ holderRole: e.target.value })}
                     placeholder={business.category || 'e.g. Founder'}
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                 </div>
 
                 <div>
@@ -212,12 +212,12 @@ export default function BrandCardStudio({ business }: { business: Business }) {
                         e.target.value = '';
                       }} />
                     <button onClick={() => photoInputRef.current?.click()}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                       <Upload size={13} /> {settings.holderPhoto ? 'Replace' : 'Upload'}
                     </button>
                     {settings.holderPhoto && (
                       <button onClick={() => update({ holderPhoto: '' })}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30">
+                        className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium border border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 min-h-[44px]">
                         <X size={13} /> Remove
                       </button>
                     )}
@@ -234,7 +234,7 @@ export default function BrandCardStudio({ business }: { business: Business }) {
                   <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1.5">ID number</label>
                   <input value={settings.holderId} onChange={(e) => update({ holderId: e.target.value })}
                     placeholder="Auto-generated"
-                    className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                    className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm font-mono focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
                 </div>
               </div>
             </div>
@@ -250,7 +250,7 @@ export default function BrandCardStudio({ business }: { business: Business }) {
 
           <QrLockupNode ref={qrRef} business={business} qr={qr} />
 
-          <button onClick={exportQrPng} disabled={exportingQr} className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50">
+          <button onClick={exportQrPng} disabled={exportingQr} className="mt-3 w-full inline-flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 disabled:opacity-50 min-h-[44px]">
             {exportingQr ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download Smart QR
           </button>
         </div>
@@ -260,13 +260,13 @@ export default function BrandCardStudio({ business }: { business: Business }) {
           <div className="grid grid-cols-3 gap-2">
             {shareLinks(url, `Check out ${business.name} on NowOpen Africa`).map((s) => (
               <a key={s.key} href={s.href} target="_blank" rel="noopener noreferrer"
-                className="text-center px-2 py-2 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                className="inline-flex items-center text-center px-2 rounded-lg text-xs font-medium border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                 {s.label}
               </a>
             ))}
           </div>
           <button onClick={() => { navigator.clipboard?.writeText(url); toast.success('Profile link copied'); }}
-            className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+            className="mt-2 w-full inline-flex items-center justify-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
             <LinkIcon size={15} /> Copy profile link
           </button>
         </div>

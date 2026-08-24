@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import {
   LayoutDashboard, PenTool, Clapperboard, Video, Instagram, Rocket, FileText, MessageCircle,
   Boxes, Newspaper, Users, Bot, TrendingUp, Radar, Braces, LayoutTemplate, Component,
@@ -154,12 +154,27 @@ function ModuleCard({ section, onOpen }: { section: AdminSection; onOpen: (id: s
 }
 
 export default function AdminCreatorShell() {
-  // ?section=<id> deep-links straight to a module (e.g. the admin dashboard's
-  // "Open Applications Review" button); falls back to the command center.
-  const [active, setActive] = useState(() => {
-    const viaUrl = new URLSearchParams(window.location.search).get('section');
-    return viaUrl && sectionById(viaUrl) ? viaUrl : 'command';
-  });
+  /**
+   * ?section=<id> is the open module, read AND written.
+   *
+   * It used to be read once on mount, so the deep link worked inwards but
+   * never came back out: clicking through 33 modules left the URL on
+   * /admin-creator, nobody could send a colleague the module they were looking
+   * at, a refresh dropped them back to the command center, and Back left the
+   * console rather than stepping to the previous module.
+   *
+   * `replace` so moving between modules does not bury the page they came from
+   * under 33 history entries.
+   */
+  const [searchParams, setSearchParams] = useSearchParams();
+  const sectionParam = searchParams.get('section');
+  const active = sectionParam && sectionById(sectionParam) ? sectionParam : 'command';
+  const setActive = (id: string) => {
+    const next = new URLSearchParams(searchParams);
+    if (id === 'command') next.delete('section');
+    else next.set('section', id);
+    setSearchParams(next, { replace: true });
+  };
   const [askOpen, setAskOpen] = useState(false);
   const [openGroups, setOpenGroups] = useState<Record<AdminGroup, boolean>>(
     () => Object.fromEntries(ADMIN_GROUPS.map((g) => [g, g === 'Oversight'])) as Record<AdminGroup, boolean>,
@@ -194,11 +209,11 @@ export default function AdminCreatorShell() {
           </div>
           <div className="ml-auto flex items-center gap-2">
             <button type="button" onClick={() => setAskOpen(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition">
+              className="inline-flex items-center gap-1.5 px-3 min-h-[44px] rounded-lg text-xs font-semibold text-purple-600 dark:text-purple-300 bg-purple-50 dark:bg-purple-900/30 hover:bg-purple-100 dark:hover:bg-purple-900/50 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
               <Search size={13} /> Ask NowOpen
               <span className="text-[9px] font-bold text-purple-400 hidden sm:inline">⌘K</span>
             </button>
-            <Link to="/admin" className="inline-flex items-center gap-1.5 text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white">
+            <Link to="/admin" className="inline-flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg text-sm text-gray-600 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
               <ArrowLeft size={15} /> Admin console
             </Link>
           </div>
@@ -207,7 +222,7 @@ export default function AdminCreatorShell() {
         <div className="grid grid-cols-1 lg:grid-cols-[250px,1fr] gap-6 mt-6">
           {/* Sidebar */}
           <aside>
-            <nav className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0">
+            <nav aria-label="Admin Creator modules" className="flex lg:flex-col gap-1 overflow-x-auto pb-2 lg:pb-0 -mx-4 px-4 lg:mx-0 lg:px-0">
               {ADMIN_GROUPS.map((group) => {
                 const GroupIcon = GROUP_ICONS[group];
                 const members = ADMIN_SECTIONS.filter((s) => s.group === group);
@@ -216,7 +231,8 @@ export default function AdminCreatorShell() {
                   <div key={group} className="shrink-0 lg:w-full">
                     <button type="button"
                       onClick={() => setOpenGroups((g) => ({ ...g, [group]: !g[group] }))}
-                      className="hidden lg:flex w-full items-center gap-1.5 px-2 py-1 text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold">
+                      aria-expanded={open}
+                      className="hidden lg:flex w-full items-center gap-1.5 px-2 min-h-[44px] rounded-lg text-[10px] uppercase tracking-wider text-gray-400 dark:text-gray-500 font-semibold hover:bg-gray-100 dark:hover:bg-gray-800 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
                       <GroupIcon size={12} /> {group}
                       <ChevronDown size={11} className={`ml-auto transition-transform ${open ? 'rotate-180' : ''}`} />
                     </button>

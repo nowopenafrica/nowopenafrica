@@ -81,16 +81,16 @@ export default function DigitalCatalogue({ business }: Props) {
             <p className="text-[11px] text-gray-400 mt-1">{catalogue.items.length} items · {formatCataloguePrice(totalValue) === 'Ask' ? 'mixed pricing' : `value ${formatCataloguePrice(totalValue)}`}</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+            <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> Add item</>}
             </button>
-            <button onClick={copy} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition">
+            <button onClick={copy} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
               <Copy size={14} /> Copy
             </button>
-            <button onClick={download} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition">
+            <button onClick={download} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
               <Download size={14} /> Download
             </button>
-            <button onClick={share} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition">
+            <button onClick={share} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
               <Send size={14} /> Share on WhatsApp
             </button>
           </div>
@@ -102,15 +102,15 @@ export default function DigitalCatalogue({ business }: Props) {
         <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="flex gap-2">
-              <input value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="🙂" className="w-14 px-2 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm text-center" />
+              <input value={emoji} onChange={(e) => setEmoji(e.target.value)} placeholder="🙂" className="inline-flex items-center w-14 px-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm text-center min-h-[44px]" />
               <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Item name (e.g. Grill platter)"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                className="flex-1 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px] items-center" />
             </div>
             <div className="flex gap-2">
               <input type="number" min="0" value={price} onChange={(e) => setPrice(Number(e.target.value) || 0)} placeholder="Price (₦) — 0 to show 'Ask'"
-                className="flex-1 px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                className="flex-1 px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px] items-center" />
               <select value={category} onChange={(e) => setCategory(e.target.value as CatalogueCategory)}
-                className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+                className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
                 {CATALOGUE_CATEGORIES.map((c) => <option key={c.key} value={c.key}>{c.emoji} {c.label}</option>)}
               </select>
             </div>
@@ -122,7 +122,7 @@ export default function DigitalCatalogue({ business }: Props) {
               <input type="checkbox" checked={featured} onChange={(e) => setFeatured(e.target.checked)} className="accent-purple-600" />
               Mark as featured (★)
             </label>
-            <button onClick={addItem} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+            <button onClick={addItem} className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               <Plus size={15} /> Add item
             </button>
           </div>

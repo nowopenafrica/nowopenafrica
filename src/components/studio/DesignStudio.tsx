@@ -1515,7 +1515,7 @@ export default function DesignStudio({
             <div className="grid grid-cols-2 gap-2">
               {templates.map((t) => (
                 <button key={t.key} onClick={() => setTemplateKey(t.key)}
-                  className={`text-left px-3 py-2 rounded-lg text-xs font-medium border transition ${templateKey === t.key ? 'border-transparent text-white' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+                  className={`inline-flex items-center text-left px-3 rounded-lg text-xs font-medium border transition ${templateKey === t.key ? 'border-transparent text-white' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}
                   style={templateKey === t.key ? { background: t.accent } : undefined}>
                   {t.label}
                 </button>
@@ -1531,7 +1531,7 @@ export default function DesignStudio({
                 const on = layoutKey === key;
                 return (
                   <button key={key} onClick={() => setLayoutKey(key)}
-                    className={`text-left px-3 py-2 rounded-lg text-xs border transition ${on ? 'border-transparent text-white bg-purple-600' : 'border-purple-200 dark:border-purple-800/60 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20'}`}>
+                    className={`inline-flex items-center text-left px-3 rounded-lg text-xs border transition ${on ? 'border-transparent text-white bg-purple-600' : 'border-purple-200 dark:border-purple-800/60 text-gray-700 dark:text-gray-300 hover:bg-purple-50 dark:hover:bg-purple-900/20'} min-h-[44px]`}>
                     <span className="block font-bold">{t.label}</span>
                     <span className={`block mt-0.5 text-[10px] ${on ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'}`}>{t.desc}</span>
                   </button>
@@ -1546,7 +1546,7 @@ export default function DesignStudio({
             <div className="grid grid-cols-2 gap-2">
               {STUDIO_LAYOUTS.map((l) => (
                 <button key={l.key} onClick={() => setLayoutKey(l.key)}
-                  className={`text-left px-3 py-2 rounded-lg text-xs border transition ${layoutKey === l.key ? 'border-transparent text-white bg-gray-900 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  className={`inline-flex items-center text-left px-3 rounded-lg text-xs border transition ${layoutKey === l.key ? 'border-transparent text-white bg-gray-900 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                   <span className="block font-bold">{l.label}</span>
                   <span className={`block mt-0.5 text-[10px] ${layoutKey === l.key ? 'text-white/70' : 'text-gray-400 dark:text-gray-500'}`}>{l.desc}</span>
                 </button>
@@ -1557,7 +1557,7 @@ export default function DesignStudio({
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Format / size</label>
             <select value={formatKey} onChange={(e) => setFormatKey(e.target.value)}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
               {formats.map((f) => <option key={f.key} value={f.key}>{f.label} · {f.w}×{f.h}</option>)}
             </select>
           </div>
@@ -1571,7 +1571,7 @@ export default function DesignStudio({
           <div>
             <div className="flex items-center justify-between mb-1">
               <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300">Headline</label>
-              <button onClick={resetText} className="inline-flex items-center gap-1 text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
+              <button onClick={resetText} className="inline-flex items-center gap-1 min-h-[44px] px-2 rounded-lg text-[11px] text-gray-400 hover:text-gray-600 dark:hover:text-gray-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
                 <RotateCcw size={11} /> Reset
               </button>
             </div>
@@ -1579,19 +1579,19 @@ export default function DesignStudio({
                 chars) alongside real words. The coach still grades the resolved
                 text, so genuine over-long headlines are caught there. */}
             <input value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={90}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
             <LiveFieldRow field="headline" value={headline} onChange={setHeadline} resolve={resolve} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Subtext</label>
             <input value={subline} onChange={(e) => setSubline(e.target.value)} maxLength={120}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
             <LiveFieldRow field="subtext" value={subline} onChange={setSubline} resolve={resolve} />
           </div>
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Badge text</label>
             <input value={badge} onChange={(e) => setBadge(e.target.value)} maxLength={60}
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
             <LiveFieldRow field="badge" value={badge} onChange={setBadge} resolve={resolve} />
           </div>
 
@@ -1635,7 +1635,7 @@ export default function DesignStudio({
               <Wand2 size={13} /> AI Copy Assistant
             </span>
             <button onClick={generateIdeas}
-              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition">
+              className="inline-flex items-center gap-1 px-2.5 rounded-md text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
               Generate ideas
             </button>
           </div>
@@ -1644,7 +1644,7 @@ export default function DesignStudio({
             <div className="space-y-1.5">
               {copyIdeas.map((v) => (
                 <button key={v.label} onClick={() => applyVariant(v)}
-                  className="group w-full text-left px-3 py-2 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-sm transition">
+                  className="flex items-center group w-full text-left px-3 rounded-lg border border-purple-200 dark:border-purple-800 bg-white dark:bg-gray-800 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-sm transition min-h-[44px]">
                   <span className="flex items-center justify-between">
                     <span className="text-[10px] font-bold uppercase tracking-wide text-purple-600 dark:text-purple-300">{v.label}</span>
                     <CheckCircle2 size={13} className="text-gray-300 dark:text-gray-600 group-hover:text-purple-500" />
@@ -1669,7 +1669,7 @@ export default function DesignStudio({
                   <span className="font-bold text-gray-800 dark:text-gray-100">{cta.badge}</span> — {cta.subline}
                 </span>
                 <button onClick={applyCta}
-                  className="px-2.5 py-1 rounded-md text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition">
+                  className="inline-flex items-center px-2.5 rounded-md text-[11px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
                   Apply
                 </button>
               </div>
@@ -1695,7 +1695,7 @@ export default function DesignStudio({
                 ))}
               </div>
               <input type="color" value={accent} onChange={(e) => setAccent(e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-transparent" />
+                className="w-[44px] h-[44px] rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-transparent" />
             </div>
             {/* Moved here from the Design Coach: it's an accent control, and it
                 shouldn't disappear just because the coach did. */}
@@ -1721,7 +1721,7 @@ export default function DesignStudio({
                 ))}
               </div>
               <input type="color" value={bgColor ?? defaultBg} onChange={(e) => setBgColor(e.target.value)}
-                className="w-8 h-8 rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-transparent" />
+                className="w-[44px] h-[44px] rounded cursor-pointer border border-gray-300 dark:border-gray-600 bg-transparent" />
             </div>
             <div className="flex items-center gap-2 mt-2">
               <label className="flex-1 flex items-center gap-2">
@@ -1740,7 +1740,7 @@ export default function DesignStudio({
               onChange={(e) => { onUpload(e.target.files?.[0]); e.target.value = ''; }} />
             <div className="flex items-center gap-2">
               <button onClick={() => fileRef.current?.click()}
-                className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                className="inline-flex items-center gap-2 px-3 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                 <Upload size={15} /> Upload
               </button>
               {bg && (
@@ -1760,7 +1760,7 @@ export default function DesignStudio({
                 <button
                   type="button"
                   onClick={() => setShowBgCamera(true)}
-                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm font-medium bg-black text-white hover:bg-gray-800 flex-shrink-0"
+                  className="inline-flex items-center justify-center gap-2 px-3 rounded-lg text-sm font-medium bg-black text-white hover:bg-gray-800 flex-shrink-0 min-h-[44px]"
                 >
                   <Camera size={15} /> OpenReel Camera
                 </button>
@@ -1772,7 +1772,7 @@ export default function DesignStudio({
                 onBlur={() => applyBgLink()}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); applyBgLink(); } }}
                 placeholder="…or paste a direct image/video URL"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]"
               />
             </div>
             {bgClipProgress !== null && (
@@ -1814,7 +1814,7 @@ export default function DesignStudio({
             <div className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
               {PREVIEW_FRAME_OPTIONS.map((o) => (
                 <button key={o.key} onClick={() => setFrame(o.key)} title={o.label}
-                  className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide transition ${frame === o.key ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                  className={`inline-flex items-center px-2 rounded-md text-[10px] font-bold uppercase tracking-wide transition ${frame === o.key ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'} min-h-[44px]`}>
                   {o.label}
                 </button>
               ))}
@@ -1897,7 +1897,7 @@ export default function DesignStudio({
           <div className="flex gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
             {(['image', 'video'] as const).map((m) => (
               <button key={m} onClick={() => setExportMode(m)}
-                className={`flex-1 px-3 py-1.5 rounded-md text-xs font-bold uppercase tracking-wide transition ${exportMode === m ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'}`}>
+                className={`flex-1 px-3 .5 rounded-md text-xs font-bold uppercase tracking-wide transition ${exportMode === m ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'} min-h-[44px] items-center`}>
                 {m === 'image' ? 'Image' : 'Video'}
               </button>
             ))}
@@ -1906,21 +1906,21 @@ export default function DesignStudio({
           {exportMode === 'image' ? (
             <div className="flex flex-wrap gap-2">
               <button onClick={exportAllFormats} disabled={!!busy}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 min-h-[44px]">
                 {busy === 'all' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />}
                 {busy === 'all' && exportProgress ? `Downloading ${exportProgress}…` : 'Download all formats'}
               </button>
               <button onClick={exportCampaign} disabled={!!busy}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90 disabled:opacity-50"
+                className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium bg-gradient-to-r from-purple-600 to-pink-600 text-white hover:opacity-90 disabled:opacity-50 min-h-[44px]"
                 title="Story, Instagram, Facebook, X, A4 flyer and email header">
                 {busy === 'all' ? <Loader2 size={15} className="animate-spin" /> : <Rocket size={15} />} Campaign pack
               </button>
               <button onClick={exportPng} disabled={!!busy}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50 min-h-[44px]">
                 {busy === 'png' ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} PNG
               </button>
               <button onClick={exportPdf} disabled={!!busy}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 min-h-[44px]">
                 {busy === 'pdf' ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />} PDF
               </button>
             </div>
@@ -1931,7 +1931,7 @@ export default function DesignStudio({
                 <div className="flex flex-wrap gap-1.5">
                   {VIDEO_SECONDS.map((s) => (
                     <button key={s} onClick={() => setVideoSeconds(s)}
-                      className={`px-3 py-1.5 rounded-lg text-xs font-bold border transition ${videoSeconds === s ? 'border-transparent text-white bg-gray-900 dark:bg-gray-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                      className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-bold border transition ${videoSeconds === s ? 'border-transparent text-white bg-gray-900 dark:bg-gray-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                       {s}s
                     </button>
                   ))}
@@ -1944,7 +1944,7 @@ export default function DesignStudio({
                 </label>
               )}
               <button onClick={() => exportVideo(videoSeconds)} disabled={!!busy}
-                className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50">
+                className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50 min-h-[44px]">
                 {busy === 'video' ? <Loader2 size={15} className="animate-spin" /> : <VideoIcon size={15} />} Download MP4 · {videoSeconds}s
               </button>
               <p className="text-[11px] text-gray-400">
@@ -1958,7 +1958,7 @@ export default function DesignStudio({
           <div className="flex flex-wrap gap-1.5 pt-1 border-t border-gray-100 dark:border-gray-700">
             {shareLinks(url, headline).map((s) => (
               <a key={s.key} href={s.href} target="_blank" rel="noopener noreferrer"
-                className="px-2.5 py-1 rounded-md text-[11px] font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+                className="inline-flex items-center px-2.5 rounded-md text-[11px] font-medium border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
                 {s.label}
               </a>
             ))}

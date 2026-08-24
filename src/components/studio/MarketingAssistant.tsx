@@ -103,7 +103,7 @@ export default function MarketingAssistant({ business, onNavigate, title = 'AI B
           <h2 className="text-sm font-bold leading-tight">{title}</h2>
           <p className="text-[11px] opacity-80 truncate">{subtitle}</p>
         </div>
-        <button onClick={clear} className="text-[11px] font-medium bg-white/15 hover:bg-white/25 px-2.5 py-1 rounded-lg transition">
+        <button onClick={clear} className="inline-flex items-center text-[11px] font-medium bg-white/15 hover:bg-white/25 px-2.5 rounded-lg transition min-h-[44px]">
           New chat
         </button>
       </div>
@@ -125,7 +125,7 @@ export default function MarketingAssistant({ business, onNavigate, title = 'AI B
                 <div className="flex flex-wrap gap-1.5 mt-3">
                   {m.actions.map((a) => (
                     <button key={a.label} onClick={() => onNavigate(a.module)}
-                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 dark:hover:border-purple-500">
+                      className="inline-flex items-center gap-1 px-2.5 rounded-lg text-[11px] font-medium bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 text-gray-700 dark:text-gray-200 hover:border-purple-300 dark:hover:border-purple-500 min-h-[44px]">
                       {a.label} <ArrowRight size={11} />
                     </button>
                   ))}
@@ -159,7 +159,7 @@ export default function MarketingAssistant({ business, onNavigate, title = 'AI B
         <div className="flex flex-wrap gap-1.5 mb-3">
           {quickPrompts.map((p) => (
             <button key={p} onClick={() => ask(p)}
-              className="px-2.5 py-1 rounded-full text-[11px] font-medium border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 dark:hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 transition">
+              className="inline-flex items-center px-2.5 rounded-full text-[11px] font-medium border border-gray-200 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:border-purple-300 dark:hover:border-purple-500 hover:text-purple-600 dark:hover:text-purple-400 transition min-h-[44px]">
               {p}
             </button>
           ))}
@@ -168,9 +168,9 @@ export default function MarketingAssistant({ business, onNavigate, title = 'AI B
           <input value={input} onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === 'Enter') ask(input); }}
             placeholder="Ask me anything — e.g. “write a caption for my new product”"
-            className="flex-1 px-3.5 py-2.5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            className="flex-1 px-3.5 .5 rounded-xl border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center" />
           <button onClick={() => ask(input)} disabled={!input.trim() || thinking}
-            className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
+            className="w-[44px] h-[44px] rounded-xl bg-purple-600 text-white flex items-center justify-center hover:bg-purple-700 disabled:opacity-40 disabled:cursor-not-allowed transition">
             <Send size={16} />
           </button>
         </div>

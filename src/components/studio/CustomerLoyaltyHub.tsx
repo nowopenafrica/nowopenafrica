@@ -151,10 +151,10 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
-            <button onClick={shareProgram} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white text-rose-600 hover:bg-rose-50 transition">
+            <button onClick={shareProgram} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-white text-rose-600 hover:bg-rose-50 transition min-h-[44px]">
               <Share2 size={13} /> Share programme
             </button>
-            <button onClick={() => onNavigate('promotions')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-white/20 hover:bg-white/30 transition">
+            <button onClick={() => onNavigate('promotions')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-white/20 hover:bg-white/30 transition min-h-[44px]">
               <WalletCards size={13} /> Design loyalty card
             </button>
           </div>
@@ -164,15 +164,15 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
       {/* Tabs */}
       <div className="flex gap-2">
         <button onClick={() => setTab('members')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === 'members' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'members' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Members ({customers.length})
         </button>
         <button onClick={() => setTab('program')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === 'program' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'program' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Programme
         </button>
         <button onClick={() => setTab('activity')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === 'activity' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'activity' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Activity ({txns.length})
         </button>
       </div>
@@ -186,13 +186,13 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-3">
               <input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
               <input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="Phone / WhatsApp"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
               <input value={form.note} onChange={(e) => setForm({ ...form, note: e.target.value })} placeholder="Note (optional)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </div>
-            <button onClick={addMember} className="mt-3 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+            <button onClick={addMember} className="mt-3 inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
               <Plus size={15} /> Add member
             </button>
             {program.welcomePoints > 0 && (
@@ -257,14 +257,14 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
                       <div className="flex items-center gap-1.5">
                         <input type="number" min="0" value={spend[c.id] || ''} onChange={(e) => setSpend({ ...spend, [c.id]: e.target.value })}
                           placeholder={program.spendPerPoint > 0 ? 'Amount spent (₦)' : 'Add a visit'}
-                          className="w-36 px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-                        <button onClick={() => logVisit(c)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition">
+                          className="inline-flex items-center w-36 px-3 .5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+                        <button onClick={() => logVisit(c)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                           <CheckCircle2 size={13} /> Add visit
                         </button>
                       </div>
                       {options.length > 0 ? (
                         <select value={redeem[c.id] || ''} onChange={(e) => { setRedeem({ ...redeem, [c.id]: e.target.value }); doRedeem(c, e.target.value); }}
-                          className="px-3 py-1.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+                          className="inline-flex items-center px-3 .5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
                           <option value="">Redeem reward…</option>
                           {options.map((o) => (
                             <option key={o.id} value={o.id}>{o.label}{o.cost > 0 ? ` (${o.cost} pts)` : ''}</option>
@@ -273,10 +273,10 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
                       ) : (
                         <span className="text-[11px] text-gray-400">Earn more to unlock rewards</span>
                       )}
-                      <button onClick={() => sendBalance(c)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                      <button onClick={() => sendBalance(c)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                         <Send size={13} /> Balance
                       </button>
-                      <button onClick={() => removeMember(c)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition">
+                      <button onClick={() => removeMember(c)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                         <Trash2 size={13} />
                       </button>
                     </div>
@@ -322,27 +322,27 @@ export default function CustomerLoyaltyHub({ business, onNavigate }: Props) {
               <div className="lg:col-span-2">
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Programme name</label>
                 <input value={program.name} onChange={(e) => persistProgram({ ...program, name: e.target.value })} placeholder="e.g. Meat Club Rewards"
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Spend per point (₦)</label>
                 <input type="number" min="0" value={program.spendPerPoint} onChange={(e) => persistProgram({ ...program, spendPerPoint: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Point value (₦ off)</label>
                 <input type="number" min="0" value={program.pointValue} onChange={(e) => persistProgram({ ...program, pointValue: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Welcome bonus</label>
                 <input type="number" min="0" value={program.welcomePoints} onChange={(e) => persistProgram({ ...program, welcomePoints: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
               <div>
                 <label className="block text-[11px] font-semibold text-gray-700 dark:text-gray-300 mb-1">Stamp card: freebie after…</label>
                 <input type="number" min="0" value={program.stampsForReward} onChange={(e) => persistProgram({ ...program, stampsForReward: Number(e.target.value) || 0 })}
-                  className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                  className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               </div>
             </div>
             <p className="text-[11px] text-gray-400">Set stamps to 5 for a classic “buy 5, get 1 free” card. Set it to 0 to run a pure points programme.</p>

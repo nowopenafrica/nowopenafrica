@@ -103,7 +103,7 @@ export default function DesignCoachPanel({
           {report.canApplyBrand && (
             <button
               onClick={onApplyBrandAccent}
-              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition"
+              className="w-full inline-flex items-center justify-center gap-2 px-3 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]"
             >
               <Palette size={13} /> Apply my saved brand colour
             </button>

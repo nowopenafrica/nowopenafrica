@@ -87,7 +87,7 @@ export default function AnnouncementsStudio({ business }: Props) {
             <Megaphone size={16} className="text-purple-600 dark:text-purple-400" /> New announcement
           </h3>
           <button onClick={() => (showForm ? setShowForm(false) : openForm())}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+            className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> Compose</>}
           </button>
         </div>
@@ -97,14 +97,14 @@ export default function AnnouncementsStudio({ business }: Props) {
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
               {ANNOUNCEMENT_TYPES.map((t) => (
                 <button key={t.key} onClick={() => pickType(t.key)}
-                  className={`text-left px-3 py-2 rounded-lg text-xs font-medium border transition ${type === t.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                  className={`inline-flex items-center text-left px-3 rounded-lg text-xs font-medium border transition ${type === t.key ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                   <span className="block">{t.emoji} {t.label}</span>
                 </button>
               ))}
             </div>
 
             <input value={title} onChange={(e) => setTitle(e.target.value)} placeholder="Title"
-              className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             <textarea value={body} onChange={(e) => setBody(e.target.value)} placeholder="Message"
               className="w-full min-h-[90px] px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
 
@@ -114,10 +114,10 @@ export default function AnnouncementsStudio({ business }: Props) {
             </div>
 
             <div className="flex justify-end gap-2">
-              <button onClick={saveDraft} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition">
+              <button onClick={saveDraft} className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
                 Save draft
               </button>
-              <button onClick={publish} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+              <button onClick={publish} className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 <CheckCircle2 size={15} /> Publish to profile
               </button>
             </div>
@@ -154,16 +154,16 @@ export default function AnnouncementsStudio({ business }: Props) {
                     <p className="text-[11px] text-gray-400 mt-2">{announcementLabel(a.type)} · {new Date(`${a.date}T00:00:00`).toLocaleDateString()}</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={() => togglePin(a.id)} title={a.pinned ? 'Unpin' : 'Pin'} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition">
+                    <button onClick={() => togglePin(a.id)} title={a.pinned ? 'Unpin' : 'Pin'} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
                       {a.pinned ? <PinOff size={13} /> : <Pin size={13} />}
                     </button>
-                    <button onClick={() => copy(a)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                    <button onClick={() => copy(a)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                       {copiedId === a.id ? 'Copied!' : 'Copy'} <Copy size={13} />
                     </button>
-                    <button onClick={() => share(a)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition">
+                    <button onClick={() => share(a)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                       <Send size={13} /> WhatsApp
                     </button>
-                    <button onClick={() => remove(a.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition">
+                    <button onClick={() => remove(a.id)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                       <Trash2 size={13} />
                     </button>
                   </div>

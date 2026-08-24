@@ -54,7 +54,7 @@ export default function PromptLibrary() {
         <div className="mt-4 flex flex-wrap gap-2">
           {(['All', ...CATEGORIES] as const).map((c) => (
             <button key={c} onClick={() => setCategory(c)}
-              className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${category === c ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+              className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-semibold border transition ${category === c ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
               {c}
             </button>
           ))}
@@ -73,7 +73,7 @@ export default function PromptLibrary() {
               {p.tags.map((t) => <span key={t} className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[10px] font-semibold text-gray-600 dark:text-gray-300">{t}</span>)}
             </div>
             <button onClick={() => copy(p)}
-              className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-2 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+              className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
               <Copy size={13} /> Copy prompt
             </button>
           </div>

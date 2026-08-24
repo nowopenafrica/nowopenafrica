@@ -38,7 +38,7 @@ export default function VideoTemplateLibrary({ onOpenSection }: Props) {
             </div>
           </div>
           <select value={industry} onChange={(e) => setIndustry(e.target.value)}
-            className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+            className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
             {VIDEO_INDUSTRIES.map((i) => <option key={i.key} value={i.key}>{i.emoji} {i.label}</option>)}
           </select>
         </div>
@@ -78,7 +78,7 @@ export default function VideoTemplateLibrary({ onOpenSection }: Props) {
               <span className="px-2 py-0.5 rounded-md bg-gray-100 dark:bg-gray-700 text-[10px] font-semibold text-gray-600 dark:text-gray-300">{p.channels.join(', ')}</span>
             </div>
             <button onClick={() => onOpenSection?.('video-studio')}
-              className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-purple-600 text-white px-3 py-2 rounded-lg hover:bg-purple-700 transition">
+              className="mt-4 inline-flex items-center justify-center gap-1.5 text-xs font-semibold bg-purple-600 text-white px-3 rounded-lg hover:bg-purple-700 transition min-h-[44px]">
               <Rocket size={13} /> Produce in AI Video Studio <ArrowRight size={12} />
             </button>
           </div>

@@ -155,13 +155,13 @@ export default function WorkforceFactory({
           <div className="flex items-center gap-2">
             {onOpenSection && (
               <button type="button" onClick={() => onOpenSection('workforce')}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+                className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-gray-600 dark:text-gray-300 border border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition min-h-[44px]">
                 <ArrowRight size={13} /> Directory
               </button>
             )}
             {summary.open > 0 && (
               <button type="button" onClick={() => void fillAll()} disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <UserPlus size={13} />} Fill all {summary.open} open roles
               </button>
             )}
@@ -210,7 +210,7 @@ export default function WorkforceFactory({
                         <p className="text-[10px] text-gray-500 dark:text-gray-400 mt-0.5 leading-snug">{r.purpose}</p>
                       </div>
                       <button type="button" onClick={() => { setHiringKey(hiringKey === r.agentKey ? null : r.agentKey); setHireName(''); }}
-                        className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition">
+                        className="shrink-0 inline-flex items-center gap-1 px-2.5 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
                         <UserPlus size={11} /> Hire
                       </button>
                     </div>
@@ -231,10 +231,10 @@ export default function WorkforceFactory({
                           onChange={(e) => setHireName(e.target.value)}
                           placeholder={`Name (defaults to ${r.role})`}
                           aria-label={`Name for ${r.role}`}
-                          className="flex-1 min-w-0 px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          className="flex-1 min-w-0 px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px] items-center"
                         />
                         <button type="submit" disabled={busy}
-                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition">
+                          className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition min-h-[44px]">
                           {busy ? <Loader2 size={11} className="animate-spin" /> : <UserPlus size={11} />} Confirm
                         </button>
                       </form>

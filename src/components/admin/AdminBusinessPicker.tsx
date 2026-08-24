@@ -92,13 +92,13 @@ export default function AdminBusinessPicker({ selectedId, onSelect, strip, tool 
                 value={query}
                 onChange={(e) => setQuery(e.target.value)}
                 placeholder="Search by name or category…"
-                className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500"
+                className="flex items-center w-full pl-9 pr-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]"
               />
             </div>
             <div className="max-h-56 overflow-y-auto space-y-1 pr-1">
               {filtered.map((b) => (
                 <button key={b.id} onClick={() => onSelect(String(b.id))}
-                  className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm text-left transition ${String(b.id) === selectedId ? 'bg-purple-600 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'}`}>
+                  className={`w-full flex items-center gap-3 px-3 rounded-lg text-sm text-left transition ${String(b.id) === selectedId ? 'bg-purple-600 text-white' : 'hover:bg-gray-50 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-200'} min-h-[44px]`}>
                   <span className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs font-bold shrink-0 ${String(b.id) === selectedId ? 'bg-white/20 text-white' : 'bg-purple-100 dark:bg-purple-900/40 text-purple-600 dark:text-purple-300'}`}>
                     {b.name.slice(0, 1).toUpperCase()}
                   </span>

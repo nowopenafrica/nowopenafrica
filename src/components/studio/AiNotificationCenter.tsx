@@ -49,7 +49,7 @@ export default function AiNotificationCenter({ business, onNavigate }: Props) {
           <p className="text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Live status</p>
           <p className="mt-1 text-2xl font-bold text-gray-900 dark:text-white">{brief.statusEmoji} {brief.statusLabel}</p>
           <button onClick={toggle}
-            className="mt-3 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition">
+            className="mt-3 inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-bold bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             <Power size={12} /> Tap to {status === 'closed' ? 'open' : 'close'}
           </button>
         </div>

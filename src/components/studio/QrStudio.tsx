@@ -55,7 +55,7 @@ export default function QrStudio({ business }: { business: Business }) {
           <div className="grid grid-cols-2 gap-2">
             {TARGETS.map((t) => (
               <button key={t.key} onClick={() => setTargetKey(t.key)}
-                className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition ${targetKey === t.key ? 'border-transparent text-white bg-gray-900 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                className={`inline-flex items-center gap-2 px-3 rounded-lg text-xs font-medium border transition ${targetKey === t.key ? 'border-transparent text-white bg-gray-900 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                 <t.icon size={14} /> {t.label}
               </button>
             ))}
@@ -81,7 +81,7 @@ export default function QrStudio({ business }: { business: Business }) {
         <div>
           <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Size</label>
           <select value={size} onChange={(e) => setSize(Number(e.target.value))}
-            className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm">
+            className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]">
             <option value={1024}>Print quality (1024 px) — recommended</option>
             <option value={512}>Standard (512 px)</option>
             <option value={256}>Small (256 px)</option>
@@ -93,16 +93,16 @@ export default function QrStudio({ business }: { business: Business }) {
           <div className="flex items-center gap-2">
             {['#0f172a', '#16a34a', '#7c3aed', '#dc2626', '#2563eb'].map((c) => (
               <button key={c} onClick={() => setDark(c)}
-                className="w-8 h-8 rounded-lg border border-gray-200 dark:border-gray-600"
+                className="w-[44px] h-[44px] rounded-lg border border-gray-200 dark:border-gray-600"
                 style={{ background: c, boxShadow: dark === c ? '0 0 0 2px white, 0 0 0 4px #7c3aed' : undefined }} />
             ))}
             <input type="color" value={dark} onChange={(e) => setDark(e.target.value)}
-              className="w-10 h-8 rounded border border-gray-200 dark:border-gray-600 bg-transparent cursor-pointer" title="Custom colour" />
+              className="w-[44px] h-[44px] rounded border border-gray-200 dark:border-gray-600 bg-transparent cursor-pointer" title="Custom colour" />
           </div>
         </div>
 
         <button onClick={download} disabled={!qr || downloading}
-          className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40">
+          className="w-full inline-flex items-center justify-center gap-2 px-4 .5 rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-40 min-h-[44px]">
           {downloading ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Download QR
         </button>
 

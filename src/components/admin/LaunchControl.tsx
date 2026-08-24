@@ -145,12 +145,12 @@ export default function LaunchControl() {
         <h3 className="text-xs font-bold uppercase tracking-wider text-gray-400 mb-3">Open a launch</h3>
         <div className="grid grid-cols-1 sm:grid-cols-[1fr,1fr,1fr,auto] gap-2">
           <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Feature name…"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            className="inline-flex items-center px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           <input value={area} onChange={(e) => setArea(e.target.value)} placeholder="Owner area…"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            className="inline-flex items-center px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           <input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="Target (e.g. Oct 2026)…"
-            className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
-          <button onClick={() => void add()} className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold bg-purple-600 text-white px-4 py-2 rounded-lg hover:bg-purple-700 transition">
+            className="inline-flex items-center px-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
+          <button onClick={() => void add()} className="inline-flex items-center justify-center gap-1.5 text-sm font-semibold bg-purple-600 text-white px-4 rounded-lg hover:bg-purple-700 transition min-h-[44px]">
             <Plus size={15} /> Add
           </button>
         </div>
@@ -180,13 +180,13 @@ export default function LaunchControl() {
                     <div className="h-full rounded-full bg-gradient-to-r from-orange-500 to-purple-600 transition-all duration-500" style={{ width: `${launchProgress(l)}%` }} />
                   </div>
                   <span className="text-xs font-black text-gray-700 dark:text-gray-200">{launchProgress(l)}%</span>
-                  <button aria-label={`Delete ${l.name}`} onClick={() => void remove(l.id)} className="text-gray-300 hover:text-rose-500 transition"><Trash2 size={14} /></button>
+                  <button aria-label={`Delete ${l.name}`} onClick={() => void remove(l.id)} className="inline-flex items-center justify-center w-[44px] h-[44px] rounded-lg text-gray-300 hover:text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-900/20 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rose-500"><Trash2 size={14} /></button>
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
                 {LAUNCH_CHECKLIST.map((c, i) => (
                   <button key={c} onClick={() => void toggle(l.id, i)}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border transition ${l.done[i] ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+                    className={`flex items-center gap-2 px-3 rounded-lg text-xs font-medium border transition ${l.done[i] ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
                     <CheckSquare size={13} className={l.done[i] ? 'text-emerald-600' : 'text-gray-300 dark:text-gray-600'} />
                     {c}
                   </button>

@@ -126,7 +126,7 @@ export default function BrandKitStudio({ business }: { business: Business }) {
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           {PERSONALITIES.map((p) => (
             <button key={p.key} onClick={() => setPersonalityKey(p.key)}
-              className={`text-left px-3 py-2 rounded-lg text-xs font-medium border transition ${personalityKey === p.key ? 'border-transparent text-white' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}
+              className={`inline-flex items-center text-left px-3 rounded-lg text-xs font-medium border transition ${personalityKey === p.key ? 'border-transparent text-white' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}
               style={personalityKey === p.key ? { background: p.palette.primary } : undefined}>
               {p.label}
             </button>
@@ -146,7 +146,7 @@ export default function BrandKitStudio({ business }: { business: Business }) {
           </span>
           {imageToScan && (
             <button onClick={extract} disabled={extracting}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50">
+              className="inline-flex items-center gap-2 px-3 .5 rounded-lg text-xs font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 min-h-[44px]">
               {extracting ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />} Re-scan logo
             </button>
           )}
@@ -178,7 +178,7 @@ export default function BrandKitStudio({ business }: { business: Business }) {
         <div className="flex flex-wrap gap-2 mb-4">
           {logo ? (
             <button onClick={() => downloadRemoteUrl(logo, `${slugForFile(business.name)}-logo.png`)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90">
+              className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 min-h-[44px]">
               <Download size={15} /> Original logo
             </button>
           ) : (
@@ -186,18 +186,18 @@ export default function BrandKitStudio({ business }: { business: Business }) {
           )}
           {cover && (
             <button onClick={() => downloadRemoteUrl(cover, `${slugForFile(business.name)}-cover.png`)}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+              className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
               <Download size={15} /> Profile cover
             </button>
           )}
         </div>
         <div className="flex flex-wrap gap-2">
           <button onClick={() => { downloadBrandGuidelinesPdf(business, dna, identity); toast.success('Brand guidelines PDF downloaded'); }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700">
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 min-h-[44px]">
             <Download size={15} /> Download PDF
           </button>
           <button onClick={() => { downloadText(brandGuidelinesText(business, dna, identity), `${slugForFile(business.name)}-brand-guidelines.txt`); toast.success('Brand guidelines text downloaded'); }}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700">
+            className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
             <Copy size={15} /> Download .txt
           </button>
           <span className="inline-flex items-center gap-1.5 text-[11px] text-gray-400"><ImageIcon size={12} /> Your digital business card, Smart ID, QR and brand-kit downloads live in Export Centre.</span>

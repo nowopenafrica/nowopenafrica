@@ -110,7 +110,7 @@ export default function ProposalStudio({ business }: Props) {
           <h3 className="text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
             <FileSignature size={16} className="text-purple-600 dark:text-purple-400" /> New proposal / quote
           </h3>
-          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+          <button onClick={() => setShowForm((v) => !v)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             {showForm ? <><X size={15} /> Close</> : <><Plus size={15} /> New proposal</>}
           </button>
         </div>
@@ -120,30 +120,30 @@ export default function ProposalStudio({ business }: Props) {
           <div className="mt-4 space-y-4">
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Client name"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               <input value={clientPhone} onChange={(e) => setClientPhone(e.target.value)} placeholder="Client phone / WhatsApp (optional)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
               <input value={clientEmail} onChange={(e) => setClientEmail(e.target.value)} placeholder="Client email (optional)"
-                className="w-full px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                className="flex items-center w-full px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
             </div>
 
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">Line items</p>
-                <span className="text-[11px] text-gray-400">Valid until: <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className="px-2 py-1 rounded-md border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-xs" /></span>
+                <span className="text-[11px] text-gray-400">Valid until: <input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} className="inline-flex items-center px-2 rounded-md border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-xs min-h-[44px]" /></span>
               </div>
               {items.map((item) => (
                 <div key={item.id} className="grid grid-cols-1 sm:grid-cols-[1fr,1fr,64px,110px,110px,36px] gap-2 items-center">
                   <input value={item.title} onChange={(e) => updateItem(item.id, { title: e.target.value })} placeholder="Item / service"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <input value={item.description} onChange={(e) => updateItem(item.id, { description: e.target.value })} placeholder="Description"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <input type="number" min="1" value={item.qty} onChange={(e) => updateItem(item.id, { qty: Number(e.target.value) })} placeholder="Qty"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <input value={item.unit} onChange={(e) => updateItem(item.id, { unit: e.target.value })} placeholder="Unit"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <input type="number" min="0" step="50" value={item.price} onChange={(e) => updateItem(item.id, { price: Number(e.target.value) })} placeholder="Unit price (₦)"
-                    className="px-3 py-2 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm" />
+                    className="inline-flex items-center px-3 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg text-sm min-h-[44px]" />
                   <button onClick={() => setItems(items.filter((i) => i.id !== item.id))} className="text-gray-400 hover:text-red-500 transition flex justify-center">
                     <Trash2 size={15} />
                   </button>
@@ -166,7 +166,7 @@ export default function ProposalStudio({ business }: Props) {
             </div>
 
             <div className="flex justify-end">
-              <button onClick={addProposal} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+              <button onClick={addProposal} className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                 <Plus size={15} /> Create proposal
               </button>
             </div>
@@ -223,27 +223,27 @@ export default function ProposalStudio({ business }: Props) {
 
                 <div className="mt-3 flex flex-wrap gap-2">
                   {p.status !== 'sent' && p.status !== 'accepted' && p.status !== 'declined' && (
-                    <button onClick={() => send(p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition">
+                    <button onClick={() => send(p)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
                       <Send size={13} /> Send on WhatsApp
                     </button>
                   )}
                   {p.status !== 'accepted' && p.status !== 'declined' && (
-                    <button onClick={() => setStatus(p.id, 'accepted')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition">
+                    <button onClick={() => setStatus(p.id, 'accepted')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
                       <CheckCircle2 size={13} /> Accept
                     </button>
                   )}
                   {p.status !== 'accepted' && p.status !== 'declined' && (
-                    <button onClick={() => setStatus(p.id, 'declined')} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition">
+                    <button onClick={() => setStatus(p.id, 'declined')} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-red-600 text-white hover:bg-red-700 transition min-h-[44px]">
                       Decline
                     </button>
                   )}
-                  <button onClick={() => copyDoc(p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition">
+                  <button onClick={() => copyDoc(p)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
                     {copiedId === p.id ? 'Copied!' : 'Copy doc'} <Copy size={13} />
                   </button>
-                  <button onClick={() => download(p)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition">
+                  <button onClick={() => download(p)} className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
                     <Download size={13} /> Download
                   </button>
-                  <button onClick={() => removeProposal(p.id)} className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition">
+                  <button onClick={() => removeProposal(p.id)} className="inline-flex items-center gap-1.5 px-2.5 .5 rounded-lg text-xs font-medium text-gray-400 hover:text-red-500 transition min-h-[44px]">
                     <Trash2 size={13} />
                   </button>
                 </div>

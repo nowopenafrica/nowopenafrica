@@ -71,12 +71,12 @@ export default function KnowledgeBase() {
         <div className="relative mt-4">
           <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
           <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the docs…"
-            className="w-full pl-9 pr-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500" />
+            className="flex items-center w-full pl-9 pr-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
         </div>
         <div className="mt-3 flex flex-wrap gap-2">
           {categories.map((c) => (
             <button key={c} onClick={() => setCategory(c)}
-              className={`inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border transition ${category === c ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+              className={`inline-flex items-center px-3 .5 rounded-lg text-xs font-semibold border transition ${category === c ? 'border-transparent text-white bg-purple-600' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
               {c}
             </button>
           ))}
@@ -85,7 +85,7 @@ export default function KnowledgeBase() {
           <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400 dark:text-gray-500">Source:</span>
           {(['all', 'sop', 'decision', 'manual'] as const).map((s) => (
             <button key={s} onClick={() => setSource(s)}
-              className={`inline-flex items-center px-2 py-1 rounded-md text-[10px] font-semibold border transition ${source === s ? 'border-transparent text-white bg-slate-600' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'}`}>
+              className={`inline-flex items-center px-2 rounded-md text-[10px] font-semibold border transition ${source === s ? 'border-transparent text-white bg-slate-600' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
               {s === 'all' ? 'All' : s === 'sop' ? 'SOP' : s === 'decision' ? 'Decisions' : 'Manual'}
             </button>
           ))}

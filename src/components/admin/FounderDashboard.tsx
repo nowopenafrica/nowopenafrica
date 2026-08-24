@@ -135,20 +135,25 @@ export default function FounderDashboard({ onOpenSection }: Props) {
   useEffect(() => { void loadOs(); }, [loadOs]);
 
   const health = useMemo(() => {
-    if (!stats) return { score: 0, items: [] as { label: string; earned: number; max: number }[] };
+    if (!stats) return { score: 0, total: 100, items: [] as { label: string; earned: number; max: number }[] };
     const verifiedRate = stats.totalBusinesses ? stats.verifiedBusinesses / stats.totalBusinesses : 0;
     const momentum = stats.businessesToday > 0 ? Math.min(1, stats.businessesToday / 3) : 0;
     const approvals = stats.pendingApprovals === 0 ? 1 : Math.max(0, 1 - stats.pendingApprovals / 8);
     const publishing = stats.publishedPosts > 0 ? Math.min(1, stats.publishedPosts / 20) : 0;
-    const uptime = stats.uptime / 100;
+    // Uptime is only a row when something actually measured it. As a
+    // hardcoded 99.9 it awarded a permanent 10/10 and quietly lifted the
+    // headline score for every founder, every day, on no evidence.
     const items = [
       { label: 'Verification rate', earned: Math.round(verifiedRate * 25), max: 25 },
       { label: 'Publishing momentum', earned: Math.round(publishing * 25), max: 25 },
       { label: 'Approval queue', earned: Math.round(approvals * 20), max: 20 },
       { label: 'Onboarding velocity', earned: Math.round(momentum * 20), max: 20 },
-      { label: 'Platform uptime', earned: Math.round(uptime * 10), max: 10 },
+      ...(stats.uptime !== null
+        ? [{ label: 'Platform uptime', earned: Math.round((stats.uptime / 100) * 10), max: 10 }]
+        : []),
     ];
-    return { score: items.reduce((s, i) => s + i.earned, 0), items };
+    const total = items.reduce((s, i) => s + i.max, 0);
+    return { score: items.reduce((s, i) => s + i.earned, 0), total, items };
   }, [stats]);
 
   const founderBrief = useMemo(() => {
@@ -187,7 +192,7 @@ export default function FounderDashboard({ onOpenSection }: Props) {
             Sample data — backend offline
           </span>
         )}
-        <button onClick={() => void reload()} className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+        <button onClick={() => void reload()} className="ml-auto inline-flex items-center gap-1.5 min-h-[44px] px-2 rounded-lg text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
           <ArrowRight size={12} className="rotate-180" /> Refresh
         </button>
       </div>
@@ -203,12 +208,12 @@ export default function FounderDashboard({ onOpenSection }: Props) {
               <circle cx="64" cy="64" r="54" fill="none" strokeWidth="11" className="stroke-gray-100 dark:stroke-gray-700" />
               <circle cx="64" cy="64" r="54" fill="none" strokeWidth="11" strokeLinecap="round"
                 strokeDasharray={circumference}
-                strokeDashoffset={circumference - (health.score / 100) * circumference}
+                strokeDashoffset={circumference - (health.score / health.total) * circumference}
                 className="stroke-purple-500 transition-all duration-700" />
             </svg>
             <div className="absolute inset-0 flex flex-col items-center justify-center">
               <span className="text-3xl font-black text-gray-900 dark:text-white">{health.score}</span>
-              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">/ 100</span>
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">/ {health.total}</span>
             </div>
           </div>
           <div className="mt-5 space-y-2.5">
@@ -317,7 +322,7 @@ export default function FounderDashboard({ onOpenSection }: Props) {
                           <button
                             key={`${a.module}-${a.label}`}
                             onClick={() => onOpenSection?.(a.module)}
-                            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 py-1 text-[11px] font-medium hover:bg-white/20 transition"
+                            className="inline-flex items-center gap-1.5 rounded-full bg-white/10 border border-white/15 px-3 text-[11px] font-medium hover:bg-white/20 transition min-h-[44px]"
                           >
                             <ArrowRight size={11} className="rotate-45" /> {a.value} {a.label}
                           </button>
@@ -347,10 +352,10 @@ export default function FounderDashboard({ onOpenSection }: Props) {
             {snapshotCopied && (
               <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Snapshot copied</span>
             )}
-            <button onClick={() => void copySnapshot()} className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+            <button onClick={() => void copySnapshot()} className="inline-flex items-center min-h-[44px] px-2 rounded-lg text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
               <Copy size={12} className="inline mr-0.5" /> Copy OS snapshot
             </button>
-            <button onClick={() => void loadOs()} className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400">
+            <button onClick={() => void loadOs()} className="inline-flex items-center min-h-[44px] px-2 rounded-lg text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500">
               <ArrowRight size={12} className="rotate-180 inline mr-0.5" /> Refresh
             </button>
           </div>

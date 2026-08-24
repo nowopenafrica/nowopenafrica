@@ -229,7 +229,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Status</span>
           <select value={filters.status} onChange={(e) => setFilters((f) => ({ ...f, status: e.target.value as ApprovalFilters['status'] }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">All statuses</option>
             {APPROVAL_STATUSES.map((s) => <option key={s} value={s}>{APPROVAL_STATUS_LABELS[s]}</option>)}
           </select>
@@ -237,7 +237,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Department</span>
           <select value={filters.department} onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">All departments</option>
             {DEPARTMENTS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
           </select>
@@ -295,7 +295,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                         <p className="mt-2 text-xs text-gray-600 dark:text-gray-300 leading-relaxed">{r.reason}</p>
                         <div className="mt-3 flex flex-wrap items-center gap-2">
                           <button type="button" disabled={actioning !== null} onClick={() => void decide(r, 'approved')}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                            className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                             {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
                             Approve
                           </button>
@@ -312,7 +312,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                               />
                               <div className="mt-2 flex items-center gap-2">
                                 <button type="button" disabled={actioning !== null} onClick={() => void decide(r, 'rejected', rejectNote)}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                                   {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
                                   Send back with note
                                 </button>
@@ -324,7 +324,7 @@ export default function ApprovalsHub({ onOpenSection }: { onOpenSection?: (id: s
                             </div>
                           ) : (
                             <button type="button" disabled={actioning !== null} onClick={() => { setRejectingId(r.id); setRejectNote(''); }}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                              className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-rose-600 hover:bg-rose-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                               {busy ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />}
                               Reject
                             </button>

@@ -247,17 +247,13 @@ export default function ApplicationsReview() {
       <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 space-y-3">
         <div className="flex flex-wrap gap-1.5">
           <button type="button" onClick={() => setRelationshipFilter('all')}
-            className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${relationshipFilter === 'all'
-              ? 'bg-purple-600 text-white'
-              : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+            className={`inline-flex items-center px-2.5 rounded-full text-[10px] font-bold transition ${relationshipFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}
             aria-pressed={relationshipFilter === 'all'}>
             All · {summary.total}
           </button>
           {HUB_RELATIONSHIP_TYPES.map((r) => (
             <button key={r} type="button" onClick={() => setRelationshipFilter(r)}
-              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${relationshipFilter === r
-                ? 'bg-purple-600 text-white'
-                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}
+              className={`inline-flex items-center px-2.5 rounded-full text-[10px] font-bold transition ${relationshipFilter === r ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}
               aria-pressed={relationshipFilter === r}>
               {hubRelationshipById(r)?.emoji} {hubRelationshipById(r)?.label} · {summary.byRelationship[r] ?? 0}
             </button>
@@ -270,14 +266,14 @@ export default function ApplicationsReview() {
             <input value={search} onChange={(e) => setSearch(e.target.value)}
               aria-label="Search applications"
               placeholder="Search by name, email or reference…"
-              className="w-full pl-8 pr-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500" />
+              className="flex items-center w-full pl-8 pr-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
           </div>
           <label className="flex items-center gap-1.5">
             <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Status</span>
             <select value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value as 'all' | ApplicationStatus)}
               aria-label="Filter by status"
-              className="px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+              className="inline-flex items-center px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
               <option value="all">All statuses</option>
               {APPLICATION_STATUSES.map((s) => (
                 <option key={s} value={s}>{APPLICATION_STATUS_LABELS[s]}</option>
@@ -311,7 +307,7 @@ export default function ApplicationsReview() {
               <div className="p-3">
                 <div className="flex items-center justify-between gap-2">
                   <button type="button" onClick={() => setOpenId(open ? null : a.id)}
-                    className="min-w-0 text-left flex-1 flex items-center gap-2" aria-label={`${a.applicant_name} application details`}>
+                    className="min-w-0 text-left flex-1 flex items-center gap-2 min-h-[44px] rounded-lg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500" aria-label={`${a.applicant_name} application details`}>
                     <span className="text-lg shrink-0">{hubRelationshipById(a.relationship)?.emoji}</span>
                     <span className="min-w-0">
                       <span className="block text-xs font-bold text-gray-900 dark:text-white truncate">{a.applicant_name}</span>
@@ -330,23 +326,23 @@ export default function ApplicationsReview() {
                   <span className="px-1.5 py-0.5 rounded bg-gray-100 dark:bg-gray-700 text-[9px] font-bold text-gray-500 dark:text-gray-400">{a.country}</span>
                   {a.status === 'approved' ? (
                     <button type="button" onClick={() => onboard(a)} disabled={busy}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition">
+                      className="inline-flex items-center gap-1 px-2 rounded-lg text-[10px] font-bold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 transition min-h-[44px]">
                       <UserPlus size={10} /> Onboard
                     </button>
                   ) : canAdvance(a) && next && (
                     <button type="button" onClick={() => advance(a)} disabled={busy}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition">
+                      className="inline-flex items-center gap-1 px-2 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition min-h-[44px]">
                       <ArrowRight size={10} /> Advance to {APPLICATION_STATUS_LABELS[next]}
                     </button>
                   )}
                   {a.status === 'archived' && a.rejected === true ? (
                     <button type="button" onClick={() => reopen(a)} disabled={busy}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition">
+                      className="inline-flex items-center gap-1 px-2 rounded-lg text-[10px] font-bold text-gray-700 dark:text-gray-200 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50 transition min-h-[44px]">
                       <RotateCcw size={10} /> Reopen
                     </button>
                   ) : (
                     <button type="button" onClick={() => { setRejectTarget(a); setNote(''); }}
-                      className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 transition">
+                      className="inline-flex items-center gap-1 px-2 rounded-lg text-[10px] font-bold text-red-700 dark:text-red-300 bg-red-50 dark:bg-red-900/30 hover:bg-red-100 dark:hover:bg-red-900/50 transition min-h-[44px]">
                       <XCircle size={10} /> Reject
                     </button>
                   )}
@@ -440,11 +436,11 @@ export default function ApplicationsReview() {
             </label>
             <div className="flex justify-end gap-2">
               <button type="button" onClick={() => setRejectTarget(null)}
-                className="px-3 py-1.5 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                className="inline-flex items-center px-3 .5 rounded-lg text-xs font-bold text-gray-600 dark:text-gray-300 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                 Cancel
               </button>
               <button type="submit" disabled={busy}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition">
+                className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-50 transition min-h-[44px]">
                 {busy ? <Loader2 size={13} className="animate-spin" /> : <XCircle size={13} />} Reject application
               </button>
             </div>

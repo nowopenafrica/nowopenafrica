@@ -152,7 +152,8 @@ export interface CommandStats {
   videoQueue: number;
   campaigns: number;
   openSupport: number;
-  uptime: number;
+  /** Percent, or null when nothing measures it. */
+  uptime: number | null;
   topCategory?: string;
 }
 
@@ -172,8 +173,8 @@ export interface CommandRaw {
   videoQueue: number;
   /** Campaigns created across all businesses. */
   campaigns: number;
-  /** Last 30 days uptime, percent. */
-  uptime: number;
+  /** Last 30 days uptime, percent, or null when nothing is monitoring it. */
+  uptime: number | null;
 }
 
 const isToday = (iso: string | undefined, now = new Date()): boolean => {

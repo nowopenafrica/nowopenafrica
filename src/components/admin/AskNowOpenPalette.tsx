@@ -149,7 +149,7 @@ export default function AskNowOpenPalette({
               type="button"
               onClick={() => activate(item)}
               onMouseEnter={() => setActiveIndex(i)}
-              className={`w-full text-left px-3 py-2 rounded-lg flex items-start gap-3 transition ${i === activeIndex ? 'bg-purple-50 dark:bg-purple-900/30' : ''}`}
+              className={`w-full text-left px-3 rounded-lg flex items-start gap-3 transition ${i === activeIndex ? 'bg-purple-50 dark:bg-purple-900/30' : ''} min-h-[44px]`}
             >
               <span className={`mt-1 shrink-0 inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-bold uppercase tracking-wide ${
                 item.kind === 'go'

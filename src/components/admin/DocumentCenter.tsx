@@ -176,18 +176,18 @@ export default function DocumentCenter() {
             </div>
           </div>
           <button type="button" onClick={() => setFormOpen((o) => !o)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition">
+            className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
             <FilePlus2 size={13} /> New document
           </button>
         </div>
         <div className="mt-3 flex flex-wrap gap-1.5">
           <button type="button" onClick={() => setStatusFilter('all')}
-            className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${statusFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+            className={`inline-flex items-center px-2.5 rounded-full text-[10px] font-bold transition ${statusFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
             All · {summary.total}
           </button>
           {DOCUMENT_STATUSES.map((s) => (
             <button key={s} type="button" onClick={() => setStatusFilter(s)}
-              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${statusFilter === s ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+              className={`inline-flex items-center px-2.5 rounded-full text-[10px] font-bold transition ${statusFilter === s ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
               {DOCUMENT_STATUS_LABELS[s]} · {summary.byStatus[s]}
             </button>
           ))}
@@ -209,7 +209,7 @@ export default function DocumentCenter() {
               <select value={form.templateId}
                 onChange={(e) => setForm({ ...form, templateId: e.target.value })}
                 aria-label="Document template"
-                className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                 {AGREEMENT_TEMPLATES.map((t) => (
                   <option key={t.id} value={t.id}>{t.title}</option>
                 ))}
@@ -220,7 +220,7 @@ export default function DocumentCenter() {
               <select value={form.relationship}
                 onChange={(e) => setForm({ ...form, relationship: e.target.value as RelationshipType })}
                 aria-label="Counterparty relationship"
-                className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500">
+                className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]">
                 {RELATIONSHIP_OPTIONS.map((o) => (
                   <option key={o.id} value={o.id}>{o.emoji} {o.label}</option>
                 ))}
@@ -232,7 +232,7 @@ export default function DocumentCenter() {
                 onChange={(e) => setForm({ ...form, counterpartyName: e.target.value })}
                 placeholder="Meatclub Nigeria"
                 aria-label="Counterparty name"
-                className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </label>
             <label className="block">
               <span className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Counterparty email</span>
@@ -240,11 +240,11 @@ export default function DocumentCenter() {
                 onChange={(e) => setForm({ ...form, counterpartyEmail: e.target.value })}
                 placeholder="ops@meatclub.ng"
                 aria-label="Counterparty email"
-                className="mt-1 w-full px-2.5 py-1.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500" />
+                className="flex items-center mt-1 w-full px-2.5 .5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-purple-500 min-h-[44px]" />
             </label>
           </div>
           <button type="submit" disabled={busy}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition">
+            className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-bold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 transition min-h-[44px]">
             {busy ? <Loader2 size={13} className="animate-spin" /> : <FilePlus2 size={13} />} Generate draft
           </button>
         </form>
@@ -270,7 +270,7 @@ export default function DocumentCenter() {
                   </span>
                   <button type="button"
                     onClick={() => { setForm({ ...EMPTY_FORM, templateId: t.id }); setFormOpen(true); }}
-                    className="inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition">
+                    className="inline-flex items-center gap-1 px-2 rounded-lg text-[10px] font-bold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
                     <FilePlus2 size={10} /> Generate
                   </button>
                 </div>

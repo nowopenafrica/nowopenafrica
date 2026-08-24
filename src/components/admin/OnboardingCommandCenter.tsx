@@ -108,12 +108,12 @@ export default function OnboardingCommandCenter() {
           </div>
           <div className="flex flex-wrap gap-1.5">
             <button type="button" onClick={() => setStatusFilter('all')}
-              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${statusFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+              className={`inline-flex items-center px-2.5 rounded-full text-[10px] font-bold transition ${statusFilter === 'all' ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
               All · {summary.total}
             </button>
             {ONBOARDING_STATUSES.map((s) => (
               <button key={s} type="button" onClick={() => setStatusFilter(s)}
-                className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition ${statusFilter === s ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                className={`inline-flex items-center px-2.5 rounded-full text-[10px] font-bold transition ${statusFilter === s ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
                 {ONBOARDING_STATUS_LABELS[s]} · {summary.byStatus[s]}
               </button>
             ))}

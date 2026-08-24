@@ -86,11 +86,11 @@ export default function GrowthChallenges({ business, onNavigate }: Props) {
       {/* Tabs */}
       <div className="flex gap-2">
         <button onClick={() => setTab('open')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === 'open' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'open' ? 'bg-purple-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Open ({cards.filter((c) => !c.complete).length})
         </button>
         <button onClick={() => setTab('done')}
-          className={`px-3.5 py-1.5 rounded-lg text-sm font-medium transition ${tab === 'done' ? 'bg-green-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'}`}>
+          className={`inline-flex items-center px-3.5 .5 rounded-lg text-sm font-medium transition ${tab === 'done' ? 'bg-green-600 text-white' : 'border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
           Completed ({cards.filter((c) => c.complete).length})
         </button>
       </div>
@@ -139,7 +139,7 @@ export default function GrowthChallenges({ business, onNavigate }: Props) {
 
                 <div className="mt-4 flex gap-2">
                   {complete && !isClaimed ? (
-                    <button onClick={() => claim(c.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-bold bg-amber-500 text-amber-950 hover:bg-amber-400 transition">
+                    <button onClick={() => claim(c.id)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 rounded-lg text-sm font-bold bg-amber-500 text-amber-950 hover:bg-amber-400 transition min-h-[44px]">
                       <Star size={14} /> Claim {c.points} pts
                     </button>
                   ) : complete && isClaimed ? (
@@ -147,7 +147,7 @@ export default function GrowthChallenges({ business, onNavigate }: Props) {
                       <CheckCircle2 size={14} /> Claimed
                     </span>
                   ) : (
-                    <button onClick={() => onNavigate(c.module)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+                    <button onClick={() => onNavigate(c.module)} className="flex-1 inline-flex items-center justify-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
                       Start in Studio <ArrowRight size={14} />
                     </button>
                   )}

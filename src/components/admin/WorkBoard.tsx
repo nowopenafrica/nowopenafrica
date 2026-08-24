@@ -275,7 +275,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
           </p>
         </div>
         <button type="button" onClick={() => setShowForm((v) => !v)}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 transition">
+          className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 transition min-h-[44px]">
           <Plus size={15} /> Add item
         </button>
       </div>
@@ -394,12 +394,12 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
             {humanOwner && (
               humanOwner.status === 'clocked-in' ? (
                 <button type="button" disabled={saving} onClick={() => void toggleClock(false)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <X size={13} />} Clock out
                 </button>
               ) : (
                 <button type="button" disabled={saving} onClick={() => void toggleClock(true)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                  className="inline-flex items-center gap-1.5 px-3 .5 rounded-lg text-xs font-semibold text-white bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                   {saving ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />} Clock in
                 </button>
               )
@@ -430,7 +430,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
               <div className="mt-1 grid grid-cols-3 gap-1 rounded-lg bg-gray-100 dark:bg-gray-700 p-1">
                 {WORK_KINDS.map((k) => (
                   <button key={k} type="button" onClick={() => setFormKind(k)}
-                    className={`px-2 py-1.5 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}>
+                    className={`inline-flex items-center px-2 .5 rounded-md text-xs font-semibold transition ${formKind === k ? 'bg-white dark:bg-gray-900 text-gray-900 dark:text-white shadow-sm' : 'text-gray-500 dark:text-gray-400'} min-h-[44px]`}>
                     {WORK_KIND_LABELS[k]}
                   </button>
                 ))}
@@ -439,19 +439,19 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Title</span>
               <input value={formTitle} onChange={(e) => setFormTitle(e.target.value)} placeholder="e.g. Launch restaurant campaign"
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2" />
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]" />
             </label>
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Department</span>
               <select value={formDepartment} onChange={(e) => setFormDepartment(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
                 {DEPARTMENTS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
               </select>
             </label>
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Assignee</span>
               <select value={formAssignee} onChange={(e) => setFormAssignee(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
                 <option value="none">Unassigned</option>
                 {members.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.kind === 'ai' ? 'AI' : 'Human'})</option>)}
               </select>
@@ -459,19 +459,19 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Priority</span>
               <select value={formPriority} onChange={(e) => setFormPriority(e.target.value as WorkPriority)}
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
                 {WORK_PRIORITIES.map((p) => <option key={p} value={p}>{WORK_PRIORITY_LABELS[p]}</option>)}
               </select>
             </label>
             <label className="block">
               <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Due date</span>
               <input type="date" value={formDue} onChange={(e) => setFormDue(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2" />
+                className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]" />
             </label>
           </div>
           <div className="flex justify-end">
             <button type="submit" disabled={!formTitle.trim() || saving}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+              className="inline-flex items-center gap-1.5 px-4 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
               {saving ? <Loader2 size={15} className="animate-spin" /> : <Plus size={15} />}
               {saving ? 'Saving…' : 'Add to board'}
             </button>
@@ -483,7 +483,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Kind</span>
           <select value={filters.kind} onChange={(e) => setFilters((f) => ({ ...f, kind: e.target.value as WorkFilters['kind'] }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">All kinds</option>
             {WORK_KINDS.map((k) => <option key={k} value={k}>{WORK_KIND_LABELS[k]}</option>)}
           </select>
@@ -491,7 +491,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Department</span>
           <select value={filters.department} onChange={(e) => setFilters((f) => ({ ...f, department: e.target.value }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">All departments</option>
             {DEPARTMENTS.map((d) => <option key={d.name} value={d.name}>{d.name}</option>)}
           </select>
@@ -499,7 +499,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
         <label className="block">
           <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Assignee</span>
           <select value={filters.assignee} onChange={(e) => setFilters((f) => ({ ...f, assignee: e.target.value }))}
-            className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+            className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
             <option value="all">Everyone</option>
             <option value="none">Unassigned</option>
             {members.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.kind === 'ai' ? 'AI' : 'Human'})</option>)}
@@ -576,7 +576,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
                 <div className="mt-1 flex flex-wrap gap-1">
                   {WORK_STATUSES.map((s) => (
                     <button key={s} type="button" onClick={() => setDraftStatus(s)}
-                      className={`px-2 py-1 rounded-md text-[11px] font-semibold transition ${draftStatus === s ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                      className={`inline-flex items-center px-2 rounded-md text-[11px] font-semibold transition ${draftStatus === s ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
                       {WORK_STATUS_LABELS[s]}
                     </button>
                   ))}
@@ -587,21 +587,21 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
                 <label className="block">
                   <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Priority</span>
                   <select value={draftPriority} onChange={(e) => setDraftPriority(e.target.value as WorkPriority)}
-                    className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+                    className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
                     {WORK_PRIORITIES.map((p) => <option key={p} value={p}>{WORK_PRIORITY_LABELS[p]}</option>)}
                   </select>
                 </label>
                 <label className="block">
                   <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Due date</span>
                   <input type="date" value={draftDue} onChange={(e) => setDraftDue(e.target.value)}
-                    className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2" />
+                    className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]" />
                 </label>
               </div>
 
               <label className="block">
                 <span className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide">Assignee</span>
                 <select value={draftAssignee} onChange={(e) => setDraftAssignee(e.target.value)}
-                  className="mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 py-2">
+                  className="flex items-center mt-1 w-full rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white px-3 min-h-[44px]">
                   <option value="none">Unassigned</option>
                   {members.map((m) => <option key={m.id} value={m.id}>{m.name} ({m.kind === 'ai' ? 'AI' : 'Human'})</option>)}
                 </select>
@@ -631,7 +631,7 @@ export default function WorkBoard({ onOpenSection }: { onOpenSection?: (id: stri
               </div>
 
               <button type="button" onClick={saveDraft} disabled={saving}
-                className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition">
+                className="w-full inline-flex items-center justify-center gap-1.5 px-3 rounded-lg text-sm font-semibold text-white bg-purple-600 hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition min-h-[44px]">
                 {saving ? <Loader2 size={15} className="animate-spin" /> : <CheckCircle2 size={15} />}
                 {saving ? 'Saving…' : 'Save changes'}
               </button>

@@ -42,17 +42,17 @@ export default function MonthlyPlanner({ business }: Props) {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <button onClick={() => shift(-1)} className="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <button onClick={() => shift(-1)} className="w-[44px] h-[44px] rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
             <ChevronLeft size={16} />
           </button>
           <span className="px-3 py-2 text-sm font-bold text-gray-900 dark:text-white rounded-lg border border-gray-200 dark:border-gray-700">
             {MONTH_LABELS[month]} {year}
           </span>
-          <button onClick={() => shift(1)} className="w-9 h-9 rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          <button onClick={() => shift(1)} className="w-[44px] h-[44px] rounded-lg border border-gray-200 dark:border-gray-700 flex items-center justify-center text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
             <ChevronRight size={16} />
           </button>
           <button onClick={generate}
-            className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition">
+            className="inline-flex items-center gap-1.5 px-4 rounded-lg text-xs font-bold bg-blue-600 text-white hover:bg-blue-700 transition min-h-[44px]">
             <Download size={13} /> Add {plan.length} days to calendar
           </button>
         </div>
