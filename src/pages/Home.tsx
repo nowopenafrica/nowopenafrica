@@ -1,37 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Search, ArrowRight, ChevronRight, Shield, Zap, Target, BarChart3, Store, Megaphone, Palette, Layers } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import { ArrowRight, Shield, Zap, Target, BarChart3, Store, Megaphone, Palette, Layers } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { INDUSTRIES } from '../data/industrySystems';
 import { generateAdverts, generateBusinesses, generateMediaServices } from '../data/populateData';
 import { Advertisement, Business, MediaService } from '../types';
 import { useCacheBuster } from '../hooks/useCacheBuster';
 import { applySeo } from '../lib/seo';
-import { track } from '../lib/telemetry';
-import { InfiniteSlider } from '../components/InfiniteSlider';
-import GlobalSearchInput from '../components/GlobalSearchInput';
-import LocationAutocomplete from '../components/LocationAutocomplete';
 import BrandMarquee from '../components/BrandMarquee';
 import HeroSlider from '../components/HeroSlider';
+import ListingExplorer from '../components/home/ListingExplorer';
 import { loadHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 
-const LISTING_TABS = [
-  { key: 'businesses' as const, label: 'Businesses' },
-  { key: 'adverts' as const, label: 'Ad Placements' },
-  { key: 'media' as const, label: 'Creative Services' },
-];
-
 export default function Home() {
-  const navigate = useNavigate();
   const { cacheKey } = useCacheBuster();
   const [adverts, setAdverts] = useState<Advertisement[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [mediaServices, setMediaServices] = useState<MediaService[]>([]);
-  const [searchQuery, setSearchQuery] = useState('');
-  const [searchType, setSearchType] = useState('businesses');
-  const [searchLocation, setSearchLocation] = useState('');
   const [textVisible, setTextVisible] = useState(true);
-  const [listingTab, setListingTab] = useState<'businesses' | 'adverts' | 'media'>('businesses');
   // Exact row counts for the stats band. head:true fetches no rows, so this
   // is three cheap COUNT queries rather than three more result sets.
   const [counts, setCounts] = useState<{ businesses: number | null; adverts: number | null; media: number | null }>({
@@ -120,91 +106,14 @@ export default function Home() {
 
     fetchSliderData().catch(err => {
       console.error('Error fetching homepage data, showing sample data:', err);
-      setAdverts(generateAdverts(12));
-      setBusinesses(generateBusinesses(12));
-      setMediaServices(generateMediaServices(12));
+      setAdverts(generateAdverts(30));
+      setBusinesses(generateBusinesses(30));
+      setMediaServices(generateMediaServices(30));
     });
   }, [cacheKey]);
 
-  // SPA navigation — the target pages read these params via useSearchParams
-  const runSearch = (query: string, location: string) => {
-    if (searchType === 'businesses') {
-      navigate(`/businesses?search=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`);
-    } else if (searchType === 'adverts') {
-      navigate(`/adverts?search=${encodeURIComponent(query)}&location=${encodeURIComponent(location)}`);
-    } else if (searchType === 'media') {
-      navigate(`/media?search=${encodeURIComponent(query)}`);
-    }
-  };
 
-  // Card sets are built once per render for the ACTIVE tab only — mapping all
-  // three every time would do 90 objects of work to show 30.
-  const activeListing = (() => {
-    if (listingTab === 'adverts') {
-      return {
-        heading: 'Featured Ad Placements',
-        blurb: 'Premium advertising opportunities across top locations',
-        viewAll: '/adverts',
-        linkBase: 'adverts',
-        cards: adverts.slice(0, 30).map(ad => ({
-          id: ad.id,
-          title: ad.title,
-          description: ad.description,
-          image_url: ad.image_url || 'https://images.pexels.com/photos/257904/pexels-photo-257904.jpeg?auto=compress&cs=tinysrgb&w=400',
-          category: ad.type || ad.category,
-          status: ad.status as 'open' | 'closed' | 'active',
-          price: ad.pricing ?? ad.price_per_day,
-          location: ad.location,
-          type: 'advert' as const,
-        })),
-      };
-    }
-    if (listingTab === 'media') {
-      return {
-        heading: 'Media Services',
-        blurb: 'Professional media production and creative services',
-        viewAll: '/media',
-        linkBase: 'media',
-        cards: mediaServices.slice(0, 30).map(media => ({
-          id: media.id,
-          title: media.title,
-          description: media.description,
-          image_url: media.image_url || 'https://images.pexels.com/photos/3182765/pexels-photo-3182765.jpeg?auto=compress&cs=tinysrgb&w=400',
-          category: media.service_type,
-          rating: media.rating,
-          price: media.pricing,
-          reach: media.reach,
-          type: 'media' as const,
-        })),
-      };
-    }
-    return {
-      heading: 'Top Businesses',
-      blurb: 'Verified businesses NowOpen in Africa',
-      viewAll: '/businesses',
-      linkBase: 'businesses',
-      cards: businesses.slice(0, 30).map(biz => ({
-        id: biz.id,
-        href: biz.username ? `/${biz.username}` : `/businesses/${biz.id}`,
-        verified: biz.verified,
-        title: biz.name,
-        description: biz.description,
-        image_url: biz.image_url || 'https://images.pexels.com/photos/196644/pexels-photo-196644.jpeg?auto=compress&cs=tinysrgb&w=400',
-        category: biz.category,
-        rating: biz.rating,
-        status: biz.status as 'open' | 'closed' | 'active',
-        location: biz.location,
-        type: 'business' as const,
-      })),
-    };
-  })();
 
-  const handleSearch = (e: React.FormEvent) => {
-    // Term is length-capped by sanitizeProps; no identity is attached.
-    track('search_performed', { type: searchType, term: searchQuery, hasLocation: Boolean(searchLocation) });
-    e.preventDefault();
-    runSearch(searchQuery, searchLocation);
-  };
 
   // Full class strings (not template-built) so Tailwind's compiler sees them
   const features = [
@@ -344,166 +253,13 @@ export default function Home() {
         </div>
       </section>
 
-      {/* Global Search Bar - Below Slider */}
-      <section aria-label="Search businesses, placements and creative services" className="relative my-10 z-10 max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-6 border border-gray-100 dark:border-gray-800">
-          <form onSubmit={handleSearch} className="space-y-4">
-            <div className="flex flex-col md:flex-row gap-4">
-              {/* Search Type Selector */}
-              <div className="md:w-48">
-                <label htmlFor="home-search-type" className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Search In</label>
-                <select
-                  id="home-search-type"
-                  name="searchType"
-                  value={searchType}
-                  onChange={(e) => setSearchType(e.target.value)}
-                  className="w-full px-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-gray-50 dark:bg-gray-900"
-                >
-                  <option value="businesses">Businesses</option>
-                  <option value="adverts">Ad Placements</option>
-                  <option value="media">Media Services</option>
-                </select>
-              </div>
 
-              {/* Main Search Input — live suggestions for listings, categories and places */}
-              <div className="flex-1">
-                <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">
-                  {searchType === 'businesses' ? 'Search businesses...' : searchType === 'adverts' ? 'Search ad placements...' : 'Search media services...'}
-                </label>
-                <GlobalSearchInput
-                  searchType={searchType as 'businesses' | 'adverts' | 'media'}
-                  value={searchQuery}
-                  onChange={setSearchQuery}
-                  onPickCategory={(category) => {
-                    setSearchQuery(category);
-                    runSearch(category, searchLocation);
-                  }}
-                  onPickLocation={(location) => setSearchLocation(location)}
-                  placeholder={searchType === 'businesses' ? 'e.g., Restaurants, Tech, Marketing...' : searchType === 'adverts' ? 'e.g., Billboards, Digital screens...' : 'e.g., Photography, Video production...'}
-                />
-              </div>
 
-              {/* Location Input (for businesses and adverts) */}
-              {(searchType === 'businesses' || searchType === 'adverts') && (
-                <div className="md:w-56">
-                  <label className="block text-xs font-medium text-gray-500 dark:text-gray-400 mb-1">Location</label>
-                  <LocationAutocomplete
-                    value={searchLocation}
-                    onChange={setSearchLocation}
-                    className="py-3 bg-gray-50 dark:bg-gray-900 border-gray-200 dark:border-gray-700"
-                  />
-                </div>
-              )}
 
-              {/* Search Button */}
-              <div className="md:w-32 flex items-end">
-                <button
-                  type="submit"
-                  className="w-full px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition flex items-center justify-center gap-2 shadow-md hover:shadow-lg"
-                >
-                  <Search size={18} />
-                  Search
-                </button>
-              </div>
-            </div>
-
-            {/* Quick Filters */}
-            <div className="flex flex-wrap gap-2 pt-2 border-t border-gray-100 dark:border-gray-800">
-              <span className="text-xs text-gray-500 dark:text-gray-400 py-1">Popular:</span>
-              {searchType === 'businesses' ? (
-                <>
-                  <button type="button" onClick={() => setSearchQuery('Restaurants')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Restaurants</button>
-                  <button type="button" onClick={() => setSearchQuery('Tech')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Tech</button>
-                  <button type="button" onClick={() => setSearchQuery('Marketing')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Marketing</button>
-                  <button type="button" onClick={() => setSearchQuery('Fashion')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Fashion</button>
-                </>
-              ) : searchType === 'adverts' ? (
-                <>
-                  <button type="button" onClick={() => setSearchQuery('Billboard')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Billboards</button>
-                  <button type="button" onClick={() => setSearchQuery('Digital')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Digital Screens</button>
-                  <button type="button" onClick={() => setSearchQuery('Transit')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Transit</button>
-                  <button type="button" onClick={() => setSearchQuery('Indoor')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Indoor</button>
-                </>
-              ) : (
-                <>
-                  <button type="button" onClick={() => setSearchQuery('Photography')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Photography</button>
-                  <button type="button" onClick={() => setSearchQuery('Video')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Video Production</button>
-                  <button type="button" onClick={() => setSearchQuery('Design')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Graphic Design</button>
-                  <button type="button" onClick={() => setSearchQuery('Social')} className="inline-flex items-center min-h-[44px] px-3 bg-gray-100 dark:bg-gray-700 hover:bg-gray-200 dark:hover:bg-gray-600 rounded-full text-xs text-gray-700 dark:text-gray-300 transition">Social Media</button>
-                </>
-              )}
-            </div>
-          </form>
-        </div>
-      </section>
-
-      {/* Listings — one tabbed grid, replacing three stacked marquees */}
-      <section aria-label="Live listings across the platform" className="py-12 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex flex-wrap justify-between items-end gap-4 mb-6">
-            <div>
-              <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{activeListing.heading}</h2>
-              <p className="text-sm sm:text-base text-gray-600 dark:text-gray-400 mt-1">{activeListing.blurb}</p>
-            </div>
-            <Link
-              to={activeListing.viewAll}
-              className="inline-flex items-center min-h-[44px] gap-1 sm:gap-2 text-sm sm:text-base text-blue-600 dark:text-blue-400 hover:text-blue-700 font-medium flex-shrink-0"
-            >
-              View All <ChevronRight className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
-            </Link>
-          </div>
-
-          {/* Real tabs, not styled buttons: a screen reader should announce
-              "tab, 1 of 3, selected" and the arrow keys should move between them,
-              which is what a visitor gets from a native tablist. */}
-          <div role="tablist" aria-label="Listing type" className="flex flex-wrap gap-2 mb-6">
-            {LISTING_TABS.map((t, i) => {
-              const on = listingTab === t.key;
-              return (
-                <button
-                  key={t.key}
-                  id={`listing-tab-${t.key}`}
-                  role="tab"
-                  aria-selected={on}
-                  aria-controls="listing-panel"
-                  tabIndex={on ? 0 : -1}
-                  onClick={() => setListingTab(t.key)}
-                  onKeyDown={(e) => {
-                    if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
-                    e.preventDefault();
-                    const next = (i + (e.key === 'ArrowRight' ? 1 : LISTING_TABS.length - 1)) % LISTING_TABS.length;
-                    setListingTab(LISTING_TABS[next].key);
-                    document.getElementById(`listing-tab-${LISTING_TABS[next].key}`)?.focus();
-                  }}
-                  className={`inline-flex items-center gap-2 px-4 min-h-[44px] rounded-xl text-sm font-semibold border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
-                    on
-                      ? 'border-transparent bg-gray-900 text-white dark:bg-white dark:text-gray-900'
-                      : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 bg-white dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700'
-                  }`}
-                >
-                  {t.label}
-                  <span className={`text-xs font-bold tabular-nums ${on ? 'opacity-70' : 'text-gray-400'}`}>
-                    {t.key === 'businesses' ? businesses.length : t.key === 'adverts' ? adverts.length : mediaServices.length}
-                  </span>
-                </button>
-              );
-            })}
-          </div>
-
-          <div id="listing-panel" role="tabpanel" aria-labelledby={`listing-tab-${listingTab}`}>
-            {activeListing.cards.length > 0 ? (
-              <InfiniteSlider cards={activeListing.cards} linkBase={activeListing.linkBase} layout="grid" />
-            ) : (
-              // Honest empty state. Showing nothing at all reads as a broken
-              // page; "0" in the tab plus this line reads as a young platform.
-              <p className="py-10 text-center text-sm text-gray-500 dark:text-gray-400">
-                Nothing listed here yet. <Link to={activeListing.viewAll} className="text-blue-600 dark:text-blue-400 hover:underline">Browse the full page</Link>.
-              </p>
-            )}
-          </div>
-        </div>
-      </section>
-
+      {/* Browse — search, type toggle, category chips and the card grid,
+          in one block. Replaces the standalone search band and the separate
+          tabbed listings section. */}
+      <ListingExplorer businesses={businesses} adverts={adverts} mediaServices={mediaServices} />
 
       {/* Stats band */}
       <section className="pt-12" aria-label="NowOpen Africa at a glance">
