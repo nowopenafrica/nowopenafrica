@@ -58,6 +58,17 @@ export function InfiniteSlider({ cards, onCardClick, linkBase, layout = 'marquee
   // repeating them there would look like a bug.
   const duplicatedCards = layout === 'grid' ? cards : [...cards, ...cards, ...cards];
 
+  /**
+   * The card's own width, which differs by layout.
+   *
+   * A marquee item is a fixed-width flex child. In a grid those same classes
+   * made every card 180px inside a 219px cell — a dead 39px gutter on the right
+   * of every card, which reads as broken spacing rather than as a design.
+   */
+  const cardSizing = layout === 'grid'
+    ? 'w-full'
+    : 'flex-shrink-0 w-[calc(12.5%-12px)] min-w-[180px]';
+
   useEffect(() => {
     const scrollContainer = scrollRef.current;
     if (layout === 'grid') return; // nothing to animate
@@ -127,7 +138,7 @@ export function InfiniteSlider({ cards, onCardClick, linkBase, layout = 'marquee
     <Link
       key={`${card.id}-${index}`}
       to={getLinkPath(card)}
-      className="flex-shrink-0 w-[calc(12.5%-12px)] min-w-[180px] bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer block"
+      className={`${cardSizing} bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:border-blue-300 transition-all duration-200 cursor-pointer block`}
       onClick={() => handleCardClick(card)}
       onMouseEnter={() => setIsPaused(true)}
       onMouseLeave={() => setIsPaused(false)}
@@ -203,7 +214,7 @@ export function InfiniteSlider({ cards, onCardClick, linkBase, layout = 'marquee
 
   if (layout === 'grid') {
     return (
-      <div className="w-full grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
+      <div className="w-full grid gap-2 sm:gap-3 lg:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
         {cards.map((card, index) => renderCard(card, index))}
       </div>
     );
