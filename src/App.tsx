@@ -11,6 +11,7 @@ import ChatBot from './components/ChatBot';
 import VoiceAssistant from './components/VoiceAssistant';
 import TrialPromoModal from './components/TrialPromoModal';
 import CookieConsent from './components/CookieConsent';
+import RouteAnnouncer from './components/RouteAnnouncer';
 import Home from './pages/Home';
 import './index.css';
 
@@ -79,6 +80,10 @@ function App() {
       {/* <header> wraps the nav so assistive tech has a banner landmark to jump
           to. Navbar renders a <nav>, which is a navigation landmark but not a
           banner, so the region was simply absent. */}
+      {/* Announces each route change and moves focus into <main>. A SPA does
+          neither on its own, so navigation was silent and focus was stranded
+          on the previous page. */}
+      <RouteAnnouncer />
       <header>
         <Navbar />
       </header>

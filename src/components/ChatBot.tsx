@@ -257,6 +257,9 @@ export default function ChatBot() {
       <button
         onClick={() => setIsOpen(true)}
         className="fixed bottom-6 right-6 w-14 h-14 bg-blue-600 text-white rounded-full shadow-lg hover:bg-blue-700 transition flex items-center justify-center z-50"
+        // title alone is a weak accessible name — unreliable across screen
+        // readers and invisible on touch, where there is no hover to reveal it.
+        aria-label="Chat with the NowOpen assistant"
         title="Chat with the NowOpen assistant"
       >
         <MessageCircle size={24} />

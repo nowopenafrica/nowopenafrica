@@ -290,7 +290,9 @@ export default function Businesses() {
         {/* Category browse gallery */}
         <div className="mb-10">
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Browse by category</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
+          {/* Six across, matching the Promote and Create pages — the three
+              category rails read as one system rather than three layouts. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
             {BUSINESS_CATEGORY_GROUPS.map((g) => {
               const meta = GROUP_META[g.group] ?? { icon: Store, accent: 'blue', description: '' };
               const a = ACCENT[meta.accent];
