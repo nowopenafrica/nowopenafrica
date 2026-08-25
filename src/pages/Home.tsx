@@ -73,8 +73,16 @@ export default function Home() {
       setTextVisible(true);
       return;
     }
-    const VISIBLE_MS = 15000;
-    const HIDDEN_MS = 15000;
+    // The video is the hero; the copy is a periodic reminder of what the site
+    // is, not a permanent overlay. So the headline shows briefly and then gets
+    // out of the way for a full minute of clean footage.
+    //
+    // The 2s crossfade below is deliberately unchanged: the dwell times decide
+    // how often the text appears, the transition decides how gracefully — a
+    // fade stretched to match the dwell would read as a rendering fault rather
+    // than a choice.
+    const VISIBLE_MS = 10000;
+    const HIDDEN_MS = 60000;
     let timeout: ReturnType<typeof setTimeout>;
 
     const cycle = () => {
