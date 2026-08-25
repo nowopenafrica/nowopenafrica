@@ -27,6 +27,7 @@ const Register = lazy(() => import('./pages/Register'));
 const Profile = lazy(() => import('./pages/Profile'));
 const Security = lazy(() => import('./pages/Security'));
 const Studio = lazy(() => import('./pages/Studio'));
+const DiscoveryPage = lazy(() => import('./pages/DiscoveryPage'));
 const Dashboard = lazy(() => import('./pages/Dashboard'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminCreator = lazy(() => import('./pages/AdminCreator'));
@@ -89,6 +90,10 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/businesses" element={<Businesses />} />
+              {/* Discovery pages before /businesses/:id — otherwise "in"
+                  is parsed as a business id and the page 404s. */}
+              <Route path="/businesses/in/:place" element={<DiscoveryPage />} />
+              <Route path="/businesses/:category/in/:place" element={<DiscoveryPage />} />
               <Route path="/businesses/:id" element={<BusinessDetail />} />
               {/* Friendly profile URLs at the root, e.g. /kalahari-films.
                   Static routes above always win over this dynamic segment.
