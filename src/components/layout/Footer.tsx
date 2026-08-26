@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin } from 'lucide-react';
 import SocialLinks from '../SocialLinks';
+import { useT } from '../../contexts/I18nContext';
 
 // Compact by design.
 //
@@ -19,38 +20,39 @@ import SocialLinks from '../SocialLinks';
 // column is split into Company and Get Started, giving 5 / 4 / 4.
 
 const explore = [
-  { to: '/businesses', label: 'Discover Businesses' },
-  { to: '/platform', label: 'Industry Systems' },
-  { to: '/adverts', label: 'Ad Placements' },
-  { to: '/media', label: 'Creative Services' },
-  { to: '/pricing', label: 'Pricing' },
+  { to: '/businesses', key: 'footer.discoverBusinesses' },
+  { to: '/platform', key: 'footer.industrySystems' },
+  { to: '/adverts', key: 'footer.adPlacements' },
+  { to: '/media', key: 'footer.creativeServices' },
+  { to: '/pricing', key: 'nav.pricing' },
 ];
 
 const company = [
-  { to: '/about', label: 'About Us' },
-  { to: '/founder', label: 'Meet the Founder' },
-  { to: '/os', label: 'The NowOpen OS' },
-  { to: '/contact', label: 'Contact' },
+  { to: '/about', key: 'footer.about' },
+  { to: '/founder', key: 'footer.founder' },
+  { to: '/os', key: 'nav.os' },
+  { to: '/contact', key: 'footer.contact' },
 ];
 
 const getStarted = [
-  { to: '/forms', label: 'Join NowOpen' },
-  { to: '/waitlist', label: 'Africa is NowOpen' },
-  { to: '/register', label: 'Create an Account' },
-  { to: '/login', label: 'Sign In' },
+  { to: '/forms', key: 'nav.join' },
+  { to: '/waitlist', key: 'nav.africaNowOpen' },
+  { to: '/register', key: 'footer.createAccount' },
+  { to: '/login', key: 'nav.signIn' },
 ];
 
 /** 32px rows: above the WCAG 2.5.8 AA minimum, without stacking like buttons. */
 const linkClass = 'inline-flex items-center min-h-[32px] hover:text-white transition';
 
-function LinkColumn({ title, links }: { title: string; links: { to: string; label: string }[] }) {
+function LinkColumn({ titleKey, links }: { titleKey: string; links: { to: string; key: string }[] }) {
+  const t = useT();
   return (
     <div>
-      <h3 className="text-white font-bold text-sm mb-2">{title}</h3>
+      <h3 className="text-white font-bold text-sm mb-2">{t(titleKey)}</h3>
       <ul className="text-xs">
         {links.map(link => (
           <li key={link.to}>
-            <Link to={link.to} className={linkClass}>{link.label}</Link>
+            <Link to={link.to} className={linkClass}>{t(link.key)}</Link>
           </li>
         ))}
       </ul>
@@ -59,17 +61,15 @@ function LinkColumn({ title, links }: { title: string; links: { to: string; labe
 }
 
 export default function Footer() {
+  const t = useT();
+
   return (
     <footer className="bg-gray-900 text-gray-300 mt-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 mb-6">
           <div className="col-span-2 md:col-span-1">
             <h3 className="text-white font-bold text-sm mb-2">NowOpen Africa</h3>
-            <p className="text-xs leading-relaxed text-gray-400 mb-3">
-              The Operating System for Business Growth in Africa — helping businesses
-              get discovered, advertise effectively, and access creative services
-              from one ecosystem.
-            </p>
+            <p className="text-xs leading-relaxed text-gray-400 mb-3">{t('footer.blurb')}</p>
 
             {/* Contact sits here rather than in its own column: two items could
                 never fill one, and these read better beside the brand. */}
@@ -84,34 +84,34 @@ export default function Footer() {
               </a>
               <p className="flex items-start gap-2 text-gray-400 pt-1.5">
                 <MapPin size={13} className="mt-0.5 flex-shrink-0" />
-                <span>Lagos, Nigeria · Serving 20+ African markets</span>
+                <span>{t('footer.location')}</span>
               </p>
             </div>
 
             <SocialLinks />
           </div>
 
-          <LinkColumn title="Explore" links={explore} />
-          <LinkColumn title="Company" links={company} />
-          <LinkColumn title="Get Started" links={getStarted} />
+          <LinkColumn titleKey="footer.explore" links={explore} />
+          <LinkColumn titleKey="footer.company" links={company} />
+          <LinkColumn titleKey="footer.getStarted" links={getStarted} />
         </div>
 
         <div className="border-t border-gray-800 pt-4 flex flex-col sm:flex-row items-center justify-between gap-2">
           <p className="text-center text-xs text-gray-400">
-            &copy; {new Date().getFullYear()} NowOpen Africa (AEY Inc.). All rights reserved.
+            {t('footer.rights', { year: new Date().getFullYear() })}
           </p>
           <div className="flex items-center gap-1 text-xs">
             {[
-              { to: '/terms', label: 'Terms' },
-              { to: '/privacy', label: 'Privacy' },
-              { to: '/contact', label: 'Contact' },
+              { to: '/terms', key: 'footer.terms' },
+              { to: '/privacy', key: 'footer.privacy' },
+              { to: '/contact', key: 'footer.contact' },
             ].map(l => (
               <Link
                 key={l.to}
                 to={l.to}
                 className="inline-flex items-center min-h-[32px] px-2 text-gray-400 hover:text-white transition"
               >
-                {l.label}
+                {t(l.key)}
               </Link>
             ))}
           </div>

@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { Routes, Route } from 'react-router-dom';
+import { Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/layout/Navigation';
 import Footer from './components/layout/Footer';
@@ -12,6 +12,8 @@ import VoiceAssistant from './components/VoiceAssistant';
 import TrialPromoModal from './components/TrialPromoModal';
 import CookieConsent from './components/CookieConsent';
 import RouteAnnouncer from './components/RouteAnnouncer';
+import { useI18n } from './contexts/I18nContext';
+import { contentLocale } from './lib/i18n';
 import Home from './pages/Home';
 import './index.css';
 
@@ -56,6 +58,9 @@ function PageLoader() {
 }
 
 function App() {
+  const { pathname } = useLocation();
+  const { locale, t } = useI18n();
+
   // overflow-x-clip, not overflow-x-hidden. The marquee sliders clip their own
   // tracks correctly, but their fractional widths still left the document 7px
   // wider than the viewport — enough for a horizontal scrollbar across the whole
@@ -75,7 +80,7 @@ function App() {
         href="#main-content"
         className="absolute left-3 -top-20 z-[100] inline-flex items-center min-h-[44px] px-4 rounded-lg bg-gray-900 text-white text-sm font-semibold shadow-lg transition-[top] duration-150 focus:top-3 focus:outline-none focus:ring-2 focus:ring-purple-500"
       >
-        Skip to main content
+        {t('a11y.skipToContent')}
       </a>
       {/* <header> wraps the nav so assistive tech has a banner landmark to jump
           to. Navbar renders a <nav>, which is a navigation landmark but not a
@@ -89,7 +94,16 @@ function App() {
       </header>
       {/* tabIndex={-1} so the skip target can actually receive focus; without it
           the browser scrolls but focus stays in the nav. */}
-      <main id="main-content" tabIndex={-1} className="flex-grow focus:outline-none">
+      {/* lang on <main>, not just <html>: the chrome is translated and the page
+          bodies are not yet, so this declares what language the content is
+          actually in. Without it a French screen reader reads English prose
+          with French pronunciation. */}
+      <main
+        id="main-content"
+        tabIndex={-1}
+        lang={contentLocale(pathname, locale)}
+        className="flex-grow focus:outline-none"
+      >
         <ErrorBoundary>
           <Suspense fallback={<PageLoader />}>
             <Routes>

@@ -1,6 +1,9 @@
 import { useEffect, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
+import { useI18n } from '../contexts/I18nContext';
+import { contentLocale } from '../lib/i18n';
+
 // Tells assistive technology that the page changed.
 //
 // A full page load announces itself: the browser resets focus and reads the new
@@ -23,7 +26,12 @@ import { useLocation } from 'react-router-dom';
 
 export default function RouteAnnouncer() {
   const { pathname } = useLocation();
-  const [message, setMessage] = useState('');
+  const { locale, t } = useI18n();
+
+  // The page's own name, stored on its own rather than baked into a finished
+  // sentence: the name is in the page's language and the "page loaded" part is
+  // in the reader's, and the two have to be labelled separately.
+  const [page, setPage] = useState('');
 
   // The previous pathname, not a boolean "have we navigated yet". StrictMode
   // invokes effects twice in development, which flips a boolean guard on the
@@ -82,7 +90,7 @@ export default function RouteAnnouncer() {
       // honest fallback.
       const title = document.title.split('—')[0].trim();
       if (settled) lastHeading.current = heading;
-      setMessage(`${(settled ? heading : title) || 'Page'} — page loaded`);
+      setPage((settled ? heading : title) || t('a11y.page'));
 
       const main = document.getElementById('main-content');
       if (main) {
@@ -94,7 +102,7 @@ export default function RouteAnnouncer() {
 
     announce();
     return () => window.clearTimeout(timer);
-  }, [pathname]);
+  }, [pathname, t]);
 
 
   return (
@@ -103,6 +111,11 @@ export default function RouteAnnouncer() {
       // person is currently hearing to finish rather than cutting across it.
       aria-live="polite"
       aria-atomic="true"
+      // The wrapper speaks the reader's language; the heading it quotes is
+      // whatever language that page is actually written in. Labelling them
+      // separately is what keeps the announcement pronounceable while only
+      // part of the site is translated.
+      lang={locale}
       // Visually hidden but still rendered — display:none or visibility:hidden
       // would remove it from the accessibility tree and silence it entirely.
       style={{
@@ -117,7 +130,11 @@ export default function RouteAnnouncer() {
         border: 0,
       }}
     >
-      {message}
+      {page ? (
+        <>
+          <span lang={contentLocale(pathname, locale)}>{page}</span> {t('a11y.pageLoadedSuffix')}
+        </>
+      ) : null}
     </div>
   );
 }

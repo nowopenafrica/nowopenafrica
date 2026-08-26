@@ -5,6 +5,7 @@ import App from './App.tsx';
 import { AuthProvider } from './contexts/AuthContext';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
+import { I18nProvider } from './contexts/I18nContext';
 import './index.css';
 import { initTelemetry } from './lib/telemetry';
 
@@ -37,13 +38,15 @@ initTelemetry();
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <BrowserRouter>
-      <ThemeProvider>
-        <CurrencyProvider>
-          <AuthProvider>
-            <App />
-          </AuthProvider>
-        </CurrencyProvider>
-      </ThemeProvider>
+      <I18nProvider>
+        <ThemeProvider>
+          <CurrencyProvider>
+            <AuthProvider>
+              <App />
+            </AuthProvider>
+          </CurrencyProvider>
+        </ThemeProvider>
+      </I18nProvider>
     </BrowserRouter>
   </StrictMode>
 );
