@@ -5,7 +5,7 @@ import { supabase } from '../../lib/supabase';
 import { compressImage } from '../../lib/imageCompression';
 import {
   ZOOM_STEPS, pickRecorderMimeType, formatForMimeType, chooseVideoBitrate,
-  zoomCropRect, nativeZoomTarget, captureResolutionFor, formatRecordingClock,
+  zoomCropRect, coverCropRect, nativeZoomTarget, captureResolutionFor, formatRecordingClock,
   estimatedBytes, AUDIO_BITRATE, REEL_HARD_MAX_BYTES, captureVideoPoster,
   applyAutoAdapt, cameraControls, clampToRange, stepValue, midpointOf,
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
@@ -309,11 +309,22 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
       toast.error('Camera is still starting — try again in a moment.');
       return;
     }
-    // Crop only when the camera could not zoom itself; otherwise the incoming
-    // frame is already at the chosen zoom and cropping would double it.
-    const crop = zoomCropRect(
+    // Crop to what the PREVIEW is showing, not to the whole sensor.
+    //
+    // The preview is object-cover, so a 16:9 sensor in a portrait phone is
+    // trimmed at the sides to fill the box — and the composition the owner
+    // chose is that trim. Saving the full frame handed them back scenery they
+    // never saw and threw away their framing; on a portrait phone that is
+    // close to half the picture.
+    //
+    // Zoom still only applies when the camera could not do it itself,
+    // otherwise the incoming frame is already zoomed and this would double it.
+    const box = video.getBoundingClientRect();
+    const crop = coverCropRect(
       video.videoWidth,
       video.videoHeight,
+      box.width,
+      box.height,
       nativeZoomRef.current ? 1 : zoomRef.current,
     );
     const canvas = document.createElement('canvas');

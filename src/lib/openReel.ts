@@ -595,6 +595,52 @@ export interface CropRect { sx: number; sy: number; sw: number; sh: number }
  * Centre crop for a digital zoom factor. At 1x this is the whole frame, so the
  * same code path serves both steps and there is no untested branch at 1x.
  */
+/**
+ * The part of the sensor frame the preview is actually showing.
+ *
+ * The preview is `object-cover`, so a landscape sensor inside a portrait phone
+ * is cropped left and right to fill the box — and what the owner frames is that
+ * crop. Capture, though, drew the WHOLE frame, so the saved photo contained
+ * scenery that was never on screen and lost the composition they chose. On a
+ * portrait phone with a 16:9 sensor that is nearly half the picture.
+ *
+ * This reproduces object-cover: fill the view, centre the overflow, then apply
+ * zoom inside the result. Falls back to the plain zoom crop when the view size
+ * is unknown, which is what the old behaviour was.
+ */
+export function coverCropRect(
+  videoWidth: number,
+  videoHeight: number,
+  viewWidth: number,
+  viewHeight: number,
+  zoom: number,
+): CropRect {
+  const w = Math.max(0, videoWidth);
+  const h = Math.max(0, videoHeight);
+  if (!w || !h || viewWidth <= 0 || viewHeight <= 0) {
+    return zoomCropRect(videoWidth, videoHeight, zoom);
+  }
+  const z = Number.isFinite(zoom) && zoom >= 1 ? zoom : 1;
+
+  const frameAspect = w / h;
+  const viewAspect = viewWidth / viewHeight;
+
+  // Cover keeps whichever axis is short and trims the other.
+  let cw = w;
+  let ch = h;
+  if (frameAspect > viewAspect) cw = h * viewAspect;   // sensor wider: trim sides
+  else ch = w / viewAspect;                            // sensor taller: trim top/bottom
+
+  const sw = Math.round(cw / z);
+  const sh = Math.round(ch / z);
+  return {
+    sx: Math.round((w - sw) / 2),
+    sy: Math.round((h - sh) / 2),
+    sw: Math.max(1, sw),
+    sh: Math.max(1, sh),
+  };
+}
+
 export function zoomCropRect(videoWidth: number, videoHeight: number, zoom: number): CropRect {
   const w = Math.max(0, videoWidth);
   const h = Math.max(0, videoHeight);

@@ -5,7 +5,7 @@ import {
   formatRecordingClock, REEL_HARD_MAX_BYTES, REEL_SIZE_BUDGET_BYTES, AUDIO_BITRATE,
   applyAutoAdapt, cameraControls, readRange, clampToRange, stepValue, midpointOf,
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
-  wellExposedness, fuseExposures, bracketStops, applyPointOfInterest,
+  wellExposedness, fuseExposures, bracketStops, applyPointOfInterest, coverCropRect,
 } from './openReel';
 import {
   REEL_SECONDS_LIMITS, reelLimitForPlan, formatReelLimit, reelLimitAdjective,
@@ -614,5 +614,53 @@ describe('applyPointOfInterest', () => {
     } as unknown as Parameters<typeof applyPointOfInterest>[0];
     expect(await applyPointOfInterest(track, 0.5, 0.5, [])).toBe(false);
     expect(await applyPointOfInterest(null, 0.5, 0.5, [])).toBe(false);
+  });
+});
+
+describe('coverCropRect — what you framed is what you get', () => {
+  it('trims the sides of a landscape sensor shown in a portrait preview', () => {
+    // The phone case: a 16:9 sensor inside a roughly 9:16 box. The preview
+    // shows a narrow centre strip, and capture must save that strip — not the
+    // whole frame, which is what it used to do.
+    const c = coverCropRect(1920, 1080, 390, 690, 1);
+    expect(c.sh).toBe(1080);                 // full height kept
+    expect(c.sw).toBeLessThan(700);          // sides trimmed hard
+    expect(c.sx).toBeGreaterThan(600);       // and centred
+    expect(c.sx + c.sw).toBeLessThanOrEqual(1920);
+  });
+
+  it('trims top and bottom of a portrait sensor in a landscape preview', () => {
+    const c = coverCropRect(1080, 1920, 800, 450, 1);
+    expect(c.sw).toBe(1080);
+    expect(c.sh).toBeLessThan(700);
+    expect(c.sy).toBeGreaterThan(600);
+  });
+
+  it('takes the whole frame when the preview matches the sensor', () => {
+    const c = coverCropRect(1920, 1080, 640, 360, 1);
+    expect(c).toEqual({ sx: 0, sy: 0, sw: 1920, sh: 1080 });
+  });
+
+  it('applies zoom inside the visible crop, not the whole sensor', () => {
+    // Zooming must magnify what is on screen. Applying it to the full frame
+    // would zoom past the edges of what the owner can see.
+    const one = coverCropRect(1920, 1080, 390, 690, 1);
+    const two = coverCropRect(1920, 1080, 390, 690, 2);
+    expect(two.sw).toBe(Math.round(one.sw / 2));
+    expect(two.sh).toBe(Math.round(one.sh / 2));
+  });
+
+  it('falls back to the plain zoom crop when the view size is unknown', () => {
+    // Before layout, getBoundingClientRect is 0x0. Cropping to nothing would
+    // save a 1px photo; the old whole-frame behaviour is the safe answer.
+    expect(coverCropRect(1920, 1080, 0, 0, 1)).toEqual(zoomCropRect(1920, 1080, 1));
+    expect(coverCropRect(0, 0, 390, 690, 1)).toEqual(zoomCropRect(0, 0, 1));
+  });
+
+  it('never returns a zero-sized crop', () => {
+    // drawImage with a zero width throws, which would lose the shot entirely.
+    const c = coverCropRect(4, 4000, 390, 690, 3);
+    expect(c.sw).toBeGreaterThan(0);
+    expect(c.sh).toBeGreaterThan(0);
   });
 });
