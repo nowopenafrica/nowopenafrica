@@ -7,7 +7,13 @@
 //      to be added to the CSP allowlist for each provider.
 //   3. Swapping providers needs no web deploy and no mobile release.
 //
-// PROVIDERS, in the order they're picked up:
+// PROVIDERS, best-free-first (see resolveImageProvider):
+//
+//   CLOUDFLARE_API_TOKEN Cloudflare Workers AI — FLUX.1-schnell and SDXL on a
+//   + CLOUDFLARE_ACCOUNT_ID  daily free allowance, no card. The only provider
+//                        here that is free to CALL rather than merely free to
+//                        download, which is why it is picked first. Images
+//                        only: Workers AI has no text-to-video model.
 //
 //   HUGGINGFACE_API_KEY  Hugging Face Inference — FLUX.1-schnell, genuinely
 //                        open-weight, free tier. Returns image bytes directly.
@@ -20,12 +26,23 @@
 //                        key since it stopped being free; it originally shipped
 //                        keyless here and went inert overnight when that ended.
 //
-// A NOTE ON "FREE", again: the MODELS are open-weight; the hosting is not
-// free-forever. Pollinations was integrated here precisely because it needed no
-// key, and it now returns 401 with the whole AI Art Director inert. The point of
-// this layer is that the next such change costs one secret, not a rewrite.
+// A NOTE ON "FREE": there are two different claims and they get conflated.
+// Open-weight means the WEIGHTS are free to download. Free to CALL is a
+// property of the host, and it changes without warning — Pollinations was
+// integrated here precisely because it needed no key, and it now returns 401
+// with the whole AI Art Director inert.
+//
+// Of the four providers below, exactly one is free to call today, and only for
+// images: Cloudflare Workers AI. Hugging Face's free credits are small and its
+// good models route away from hf-inference; Replicate and Pollinations are
+// billed. Nothing here generates VIDEO for free — the open T2V models (Wan,
+// HunyuanVideo, LTX) are free to download and every hosted route to them costs
+// money. Say so in the UI rather than implying otherwise.
+//
+// The point of this layer is that the next such change costs one secret, not a
+// rewrite.
 
-export type ImageProviderName = "huggingface" | "replicate" | "pollinations" | "none";
+export type ImageProviderName = "cloudflare" | "huggingface" | "replicate" | "pollinations" | "none";
 
 export interface ImageProviderConfig {
   name: ImageProviderName;
@@ -34,6 +51,10 @@ export interface ImageProviderConfig {
 }
 
 const DEFAULTS: Record<Exclude<ImageProviderName, "none">, string> = {
+  // Workers AI ids are "@cf/owner/name". flux-1-schnell is the strongest model
+  // on the free allowance; it returns base64 JSON rather than image bytes,
+  // which runCloudflare handles alongside the SD models that return bytes.
+  cloudflare: "@cf/black-forest-labs/flux-1-schnell",
   // Open-weight, and — the part that matters — actually served by the
   // `hf-inference` provider. FLUX.1-schnell is the more obvious pick but HF
   // routes it through nscale/together, not hf-inference, so asking for it on
@@ -46,6 +67,7 @@ const DEFAULTS: Record<Exclude<ImageProviderName, "none">, string> = {
 
 /** The secret each provider is configured by, for the no-key check. */
 const SECRETS: Record<Exclude<ImageProviderName, "none">, string> = {
+  cloudflare: "CLOUDFLARE_API_TOKEN",
   huggingface: "HUGGINGFACE_API_KEY",
   replicate: "REPLICATE_API_TOKEN",
   pollinations: "POLLINATIONS_API_KEY",
@@ -56,18 +78,44 @@ const SECRETS: Record<Exclude<ImageProviderName, "none">, string> = {
 // HTTP status. Inference Providers replaced it with a per-provider router.
 const HF_ROUTER = "https://router.huggingface.co/hf-inference/models";
 
+const LABELS: Record<Exclude<ImageProviderName, "none">, string> = {
+  cloudflare: "Cloudflare Workers AI · FLUX.1 schnell",
+  huggingface: "Hugging Face · SD3 Medium",
+  replicate: "Replicate · FLUX schnell",
+  pollinations: "Pollinations · Flux Schnell",
+};
+
+/**
+ * Order matters and is not arbitrary: free-to-call first, then reliability.
+ *
+ * It used to be whichever secret happened to be set first in this function,
+ * which meant a deployment holding both a Cloudflare token and a Replicate one
+ * would silently spend money it did not need to.
+ */
+const PROVIDER_ORDER: Exclude<ImageProviderName, "none">[] = [
+  "cloudflare",
+  "huggingface",
+  "replicate",
+  "pollinations",
+];
+
 export function resolveImageProvider(): ImageProviderConfig {
   const env = (k: string) => Deno.env.get(k) || "";
   const override = env("IMAGE_MODEL");
+  const configured = (name: Exclude<ImageProviderName, "none">) =>
+    !!env(SECRETS[name]) && (name !== "cloudflare" || !!env("CLOUDFLARE_ACCOUNT_ID"));
 
-  if (env("HUGGINGFACE_API_KEY")) {
-    return { name: "huggingface", model: override || DEFAULTS.huggingface, label: "Hugging Face · SD3 Medium" };
+  // An explicit pin wins, so a deployment can choose the paid provider
+  // deliberately rather than by deleting a secret.
+  const pinned = env("IMAGE_PROVIDER").trim().toLowerCase() as Exclude<ImageProviderName, "none">;
+  if (pinned && PROVIDER_ORDER.includes(pinned) && configured(pinned)) {
+    return { name: pinned, model: override || DEFAULTS[pinned], label: LABELS[pinned] };
   }
-  if (env("REPLICATE_API_TOKEN")) {
-    return { name: "replicate", model: override || DEFAULTS.replicate, label: "Replicate · FLUX schnell" };
-  }
-  if (env("POLLINATIONS_API_KEY")) {
-    return { name: "pollinations", model: override || DEFAULTS.pollinations, label: "Pollinations · Flux Schnell" };
+
+  for (const name of PROVIDER_ORDER) {
+    if (configured(name)) {
+      return { name, model: override || DEFAULTS[name], label: LABELS[name] };
+    }
   }
   return { name: "none", model: "", label: "No image model configured" };
 }
@@ -103,6 +151,7 @@ export function parseModelRef(ref?: string): { provider?: Exclude<ImageProviderN
   if (i === -1) return { model: ref };
   const prefix = ref.slice(0, i);
   const rest = ref.slice(i + 1);
+  if (prefix === "cf" || prefix === "cloudflare") return { provider: "cloudflare", model: rest };
   if (prefix === "hf" || prefix === "huggingface") return { provider: "huggingface", model: rest };
   if (prefix === "replicate") return { provider: "replicate", model: rest };
   if (prefix === "pol" || prefix === "pollinations") return { provider: "pollinations", model: rest };
@@ -143,6 +192,76 @@ function toDataUrl(bytes: Uint8Array, contentType: string): string {
     binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK));
   }
   return `data:${contentType};base64,${btoa(binary)}`;
+}
+
+// --- Cloudflare Workers AI --------------------------------------------------
+
+/**
+ * Two response shapes, one provider.
+ *
+ * flux-1-schnell answers JSON with a base64 field; the Stable Diffusion models
+ * answer raw PNG bytes. Sniffing the content type rather than branching on the
+ * model id means a new Workers AI model works without a code change.
+ */
+async function runCloudflare(cfg: ImageProviderConfig, req: ImageRequest): Promise<ImageOutcome> {
+  const account = Deno.env.get("CLOUDFLARE_ACCOUNT_ID") || "";
+  const token = req.apiKey || Deno.env.get("CLOUDFLARE_API_TOKEN") || "";
+  if (!account) {
+    return {
+      ok: false,
+      reason: "no_provider",
+      detail: "CLOUDFLARE_ACCOUNT_ID is not set — Workers AI needs the account id as well as the token.",
+    };
+  }
+
+  const res = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${account}/ai/run/${cfg.model}`,
+    {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        prompt: req.prompt,
+        width: req.width,
+        height: req.height,
+        seed: req.seed,
+        // flux-1-schnell caps at 8; the SD models read num_steps instead and
+        // ignore this one. Sending both keeps a single request shape.
+        steps: 8,
+        num_steps: 8,
+      }),
+    },
+  );
+
+  if (!res.ok) {
+    const detail = (await res.text()).slice(0, 300);
+    return { ok: false, reason: statusToReason(res.status), status: res.status, detail };
+  }
+
+  const contentType = res.headers.get("content-type") || "";
+
+  if (contentType.includes("application/json")) {
+    const body = await res.json().catch(() => null);
+    // Workers AI reports model-level failures inside a 200.
+    if (!body?.success) {
+      const detail = JSON.stringify(body?.errors ?? body ?? {}).slice(0, 300);
+      return { ok: false, reason: "error", status: 200, detail };
+    }
+    const b64 = body?.result?.image;
+    if (typeof b64 !== "string" || !b64) {
+      return { ok: false, reason: "error", status: 200, detail: "No image in the Workers AI response." };
+    }
+    // Already base64 — re-encoding through toDataUrl would only cost memory.
+    return { ok: true, dataUrl: `data:image/jpeg;base64,${b64}`, provider: cfg.name, model: cfg.model };
+  }
+
+  const bytes = new Uint8Array(await res.arrayBuffer());
+  if (!bytes.length) return { ok: false, reason: "error", detail: "Empty image body." };
+  return {
+    ok: true,
+    dataUrl: toDataUrl(bytes, contentType || "image/png"),
+    provider: cfg.name,
+    model: cfg.model,
+  };
 }
 
 // --- Hugging Face -----------------------------------------------------------
@@ -312,8 +431,9 @@ export async function generateImage(req: ImageRequest): Promise<ImageOutcome> {
     if (model) cfg = { ...cfg, model };
   }
 
-  // Only Replicate and Pollinations run video models; HF's image route cannot
-  // produce a clip.
+  // Only Replicate and Pollinations run video models. Hugging Face's image
+  // route cannot produce a clip, and Workers AI has no text-to-video model at
+  // all — which is why the free tier is images-only and says so.
   if (req.kind === "video" && cfg.name !== "replicate" && cfg.name !== "pollinations") {
     return {
       ok: false,
@@ -323,6 +443,7 @@ export async function generateImage(req: ImageRequest): Promise<ImageOutcome> {
   }
 
   try {
+    if (cfg.name === "cloudflare") return await runCloudflare(cfg, req);
     if (cfg.name === "huggingface") return await runHuggingFace(cfg, req);
     if (cfg.name === "replicate") return await runReplicate(cfg, req);
     return await runPollinations(cfg, req);

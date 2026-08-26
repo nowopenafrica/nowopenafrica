@@ -34,16 +34,27 @@ export interface AiVideoGenModel {
   note: string;
 }
 
-/** The models a studio can render AI clips from, grouped by cost tier. */
+/**
+ * The models a studio can render AI clips from, grouped by licence tier.
+ *
+ * 'free' means OPEN-WEIGHT, not free to call. Every clip here is generated
+ * through Replicate or Pollinations, and both bill for it — there is no free
+ * hosted text-to-video anywhere in this pipeline, and the image side's genuinely
+ * free provider (Cloudflare Workers AI) has no video model at all.
+ *
+ * The note used to read "Open-source, no cost", which is the kind of claim a
+ * business owner budgets around. Open weights and a free API are different
+ * things and only one of them is true here.
+ */
 export const AI_VIDEO_GEN_MODELS: AiVideoGenModel[] = [
-  { key: 'wan', label: 'Wan 2.x', maker: 'Alibaba Cloud', tier: 'free', note: 'Open-source, no cost — matches the studio auto-pick' },
-  { key: 'seedance', label: 'Seedance 2.5', maker: 'ByteDance', tier: 'paid', note: 'The quality bar — billed per render' },
-  { key: 'veo', label: 'Veo', maker: 'Google', tier: 'paid', note: 'Cinematic, slower — billed per render' },
+  { key: 'wan', label: 'Wan 2.x', maker: 'Alibaba Cloud', tier: 'free', note: 'Open-weight — free to self-host, billed through this pipeline' },
+  { key: 'seedance', label: 'Seedance 2.5', maker: 'ByteDance', tier: 'paid', note: 'The quality bar — closed-source, billed per render' },
+  { key: 'veo', label: 'Veo', maker: 'Google', tier: 'paid', note: 'Cinematic, slower — closed-source, billed per render' },
 ];
 
 export const VIDEO_GEN_TIERS: { key: VideoGenTier; label: string; desc: string }[] = [
-  { key: 'free', label: 'Free', desc: 'Open-weight models, no cost' },
-  { key: 'paid', label: 'Paid', desc: 'Premium models, billed per render' },
+  { key: 'free', label: 'Open-weight', desc: 'Open licence you could self-host — still billed through our renderer' },
+  { key: 'paid', label: 'Premium', desc: 'Closed-source models, billed per render' },
 ];
 
 export const videoGenModelsForTier = (tier: VideoGenTier): AiVideoGenModel[] =>
@@ -55,8 +66,8 @@ export const videoGenModelByKey = (key: string): AiVideoGenModel | undefined =>
 /** Human-readable why for the picker and the export record. */
 export function videoGenReason(tier: VideoGenTier, model: AiVideoGenModel): string {
   return tier === 'free'
-    ? `${model.label} (${model.maker}) is free and open-weight — the same family the studio auto-picks. Clips that fail to load fall back to designed graphics.`
-    : `${model.label} (${model.maker}) is a paid premium model — billed per render. Clips that fail to load fall back to designed graphics.`;
+    ? `${model.label} (${model.maker}) is open-weight — the same family the studio auto-picks. Generating through NowOpen still costs per clip; the licence is what is free. Clips that fail to load fall back to designed graphics.`
+    : `${model.label} (${model.maker}) is a closed-source premium model — billed per render. Clips that fail to load fall back to designed graphics.`;
 }
 
 export interface BuildAiClipsOptions {
@@ -107,7 +118,18 @@ export function planAiVideoClips(opts: BuildAiClipsOptions): AiVideoClipRequest[
 
 // --- Network ----------------------------------------------------------------
 
+/**
+ * Generated clips, keyed by the deterministic request.
+ *
+ * Bounded on purpose: the values are base64 data URLs of whole videos, several
+ * megabytes each before base64 inflates them by a third. Unbounded, a long
+ * session in the Motion Studio — where every prompt tweak is a fresh key —
+ * grew until the tab was killed. Insertion order is eviction order, which is
+ * the right policy here: a re-render of the same storyboard re-requests the
+ * most recent keys, not the oldest.
+ */
 const clipCache = new Map<string, string>();
+const CLIP_CACHE_MAX = 12;
 
 /** Generate one clip via the edge function; null on any failure. Cached by plan. */
 async function generateClip(req: AiVideoClipRequest, signal?: AbortSignal): Promise<string | null> {
@@ -134,6 +156,20 @@ async function generateClip(req: AiVideoClipRequest, signal?: AbortSignal): Prom
     });
     const body = await res.json().catch(() => null);
     if (!body?.ok || typeof body.dataUrl !== 'string') return null;
+
+    // Reject a still that came back for a clip request.
+    //
+    // This is not hypothetical: a deployment whose configured provider has no
+    // text-to-video model can answer a kind:'video' request with a PNG and
+    // ok:true. The renderer then builds a <video> around a still, which never
+    // becomes ready, and the owner is told AI video was generated while every
+    // frame quietly falls back to designed graphics. Failing here makes it an
+    // honest "no clip" instead.
+    if (!/^data:video\//i.test(body.dataUrl)) return null;
+    if (clipCache.size >= CLIP_CACHE_MAX) {
+      const oldest = clipCache.keys().next();
+      if (!oldest.done) clipCache.delete(oldest.value);
+    }
     clipCache.set(cacheKey, body.dataUrl);
     return body.dataUrl;
   } catch {
@@ -181,6 +217,23 @@ export async function resolveAiVideoClips(opts: ResolveAiClipsOptions): Promise<
     opts.onProgress?.(i + 1, plan.length);
   }
   return out;
+}
+
+/**
+ * Revoke the object URLs a `resolveAiVideoClips` result owns.
+ *
+ * Every call mints a fresh blob URL per scene — including on a cache hit — and
+ * each one pins a whole video in memory until it is revoked. Callers must run
+ * this once the render that used the footage has finished. Remote stock URLs
+ * (http/https) are left alone, so a mixed footage map is safe to pass in.
+ */
+export function releaseAiVideoClips(footage: Record<number, StockClip>): void {
+  if (typeof URL.revokeObjectURL !== 'function') return;
+  Object.values(footage).forEach((clip) => {
+    if (clip?.url?.startsWith('blob:')) {
+      try { URL.revokeObjectURL(clip.url); } catch { /* already revoked */ }
+    }
+  });
 }
 
 export function clearAiClipCache(): void {

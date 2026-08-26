@@ -2,7 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import type { DirectorScene } from './creativeDirector';
 import {
   AI_VIDEO_GEN_MODELS, VIDEO_GEN_TIERS, videoGenModelsForTier, videoGenModelByKey,
-  videoGenReason, planAiVideoClips, resolveAiVideoClips, clearAiClipCache,
+  videoGenReason, planAiVideoClips, resolveAiVideoClips, clearAiClipCache, releaseAiVideoClips,
 } from './videoGen';
 
 const scenes: DirectorScene[] = [
@@ -36,8 +36,20 @@ describe('videoGen — free/paid model tiers', () => {
 
   it('looks models up by key and explains the tier cost', () => {
     expect(videoGenModelByKey('wan')?.tier).toBe('free');
-    expect(videoGenReason('free', videoGenModelByKey('wan')!)).toContain('free');
-    expect(videoGenReason('paid', videoGenModelByKey('seedance')!)).toContain('paid');
+    // Both tiers must say that generating costs money, because both do: the
+    // 'free' tier is an open LICENCE, and the clips still bill through
+    // Replicate or Pollinations. Asserting on the word "free" alone let the
+    // old copy claim "Open-source, no cost" and still pass.
+    expect(videoGenReason('free', videoGenModelByKey('wan')!)).toMatch(/costs|billed/);
+    expect(videoGenReason('paid', videoGenModelByKey('seedance')!)).toMatch(/costs|billed/);
+  });
+
+  it('never tells an owner that generating clips is free of charge', () => {
+    for (const model of AI_VIDEO_GEN_MODELS) {
+      const reason = videoGenReason(model.tier, model);
+      expect(reason, model.key).not.toMatch(/no cost|free to use|at no charge/i);
+      expect(model.note, model.key).not.toMatch(/no cost|free to use|at no charge/i);
+    }
   });
 
   it('offers the tier toggle choices', () => {
@@ -99,6 +111,21 @@ describe('videoGen — clip generation through the edge function', () => {
 
   beforeEach(() => clearAiClipCache());
 
+  it('rejects a still returned for a clip request', async () => {
+    // A deployment whose provider has no text-to-video model can answer a
+    // kind:'video' request with a PNG and ok:true — verified against the live
+    // function. Accepting it builds a <video> around a still that never becomes
+    // ready, so the owner is told AI video was generated and every frame
+    // silently falls back to designed graphics.
+    vi.stubGlobal('fetch', vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ ok: true, dataUrl: 'data:image/png;base64,AAAA' }),
+    }) as any));
+
+    const map = await resolveAiVideoClips(base);
+    expect(Object.keys(map)).toHaveLength(0);
+  });
+
   it('generates one clip per scene through generate-image, keyed to Pollinations', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => ({
       ok: true,
@@ -146,5 +173,29 @@ describe('videoGen — clip generation through the edge function', () => {
     const map = await resolveAiVideoClips(base);
     expect(map).toEqual({});
     vi.unstubAllGlobals();
+  });
+});
+
+describe('videoGen — releasing generated clips', () => {
+  it('revokes the object URLs a footage map owns and leaves remote ones alone', () => {
+    const revoked: string[] = [];
+    vi.stubGlobal('URL', {
+      ...URL,
+      createObjectURL: () => 'blob:unused',
+      revokeObjectURL: (u: string) => { revoked.push(u); },
+    });
+
+    releaseAiVideoClips({
+      0: { id: 1, url: 'blob:one', preview: 'blob:one', width: 8, height: 8, duration: 3 },
+      1: { id: 2, url: 'https://cdn.example.com/clip.mp4', preview: '', width: 8, height: 8, duration: 3 },
+      2: { id: 3, url: 'blob:three', preview: 'blob:three', width: 8, height: 8, duration: 3 },
+    });
+
+    expect(revoked).toEqual(['blob:one', 'blob:three']);
+    vi.unstubAllGlobals();
+  });
+
+  it('is a no-op for an empty map', () => {
+    expect(() => releaseAiVideoClips({})).not.toThrow();
   });
 });

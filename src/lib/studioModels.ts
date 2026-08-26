@@ -18,35 +18,60 @@ export interface StudioModel {
   id: string;
   label: string;
   kind: GenerateKind;
-  tier: 'free' | 'paid';
+  /**
+   * What it costs to CALL, not what the weights cost.
+   *
+   * 'free'  — a real free allowance, no card. Only Workers AI today.
+   * 'free-tier' — open weights on a host with limited free credits that run
+   *   out, and models that may be gated. Works, until it doesn't.
+   * 'paid'  — billed per image.
+   *
+   * The old two-way split called every Hugging Face model "free", which is the
+   * claim that leaves someone wondering why generation stopped working.
+   */
+  tier: 'free' | 'free-tier' | 'paid';
   /** Shown under the dropdown so the cost is never a surprise. */
   note: string;
   /** Which secret the platform would need for this to work without a personal key. */
-  needs: 'HUGGINGFACE_API_KEY' | 'REPLICATE_API_TOKEN';
+  needs: 'CLOUDFLARE_API_TOKEN' | 'HUGGINGFACE_API_KEY' | 'REPLICATE_API_TOKEN';
 }
 
 // Kept deliberately short. A long list of ids that may or may not be live is
 // worse than a few that are, plus the Custom option for anything else.
 export const STUDIO_MODELS: StudioModel[] = [
   {
+    id: 'cf:@cf/black-forest-labs/flux-1-schnell',
+    label: 'FLUX.1 schnell',
+    kind: 'image', tier: 'free',
+    note: 'Free daily allowance, no card, no cold start. The best free option — the default.',
+    needs: 'CLOUDFLARE_API_TOKEN',
+  },
+  {
+    id: 'cf:@cf/stabilityai/stable-diffusion-xl-base-1.0',
+    label: 'SDXL 1.0',
+    kind: 'image', tier: 'free',
+    note: 'Also on the free allowance. Softer than FLUX — good for backgrounds.',
+    needs: 'CLOUDFLARE_API_TOKEN',
+  },
+  {
     id: 'hf:stabilityai/stable-diffusion-3-medium-diffusers',
     label: 'Stable Diffusion 3 Medium',
-    kind: 'image', tier: 'free',
-    note: 'Open weights, free tier. Good all-rounder — the default.',
+    kind: 'image', tier: 'free-tier',
+    note: 'Open weights on Hugging Face credits. Good all-rounder; cold starts on first use.',
     needs: 'HUGGINGFACE_API_KEY',
   },
   {
     id: 'hf:stabilityai/sdxl-turbo',
     label: 'SDXL Turbo',
-    kind: 'image', tier: 'free',
-    note: 'Fastest free option. Lower detail, good for backgrounds.',
+    kind: 'image', tier: 'free-tier',
+    note: 'Fastest of the Hugging Face set. Lower detail, good for backgrounds.',
     needs: 'HUGGINGFACE_API_KEY',
   },
   {
     id: 'hf:black-forest-labs/FLUX.1-dev',
     label: 'FLUX.1 dev',
-    kind: 'image', tier: 'free',
-    note: 'Highest quality of the free set, and the slowest.',
+    kind: 'image', tier: 'free-tier',
+    note: 'Highest quality on Hugging Face, and the slowest. Often gated — may need a licence accepted.',
     needs: 'HUGGINGFACE_API_KEY',
   },
   {
@@ -116,4 +141,61 @@ export function generateMessage(reason: GenerateReason, model: StudioModel | nul
   if (reason === 'rate_limited') return 'The provider is rate limiting right now — wait a moment and retry.';
   if (reason === 'loading') return 'The model is warming up (normal on the free tier after it has been idle). Try again in about a minute.';
   return 'Generation failed. Try a different model, or simplify the prompt.';
+}
+
+// --- provider status ---------------------------------------------------------
+
+export interface ProviderStatus {
+  /** True when the deployment has a model configured and generation can work. */
+  ok: boolean;
+  /** 'cloudflare' | 'huggingface' | 'replicate' | 'pollinations' | 'none' */
+  provider: string;
+  model: string | null;
+  label: string;
+}
+
+/**
+ * Ask the edge function whether a model is actually configured.
+ *
+ * The endpoint has existed since this layer was written and nothing called it,
+ * so the only way to discover that no key was set was to write a prompt, wait,
+ * and get designed graphics back. That silent fallback is the exact failure
+ * this codebase calls "the Pollinations mistake" — the button appears to work
+ * and quietly produces nothing.
+ *
+ * Never throws: an unreachable function is reported as "not configured", which
+ * is what it means for the person looking at the panel.
+ */
+export async function fetchProviderStatus(signal?: AbortSignal): Promise<ProviderStatus> {
+  const offline: ProviderStatus = {
+    ok: false,
+    provider: 'none',
+    model: null,
+    label: 'No image model configured',
+  };
+  try {
+    const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/generate-image`, {
+      method: 'GET',
+      headers: { Authorization: `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY}` },
+      signal,
+    });
+    if (!res.ok) return offline;
+    const body = await res.json().catch(() => null);
+    if (!body || typeof body.ok !== 'boolean') return offline;
+    return {
+      ok: body.ok,
+      provider: String(body.provider ?? 'none'),
+      model: body.model ?? null,
+      label: String(body.label ?? offline.label),
+    };
+  } catch {
+    return offline;
+  }
+}
+
+/** What to show beside the generate controls, given the provider status. */
+export function providerStatusMessage(status: ProviderStatus): string {
+  if (status.ok) return `Generating with ${status.label}.`;
+  return 'No image model is connected, so generating will fall back to designed graphics. '
+    + 'Set CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID for the free tier, or use your own key below.';
 }

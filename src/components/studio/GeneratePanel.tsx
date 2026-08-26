@@ -1,8 +1,9 @@
-import { useMemo, useState } from 'react';
-import { Sparkles, Loader2, KeyRound, ChevronDown, Image as ImageIcon, Video as VideoIcon } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Sparkles, Loader2, KeyRound, ChevronDown, Image as ImageIcon, Video as VideoIcon, AlertCircle, CheckCircle2 } from 'lucide-react';
 import {
   STUDIO_MODELS, CUSTOM_MODEL_ID, generateMedia, generateMessage,
-  type StudioModel, type GenerateKind,
+  fetchProviderStatus, providerStatusMessage,
+  type StudioModel, type GenerateKind, type ProviderStatus,
 } from '../../lib/studioModels';
 import PasswordToggle from '../PasswordToggle';
 
@@ -32,6 +33,17 @@ export default function GeneratePanel({
   const [revealKey, setRevealKey] = useState(false);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+
+  // Asked once on mount, so the panel can say up front whether generating will
+  // actually reach a model. Without it the only signal was a prompt that came
+  // back as designed graphics several seconds later, which reads as the feature
+  // being broken rather than unconfigured.
+  const [provider, setProvider] = useState<ProviderStatus | null>(null);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchProviderStatus(ac.signal).then(setProvider).catch(() => { /* reported as unconfigured */ });
+    return () => ac.abort();
+  }, []);
 
   const selected: StudioModel | null = useMemo(
     () => STUDIO_MODELS.find((m) => m.id === modelId) ?? null,
@@ -70,7 +82,11 @@ export default function GeneratePanel({
     }
   };
 
+  // Three groups, not two. The middle one exists because "free" was doing two
+  // jobs: a real free allowance, and open weights on credits that run out.
+  // Someone choosing between them deserves to know which they are getting.
   const free = STUDIO_MODELS.filter((m) => m.tier === 'free');
+  const freeTier = STUDIO_MODELS.filter((m) => m.tier === 'free-tier');
   const paid = STUDIO_MODELS.filter((m) => m.tier === 'paid');
 
   return (
@@ -79,6 +95,22 @@ export default function GeneratePanel({
         <Sparkles size={13} className="text-purple-500" />
         <h4 className="text-xs font-bold text-gray-900 dark:text-white">Or generate one</h4>
       </div>
+
+      {provider && (
+        <p
+          role="status"
+          className={`mb-2 flex items-start gap-1.5 text-[10px] leading-snug ${
+            provider.ok
+              ? 'text-gray-500 dark:text-gray-400'
+              : 'text-amber-700 dark:text-amber-400'
+          }`}
+        >
+          {provider.ok
+            ? <CheckCircle2 size={12} className="mt-px flex-shrink-0" aria-hidden="true" />
+            : <AlertCircle size={12} className="mt-px flex-shrink-0" aria-hidden="true" />}
+          {providerStatusMessage(provider)}
+        </p>
+      )}
 
       <label className="sr-only" htmlFor="gen-prompt">Describe the image or video</label>
       <textarea
@@ -99,8 +131,11 @@ export default function GeneratePanel({
             onChange={(e) => { setModelId(e.target.value); setStatus(null); }}
             className="w-full appearance-none rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 pl-2.5 pr-7 min-h-[44px] text-xs font-medium text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
           >
-            <optgroup label="Free — open weights">
+            <optgroup label="Free — no card, daily allowance">
               {free.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
+            </optgroup>
+            <optgroup label="Free credits — open weights, limited">
+              {freeTier.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}
             </optgroup>
             <optgroup label="Paid — needs a Replicate key">
               {paid.map((m) => <option key={m.id} value={m.id}>{m.label}</option>)}

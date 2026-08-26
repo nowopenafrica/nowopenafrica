@@ -154,7 +154,11 @@ describe('AdminCreatorShell smoke', () => {
     expect(await screen.findByRole('button', { name: 'Free canvas' })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'AI video gen' })).toBeInTheDocument();
     fireEvent.click(screen.getByRole('button', { name: 'AI video gen' }));
-    expect(await screen.findByRole('button', { name: 'Paid' })).toBeInTheDocument();
+    // "Premium", not "Paid" — and its sibling is "Open-weight", not "Free".
+    // Both tiers bill through the renderer, so a Free/Paid toggle was telling
+    // owners one of them was free of charge when neither is.
+    expect(await screen.findByRole('button', { name: 'Premium' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Open-weight' })).toBeInTheDocument();
     expect(screen.getByText('Live preview')).toBeInTheDocument();
     // Captions live in the Text drawer of the editor shell.
     fireEvent.click(screen.getByRole('button', { name: 'Text' }));

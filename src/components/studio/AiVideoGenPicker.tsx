@@ -1,4 +1,6 @@
-import { Zap } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { Zap, AlertCircle } from 'lucide-react';
+import { fetchProviderStatus, type ProviderStatus } from '../../lib/studioModels';
 import {
   VIDEO_GEN_TIERS, videoGenModelsForTier, videoGenModelByKey, videoGenReason,
   type VideoGenTier,
@@ -18,6 +20,19 @@ export default function AiVideoGenPicker({
   model: AiVideoModel;
   onModel: (m: AiVideoModel) => void;
 }) {
+  // Video needs Replicate or Pollinations specifically — the free image
+  // provider has no text-to-video model — so the picker checks and says so
+  // rather than letting someone choose an engine that cannot be reached.
+  const [provider, setProvider] = useState<ProviderStatus | null>(null);
+  useEffect(() => {
+    const ac = new AbortController();
+    fetchProviderStatus(ac.signal).then(setProvider).catch(() => { /* reported as unconfigured */ });
+    return () => ac.abort();
+  }, []);
+  const canGenerateVideo = provider
+    ? provider.provider === 'replicate' || provider.provider === 'pollinations'
+    : true;
+
   const current = videoGenModelByKey(model) ?? videoGenModelsForTier(tier)[0];
   const models = videoGenModelsForTier(tier);
   const reason = videoGenReason(tier, current);
@@ -26,7 +41,7 @@ export default function AiVideoGenPicker({
     <div className="rounded-xl border border-purple-200 dark:border-purple-800 bg-purple-50 dark:bg-purple-900/30 p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[10px] font-bold uppercase tracking-wide text-purple-600 dark:text-purple-300 flex items-center gap-1">
-          <Zap size={11} /> AI video gen — {tier === 'free' ? 'free' : 'paid'} model
+          <Zap size={11} /> AI video gen — {tier === 'free' ? 'open-weight' : 'premium'} model
         </p>
         <div className="flex rounded-lg bg-gray-100 dark:bg-gray-800 p-0.5">
           {VIDEO_GEN_TIERS.map((t) => (
@@ -42,6 +57,15 @@ export default function AiVideoGenPicker({
           ))}
         </div>
       </div>
+
+      {provider && !canGenerateVideo && (
+        <p role="status" className="mt-2 flex items-start gap-1.5 text-[10px] leading-snug text-amber-700 dark:text-amber-400">
+          <AlertCircle size={12} className="mt-px flex-shrink-0" aria-hidden="true" />
+          {provider.ok
+            ? `${provider.label} generates stills only — it has no text-to-video model, so clips will fall back to designed graphics. Video needs a Replicate or Pollinations key.`
+            : 'No video model is connected, so clips will fall back to designed graphics.'}
+        </p>
+      )}
 
       <div className="mt-2 flex flex-wrap items-center gap-2">
         <select

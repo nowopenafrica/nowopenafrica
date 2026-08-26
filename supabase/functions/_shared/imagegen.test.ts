@@ -206,3 +206,103 @@ describe('generateImage — Replicate', () => {
     expect(await generateImage(REQ)).toMatchObject({ ok: false, reason: 'error' });
   });
 });
+
+describe('Cloudflare Workers AI', () => {
+  const CF = { CLOUDFLARE_API_TOKEN: 'cf', CLOUDFLARE_ACCOUNT_ID: 'acct' };
+
+  it('is preferred over the paid providers when configured', () => {
+    // The one provider here that is free to CALL, so spending money while it is
+    // available would be a bug, not a preference.
+    env = { ...CF, REPLICATE_API_TOKEN: 'r', HUGGINGFACE_API_KEY: 'h' };
+    expect(resolveImageProvider().name).toBe('cloudflare');
+  });
+
+  it('is ignored unless BOTH the token and the account id are set', () => {
+    // The account id is part of the URL, so a token on its own cannot build a
+    // request — treating it as configured would fail every generation.
+    env = { CLOUDFLARE_API_TOKEN: 'cf', HUGGINGFACE_API_KEY: 'h' };
+    expect(resolveImageProvider().name).toBe('huggingface');
+
+    env = { CLOUDFLARE_ACCOUNT_ID: 'acct', HUGGINGFACE_API_KEY: 'h' };
+    expect(resolveImageProvider().name).toBe('huggingface');
+  });
+
+  it('honours an explicit IMAGE_PROVIDER pin over the free-first order', () => {
+    env = { ...CF, REPLICATE_API_TOKEN: 'r', IMAGE_PROVIDER: 'replicate' };
+    expect(resolveImageProvider().name).toBe('replicate');
+  });
+
+  it('ignores a pin the deployment has no key for, rather than failing shut', () => {
+    env = { ...CF, IMAGE_PROVIDER: 'replicate' };
+    expect(resolveImageProvider().name).toBe('cloudflare');
+  });
+
+  it('reads the base64 JSON shape that flux-1-schnell returns', async () => {
+    env = { ...CF };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify({ success: true, result: { image: 'QUJD' } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )));
+    const out = await generateImage(REQ);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.provider).toBe('cloudflare');
+    expect(out.dataUrl).toBe('data:image/jpeg;base64,QUJD');
+  });
+
+  it('reads the raw-bytes shape that the Stable Diffusion models return', async () => {
+    env = { ...CF };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(pngBytes(), {
+      status: 200, headers: { 'content-type': 'image/png' },
+    })));
+    const out = await generateImage(REQ);
+    expect(out.ok).toBe(true);
+    if (!out.ok) return;
+    expect(out.dataUrl.startsWith('data:image/png;base64,')).toBe(true);
+  });
+
+  it('treats a model-level failure inside a 200 as a failure', async () => {
+    // Workers AI reports these in the body, not the status. Trusting the status
+    // alone would hand a "success" with no image back to the renderer.
+    env = { ...CF };
+    vi.stubGlobal('fetch', vi.fn(async () => new Response(
+      JSON.stringify({ success: false, errors: [{ message: 'bad prompt' }] }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    )));
+    const out = await generateImage(REQ);
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.reason).toBe('error');
+    expect(out.detail).toContain('bad prompt');
+  });
+
+  it('puts the account id in the URL and the token in the header', async () => {
+    env = { ...CF };
+    const spy = vi.fn(async () => new Response(
+      JSON.stringify({ success: true, result: { image: 'QUJD' } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', spy);
+    await generateImage(REQ);
+    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    expect(url).toContain('/accounts/acct/ai/run/@cf/black-forest-labs/flux-1-schnell');
+    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer cf');
+  });
+
+  it('routes a cf: model ref to Workers AI', () => {
+    expect(parseModelRef('cf:@cf/stabilityai/stable-diffusion-xl-base-1.0')).toEqual({
+      provider: 'cloudflare',
+      model: '@cf/stabilityai/stable-diffusion-xl-base-1.0',
+    });
+  });
+
+  it('refuses video, because Workers AI has no text-to-video model', async () => {
+    // The honest failure. Silently returning a still for a clip request is how
+    // an "AI video" button ends up producing nothing.
+    env = { ...CF };
+    const out = await generateImage({ ...REQ, kind: 'video' });
+    expect(out.ok).toBe(false);
+    if (out.ok) return;
+    expect(out.detail).toContain('Replicate or Pollinations');
+  });
+});
