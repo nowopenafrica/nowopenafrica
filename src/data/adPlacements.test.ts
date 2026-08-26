@@ -153,6 +153,28 @@ describe('ad placement sample data', () => {
     }
   });
 
+  it('never shows a discount that is not one', () => {
+    // A "was" price at or below what is being charged renders as a struck
+    // number smaller than the one beside it, which reads as a mistake and,
+    // worse, claims a saving nobody is offering. The database enforces this
+    // too; here it is caught before it ever gets there.
+    for (const a of adverts) {
+      if (a.list_price_per_day == null) continue;
+      expect(
+        a.list_price_per_day,
+        `${a.title} claims a discount from ${a.list_price_per_day} to ${a.price_per_day}`,
+      ).toBeGreaterThan(a.price_per_day);
+    }
+  });
+
+  it('discounts a real share of the inventory, not all of it', () => {
+    // Everything on sale is a sale nobody believes. The operator discounts some
+    // of its card, not the lot, and the seeded data should look the same.
+    const discounted = adverts.filter((a) => a.list_price_per_day != null);
+    expect(discounted.length).toBeGreaterThan(5);
+    expect(discounted.length).toBeLessThan(adverts.length * 0.6);
+  });
+
   it('gives every placement a unique title, so the pricing SQL matches one row', () => {
     // update_placement_pricing.sql keys on the title. A duplicate would let one
     // statement rewrite two placements.

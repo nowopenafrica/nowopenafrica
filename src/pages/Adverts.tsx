@@ -51,7 +51,25 @@ function AdvertCard({ advert, format }: { advert: Advertisement; format: (n: num
         </div>
         <div className="mt-3 flex items-center justify-between">
           {advert.pricing ? (
-            <span className="inline-flex items-center gap-1 text-sm font-bold text-gray-900 dark:text-white"><DollarSign size={14} className="text-green-600 dark:text-green-400" />{format(advert.pricing)}<span className="text-xs font-normal text-gray-500">/day</span></span>
+            <span className="inline-flex flex-wrap items-baseline gap-x-1.5 gap-y-0.5">
+              {/* The card price, struck, when this placement is genuinely
+                  discounted. OOH is quoted off a published card and then
+                  negotiated down, so the pair is the offer — the current price
+                  alone is just a number with no history to compare it to.
+                  Rendered only when a list price exists and beats the price,
+                  which the database also enforces. */}
+              {typeof advert.list_price_per_day === 'number'
+                && advert.list_price_per_day > (advert.pricing ?? 0) ? (
+                <span className="text-xs font-medium text-gray-400 line-through tabular-nums">
+                  {format(advert.list_price_per_day)}
+                </span>
+              ) : null}
+              <span className="inline-flex items-center gap-1 text-sm font-bold text-gray-900 dark:text-white">
+                <DollarSign size={14} className="text-green-600 dark:text-green-400" />
+                {format(advert.pricing)}
+                <span className="text-xs font-normal text-gray-500">/day</span>
+              </span>
+            </span>
           ) : <span />}
           {advert.traffic_density ? (
             <span className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 dark:text-blue-400 capitalize"><TrendingUp size={13} />{advert.traffic_density}</span>

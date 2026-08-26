@@ -62,7 +62,14 @@ const OPERATOR_IMAGES = {
 };
 
 // Realistic ad placements across Africa, shown while the database is empty.
-// Tuple: [title, type, location, price per day (USD), dimensions, traffic, image?]
+// Tuple: [title, type, location, price per day (USD), dimensions, traffic, image?, listPrice?]
+//
+// The 8th slot is the UNDISCOUNTED rate-card price. Nigerian OOH is quoted off
+// a published card and then discounted, and an operator's listing always shows
+// both — the card price struck through, what you actually pay beside it. That
+// pairing is the offer; one number on its own is just a price. Absent means the
+// placement is not discounted, which is why it is optional rather than equal to
+// the price.
 //
 // The optional 7th slot is a photograph OF THAT EXACT BOARD, supplied by the
 // operator who owns it. Where it is absent the type's stock pool is used
@@ -87,12 +94,12 @@ const OPERATOR_IMAGES = {
 //
 // Titles follow the trade's own vocabulary — face count, structure type, then
 // the road or landmark — because that is how buyers search and compare.
-type PlacementSeed = [string, string, string, number, string, string, string?];
+type PlacementSeed = [string, string, string, number, string, string, string?, number?];
 const AD_PLACEMENTS: PlacementSeed[] = [
   // Nigeria
   ['3-Face Gantry Billboard, Third Mainland Bridge, Lagos', 'Billboard', 'Lagos, Nigeria', 56, '18m x 9m', 'high'],
-  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 102, '12m x 6m', 'high', OPERATOR_IMAGES.lekkiFirstRoundabout],
-  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 289, '10m x 6m', 'high', OPERATOR_IMAGES.akinAdesolaScreen],
+  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 102, '12m x 6m', 'high', OPERATOR_IMAGES.lekkiFirstRoundabout, 111],
+  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 289, '10m x 6m', 'high', OPERATOR_IMAGES.akinAdesolaScreen, 333],
   ['Double-Sided Freestanding Screens, Ikeja City Mall, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '4m x 3m', 'high'],
   ['Arrivals Wall Lightbox, Murtala Muhammed Airport, Lagos', 'Airport', 'Lagos, Nigeria', 78, '8m x 3m', 'high'],
   ['Full Vehicle Wrap, Danfo Fleet of 10, Lagos', 'Transit', 'Lagos, Nigeria', 27, 'Full vehicle', 'high'],
@@ -100,8 +107,8 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['2-Face Unipole Billboard, Wuse Market Entrance, Abuja', 'Billboard', 'Abuja, Nigeria', 27, '10m x 5m', 'high'],
   ['Baggage Hall Lightbox, Nnamdi Azikiwe Airport, Abuja', 'Airport', 'Abuja, Nigeria', 49, '6m x 3m', 'medium'],
   ['Lamp Post Network (20 units), Maitama District, Abuja', 'Street Furniture', 'Abuja, Nigeria', 20, '1.2m x 1.8m each', 'medium'],
-  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 11, '12m x 6m', 'high', OPERATOR_IMAGES.portHarcourtUnipole],
-  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 11, '10m x 5m', 'medium', OPERATOR_IMAGES.ibadanEyecatcher],
+  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 11, '12m x 6m', 'high', OPERATOR_IMAGES.portHarcourtUnipole, 13],
+  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 11, '10m x 5m', 'medium', OPERATOR_IMAGES.ibadanEyecatcher, 14],
   ['2-Face Unipole Billboard, Kofar Mata Roundabout, Kano', 'Billboard', 'Kano, Nigeria', 13, '8m x 4m', 'medium'],
   ['Drive-Time Radio Slot (60s), Wazobia FM, Lagos', 'Radio', 'Lagos, Nigeria', 33, '60 seconds', 'high'],
   // Ghana
@@ -174,7 +181,7 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['48-Sheet Billboard, Ihama Road, Benin City', 'Billboard', 'Benin City, Nigeria', 4, '6m x 3m', 'medium'],
   ['Portrait Billboard, Nwaniba Road, Uyo', 'Billboard', 'Uyo, Nigeria', 12, '4m x 8m', 'medium'],
   ['Portrait Billboard, Nsugbe Road, Onitsha', 'Billboard', 'Onitsha, Nigeria', 13, '4m x 8m', 'high'],
-  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 14, '4m x 8m', 'medium', OPERATOR_IMAGES.asabaUnipole],
+  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 14, '4m x 8m', 'medium', OPERATOR_IMAGES.asabaUnipole, 18],
   ['Gantry Billboard, Abakiliki Road, Enugu', 'Billboard', 'Enugu, Nigeria', 56, '15m x 4m', 'high'],
 
   // --- Media the browse page offers but had nothing behind -------------------
@@ -201,9 +208,9 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['BRT Interior TV Network Slot, Lagos', 'Transit', 'Lagos, Nigeria', 2, 'Onboard screen loop', 'high'],
   ['BRT Interior Panel Branding (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 4, 'Interior panels', 'high'],
   ['BRT Bus Branding — Benz (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 6, 'Full exterior', 'high'],
-  ['BRT Bus Branding — TATA (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 7, 'Full exterior', 'high'],
+  ['BRT Bus Branding — TATA (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 7, 'Full exterior', 'high', undefined, 8],
   ['BRT Bus Branding — Marcopolo (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high'],
-  ['BRT Bus Branding — CNG Fleet (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high'],
+  ['BRT Bus Branding — CNG Fleet (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high', undefined, 9],
 
   // --- Mobile truck & roadshow ----------------------------------------------
   //
@@ -211,13 +218,13 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // the widest range on the platform: N75k for a truck board in Kano up to
   // N7m for a pan-Nigeria tour.
   ['Mobile Truck Billboard, Kano', 'Vehicle Wrap', 'Kano, Nigeria', 2, 'Both flanks', 'medium'],
-  ['Mobile Roadshow Stage, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 7, 'Stage truck + PA', 'high'],
-  ['Mobile Roadshow Stage, South-West Circuit', 'Vehicle Wrap', 'Ibadan, Nigeria', 11, 'Stage truck + PA', 'high'],
-  ['Digital LED Truck, Port Harcourt', 'Vehicle Wrap', 'Port Harcourt, Nigeria', 20, 'LED both flanks', 'high'],
-  ['Double-Sided LED Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 20, 'LED both flanks', 'high'],
-  ['Mobile Billboard Truck, Abuja', 'Vehicle Wrap', 'Abuja, Nigeria', 25, 'Both flanks + rear', 'high'],
-  ['Mobile Billboard Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 40, 'Both flanks + rear', 'high'],
-  ['Mobile Truck Tour, Pan-Nigeria Circuit', 'Vehicle Wrap', 'Lagos, Nigeria', 156, 'Multi-city route', 'high'],
+  ['Mobile Roadshow Stage, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 7, 'Stage truck + PA', 'high', undefined, 11],
+  ['Mobile Roadshow Stage, South-West Circuit', 'Vehicle Wrap', 'Ibadan, Nigeria', 11, 'Stage truck + PA', 'high', undefined, 13],
+  ['Digital LED Truck, Port Harcourt', 'Vehicle Wrap', 'Port Harcourt, Nigeria', 20, 'LED both flanks', 'high', undefined, 22],
+  ['Double-Sided LED Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 20, 'LED both flanks', 'high', undefined, 22],
+  ['Mobile Billboard Truck, Abuja', 'Vehicle Wrap', 'Abuja, Nigeria', 25, 'Both flanks + rear', 'high', undefined, 29],
+  ['Mobile Billboard Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 40, 'Both flanks + rear', 'high', undefined, 44],
+  ['Mobile Truck Tour, Pan-Nigeria Circuit', 'Vehicle Wrap', 'Lagos, Nigeria', 156, 'Multi-city route', 'high', undefined, 167],
 
   // --- Television -------------------------------------------------------------
   //
@@ -233,17 +240,17 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // as they actually stand. Five placements above already corresponded to
   // listings here and have been given their photographs too; these eleven had
   // no counterpart.
-  ['LED Portrait Billboard, 5th Roundabout Lekki FTF Ajah, Lagos', 'Digital Screen', 'Lagos, Nigeria', 89, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedAjah],
-  ['LED Portrait Billboard, 5th Roundabout Jakande, Lekki, Lagos', 'Digital Screen', 'Lagos, Nigeria', 80, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedPortrait],
-  ['16 Digital Screens, Railway Ticketing & Waiting Area, Lagos', 'Digital Screen', 'Lagos, Nigeria', 208, '16 screens', 'high', OPERATOR_IMAGES.railwayScreens],
-  ['2 Double-Sided Freestanding Screens, The Palms, Lekki, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '2 double-sided', 'high', OPERATOR_IMAGES.palmsFreestanding],
-  ['2-Face Static Unipole, Berger, Lagos-Ibadan Expressway', 'Billboard', 'Lagos, Nigeria', 40, '2 faces', 'high', OPERATOR_IMAGES.bergerUnipole],
-  ['2-Face Wall Panel Billboard, Muson Centre, Onikan, Lagos', 'Billboard', 'Lagos, Nigeria', 56, 'Wall panel, 2 faces', 'high', OPERATOR_IMAGES.musonWallPanel],
-  ['2-Sided LED Billboard, Eko Bridge, Lagos Island', 'Digital Screen', 'Lagos, Nigeria', 73, 'LED, 2 sided', 'high', OPERATOR_IMAGES.ekoBridgeLed],
-  ['2-Sided Unipole Billboard, Warri Shopping Mall, Delta', 'Billboard', 'Warri, Nigeria', 19, '2 faces', 'medium', OPERATOR_IMAGES.warriMallUnipole],
-  ['3-Face LED Billboard, Law School Falomo Bridge, Victoria Island', 'Digital Screen', 'Lagos, Nigeria', 289, 'LED, 3 faces', 'high', OPERATOR_IMAGES.lawSchoolLed],
-  ['3-Face Portrait Billboard, Ariaria Junction, Aba', 'Billboard', 'Aba, Nigeria', 17, 'Portrait, 3 faces', 'high', OPERATOR_IMAGES.ariariaPortrait],
-  ['3-Face Unipole Billboard, Effurun Roundabout, Warri', 'Billboard', 'Warri, Nigeria', 18, 'Unipole, 3 faces', 'high', OPERATOR_IMAGES.effurunUnipole]
+  ['LED Portrait Billboard, 5th Roundabout Lekki FTF Ajah, Lagos', 'Digital Screen', 'Lagos, Nigeria', 89, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedAjah, 100],
+  ['LED Portrait Billboard, 5th Roundabout Jakande, Lekki, Lagos', 'Digital Screen', 'Lagos, Nigeria', 80, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedPortrait, 89],
+  ['16 Digital Screens, Railway Ticketing & Waiting Area, Lagos', 'Digital Screen', 'Lagos, Nigeria', 208, '16 screens', 'high', OPERATOR_IMAGES.railwayScreens, 222],
+  ['2 Double-Sided Freestanding Screens, The Palms, Lekki, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '2 double-sided', 'high', OPERATOR_IMAGES.palmsFreestanding, 38],
+  ['2-Face Static Unipole, Berger, Lagos-Ibadan Expressway', 'Billboard', 'Lagos, Nigeria', 40, '2 faces', 'high', OPERATOR_IMAGES.bergerUnipole, 44],
+  ['2-Face Wall Panel Billboard, Muson Centre, Onikan, Lagos', 'Billboard', 'Lagos, Nigeria', 56, 'Wall panel, 2 faces', 'high', OPERATOR_IMAGES.musonWallPanel, 67],
+  ['2-Sided LED Billboard, Eko Bridge, Lagos Island', 'Digital Screen', 'Lagos, Nigeria', 73, 'LED, 2 sided', 'high', OPERATOR_IMAGES.ekoBridgeLed, 78],
+  ['2-Sided Unipole Billboard, Warri Shopping Mall, Delta', 'Billboard', 'Warri, Nigeria', 19, '2 faces', 'medium', OPERATOR_IMAGES.warriMallUnipole, 21],
+  ['3-Face LED Billboard, Law School Falomo Bridge, Victoria Island', 'Digital Screen', 'Lagos, Nigeria', 289, 'LED, 3 faces', 'high', OPERATOR_IMAGES.lawSchoolLed, 333],
+  ['3-Face Portrait Billboard, Ariaria Junction, Aba', 'Billboard', 'Aba, Nigeria', 17, 'Portrait, 3 faces', 'high', OPERATOR_IMAGES.ariariaPortrait, 19],
+  ['3-Face Unipole Billboard, Effurun Roundabout, Warri', 'Billboard', 'Warri, Nigeria', 18, 'Unipole, 3 faces', 'high', OPERATOR_IMAGES.effurunUnipole, 20]
 ];
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show
@@ -420,7 +427,7 @@ export const generateAdverts = (count: number = AD_PLACEMENTS.length) => {
   if (!SAMPLES_ENABLED) return [];
   // Cycle each type's photo set independently so repeats of a type vary
   const typeCounts: Record<string, number> = {};
-  return AD_PLACEMENTS.slice(0, count).map(([title, type, location, pricePerDay, dimensions, traffic, ownImage], index) => {
+  return AD_PLACEMENTS.slice(0, count).map(([title, type, location, pricePerDay, dimensions, traffic, ownImage, listPrice], index) => {
     const pool = AD_TYPE_IMAGES[type] ?? [];
     typeCounts[type] = (typeCounts[type] ?? -1) + 1;
     return {
@@ -431,6 +438,9 @@ export const generateAdverts = (count: number = AD_PLACEMENTS.length) => {
     description: `${AD_TYPE_DESCRIPTIONS[type] || 'Premium advertising placement'} — ${dimensions}, ${traffic} traffic. Located at ${location}.`,
     location,
     price_per_day: pricePerDay,
+    // Absent unless this placement is genuinely discounted, so the card can
+    // tell a real offer from a price with no history.
+    list_price_per_day: listPrice ?? null,
     pricing: pricePerDay,
     budget: pricePerDay * 30,
     duration: 30,

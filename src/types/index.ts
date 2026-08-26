@@ -6,6 +6,8 @@ export interface Advertisement {
   category?: string;
   location?: string;
   price_per_day?: number;
+  /** Undiscounted rate-card price. Absent when the placement is not discounted. */
+  list_price_per_day?: number | null;
   pricing?: number;
   budget?: number;
   duration?: number;

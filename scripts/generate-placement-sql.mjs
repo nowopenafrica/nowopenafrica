@@ -38,7 +38,12 @@ const SOURCE = join('src', 'data', 'populateData.ts');
 // HEAD would match no rows: a silent no-op rather than a visible failure.
 const BASELINE = '8744713^';
 
-const ROW = /\[\s*(['"])(.*?)\1,\s*(['"])(.*?)\3,\s*(['"])(.*?)\5,\s*(\d+),\s*(['"])(.*?)\8,\s*(['"])(.*?)\10\s*(?:,\s*([^\]]+?))?\s*\]/g;
+// The 7th field must NOT swallow the 8th. `([^\]]+?)` did: on a row carrying
+// both an image and a card price it captured "OPERATOR_IMAGES.foo, 14" as one
+// value, so every operator photograph silently vanished from the SQL while the
+// row count still matched and the guard stayed quiet. Excluding commas from the
+// image capture keeps the two apart.
+const ROW = /\[\s*(['"])(.*?)\1,\s*(['"])(.*?)\3,\s*(['"])(.*?)\5,\s*(\d+),\s*(['"])(.*?)\8,\s*(['"])(.*?)\10\s*(?:,\s*([^,\]]+?))?\s*(?:,\s*(\d+))?\s*\]/g;
 
 function parse(text) {
   const start = text.indexOf('const AD_PLACEMENTS');
@@ -47,11 +52,21 @@ function parse(text) {
     title: m[2], type: m[4], location: m[6],
     usd: Number(m[7]), dimensions: m[9], traffic: m[11],
     own: (m[12] || '').trim(),
+    listPrice: m[13] ? Number(m[13]) : null,
   }));
   // Every line that looks like a tuple must have parsed.
   const literal = block.split('\n').filter((l) => /^\s*\[['"]/.test(l)).length;
   if (rows.length !== literal) {
     throw new Error(`Parsed ${rows.length} placements but the file has ${literal} — the pattern is dropping rows.`);
+  }
+  // Counting rows is not enough. A pattern can match every row and still read
+  // the wrong FIELDS: when the image capture swallowed the card price beside
+  // it, all sixteen operator photographs disappeared from the SQL while this
+  // count stayed correct. Check the fields that go missing quietly.
+  const withImage = (block.match(/OPERATOR_IMAGES\./g) || []).length;
+  const parsedImages = rows.filter((r) => /^OPERATOR_IMAGES\.\w+$/.test(r.own)).length;
+  if (withImage !== parsedImages) {
+    throw new Error(`${withImage} placements carry an operator photograph but only ${parsedImages} parsed cleanly — the pattern is misreading fields.`);
   }
   return rows;
 }
@@ -122,7 +137,11 @@ oldRows.forEach((was, i) => {
   const img = imageFor(now);
   out.push(
     `UPDATE advertisements SET title = ${q(now.title)}, price_per_day = ${now.usd}, ` +
-    `pricing = ${now.usd}, description = ${q(describe(now))}` +
+    `pricing = ${now.usd}, description = ${q(describe(now))}, ` +
+    // Written every time, NULL included: a placement that stops being
+    // discounted has to LOSE its struck-through price, not keep a stale one
+    // that now claims a discount nobody is offering.
+    `list_price_per_day = ${now.listPrice ?? 'NULL'}` +
     (img ? `, image_url = ${q(img)}` : '') +
     ` WHERE title = ${q(was.title)};`,
   );
@@ -132,9 +151,9 @@ out.push('', '-- Inventory added after the original seed.', '');
 newRows.slice(oldRows.length).forEach((row) => {
   const img = imageFor(row);
   out.push(
-    'INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)',
+    'INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, list_price_per_day, dimensions, image_url, status)',
     `SELECT ${q(row.title)}, ${q(describe(row))}, ${q(row.type)}, ${q(row.type)}, ${q(row.location)}, ` +
-    `${row.usd}, ${row.usd}, ${q(row.dimensions)}, ${img ? q(img) : 'NULL'}, 'active'`,
+    `${row.usd}, ${row.usd}, ${row.listPrice ?? 'NULL'}, ${q(row.dimensions)}, ${img ? q(img) : 'NULL'}, 'active'`,
     `WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = ${q(row.title)});`,
     '',
   );
@@ -151,5 +170,6 @@ const target = join(root, 'scripts', 'sql', 'update_placement_pricing.sql');
 writeFileSync(target, out.join('\n'), 'utf8');
 console.log(
   `Wrote ${target}\n  ${oldRows.length} updates, ${newRows.length - oldRows.length} inserts, ` +
-  `${newRows.filter((r) => ownUrl(r.own)).length} operator photographs.`,
+  `${newRows.filter((r) => ownUrl(r.own)).length} operator photographs, ` +
+  `${newRows.filter((r) => r.listPrice).length} discounted.`,
 );
