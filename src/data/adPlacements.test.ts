@@ -117,6 +117,42 @@ describe('ad placement sample data', () => {
     expect(new Set(images).size).toBe(images.length);
   });
 
+  it('uses the operator photograph on the board it actually shows', () => {
+    // A stock billboard is fine for illustrating a format. On a listing someone
+    // books, the picture is a claim about what they are getting, so where the
+    // operator supplied a photograph of that exact board it must win over the
+    // type's stock pool.
+    const byTitle = (t: string) => adverts.find((a) => a.title === t);
+    const pairs: [string, string][] = [
+      ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Akin-Adesola'],
+      ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Olu-abasanjo'],
+      ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'JERICHO-ELEYE'],
+      ['Portrait Billboard, Nnebisi Road, Asaba', 'Asaba'],
+      ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Lekki-Epe-First-Roundabout'],
+    ];
+    for (const [title, fragment] of pairs) {
+      const a = byTitle(title);
+      expect(a, `${title} is missing`).toBeTruthy();
+      expect(a!.image_url, `${title} lost its operator photo`).toContain(fragment);
+    }
+  });
+
+  it('keeps every operator photo on the operator host until it is re-hosted', () => {
+    // scripts/rehost-partner-images.mjs moves these into our own storage and
+    // rewrites them. Until then they must all sit on the one host that is
+    // allowlisted in the CSP — a stray host is a picture that silently fails in
+    // production only.
+    const external = adverts
+      .map((a) => a.image_url)
+      .filter((u) => !u.startsWith('https://images.pexels.com/'));
+    for (const url of external) {
+      expect(
+        /^https:\/\/(alternativeadverts\.com|[a-z0-9-]+\.supabase\.co)\//.test(url),
+        `${url} is on a host the CSP does not allow`,
+      ).toBe(true);
+    }
+  });
+
   it('gives every placement a unique title, so the pricing SQL matches one row', () => {
     // update_placement_pricing.sql keys on the title. A duplicate would let one
     // statement rewrite two placements.

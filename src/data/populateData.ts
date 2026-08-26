@@ -29,8 +29,44 @@ const BUSINESS_IMAGES: Record<string, string[]> = {
   Agriculture: [265216, 2132250, 1595104].map(pexels),
 };
 
+// Photographs supplied by the placement operator, of the specific boards they
+// let. A stock photo of a generic billboard is fine for illustrating a format;
+// it is not fine for a listing someone books, where the picture is a claim
+// about what they are getting.
+//
+// Served from the operator's own CDN, which is why alternativeadverts.com is on
+// the img-src allowlist in vercel.json. That is a dependency on someone else's
+// server: if a URL moves, the card loses its picture. scripts/rehost-partner-images.mjs
+// pulls them into our own storage and rewrites these constants when you want
+// that dependency gone — it fetches the full-size original rather than the
+// 300x300 thumbnail linked here.
+const OPERATOR = (path: string) => `https://alternativeadverts.com/wp-content/uploads/${path}`;
+
+const OPERATOR_IMAGES = {
+  ibadanEyecatcher: OPERATOR('2022/03/EYECATCHER-DOUBLE-FACE-ALONG-JERICHO-ELEYE-ROADFTT-ONIREKE-JUNCTION-IBADAN-300x300.jpg'),
+  lekkiLedAjah: OPERATOR('2023/01/Picture3222-300x300.jpg'),
+  lekkiLedPortrait: OPERATOR('2022/06/LED-Portrait-By-5th-roundabout-Jakande-Junction-Lekki-Epe-Expressway.-Lagos-300x300.jpg'),
+  railwayScreens: OPERATOR('2023/04/16-Digital-Screens-Spread-Across-Ticketing-Area-And-The-Waiting-Area-Railway-Lagos-300x300.jpg'),
+  palmsFreestanding: OPERATOR('2025/05/2-Double-Sided-Billboard-Freestanding-Screens-The-Palms-Lekki-Lagos-300x300.jpg'),
+  bergerUnipole: OPERATOR('2024/08/2-face-Static-Unipole-Billboard-along-Berger-Lagos-Ibadan-exp.-road-Lagos-300x300.png'),
+  musonWallPanel: OPERATOR('2025/01/2-face-Wall-Panel-Billboard-Muson-Center-Onikan-Lagos-300x300.png'),
+  akinAdesolaScreen: OPERATOR('2023/04/2-Sided-Digital-Screen-At-Akin-Adesola-Victoria-Island-Lagos2-300x300.jpg'),
+  ekoBridgeLed: OPERATOR('2022/03/LED-2-sided-Board-along-Eko-Bridge-FTT-FTF-Lagos-Island-300x300.jpg'),
+  asabaUnipole: OPERATOR('2022/02/Unipole-Proposed-2-sided-b-unipole-at-Asaba-A-division-poilice-station-along-Nnebisi-road-FTT-and-FTF-Ogbogonogo-market-Asaba-2-300x300.jpg'),
+  portHarcourtUnipole: OPERATOR('2022/02/Unipole-Proposed-2-sided-b-unipole-at-Olu-abasanjo-Portharcout-rivers-state-300x300.jpg'),
+  warriMallUnipole: OPERATOR('2022/02/unipole-Proposed-2-sided-b-unipole-at-by-Warri-shoppimg-Mail-facing-directly-the-mall-and-FTF-warri-300x300.jpg'),
+  lawSchoolLed: OPERATOR('2022/05/3FACE-LED-BOARD-BY-FALOMO-BRIDGE-LAW-SCHOOL-300x300.jpg'),
+  ariariaPortrait: OPERATOR('2025/08/Portrait-Billboard-Ariaria-Junction-Aba-Abia-State-300x300.png'),
+  effurunUnipole: OPERATOR('2024/03/3-face-Unipole-Billboard-Effurun-Roundabout-by-tipper-garage-Warri-Delta-State-300x300.png'),
+  lekkiFirstRoundabout: OPERATOR('2023/03/Unipole-Billboard-Lekki-Epe-First-Roundabout-Lekki-Lagos-300x300.jpg'),
+};
+
 // Realistic ad placements across Africa, shown while the database is empty.
-// Tuple: [title, type, location, price per day (USD), dimensions, traffic]
+// Tuple: [title, type, location, price per day (USD), dimensions, traffic, image?]
+//
+// The optional 7th slot is a photograph OF THAT EXACT BOARD, supplied by the
+// operator who owns it. Where it is absent the type's stock pool is used
+// instead, which is a picture of "a billboard" rather than of this one.
 //
 // PRICING IS DERIVED, NOT INVENTED. Day rates come from published Nigerian OOH
 // monthly rate cards (Aug 2026) at NGN 1,500/USD:
@@ -51,12 +87,12 @@ const BUSINESS_IMAGES: Record<string, string[]> = {
 //
 // Titles follow the trade's own vocabulary — face count, structure type, then
 // the road or landmark — because that is how buyers search and compare.
-type PlacementSeed = [string, string, string, number, string, string];
+type PlacementSeed = [string, string, string, number, string, string, string?];
 const AD_PLACEMENTS: PlacementSeed[] = [
   // Nigeria
   ['3-Face Gantry Billboard, Third Mainland Bridge, Lagos', 'Billboard', 'Lagos, Nigeria', 56, '18m x 9m', 'high'],
-  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 102, '12m x 6m', 'high'],
-  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 289, '10m x 6m', 'high'],
+  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 102, '12m x 6m', 'high', OPERATOR_IMAGES.lekkiFirstRoundabout],
+  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 289, '10m x 6m', 'high', OPERATOR_IMAGES.akinAdesolaScreen],
   ['Double-Sided Freestanding Screens, Ikeja City Mall, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '4m x 3m', 'high'],
   ['Arrivals Wall Lightbox, Murtala Muhammed Airport, Lagos', 'Airport', 'Lagos, Nigeria', 78, '8m x 3m', 'high'],
   ['Full Vehicle Wrap, Danfo Fleet of 10, Lagos', 'Transit', 'Lagos, Nigeria', 27, 'Full vehicle', 'high'],
@@ -64,8 +100,8 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['2-Face Unipole Billboard, Wuse Market Entrance, Abuja', 'Billboard', 'Abuja, Nigeria', 27, '10m x 5m', 'high'],
   ['Baggage Hall Lightbox, Nnamdi Azikiwe Airport, Abuja', 'Airport', 'Abuja, Nigeria', 49, '6m x 3m', 'medium'],
   ['Lamp Post Network (20 units), Maitama District, Abuja', 'Street Furniture', 'Abuja, Nigeria', 20, '1.2m x 1.8m each', 'medium'],
-  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 11, '12m x 6m', 'high'],
-  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 11, '10m x 5m', 'medium'],
+  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 11, '12m x 6m', 'high', OPERATOR_IMAGES.portHarcourtUnipole],
+  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 11, '10m x 5m', 'medium', OPERATOR_IMAGES.ibadanEyecatcher],
   ['2-Face Unipole Billboard, Kofar Mata Roundabout, Kano', 'Billboard', 'Kano, Nigeria', 13, '8m x 4m', 'medium'],
   ['Drive-Time Radio Slot (60s), Wazobia FM, Lagos', 'Radio', 'Lagos, Nigeria', 33, '60 seconds', 'high'],
   // Ghana
@@ -138,7 +174,7 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['48-Sheet Billboard, Ihama Road, Benin City', 'Billboard', 'Benin City, Nigeria', 4, '6m x 3m', 'medium'],
   ['Portrait Billboard, Nwaniba Road, Uyo', 'Billboard', 'Uyo, Nigeria', 12, '4m x 8m', 'medium'],
   ['Portrait Billboard, Nsugbe Road, Onitsha', 'Billboard', 'Onitsha, Nigeria', 13, '4m x 8m', 'high'],
-  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 14, '4m x 8m', 'medium'],
+  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 14, '4m x 8m', 'medium', OPERATOR_IMAGES.asabaUnipole],
   ['Gantry Billboard, Abakiliki Road, Enugu', 'Billboard', 'Enugu, Nigeria', 56, '15m x 4m', 'high'],
 
   // --- Media the browse page offers but had nothing behind -------------------
@@ -189,7 +225,25 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // day: a month of daily prime-belt spots works out at roughly N4m, which is
   // what a buyer would actually be quoted.
   ['Channels TV Sunrise Breakfast Spot (30s), Lagos', 'Television', 'Lagos, Nigeria', 126, '30s spot, one a day', 'high'],
-  ['Channels TV Programme Sponsorship, Lagos', 'Television', 'Lagos, Nigeria', 50, 'Programme billing', 'high']
+  ['Channels TV Programme Sponsorship, Lagos', 'Television', 'Lagos, Nigeria', 50, 'Programme billing', 'high'],
+
+  // --- Operator inventory, with the operator's own photography ---------------
+  //
+  // Real boards at real addresses, priced from the published card and pictured
+  // as they actually stand. Five placements above already corresponded to
+  // listings here and have been given their photographs too; these eleven had
+  // no counterpart.
+  ['LED Portrait Billboard, 5th Roundabout Lekki FTF Ajah, Lagos', 'Digital Screen', 'Lagos, Nigeria', 89, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedAjah],
+  ['LED Portrait Billboard, 5th Roundabout Jakande, Lekki, Lagos', 'Digital Screen', 'Lagos, Nigeria', 80, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedPortrait],
+  ['16 Digital Screens, Railway Ticketing & Waiting Area, Lagos', 'Digital Screen', 'Lagos, Nigeria', 208, '16 screens', 'high', OPERATOR_IMAGES.railwayScreens],
+  ['2 Double-Sided Freestanding Screens, The Palms, Lekki, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '2 double-sided', 'high', OPERATOR_IMAGES.palmsFreestanding],
+  ['2-Face Static Unipole, Berger, Lagos-Ibadan Expressway', 'Billboard', 'Lagos, Nigeria', 40, '2 faces', 'high', OPERATOR_IMAGES.bergerUnipole],
+  ['2-Face Wall Panel Billboard, Muson Centre, Onikan, Lagos', 'Billboard', 'Lagos, Nigeria', 56, 'Wall panel, 2 faces', 'high', OPERATOR_IMAGES.musonWallPanel],
+  ['2-Sided LED Billboard, Eko Bridge, Lagos Island', 'Digital Screen', 'Lagos, Nigeria', 73, 'LED, 2 sided', 'high', OPERATOR_IMAGES.ekoBridgeLed],
+  ['2-Sided Unipole Billboard, Warri Shopping Mall, Delta', 'Billboard', 'Warri, Nigeria', 19, '2 faces', 'medium', OPERATOR_IMAGES.warriMallUnipole],
+  ['3-Face LED Billboard, Law School Falomo Bridge, Victoria Island', 'Digital Screen', 'Lagos, Nigeria', 289, 'LED, 3 faces', 'high', OPERATOR_IMAGES.lawSchoolLed],
+  ['3-Face Portrait Billboard, Ariaria Junction, Aba', 'Billboard', 'Aba, Nigeria', 17, 'Portrait, 3 faces', 'high', OPERATOR_IMAGES.ariariaPortrait],
+  ['3-Face Unipole Billboard, Effurun Roundabout, Warri', 'Billboard', 'Warri, Nigeria', 18, 'Unipole, 3 faces', 'high', OPERATOR_IMAGES.effurunUnipole]
 ];
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show
@@ -366,7 +420,7 @@ export const generateAdverts = (count: number = AD_PLACEMENTS.length) => {
   if (!SAMPLES_ENABLED) return [];
   // Cycle each type's photo set independently so repeats of a type vary
   const typeCounts: Record<string, number> = {};
-  return AD_PLACEMENTS.slice(0, count).map(([title, type, location, pricePerDay, dimensions, traffic], index) => {
+  return AD_PLACEMENTS.slice(0, count).map(([title, type, location, pricePerDay, dimensions, traffic, ownImage], index) => {
     const pool = AD_TYPE_IMAGES[type] ?? [];
     typeCounts[type] = (typeCounts[type] ?? -1) + 1;
     return {
@@ -383,7 +437,9 @@ export const generateAdverts = (count: number = AD_PLACEMENTS.length) => {
     dimensions,
     traffic_density: traffic,
     available_until: new Date(Date.now() + ((index % 45) + 15) * DAY_MS).toISOString(),
-    image_url: pool.length > 0 ? pool[typeCounts[type] % pool.length] : `https://picsum.photos/seed/placement${index + 1}/400/300.jpg`,
+    // The operator's photograph of this exact board wins over the type's stock
+    // pool — a picture of the thing being booked, not of the format.
+    image_url: ownImage ?? (pool.length > 0 ? pool[typeCounts[type] % pool.length] : `https://picsum.photos/seed/placement${index + 1}/400/300.jpg`),
     awards: index % 9 === 0 ? 'Top Rated Location' : null,
     status: index % 8 === 0 ? 'pending' : 'active',
     user_id: 'sample',
