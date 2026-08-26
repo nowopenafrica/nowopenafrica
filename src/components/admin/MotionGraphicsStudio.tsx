@@ -1260,6 +1260,8 @@ export default function MotionGraphicsStudio({ businessName }: { businessName?: 
       // Carried on the options, not passed to the preview alone: the poster and
       // the MP4 read the design from the same object the preview does, so what
       // you download is what you were looking at.
+      background: project.background?.color,
+      backgroundStrength: project.background ? project.background.strength / 100 : undefined,
       template: designTpl,
       templateContent: {
         brand: brief.business || 'NowOpen',
@@ -1274,7 +1276,7 @@ export default function MotionGraphicsStudio({ businessName }: { businessName?: 
         price: brief.price ?? [],
       },
     }),
-    [brief, label, project.palette, scenes.length, layers, designTpl],
+    [brief, label, project.palette, project.background, scenes.length, layers, designTpl],
   );
   const seconds = useMemo(() => scenes.reduce((s, x) => s + x.seconds, 0), [scenes]);
   const renderSource = project.render.source;
@@ -2029,6 +2031,86 @@ export default function MotionGraphicsStudio({ businessName }: { businessName?: 
                             className={`w-[44px] h-[44px] rounded-lg border-2 transition ${project.palette === p ? 'border-purple-600 ring-2 ring-purple-300' : 'border-transparent'}`}
                             style={swatchStyle(p)} />
                         ))}
+                      </div>
+                    </div>
+
+                    {/* The presets are a starting point, not the whole range. On the
+                        scene renderer these three ARE the background gradient; on a
+                        design template the first one is the accent. */}
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Your own colours</span>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        {(['Accent', 'Mid', 'Deep'] as const).map((name, i) => (
+                          <label key={name} className="flex-1 min-w-0">
+                            <span className="sr-only">{name} colour</span>
+                            <input
+                              type="color"
+                              aria-label={`${name} colour`}
+                              value={project.palette[i]}
+                              onChange={(e) => {
+                                const next = [...project.palette] as [string, string, string];
+                                next[i] = e.target.value;
+                                patch({ palette: next, templateKey: undefined });
+                              }}
+                              className="w-full h-[44px] rounded-lg cursor-pointer border border-gray-200 dark:border-gray-700 bg-transparent"
+                            />
+                            <span className="mt-0.5 block text-center text-[9px] text-gray-400">{name}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="pt-2 border-t border-gray-100 dark:border-gray-700">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-[10px] font-bold uppercase tracking-wide text-gray-400">Background colour</span>
+                        {project.background && (
+                          <button
+                            type="button"
+                            onClick={() => patch({ background: undefined })}
+                            className="inline-flex items-center min-h-[32px] px-2 rounded-lg text-[10px] font-semibold text-gray-400 hover:text-red-600 transition"
+                          >
+                            Clear
+                          </button>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-gray-500 dark:text-gray-400 leading-snug mt-0.5">
+                        Sits over the gradient or your uploaded media. Turn the strength
+                        down to let a background image or video show through.
+                      </p>
+                      <div className="mt-1.5 flex items-center gap-2">
+                        <input
+                          type="color"
+                          aria-label="Background colour"
+                          value={project.background?.color ?? '#0b1220'}
+                          onChange={(e) =>
+                            patch({
+                              background: { color: e.target.value, strength: project.background?.strength ?? 100 },
+                            })
+                          }
+                          className="w-[44px] h-[44px] shrink-0 rounded-lg cursor-pointer border border-gray-200 dark:border-gray-700 bg-transparent"
+                        />
+                        <label className="flex-1 flex items-center gap-2">
+                          <span className="sr-only">Background colour strength</span>
+                          <input
+                            type="range"
+                            min={0}
+                            max={100}
+                            aria-label="Background colour strength"
+                            value={project.background?.strength ?? 100}
+                            onChange={(e) =>
+                              patch({
+                                background: {
+                                  color: project.background?.color ?? '#0b1220',
+                                  strength: Number(e.target.value),
+                                },
+                              })
+                            }
+                            className="w-full accent-purple-600"
+                          />
+                        </label>
+                        <span className="w-9 shrink-0 text-right text-[11px] tabular-nums text-gray-600 dark:text-gray-300">
+                          {project.background?.strength ?? 100}%
+                        </span>
                       </div>
                     </div>
                   </div>

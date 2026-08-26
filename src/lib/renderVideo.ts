@@ -897,6 +897,20 @@ function drawSceneContent(
   drawBackdrop(ctx, w, h, plan, source, frame, opts.layers, hasUploads);
   ctx.restore();
 
+  // Outside the zoom transform, so the colour covers the whole frame rather
+  // than drifting with the backdrop — and before the captions, so it never
+  // washes over the words.
+  if (opts.background) {
+    const strength = clamp(opts.backgroundStrength ?? 1, 0, 1);
+    if (strength > 0) {
+      ctx.save();
+      ctx.globalAlpha = strength;
+      ctx.fillStyle = opts.background;
+      ctx.fillRect(0, 0, w, h);
+      ctx.restore();
+    }
+  }
+
   drawOverlay(
     ctx, w, h, plan, index, scene, t, opts, frame,
     (source.kind === 'video' && isVideoReady(source.video)) ||
@@ -1237,6 +1251,21 @@ export interface SceneFrameOptions extends RenderOptions {
   template?: DesignTemplate | null;
   /** Words and images for the template's slots. */
   templateContent?: TemplatePaintContent;
+  /**
+   * Background colour chosen by the owner. Overrides whatever the palette or
+   * the template's scheme would have used.
+   */
+  background?: string;
+  /**
+   * 0..1 — how strongly that colour reads over the backdrop.
+   *
+   * One number, one meaning in both renderers: more colour, less of whatever is
+   * behind it. The scene renderer paints it as a wash over the gradient or the
+   * uploaded media; the template renderer takes the colour as its surface base
+   * and turns the media down by the same amount. Anything else would make the
+   * slider do two different things depending on a setting three panels away.
+   */
+  backgroundStrength?: number;
 }
 
 function drawTimelineFrame(
@@ -1273,7 +1302,14 @@ function drawTimelineFrame(
       },
       w,
       h,
-      { accent: opts.palette?.[0] ?? '#9a3412', t: seconds },
+      {
+        accent: opts.palette?.[0] ?? '#9a3412',
+        t: seconds,
+        base: opts.background,
+        // Inverted on purpose — see backgroundStrength. Left undefined when no
+        // background colour is set so the template keeps its own default.
+        mediaOpacity: opts.background ? 1 - clamp(opts.backgroundStrength ?? 1, 0, 1) : undefined,
+      },
     );
     return;
   }

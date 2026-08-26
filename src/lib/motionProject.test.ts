@@ -64,6 +64,22 @@ describe('motionProject — persistence (nowopen_ prefixed)', () => {
     expect(loadMotionProjects()).toHaveLength(1);
   });
 
+  it('round-trips a chosen background colour', () => {
+    // A new optional field is exactly the kind of thing a normaliser drops on
+    // the way back in, and the owner would only notice after reopening.
+    const p = { ...sampleProject(), background: { color: '#00ff88', strength: 40 } };
+    saveMotionProject(p);
+    expect(getMotionProject(p.id)?.background).toEqual({ color: '#00ff88', strength: 40 });
+  });
+
+  it('leaves background unset when the owner never chose one', () => {
+    // Absent must stay absent: a defaulted colour would pin every existing
+    // project to whatever the default happened to be.
+    const p = sampleProject();
+    saveMotionProject(p);
+    expect(getMotionProject(p.id)?.background).toBeUndefined();
+  });
+
   it('upserts by id — saving the same project never duplicates', () => {
     const p = sampleProject();
     saveMotionProject(p);

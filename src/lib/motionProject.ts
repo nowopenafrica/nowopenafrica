@@ -39,6 +39,13 @@ export interface MotionProject {
   updatedAt: string;
   brief: MotionConfig;
   palette: [string, string, string];
+  /**
+   * Background colour override. Absent means "use the palette / the template's
+   * own scheme", which is why it is optional rather than defaulted — a stored
+   * colour would quietly pin every old project to whatever the default was on
+   * the day this shipped.
+   */
+  background?: { color: string; strength: number };
   render: { source: 'canvas' | 'aivideo'; tier: VideoGenTier; model: AiVideoModel };
   /** Editor timeline overlay — reorder/trim/split/duplicate/remove edits on top of the generated brief. */
   timeline?: MotionTimeline;
