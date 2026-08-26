@@ -12,6 +12,7 @@ import { compressImage } from '../../lib/imageCompression';
 import OpenReelCapture from './OpenReelCapture';
 import { reelLimitForPlan, DEFAULT_BUSINESS_PLAN, TRIAL_TIER } from '../../data/pricingPlans';
 import { isVideoUrl, videoThumbnailSrc } from '../../lib/galleryMedia';
+import ConfirmDialog from '../ConfirmDialog';
 import { localDateTimeNow } from '../../lib/dates';
 import { captureVideoPoster } from '../../lib/openReel';
 import { POSTER_SUFFIX, shareReel } from '../../lib/reelShare';
@@ -141,6 +142,12 @@ export default function BusinessContentManager({ businessId, businessName, categ
   const [services, setServices] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
   const [gallery, setGallery] = useState<any[]>([]);
+
+  // What the owner has asked to delete, held until they confirm in-app.
+  // window.confirm was used here and is suppressed in some webviews, which
+  // makes the button feel dead — the exact failure ConfirmDialog exists for.
+  const [pendingDelete, setPendingDelete] = useState<{ table: string; id: string; label: string } | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const [reviews, setReviews] = useState<any[]>([]);
   const [enquiries, setEnquiries] = useState<any[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
@@ -509,19 +516,30 @@ export default function BusinessContentManager({ businessId, businessName, categ
     }
   };
 
-  const handleDelete = async (table: string, id: string, label: string) => {
-    if (!window.confirm(`Delete "${label}"? This cannot be undone.`)) return;
-    const { data, error } = await supabase.from(table).delete().eq('id', id).select();
-    if (error) {
-      toast.error(`Could not delete: ${error.message}`);
-      return;
+  /** Ask first. The delete itself runs from the dialog. */
+  const handleDelete = (table: string, id: string, label: string) =>
+    setPendingDelete({ table, id, label });
+
+  const confirmDelete = async () => {
+    if (!pendingDelete) return;
+    const { table, id } = pendingDelete;
+    setDeleting(true);
+    try {
+      const { data, error } = await supabase.from(table).delete().eq('id', id).select();
+      if (error) {
+        toast.error(`Could not delete: ${error.message}`);
+        return;
+      }
+      if (!data || data.length === 0) {
+        toast.error('Nothing was deleted — please refresh and try again. If it persists, the database policies need updating (scripts/sql/apply_all_migrations.sql).');
+        return;
+      }
+      toast.success('Deleted');
+      fetchAll();
+    } finally {
+      setDeleting(false);
+      setPendingDelete(null);
     }
-    if (!data || data.length === 0) {
-      toast.error('Nothing was deleted — please refresh and try again. If it persists, the database policies need updating (scripts/sql/apply_all_migrations.sql).');
-      return;
-    }
-    toast.success('Deleted');
-    fetchAll();
   };
 
   const handleBookingStatus = async (id: string, status: 'confirmed' | 'declined') => {
@@ -837,12 +855,20 @@ export default function BusinessContentManager({ businessId, businessName, categ
                           ) : (
                             <img loading="lazy" decoding="async" src={g.image_url} alt={g.caption || 'Gallery photo'} className="w-full h-20 object-cover rounded-lg" />
                           )}
+                          {/* Always visible, never hover-gated. opacity-0 with
+                              group-hover meant that on a phone — where there is
+                              no hover — the control never appeared at all, so
+                              the only way to remove a reel was a desktop mouse.
+                              44px to match every other touch target here; it sits
+                              just outside the thumbnail's bottom-right so it
+                              does not cover the picture it deletes. */}
                           <button
                             onClick={() => handleDelete('business_gallery', g.id, g.caption || 'this reel')}
-                            aria-label="Delete reel"
-                            className="absolute top-1 right-1 p-1 bg-black/60 text-white rounded opacity-0 group-hover:opacity-100 transition"
+                            aria-label={g.caption ? `Delete ${g.caption}` : 'Delete this reel'}
+                            title="Delete"
+                            className="absolute -top-1.5 -right-1.5 inline-flex items-center justify-center w-[44px] h-[44px] rounded-full bg-black/70 hover:bg-red-600 text-white shadow-lg ring-2 ring-white dark:ring-gray-800 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500"
                           >
-                            <Trash2 size={12} />
+                            <Trash2 size={15} aria-hidden="true" />
                           </button>
                           {g.scheduled_for && new Date(g.scheduled_for).getTime() > Date.now() && (
                             <span
@@ -1273,6 +1299,22 @@ export default function BusinessContentManager({ businessId, businessName, categ
           onClose={() => setShowCamera(false)}
         />
       )}
+
+      <ConfirmDialog
+        open={!!pendingDelete}
+        tone="danger"
+        title="Delete this?"
+        message={
+          <>
+            <strong className="text-gray-900 dark:text-white">{pendingDelete?.label}</strong> will be
+            removed from your profile. This cannot be undone.
+          </>
+        }
+        confirmLabel={deleting ? 'Deleting…' : 'Delete'}
+        busy={deleting}
+        onConfirm={confirmDelete}
+        onCancel={() => setPendingDelete(null)}
+      />
     </div>
   );
 }
