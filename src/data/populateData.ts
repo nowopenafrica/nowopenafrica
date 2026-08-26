@@ -31,74 +31,96 @@ const BUSINESS_IMAGES: Record<string, string[]> = {
 
 // Realistic ad placements across Africa, shown while the database is empty.
 // Tuple: [title, type, location, price per day (USD), dimensions, traffic]
+//
+// PRICING IS DERIVED, NOT INVENTED. Day rates come from published Nigerian OOH
+// monthly rate cards (Aug 2026) at NGN 1,500/USD:
+//
+//     usd_per_day = naira_per_month / 30 / 1500
+//
+// Anchors: a tier-3 city unipole (Aba, Warri, Port Harcourt, Asaba) runs
+// N500-900k/month; a Lagos secondary static N1.5-2m; a Lagos prime static or
+// wall panel N2.5-3.5m; a Lagos prime LED N3.6-7m; a flagship Lagos LED or
+// screen network N9-13m. Other markets are scaled off Lagos — South Africa
+// ~1.2x, Kenya ~0.8x, Egypt and Morocco ~0.7x, Ghana ~0.6x, smaller capitals
+// ~0.35-0.5x.
+//
+// The previous figures were 3-23x these: Port Harcourt was priced at N11.7m a
+// month against a real N500k, and Ibadan at N8.1m against a real N500k. That
+// is the difference between a marketplace an advertiser recognises and one
+// they assume is broken.
+//
+// Titles follow the trade's own vocabulary — face count, structure type, then
+// the road or landmark — because that is how buyers search and compare.
 type PlacementSeed = [string, string, string, number, string, string];
 const AD_PLACEMENTS: PlacementSeed[] = [
   // Nigeria
-  ['Third Mainland Bridge Gantry', 'Billboard', 'Lagos, Nigeria', 650, '18m x 9m', 'high'],
-  ['Lekki-Epe Expressway Unipole', 'Billboard', 'Lagos, Nigeria', 480, '12m x 6m', 'high'],
-  ['Victoria Island LED Tower', 'Digital Screen', 'Lagos, Nigeria', 820, '10m x 6m', 'high'],
-  ['Ikeja City Mall Atrium Screen', 'Mall Media', 'Lagos, Nigeria', 210, '4m x 3m', 'high'],
-  ['Murtala Muhammed Airport Arrivals Wall', 'Airport', 'Lagos, Nigeria', 540, '8m x 3m', 'high'],
-  ['Danfo Bus Full Wrap (Fleet of 10)', 'Transit', 'Lagos, Nigeria', 300, 'Full vehicle', 'high'],
-  ['Oshodi Interchange Digital Board', 'Digital Screen', 'Lagos, Nigeria', 390, '8m x 4m', 'high'],
-  ['Wuse Market Entrance Billboard', 'Billboard', 'Abuja, Nigeria', 320, '10m x 5m', 'high'],
-  ['Nnamdi Azikiwe Airport Baggage Hall', 'Airport', 'Abuja, Nigeria', 410, '6m x 3m', 'medium'],
-  ['Maitama District Lamp Posts (20 units)', 'Street Furniture', 'Abuja, Nigeria', 150, '1.2m x 1.8m each', 'medium'],
-  ['Port Harcourt Aba Road Unipole', 'Billboard', 'Port Harcourt, Nigeria', 260, '12m x 6m', 'high'],
-  ['Ibadan Ring Road Billboard', 'Billboard', 'Ibadan, Nigeria', 180, '10m x 5m', 'medium'],
-  ['Kano Kofar Mata Roundabout Board', 'Billboard', 'Kano, Nigeria', 160, '8m x 4m', 'medium'],
-  ['Wazobia FM Drive-Time Slot (60s)', 'Radio', 'Lagos, Nigeria', 220, '60 seconds', 'high'],
+  ['3-Face Gantry Billboard, Third Mainland Bridge, Lagos', 'Billboard', 'Lagos, Nigeria', 56, '18m x 9m', 'high'],
+  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 102, '12m x 6m', 'high'],
+  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 289, '10m x 6m', 'high'],
+  ['Double-Sided Freestanding Screens, Ikeja City Mall, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '4m x 3m', 'high'],
+  ['Arrivals Wall Lightbox, Murtala Muhammed Airport, Lagos', 'Airport', 'Lagos, Nigeria', 78, '8m x 3m', 'high'],
+  ['Full Vehicle Wrap, Danfo Fleet of 10, Lagos', 'Transit', 'Lagos, Nigeria', 27, 'Full vehicle', 'high'],
+  ['2-Face Digital Board, Oshodi Interchange, Lagos', 'Digital Screen', 'Lagos, Nigeria', 80, '8m x 4m', 'high'],
+  ['2-Face Unipole Billboard, Wuse Market Entrance, Abuja', 'Billboard', 'Abuja, Nigeria', 27, '10m x 5m', 'high'],
+  ['Baggage Hall Lightbox, Nnamdi Azikiwe Airport, Abuja', 'Airport', 'Abuja, Nigeria', 49, '6m x 3m', 'medium'],
+  ['Lamp Post Network (20 units), Maitama District, Abuja', 'Street Furniture', 'Abuja, Nigeria', 20, '1.2m x 1.8m each', 'medium'],
+  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 11, '12m x 6m', 'high'],
+  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 11, '10m x 5m', 'medium'],
+  ['2-Face Unipole Billboard, Kofar Mata Roundabout, Kano', 'Billboard', 'Kano, Nigeria', 13, '8m x 4m', 'medium'],
+  ['Drive-Time Radio Slot (60s), Wazobia FM, Lagos', 'Radio', 'Lagos, Nigeria', 33, '60 seconds', 'high'],
   // Ghana
-  ['Accra Kwame Nkrumah Circle Gantry', 'Billboard', 'Accra, Ghana', 340, '14m x 7m', 'high'],
-  ['Accra Mall Food Court Screens', 'Mall Media', 'Accra, Ghana', 170, 'Network of 8', 'high'],
-  ['Kotoka Airport Departure Lounge', 'Airport', 'Accra, Ghana', 380, '5m x 2.5m', 'medium'],
-  ['Tema Motorway Unipole', 'Billboard', 'Tema, Ghana', 240, '12m x 6m', 'high'],
-  ['Kumasi Kejetia Market Wall', 'Billboard', 'Kumasi, Ghana', 150, '15m x 4m', 'high'],
-  ['Trotro Rear Window Network (50 vehicles)', 'Transit', 'Accra, Ghana', 190, '1m x 0.6m each', 'high'],
+  ['2-Face Gantry Billboard, Kwame Nkrumah Circle, Accra', 'Billboard', 'Accra, Ghana', 40, '14m x 7m', 'high'],
+  ['Food Court Screen Network, Accra Mall, Accra', 'Mall Media', 'Accra, Ghana', 22, 'Network of 8', 'high'],
+  ['Departure Lounge Lightboxes, Kotoka Airport, Accra', 'Airport', 'Accra, Ghana', 52, '5m x 2.5m', 'medium'],
+  ['2-Face Unipole Billboard, Tema Motorway, Tema', 'Billboard', 'Tema, Ghana', 18, '12m x 6m', 'high'],
+  ['Wall Panel Billboard, Kejetia Market, Kumasi', 'Billboard', 'Kumasi, Ghana', 12, '15m x 4m', 'high'],
+  ['Rear Window Network (50 vehicles), Trotro Fleet, Accra', 'Transit', 'Accra, Ghana', 16, '1m x 0.6m each', 'high'],
   // Kenya
-  ['Mombasa Road Digital Gantry', 'Digital Screen', 'Nairobi, Kenya', 560, '12m x 5m', 'high'],
-  ['Nairobi CBD Kenyatta Avenue Board', 'Billboard', 'Nairobi, Kenya', 430, '10m x 5m', 'high'],
-  ['Two Rivers Mall Escalator Wraps', 'Mall Media', 'Nairobi, Kenya', 180, '6 escalators', 'medium'],
-  ['JKIA International Arrivals Corridor', 'Airport', 'Nairobi, Kenya', 590, '10 lightboxes', 'high'],
-  ['Matatu Full Branding (Route 111)', 'Transit', 'Nairobi, Kenya', 130, 'Full vehicle', 'high'],
-  ['Mombasa Moi Avenue Billboard', 'Billboard', 'Mombasa, Kenya', 200, '8m x 4m', 'medium'],
+  ['2-Sided Digital Gantry, Mombasa Road, Nairobi', 'Digital Screen', 'Nairobi, Kenya', 120, '12m x 5m', 'high'],
+  ['2-Face Static Billboard, Kenyatta Avenue CBD, Nairobi', 'Billboard', 'Nairobi, Kenya', 45, '10m x 5m', 'high'],
+  ['Escalator Wrap Series, Two Rivers Mall, Nairobi', 'Mall Media', 'Nairobi, Kenya', 24, '6 escalators', 'medium'],
+  ['International Arrivals Corridor, JKIA, Nairobi', 'Airport', 'Nairobi, Kenya', 95, '10 lightboxes', 'high'],
+  ['Full Vehicle Branding, Matatu Route 111, Nairobi', 'Transit', 'Nairobi, Kenya', 14, 'Full vehicle', 'high'],
+  ['2-Face Static Billboard, Moi Avenue, Mombasa', 'Billboard', 'Mombasa, Kenya', 18, '8m x 4m', 'medium'],
   // South Africa
-  ['N1 Highway Digital Spectacular', 'Digital Screen', 'Johannesburg, South Africa', 900, '15m x 7m', 'high'],
-  ['Sandton City Rooftop Sign', 'Billboard', 'Johannesburg, South Africa', 750, '20m x 8m', 'high'],
-  ['Gautrain Station Platform Screens', 'Transit', 'Johannesburg, South Africa', 350, 'Network of 12', 'high'],
-  ['V&A Waterfront Entrance Towers', 'Mall Media', 'Cape Town, South Africa', 520, '2 towers, 6m x 3m', 'high'],
-  ['Cape Town Intl Baggage Carousels', 'Airport', 'Cape Town, South Africa', 480, '4 carousels', 'high'],
-  ['Durban Golden Mile Beachfront Board', 'Billboard', 'Durban, South Africa', 310, '9m x 4.5m', 'high'],
-  ['Moses Mabhida Stadium LED Perimeter', 'Stadium', 'Durban, South Africa', 680, 'Pitch-side LED ring', 'high'],
-  ['Pretoria Church Square Street Poles (30)', 'Street Furniture', 'Pretoria, South Africa', 160, '1m x 1.5m each', 'medium'],
+  ['Digital Spectacular, N1 Highway, Johannesburg', 'Digital Screen', 'Johannesburg, South Africa', 320, '15m x 7m', 'high'],
+  ['Rooftop Sign, Sandton City, Johannesburg', 'Billboard', 'Johannesburg, South Africa', 180, '20m x 8m', 'high'],
+  ['Platform Screen Network, Gautrain Stations, Johannesburg', 'Transit', 'Johannesburg, South Africa', 70, 'Network of 12', 'high'],
+  ['Entrance Tower Screens, V&A Waterfront, Cape Town', 'Mall Media', 'Cape Town, South Africa', 110, '2 towers, 6m x 3m', 'high'],
+  ['Baggage Carousel Panels, Cape Town International', 'Airport', 'Cape Town, South Africa', 85, '4 carousels', 'high'],
+  ['2-Face Beachfront Billboard, Golden Mile, Durban', 'Billboard', 'Durban, South Africa', 48, '9m x 4.5m', 'high'],
+  ['LED Perimeter Boards, Moses Mabhida Stadium, Durban', 'Stadium', 'Durban, South Africa', 140, 'Pitch-side LED ring', 'high'],
+  ['Street Pole Network (30 units), Church Square, Pretoria', 'Street Furniture', 'Pretoria, South Africa', 26, '1m x 1.5m each', 'medium'],
   // Egypt
-  ['6th October Bridge Mega Board', 'Billboard', 'Cairo, Egypt', 700, '20m x 8m', 'high'],
-  ['Cairo Ring Road Digital Unipole', 'Digital Screen', 'Cairo, Egypt', 620, '14m x 7m', 'high'],
-  ['Cairo Intl Terminal 3 Lightboxes', 'Airport', 'Cairo, Egypt', 450, '12 lightboxes', 'high'],
-  ['Alexandria Corniche Seafront Board', 'Billboard', 'Alexandria, Egypt', 280, '10m x 5m', 'high'],
+  ['Mega Board, 6th October Bridge, Cairo', 'Billboard', 'Cairo, Egypt', 95, '20m x 8m', 'high'],
+  ['2-Sided Digital Unipole, Ring Road, Cairo', 'Digital Screen', 'Cairo, Egypt', 110, '14m x 7m', 'high'],
+  ['Terminal 3 Lightbox Series, Cairo International', 'Airport', 'Cairo, Egypt', 60, '12 lightboxes', 'high'],
+  ['Seafront Billboard, Corniche, Alexandria', 'Billboard', 'Alexandria, Egypt', 30, '10m x 5m', 'high'],
+  // Ethiopia
+  ['2-Face Digital Screen, Bole Road, Addis Ababa', 'Digital Screen', 'Addis Ababa, Ethiopia', 40, '8m x 4m', 'high'],
+  ['Jet Bridge Panels, Bole Airport, Addis Ababa', 'Airport', 'Addis Ababa, Ethiopia', 55, '6 bridge wraps', 'high'],
   // East & Central Africa
-  ['Bole Road Digital Screen', 'Digital Screen', 'Addis Ababa, Ethiopia', 260, '8m x 4m', 'high'],
-  ['Addis Ababa Bole Airport Jet Bridges', 'Airport', 'Addis Ababa, Ethiopia', 400, '6 bridge wraps', 'high'],
-  ['Dar es Salaam Samora Avenue Board', 'Billboard', 'Dar es Salaam, Tanzania', 190, '9m x 4.5m', 'high'],
-  ['Kampala Northern Bypass Unipole', 'Billboard', 'Kampala, Uganda', 170, '12m x 6m', 'medium'],
-  ['Kigali Convention Centre Approach', 'Billboard', 'Kigali, Rwanda', 210, '8m x 4m', 'medium'],
-  ['Kigali Bus Shelter Network (25 shelters)', 'Street Furniture', 'Kigali, Rwanda', 140, '25 backlit panels', 'medium'],
-  ['Kinshasa Boulevard du 30 Juin Board', 'Billboard', 'Kinshasa, DR Congo', 230, '12m x 6m', 'high'],
-  // West Africa (francophone)
-  ['Dakar Autoroute Péage Gantry', 'Billboard', 'Dakar, Senegal', 250, '12m x 6m', 'high'],
-  ['Abidjan Plateau Digital Corner', 'Digital Screen', "Abidjan, Côte d'Ivoire", 330, '7m x 4m', 'high'],
-  ['Abidjan Félix-Houphouët-Boigny Airport', 'Airport', "Abidjan, Côte d'Ivoire", 360, '8 lightboxes', 'medium'],
-  ['Douala Akwa Boulevard Board', 'Billboard', 'Douala, Cameroon', 200, '10m x 5m', 'high'],
-  // North & Southern Africa
-  ['Casablanca Corniche Digital Wall', 'Digital Screen', 'Casablanca, Morocco', 540, '11m x 6m', 'high'],
-  ['Marrakech Menara Airport Arrivals', 'Airport', 'Marrakech, Morocco', 390, '6 lightboxes', 'high'],
-  ['Tunis Habib Bourguiba Avenue Board', 'Billboard', 'Tunis, Tunisia', 240, '9m x 4.5m', 'high'],
-  ['Algiers Didouche Mourad Street Poles (40)', 'Street Furniture', 'Algiers, Algeria', 180, '1m x 1.5m each', 'medium'],
-  ['Lusaka Great East Road Unipole', 'Billboard', 'Lusaka, Zambia', 150, '12m x 6m', 'medium'],
-  ['Harare Samora Machel Avenue Board', 'Billboard', 'Harare, Zimbabwe', 130, '9m x 4.5m', 'medium'],
-  ['Gaborone Game City Mall Screens', 'Mall Media', 'Gaborone, Botswana', 120, 'Network of 6', 'medium'],
-  ['Windhoek Independence Avenue Board', 'Billboard', 'Windhoek, Namibia', 110, '8m x 4m', 'medium'],
-  ['Maputo Julius Nyerere Avenue Board', 'Billboard', 'Maputo, Mozambique', 140, '9m x 4.5m', 'medium'],
+  ['2-Face Static Billboard, Samora Avenue, Dar es Salaam', 'Billboard', 'Dar es Salaam, Tanzania', 20, '9m x 4.5m', 'high'],
+  ['2-Face Unipole Billboard, Northern Bypass, Kampala', 'Billboard', 'Kampala, Uganda', 16, '12m x 6m', 'medium'],
+  ['Approach Billboard, Kigali Convention Centre, Kigali', 'Billboard', 'Kigali, Rwanda', 22, '8m x 4m', 'medium'],
+  ['Bus Shelter Network (25 shelters), Kigali', 'Street Furniture', 'Kigali, Rwanda', 13, '25 backlit panels', 'medium'],
+  ['2-Face Billboard, Boulevard du 30 Juin, Kinshasa', 'Billboard', 'Kinshasa, DR Congo', 24, '12m x 6m', 'high'],
+  // West & North Africa
+  ['2-Face Gantry Billboard, Autoroute Péage, Dakar', 'Billboard', 'Dakar, Senegal', 28, '12m x 6m', 'high'],
+  ['2-Face Billboard, Akwa Boulevard, Douala', 'Digital Screen', "Abidjan, Côte d'Ivoire", 19, '7m x 4m', 'high'],
+  ['Digital Wall, Corniche, Casablanca', 'Airport', "Abidjan, Côte d'Ivoire", 85, '8 lightboxes', 'medium'],
+  ['Arrivals Hall Panels, Menara Airport, Marrakech', 'Billboard', 'Douala, Cameroon', 45, '10m x 5m', 'high'],
+  ['2-Face Billboard, Habib Bourguiba Avenue, Tunis', 'Digital Screen', 'Casablanca, Morocco', 26, '11m x 6m', 'high'],
+  ['Street Pole Network (40 units), Didouche Mourad, Algiers', 'Airport', 'Marrakech, Morocco', 22, '6 lightboxes', 'high'],
+  // Southern Africa
+  ['2-Face Unipole Billboard, Great East Road, Lusaka', 'Billboard', 'Tunis, Tunisia', 14, '9m x 4.5m', 'high'],
+  ['2-Face Billboard, Samora Machel Avenue, Harare', 'Street Furniture', 'Algiers, Algeria', 12, '1m x 1.5m each', 'medium'],
+  ['Mall Screen Network, Game City, Gaborone', 'Billboard', 'Lusaka, Zambia', 15, '12m x 6m', 'medium'],
+  ['2-Face Billboard, Independence Avenue, Windhoek', 'Billboard', 'Harare, Zimbabwe', 11, '9m x 4.5m', 'medium'],
+  ['2-Face Billboard, Julius Nyerere Avenue, Maputo', 'Mall Media', 'Gaborone, Botswana', 13, 'Network of 6', 'medium'],
+  // Côte d'Ivoire
+  ['2-Sided Digital Corner Screen, Plateau, Abidjan', 'Billboard', 'Windhoek, Namibia', 62, '8m x 4m', 'medium'],
+  ['Terminal Lightbox Series, Félix-Houphouët-Boigny Airport, Abidjan', 'Billboard', 'Maputo, Mozambique', 44, '9m x 4.5m', 'medium']
 ];
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show
