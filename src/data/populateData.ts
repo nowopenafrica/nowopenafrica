@@ -120,7 +120,41 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['2-Face Billboard, Julius Nyerere Avenue, Maputo', 'Mall Media', 'Gaborone, Botswana', 13, 'Network of 6', 'medium'],
   // Côte d'Ivoire
   ['2-Sided Digital Corner Screen, Plateau, Abidjan', 'Billboard', 'Windhoek, Namibia', 62, '8m x 4m', 'medium'],
-  ['Terminal Lightbox Series, Félix-Houphouët-Boigny Airport, Abidjan', 'Billboard', 'Maputo, Mozambique', 44, '9m x 4.5m', 'medium']
+  ['Terminal Lightbox Series, Félix-Houphouët-Boigny Airport, Abidjan', 'Billboard', 'Maputo, Mozambique', 44, '9m x 4.5m', 'medium'],
+
+  // --- Affordable Nigerian inventory ----------------------------------------
+  //
+  // The rate card started at ~N495k a month, which priced out the businesses
+  // this platform is built for. The real market starts far lower: a 48-sheet
+  // in Akure lists at N100k and one in Umuahia at N120k. Without a tier like
+  // this, an SME browsing Promote finds nothing it can afford and concludes
+  // the marketplace is not for them.
+  //
+  // These also widen the map. Inventory was confined to Lagos, Abuja, Port
+  // Harcourt, Ibadan and Kano; real listings run through Ondo, Abia, Edo,
+  // Enugu, Anambra, Akwa Ibom and Delta.
+  ['48-Sheet Billboard, Ijakpo Road, Akure', 'Billboard', 'Akure, Nigeria', 2, '6m x 3m', 'medium'],
+  ['48-Sheet Billboard, Ugwuachara Road, Umuahia', 'Billboard', 'Umuahia, Nigeria', 3, '6m x 3m', 'medium'],
+  ['48-Sheet Billboard, Ihama Road, Benin City', 'Billboard', 'Benin City, Nigeria', 4, '6m x 3m', 'medium'],
+  ['Portrait Billboard, Nwaniba Road, Uyo', 'Billboard', 'Uyo, Nigeria', 12, '4m x 8m', 'medium'],
+  ['Portrait Billboard, Nsugbe Road, Onitsha', 'Billboard', 'Onitsha, Nigeria', 13, '4m x 8m', 'high'],
+  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 14, '4m x 8m', 'medium'],
+  ['Gantry Billboard, Abakiliki Road, Enugu', 'Billboard', 'Enugu, Nigeria', 56, '15m x 4m', 'high'],
+
+  // --- Media the browse page offers but had nothing behind -------------------
+  //
+  // Cinema, Vehicle Wrap, Television, Print and Online are all filters on the
+  // Promote page and every one returned an empty grid.
+  //
+  // HONEST NOTE ON THESE FIVE: the OOH rates above are derived from published
+  // billboard rate cards. Broadcast, press and online are not — no comparable
+  // public rate card was checked, so their day rates are informed estimates
+  // and are marked as such rather than presented as sourced.
+  ['Pre-Roll Slot, Filmhouse Cinemas Lekki, Lagos', 'Cinema', 'Lagos, Nigeria', 18, '30 seconds', 'medium'],
+  ['Keke Napep Fleet Wrap (25 units), Aba', 'Vehicle Wrap', 'Aba, Nigeria', 9, 'Full vehicle', 'high'],
+  ['Prime-Time Slot (30s), National Broadcast, Lagos', 'Television', 'Lagos, Nigeria', 67, '30 seconds', 'high'],
+  ['Full-Page Colour, National Daily, Lagos', 'Print', 'Lagos, Nigeria', 56, 'Full page', 'high'],
+  ['Display Network, Nigerian Publisher Sites', 'Online', 'Lagos, Nigeria', 20, '300x250 & 728x90', 'high']
 ];
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show
@@ -138,13 +172,15 @@ const AD_PLACEMENTS: PlacementSeed[] = [
 // Every id below was loaded before being committed — a 404 here is an empty
 // card, and Pexels ids are not guessable.
 const AD_TYPE_IMAGES: Record<string, string[]> = {
-  // 26 billboard placements
+  // 33 billboard placements
   'Billboard': [
     33644177, 29812611, 8181296, 4913828, 38162696, 8655746,
     802024, 1580625, 1058759, 13986019, 32765072, 14536799,
     31432654, 5102100, 18037899, 36519146, 33753279, 32459947,
     5983052, 15829239, 5785306, 788662, 38380369, 4700105,
     4700102, 34149123, 14189082, 12654945, 15185245, 11519039, 32418922,
+    30282062, 30490769, 30979169, 32379680, 18425137, 6186034, 14780175,
+    9749091, 18715205, 33572396,
   ].map(pexels),
   // 8 digital screen placements
   'Digital Screen': [
@@ -167,6 +203,11 @@ const AD_TYPE_IMAGES: Record<string, string[]> = {
   'Street Furniture': [1661496, 12534782, 374815, 2422588, 9053669, 20037923, 22431309, 6542518].map(pexels),
   'Stadium': [270085, 2263436, 28772774].map(pexels),
   'Radio': [164829, 1054713, 744318].map(pexels),
+  'Cinema': [18758034, 7991486, 3709371, 32682154].map(pexels),
+  'Vehicle Wrap': [34503103, 12707546, 5870361, 35611756].map(pexels),
+  'Television': [33925166, 7865064, 39071437, 14699396].map(pexels),
+  'Print': [10004971, 36376366, 3866816, 36412293].map(pexels),
+  'Online': [1181675, 927022, 3153201, 1181673].map(pexels),
 };
 
 const AD_TYPE_DESCRIPTIONS: Record<string, string> = {
@@ -178,6 +219,11 @@ const AD_TYPE_DESCRIPTIONS: Record<string, string> = {
   'Street Furniture': 'Eye-level street advertising in high-footfall areas',
   'Stadium': 'Live-event advertising with broadcast camera exposure',
   'Radio': 'Prime-time radio advertising slot with mass local reach',
+  'Cinema': 'Pre-roll on the big screen, to a seated audience that cannot skip it',
+  'Vehicle Wrap': 'Full-body branding on a working vehicle, seen on its daily route',
+  'Television': 'Broadcast slot in a scheduled programme with national reach',
+  'Print': 'Full-page press placement in a national title',
+  'Online': 'Display inventory across local publisher and social networks',
 };
 
 // Curated, realistic creative-services samples shown while the database is

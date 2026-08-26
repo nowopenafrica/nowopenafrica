@@ -76,6 +76,57 @@ UPDATE advertisements SET title = '2-Face Billboard, Julius Nyerere Avenue, Mapu
 UPDATE advertisements SET title = '2-Sided Digital Corner Screen, Plateau, Abidjan', price_per_day = 62, pricing = 62, description = 'Large-format outdoor billboard with premium visibility — 8m x 4m, medium traffic. Located at Windhoek, Namibia.', image_url = 'https://images.pexels.com/photos/4700102/pexels-photo-4700102.jpeg?auto=compress&cs=tinysrgb&w=640' WHERE title = '2-Sided Digital Corner Screen, Plateau, Abidjan';
 UPDATE advertisements SET title = 'Terminal Lightbox Series, Félix-Houphouët-Boigny Airport, Abidjan', price_per_day = 44, pricing = 44, description = 'Large-format outdoor billboard with premium visibility — 9m x 4.5m, medium traffic. Located at Maputo, Mozambique.', image_url = 'https://images.pexels.com/photos/34149123/pexels-photo-34149123.jpeg?auto=compress&cs=tinysrgb&w=640' WHERE title = 'Terminal Lightbox Series, Félix-Houphouët-Boigny Airport, Abidjan';
 
+-- New inventory added after the original seed: an affordable Nigerian tier
+-- and the five media the browse page offered with nothing behind them.
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT '48-Sheet Billboard, Ijakpo Road, Akure', 'Large-format outdoor billboard with premium visibility — 6m x 3m, medium traffic. Located at Akure, Nigeria.', 'Billboard', 'Billboard', 'Akure, Nigeria', 2, 2, '6m x 3m', 'https://images.pexels.com/photos/14189082/pexels-photo-14189082.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = '48-Sheet Billboard, Ijakpo Road, Akure');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT '48-Sheet Billboard, Ugwuachara Road, Umuahia', 'Large-format outdoor billboard with premium visibility — 6m x 3m, medium traffic. Located at Umuahia, Nigeria.', 'Billboard', 'Billboard', 'Umuahia, Nigeria', 3, 3, '6m x 3m', 'https://images.pexels.com/photos/12654945/pexels-photo-12654945.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = '48-Sheet Billboard, Ugwuachara Road, Umuahia');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT '48-Sheet Billboard, Ihama Road, Benin City', 'Large-format outdoor billboard with premium visibility — 6m x 3m, medium traffic. Located at Benin City, Nigeria.', 'Billboard', 'Billboard', 'Benin City, Nigeria', 4, 4, '6m x 3m', 'https://images.pexels.com/photos/15185245/pexels-photo-15185245.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = '48-Sheet Billboard, Ihama Road, Benin City');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Portrait Billboard, Nwaniba Road, Uyo', 'Large-format outdoor billboard with premium visibility — 4m x 8m, medium traffic. Located at Uyo, Nigeria.', 'Billboard', 'Billboard', 'Uyo, Nigeria', 12, 12, '4m x 8m', 'https://images.pexels.com/photos/11519039/pexels-photo-11519039.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Portrait Billboard, Nwaniba Road, Uyo');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Portrait Billboard, Nsugbe Road, Onitsha', 'Large-format outdoor billboard with premium visibility — 4m x 8m, high traffic. Located at Onitsha, Nigeria.', 'Billboard', 'Billboard', 'Onitsha, Nigeria', 13, 13, '4m x 8m', 'https://images.pexels.com/photos/32418922/pexels-photo-32418922.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Portrait Billboard, Nsugbe Road, Onitsha');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Portrait Billboard, Nnebisi Road, Asaba', 'Large-format outdoor billboard with premium visibility — 4m x 8m, medium traffic. Located at Asaba, Nigeria.', 'Billboard', 'Billboard', 'Asaba, Nigeria', 14, 14, '4m x 8m', 'https://images.pexels.com/photos/30282062/pexels-photo-30282062.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Portrait Billboard, Nnebisi Road, Asaba');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Gantry Billboard, Abakiliki Road, Enugu', 'Large-format outdoor billboard with premium visibility — 15m x 4m, high traffic. Located at Enugu, Nigeria.', 'Billboard', 'Billboard', 'Enugu, Nigeria', 56, 56, '15m x 4m', 'https://images.pexels.com/photos/30490769/pexels-photo-30490769.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Gantry Billboard, Abakiliki Road, Enugu');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Pre-Roll Slot, Filmhouse Cinemas Lekki, Lagos', 'Pre-roll on the big screen, to a seated audience that cannot skip it — 30 seconds, medium traffic. Located at Lagos, Nigeria.', 'Cinema', 'Cinema', 'Lagos, Nigeria', 18, 18, '30 seconds', 'https://images.pexels.com/photos/18758034/pexels-photo-18758034.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Pre-Roll Slot, Filmhouse Cinemas Lekki, Lagos');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Keke Napep Fleet Wrap (25 units), Aba', 'Full-body branding on a working vehicle, seen on its daily route — Full vehicle, high traffic. Located at Aba, Nigeria.', 'Vehicle Wrap', 'Vehicle Wrap', 'Aba, Nigeria', 9, 9, 'Full vehicle', 'https://images.pexels.com/photos/34503103/pexels-photo-34503103.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Keke Napep Fleet Wrap (25 units), Aba');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Prime-Time Slot (30s), National Broadcast, Lagos', 'Broadcast slot in a scheduled programme with national reach — 30 seconds, high traffic. Located at Lagos, Nigeria.', 'Television', 'Television', 'Lagos, Nigeria', 67, 67, '30 seconds', 'https://images.pexels.com/photos/33925166/pexels-photo-33925166.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Prime-Time Slot (30s), National Broadcast, Lagos');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Full-Page Colour, National Daily, Lagos', 'Full-page press placement in a national title — Full page, high traffic. Located at Lagos, Nigeria.', 'Print', 'Print', 'Lagos, Nigeria', 56, 56, 'Full page', 'https://images.pexels.com/photos/10004971/pexels-photo-10004971.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Full-Page Colour, National Daily, Lagos');
+
+INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, dimensions, image_url, status)
+SELECT 'Display Network, Nigerian Publisher Sites', 'Display inventory across local publisher and social networks — 300x250 & 728x90, high traffic. Located at Lagos, Nigeria.', 'Online', 'Online', 'Lagos, Nigeria', 20, 20, '300x250 & 728x90', 'https://images.pexels.com/photos/1181675/pexels-photo-1181675.jpeg?auto=compress&cs=tinysrgb&w=640', 'active'
+WHERE NOT EXISTS (SELECT 1 FROM advertisements WHERE title = 'Display Network, Nigerian Publisher Sites');
+
 -- Sanity check: no placement should sit outside the published market band.
 SELECT title, price_per_day, round(price_per_day * 30 * 1500 / 1000000.0, 2) AS naira_millions_per_month
 FROM advertisements ORDER BY price_per_day DESC LIMIT 5;

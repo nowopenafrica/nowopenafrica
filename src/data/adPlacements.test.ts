@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import { generateAdverts } from './populateData';
+import { ADVERT_CATEGORIES, ADVERT_CATEGORY_GROUPS } from './advertCategories';
 
 // The Promote page (/adverts) is a rate card. Numbers on it are what an
 // advertiser budgets against, so "realistic" here is measurable, not a matter
@@ -29,11 +30,13 @@ describe('ad placement sample data', () => {
   });
 
   it('keeps every placement inside the published market band', () => {
-    // A little headroom above N13m for prime South African inventory, which is
-    // a genuinely more expensive market than Lagos.
+    // Floor is N85k, not the N400k assumed when this was first written: the
+    // published card lists a 48-sheet in Akure at N100k and one in Umuahia at
+    // N120k. Ceiling has headroom above N13m for prime South African
+    // inventory, a genuinely more expensive market than Lagos.
     for (const a of adverts) {
       const naira = monthlyNaira(a.price_per_day);
-      expect(naira, `${a.title} is below any real rate card`).toBeGreaterThanOrEqual(400_000);
+      expect(naira, `${a.title} is below any real rate card`).toBeGreaterThanOrEqual(85_000);
       expect(naira, `${a.title} is above any real rate card`).toBeLessThanOrEqual(15_000_000);
     }
   });
@@ -62,6 +65,41 @@ describe('ad placement sample data', () => {
       expect(a.image_url, `${a.title} image`).toMatch(/^https:\/\//);
       expect(a.price_per_day, `${a.title} price`).toBeGreaterThan(0);
     }
+  });
+
+  it('covers every category the Promote page offers as a filter', () => {
+    // Cinema, Vehicle Wrap, Television, Print and Online were all selectable
+    // and all returned an empty grid — a filter with nothing behind it reads
+    // as a broken page rather than a quiet category.
+    const covered = new Set(adverts.map((a) => a.type));
+    const missing = ADVERT_CATEGORIES.filter((c) => !covered.has(c));
+    expect(missing, 'these filters would show an empty grid').toEqual([]);
+  });
+
+  it('covers every medium group', () => {
+    for (const group of ADVERT_CATEGORY_GROUPS) {
+      const count = adverts.filter((a) => group.members.includes(a.type)).length;
+      expect(count, `${group.label} has no placements`).toBeGreaterThan(0);
+    }
+  });
+
+  it('carries inventory an SME can actually afford', () => {
+    // The floor used to be ~N495k a month, which excluded most of the
+    // businesses this platform exists for. The published card starts at N100k
+    // for a 48-sheet, so a marketplace with nothing under N400k is missing the
+    // entry tier rather than reflecting the market.
+    const affordable = adverts.filter((a) => monthlyNaira(a.price_per_day) <= 500_000);
+    expect(affordable.length, 'nothing here costs under N500k a month').toBeGreaterThanOrEqual(3);
+  });
+
+  it('reaches beyond the two biggest Nigerian cities', () => {
+    // Real listings run through Ondo, Abia, Edo, Enugu, Anambra, Akwa Ibom and
+    // Delta. Inventory confined to Lagos and Abuja is a directory for two
+    // cities, not a country.
+    const cities = new Set(
+      adverts.filter((a) => a.location.includes('Nigeria')).map((a) => a.location.split(',')[0].trim()),
+    );
+    expect(cities.size, 'Nigerian inventory is too concentrated').toBeGreaterThanOrEqual(10);
   });
 
   it('never shows the same photo on two placements', () => {
