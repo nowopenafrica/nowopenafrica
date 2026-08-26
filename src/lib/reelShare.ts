@@ -91,13 +91,20 @@ export function reelShareTitle(businessName: string, isVideo: boolean): string {
 /** WhatsApp rejects video much past this, and it is a lot of mobile data. */
 export const MAX_SHARE_FILE_BYTES = 16 * 1024 * 1024;
 
-/** Can this browser put a file into the share sheet? */
-export function canShareFiles(): boolean {
+/**
+ * Can this browser put a file into the share sheet?
+ *
+ * The type matters: a browser can accept an image and refuse a video, so a
+ * caller sharing a still must probe with a still or it will hide a button that
+ * would have worked.
+ */
+export function canShareFiles(mimeType = 'video/mp4'): boolean {
   if (typeof navigator === 'undefined' || typeof navigator.share !== 'function') return false;
   if (typeof navigator.canShare !== 'function') return false;
+  const ext = mimeType.split('/')[1]?.split(';')[0] || 'bin';
   try {
     // canShare needs a real File to answer; an empty one is enough to probe.
-    return navigator.canShare({ files: [new File([''], 'probe.mp4', { type: 'video/mp4' })] });
+    return navigator.canShare({ files: [new File([''], `probe.${ext}`, { type: mimeType })] });
   } catch {
     return false;
   }

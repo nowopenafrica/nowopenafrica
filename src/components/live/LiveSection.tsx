@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { getSessionId } from '../../lib/liveStream';
 import LiveViewerModal from './LiveViewerModal';
-import { Radio, Users, Bell, BellRing, Play, Calendar, Clock } from 'lucide-react';
+import LiveShareSheet from './LiveShareSheet';
+import { Radio, Users, Bell, BellRing, Play, Calendar, Clock, Share2 } from 'lucide-react';
 
 interface StreamRow {
   id: string;
@@ -34,6 +36,12 @@ export default function LiveSection({ business, onBook, onOpenCart }: LiveSectio
   const [following, setFollowing] = useState(false);
   const [email, setEmail] = useState('');
   const [showFollowForm, setShowFollowForm] = useState(false);
+  const [showShare, setShowShare] = useState(false);
+  // A shared link lands here with ?watch=<id>; opening the viewer straight away
+  // is the whole point of the link, and making someone hunt for the play button
+  // after they already tapped "join the live" loses most of them.
+  const [searchParams] = useSearchParams();
+  const watchParam = searchParams.get('watch');
 
   const followKey = `nowopen_live_followed_${business.id}`;
 
@@ -56,6 +64,10 @@ export default function LiveSection({ business, onBook, onOpenCart }: LiveSectio
             .sort((a, b) => new Date(a.scheduled_for!).getTime() - new Date(b.scheduled_for!).getTime())[0] || null
         );
         setReplays(rows.filter((r) => r.status === 'ended' && r.recording_url).slice(0, 6));
+        // Only a stream that belongs to THIS business, because the id arrives
+        // from the query string and is not to be trusted as a lookup key.
+        const requested = watchParam ? rows.find((r) => r.id === watchParam) : null;
+        if (requested && (requested.status === 'live' || requested.recording_url)) setWatching(requested);
         setLoading(false);
       });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -116,7 +128,17 @@ export default function LiveSection({ business, onBook, onOpenCart }: LiveSectio
                 <Play size={18} className="fill-current" /> Watch Live
               </button>
             </div>
-            <p className="absolute bottom-3 left-3 right-3 text-white text-sm font-medium truncate">{liveStream.title}</p>
+            <div className="absolute bottom-3 left-3 right-3 flex items-end gap-2">
+              <p className="flex-1 min-w-0 text-white text-sm font-medium truncate">{liveStream.title}</p>
+              <button
+                onClick={() => setShowShare((v) => !v)}
+                aria-expanded={showShare}
+                aria-label="Share this live stream"
+                className="flex-shrink-0 inline-flex items-center gap-1.5 min-h-[44px] px-3 rounded-full bg-white/15 hover:bg-white/25 backdrop-blur text-white text-xs font-semibold transition"
+              >
+                <Share2 size={14} /> Share
+              </button>
+            </div>
           </>
         ) : scheduledStream ? (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 gap-3">
@@ -127,7 +149,21 @@ export default function LiveSection({ business, onBook, onOpenCart }: LiveSectio
             <p className="text-white/70 text-sm flex items-center gap-1.5">
               <Clock size={13} /> {new Date(scheduledStream.scheduled_for!).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })}
             </p>
-            <FollowButton following={following} showForm={showFollowForm} email={email} setEmail={setEmail} setShowForm={setShowFollowForm} onFollow={handleFollow} label="Notify Me" />
+            <div className="flex items-center gap-2">
+              <FollowButton following={following} showForm={showFollowForm} email={email} setEmail={setEmail} setShowForm={setShowFollowForm} onFollow={handleFollow} label="Notify Me" />
+              {/* An upcoming stream is worth sharing too — that is when there is
+                  still time for someone to plan to be there. */}
+              {!showFollowForm && (
+                <button
+                  onClick={() => setShowShare((v) => !v)}
+                  aria-expanded={showShare}
+                  aria-label="Share this upcoming live stream"
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-4 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur text-white text-sm font-medium transition"
+                >
+                  <Share2 size={14} /> Share
+                </button>
+              )}
+            </div>
           </div>
         ) : (
           <div className="absolute inset-0 flex flex-col items-center justify-center text-center px-4 gap-3">
@@ -136,6 +172,19 @@ export default function LiveSection({ business, onBook, onOpenCart }: LiveSectio
           </div>
         )}
       </div>
+
+      {showShare && (liveStream || scheduledStream) && (
+        <div className="mt-3 max-w-2xl rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+          <LiveShareSheet
+            streamId={(liveStream || scheduledStream)!.id}
+            title={(liveStream || scheduledStream)!.title}
+            businessName={business.name}
+            status={liveStream ? 'live' : 'scheduled'}
+            scheduledFor={scheduledStream?.scheduled_for}
+            fallbackImage={business.image_url || business.logo_url}
+          />
+        </div>
+      )}
 
       {replays.length > 0 && (
         <div className="mt-6">

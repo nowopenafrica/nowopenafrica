@@ -8,6 +8,10 @@
       "source": "/r/:id",
       "destination": "/api/r/:id"
     },
+    {
+      "source": "/live/:id",
+      "destination": "/api/live/:id"
+    },
     { "source": "/((?!api/).*)", "destination": "/index.html" }
   ],
   "headers": [

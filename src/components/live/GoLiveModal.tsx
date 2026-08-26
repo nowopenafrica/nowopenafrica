@@ -4,12 +4,13 @@ import { supabase } from '../../lib/supabase';
 import { useBroadcastStream } from '../../hooks/useBroadcastStream';
 import LiveChat from './LiveChat';
 import StreamHistory from './StreamHistory';
+import LiveShareSheet from './LiveShareSheet';
 import {
   X, Radio, Mic, MicOff, Video, VideoOff, Subtitles, Loader2, Calendar, History,
 } from 'lucide-react';
 
 interface GoLiveModalProps {
-  business: { id: string; name: string };
+  business: { id: string; name: string; image_url?: string | null; logo_url?: string | null };
   onClose: () => void;
 }
 
@@ -21,6 +22,9 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
   const [scheduledFor, setScheduledFor] = useState('');
   const [creating, setCreating] = useState(false);
   const [streamId, setStreamId] = useState<string | null>(null);
+  // The form's title field is cleared and re-used; the share card still needs
+  // to know what this broadcast is called.
+  const [liveTitle, setLiveTitle] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
 
   const broadcaster = useBroadcastStream();
@@ -46,6 +50,7 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
       return;
     }
     setStreamId(data.id);
+    setLiveTitle(data.title || title.trim());
     await broadcaster.start(data.id);
   };
 
@@ -71,10 +76,11 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
     setTab('history');
   };
 
-  const startScheduled = async (id: string) => {
+  const startScheduled = async (id: string, scheduledTitle?: string) => {
     const { error } = await supabase.from('business_streams').update({ status: 'live', started_at: new Date().toISOString() }).eq('id', id);
     if (error) { toast.error(`Could not start: ${error.message}`); return; }
     setStreamId(id);
+    setLiveTitle(scheduledTitle || 'Live now');
     await broadcaster.start(id);
   };
 
@@ -151,6 +157,19 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
                   <button onClick={endStream} className="px-5 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-full hover:bg-red-700 transition">
                     End Stream
                   </button>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5">
+                  <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">
+                    Tell people you're live
+                  </h3>
+                  <LiveShareSheet
+                    streamId={streamId}
+                    title={liveTitle || 'Live now'}
+                    businessName={business.name}
+                    status="live"
+                    fallbackImage={business.image_url || business.logo_url}
+                  />
                 </div>
 
                 <div className="border border-gray-200 dark:border-gray-700 rounded-xl h-64">

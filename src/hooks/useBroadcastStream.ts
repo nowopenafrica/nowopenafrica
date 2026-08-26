@@ -4,7 +4,71 @@ import {
   RTC_CONFIG, channelName, getSpeechRecognition, speechRecognitionSupported,
   CAMERA_CONSTRAINTS, MIC_CONSTRAINTS, REPLAY_VIDEO_BITRATE_BPS, computePerViewerBitrate,
 } from '../lib/liveStream';
+import { coverCropRect } from '../lib/openReel';
+import { livePosterPath, LIVE_POSTER_BUCKET } from '../lib/liveShare';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+
+/**
+ * The share poster: one frame from the broadcast itself.
+ *
+ * A shared live link unfurls as a still, because a WebRTC stream has no URL a
+ * crawler could play (see src/lib/liveShare.ts). Without this the card falls
+ * back to the business's cover photo, which says nothing about what is
+ * happening right now — the whole reason someone taps a live link.
+ *
+ * Taken a few seconds in, not immediately: at t=0 the camera is still opening
+ * its aperture and the frame is usually black or blown out, and a black poster
+ * is worse than no poster.
+ *
+ * Taken ONCE. Refreshing it while live would mostly be wasted upload — every
+ * platform caches an unfurl per URL and will not come back for a new image —
+ * and every refresh fights the storage CDN's own cache.
+ */
+const POSTER_DELAY_MS = 3500;
+const POSTER_WIDTH = 1200;
+const POSTER_HEIGHT = 630;
+
+async function capturePoster(stream: MediaStream, id: string): Promise<void> {
+  if (typeof document === 'undefined') return;
+  if (!stream.getVideoTracks().length) return;
+
+  const video = document.createElement('video');
+  video.srcObject = stream;
+  video.muted = true;
+  video.playsInline = true;
+  try {
+    await video.play();
+    // play() can resolve before the first frame has decoded, and a canvas drawn
+    // from a 0x0 video is a blank poster.
+    for (let i = 0; i < 20 && !video.videoWidth; i++) {
+      await new Promise((r) => window.setTimeout(r, 100));
+    }
+    if (!video.videoWidth || !video.videoHeight) return;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = POSTER_WIDTH;
+    canvas.height = POSTER_HEIGHT;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Crop the way every platform crops a wide card, rather than letting them
+    // do it to a squeezed image: a portrait phone frame keeps its middle.
+    const crop = coverCropRect(video.videoWidth, video.videoHeight, POSTER_WIDTH, POSTER_HEIGHT, 1);
+    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, POSTER_WIDTH, POSTER_HEIGHT);
+
+    const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, 'image/jpeg', 0.82));
+    if (!blob) return;
+
+    await supabase.storage
+      .from(LIVE_POSTER_BUCKET)
+      .upload(livePosterPath(id), blob, { upsert: true, contentType: 'image/jpeg' });
+  } catch (err) {
+    // A poster is a nicety. Nothing here may interrupt a broadcast.
+    console.warn('Live poster capture failed:', err);
+  } finally {
+    video.srcObject = null;
+  }
+}
 
 interface SignalPayload {
   viewerId: string;
@@ -41,6 +105,7 @@ export function useBroadcastStream() {
   const allViewersSeenRef = useRef<Set<string>>(new Set());
   const peakViewersRef = useRef(0);
   const analyticsTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const posterTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const streamIdRef = useRef<string | null>(null);
   // A viewer's ICE candidates can start arriving before its offer has been
   // processed (offers are retried on a delay from the viewer side, so the
@@ -185,6 +250,8 @@ export function useBroadcastStream() {
         }).eq('id', id).then(() => {});
       }, 5000);
 
+      posterTimerRef.current = setTimeout(() => { capturePoster(stream, id); }, POSTER_DELAY_MS);
+
       setIsLive(true);
     } catch (err: any) {
       console.error('Failed to start broadcast:', err);
@@ -223,6 +290,7 @@ export function useBroadcastStream() {
   const stop = useCallback(async () => {
     const id = streamIdRef.current;
     if (analyticsTimerRef.current) clearInterval(analyticsTimerRef.current);
+    if (posterTimerRef.current) clearTimeout(posterTimerRef.current);
     if (speechRef.current) { try { speechRef.current.stop(); } catch { /* ignore */ } }
 
     let recordingUrl: string | null = null;

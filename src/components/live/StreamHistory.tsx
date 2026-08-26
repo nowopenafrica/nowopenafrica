@@ -19,7 +19,8 @@ interface StreamRow {
 interface StreamHistoryProps {
   businessId: string;
   refreshKey: number;
-  onStartScheduled: (streamId: string) => void;
+  /** The title travels with the id so the share card can name the stream. */
+  onStartScheduled: (streamId: string, title: string) => void;
 }
 
 export default function StreamHistory({ businessId, refreshKey, onStartScheduled }: StreamHistoryProps) {
@@ -94,7 +95,7 @@ export default function StreamHistory({ businessId, refreshKey, onStartScheduled
           </div>
           {s.status === 'scheduled' && (
             <button
-              onClick={() => onStartScheduled(s.id)}
+              onClick={() => onStartScheduled(s.id, s.title)}
               className="flex-shrink-0 inline-flex items-center gap-1 px-3 py-1.5 bg-red-600 text-white text-xs font-medium rounded-lg hover:bg-red-700 transition"
             >
               <Radio size={12} /> Start Now
