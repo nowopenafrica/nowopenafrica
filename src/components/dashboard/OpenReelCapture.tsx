@@ -9,7 +9,8 @@ import {
   estimatedBytes, AUDIO_BITRATE, REEL_HARD_MAX_BYTES, captureVideoPoster,
   applyAutoAdapt, cameraControls, clampToRange, stepValue, midpointOf,
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
-  type ZoomStep, type CameraControls,
+  applyPointOfInterest, bracketStops, fuseExposures,
+  type ZoomStep, type CameraControls, type RgbaFrame,
 } from '../../lib/openReel';
 import { POSTER_SUFFIX } from '../../lib/reelShare';
 import { formatReelLimit } from '../../data/pricingPlans';
@@ -72,6 +73,12 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   const [focusDistance, setFocusDistance] = useState<number | null>(null);
   const [brightness, setBrightness] = useState<number | null>(null);
   const [showControls, setShowControls] = useState(false);
+  // Bracket and fuse on capture. Only offered where the camera can actually
+  // change its exposure, since without that the frames would be identical.
+  const [hdr, setHdr] = useState(true);
+  const [capturing, setCapturing] = useState(false);
+  // Where the last tap landed, so the ring can be drawn over the preview.
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
 
   /** The live video track, cast past the DOM typings for camera capabilities. */
   const videoTrack = useCallback(() => (
@@ -296,7 +303,7 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
     setStage('review');
   }, []);
 
-  const capturePhoto = useCallback(() => {
+  const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
     if (!video || !video.videoWidth || !video.videoHeight) {
       toast.error('Camera is still starting — try again in a moment.');
@@ -314,7 +321,50 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
     canvas.height = crop.sh;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+    const grab = (): RgbaFrame => {
+      ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, crop.sw, crop.sh);
+      const f = ctx.getImageData(0, 0, crop.sw, crop.sh);
+      return { width: f.width, height: f.height, data: f.data };
+    };
+
+    // One exposure cannot hold a bright African sky and a shaded doorway at
+    // once. Where the camera offers exposure compensation, take the frame two
+    // stops apart and keep whichever exposed each pixel best.
+    const track = videoTrack();
+    const evRange = controls?.exposureCompensation ?? null;
+    const stops = hdr ? bracketStops(evRange) : [0];
+
+    let frame: RgbaFrame | null = null;
+    if (stops.length > 1 && track) {
+      setCapturing(true);
+      const frames: RgbaFrame[] = [];
+      const before = brightness ?? 0;
+      try {
+        for (const ev of stops) {
+          const applied = await applyTrackValue(track, 'exposureCompensation', before + ev);
+          if (!applied) break;
+          // The sensor needs a moment to settle, or the bracket is three reads
+          // of the same exposure and the fusion achieves nothing.
+          await new Promise((r) => window.setTimeout(r, 140));
+          frames.push(grab());
+        }
+      } finally {
+        // Always hand the camera back the exposure the owner was looking at,
+        // even if a frame failed — otherwise the preview stays two stops dark.
+        await applyTrackValue(track, 'exposureCompensation', before);
+        setCapturing(false);
+      }
+      if (frames.length > 1) frame = fuseExposures(frames);
+    }
+
+    if (frame) {
+      ctx.putImageData(new ImageData(frame.data, frame.width, frame.height), 0, 0);
+    } else {
+      // Single shot, or the bracket could not complete: the plain frame is a
+      // correct photograph, which is why the bracket is centred on it.
+      grab();
+    }
+
     // Near-lossless here; compressImage does the real sizing on upload so the
     // stored file is small without this step throwing away detail first.
     canvas.toBlob((blob) => {
@@ -324,7 +374,35 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
       }
       showCaptured(blob, 'photo');
     }, 'image/jpeg', 0.95);
-  }, [showCaptured]);
+  }, [showCaptured, hdr, controls, brightness, videoTrack]);
+
+  /**
+   * Tap the preview to focus there.
+   *
+   * The camera wants the point normalised against the FRAME, but the tap
+   * arrives in preview pixels — and the preview is object-cover, so it is a
+   * cropped, scaled view of that frame. Converting through the element's own
+   * box is close enough for a focus point and avoids re-deriving the crop maths
+   * that zoomCropRect already owns.
+   *
+   * Autofocus is switched off by the tap, because leaving it continuous means
+   * the camera wanders straight back off the spot it was just given. The
+   * indicator fades on its own so it does not sit over the shot.
+   */
+  const focusAt = useCallback(async (e: React.MouseEvent<HTMLElement>) => {
+    const track = videoTrack();
+    if (!track || !controls?.pointsOfInterest) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+
+    const x = (e.clientX - box.left) / box.width;
+    const y = (e.clientY - box.top) / box.height;
+    setFocusPoint({ x, y });
+    window.setTimeout(() => setFocusPoint(null), 1200);
+
+    const ok = await applyPointOfInterest(track, x, y, controls.focusModes);
+    if (ok) setAutoFocus(false);
+  }, [controls, videoTrack]);
 
   /**
    * The stream to record. Normally the camera's own, but when this camera has
@@ -598,7 +676,11 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
         ) : (
           /* Camera preview */
           <>
-            <div className="relative bg-black overflow-hidden">
+            <div
+              className="relative bg-black overflow-hidden"
+              onClick={controls?.pointsOfInterest ? focusAt : undefined}
+              style={controls?.pointsOfInterest ? { cursor: 'crosshair' } : undefined}
+            >
               <video
                 ref={videoRef}
                 muted
@@ -609,6 +691,26 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
                 style={softwareZoom ? { transform: `scale(${zoom})` } : undefined}
                 onError={() => {}}
               />
+
+              {/* Where the tap landed. Drawn over the preview and gone in about
+                  a second, because a permanent marker sits in the shot. */}
+              {focusPoint && (
+                <span
+                  aria-hidden="true"
+                  className="pointer-events-none absolute w-16 h-16 -ml-8 -mt-8 rounded-full border-2 border-amber-300 animate-ping"
+                  style={{ left: `${focusPoint.x * 100}%`, top: `${focusPoint.y * 100}%` }}
+                />
+              )}
+
+              {/* Bracketing holds the camera for a few hundred milliseconds. If
+                  nothing said so, a still preview would look like a freeze. */}
+              {capturing && (
+                <div className="absolute inset-0 flex items-center justify-center bg-black/40">
+                  <span className="flex items-center gap-2 rounded-full bg-black/70 px-3 py-1.5 text-xs font-semibold text-white">
+                    <Loader2 size={13} className="animate-spin" /> Blending exposures…
+                  </span>
+                </div>
+              )}
               {recording && (
                 <div className="absolute top-3 left-3 flex items-center gap-2">
                   {paused ? (
@@ -644,6 +746,26 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
                   >
                     <Sun size={10} className="inline mr-1 -mt-px" />
                     Auto light {autoLight ? 'on' : 'off'}
+                  </button>
+                )}
+
+                {/* Only where the camera can change its exposure. Without that
+                    the "bracket" is three identical frames, so the button would
+                    cost latency and change nothing. */}
+                {mode === 'photo' && controls?.exposureCompensation && (
+                  <button
+                    type="button"
+                    onClick={() => setHdr((v) => !v)}
+                    aria-pressed={hdr}
+                    aria-label={hdr ? 'Turn HDR off' : 'Turn HDR on'}
+                    title={hdr
+                      ? 'HDR on — takes the shot at three exposures and keeps the best-lit part of each. Slightly slower; hold still.'
+                      : 'HDR off — one exposure. Faster, but bright sky or deep shade will clip.'}
+                    className={`text-[10px] font-semibold uppercase tracking-wide px-2 py-1 rounded-md transition ${
+                      hdr ? 'bg-black/55 text-amber-300' : 'bg-black/55 text-gray-300'
+                    }`}
+                  >
+                    HDR {hdr ? 'on' : 'off'}
                   </button>
                 )}
                 {/* Always offered once the camera is live. Hiding it when a

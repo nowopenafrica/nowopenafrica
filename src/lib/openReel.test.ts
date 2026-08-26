@@ -5,6 +5,7 @@ import {
   formatRecordingClock, REEL_HARD_MAX_BYTES, REEL_SIZE_BUDGET_BYTES, AUDIO_BITRATE,
   applyAutoAdapt, cameraControls, readRange, clampToRange, stepValue, midpointOf,
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
+  wellExposedness, fuseExposures, bracketStops, applyPointOfInterest,
 } from './openReel';
 import {
   REEL_SECONDS_LIMITS, reelLimitForPlan, formatReelLimit, reelLimitAdjective,
@@ -456,5 +457,162 @@ describe('nativeZoomTarget', () => {
     expect(nativeZoomTarget({ getCapabilities: () => { throw new Error('ni'); } }, 1.5)).toBeNull();
     // A degenerate range carries no usable zoom.
     expect(nativeZoomTarget({ getCapabilities: () => ({ zoom: { min: 1, max: 1 } }) }, 1.5)).toBeNull();
+  });
+});
+
+describe('exposure fusion', () => {
+  // Structural frames, not ImageData: the fusion is arithmetic and this test
+  // runs outside a browser.
+  const px = (r: number, g: number, b: number, count = 1) => {
+    const data = new Uint8ClampedArray(count * 4);
+    for (let i = 0; i < count * 4; i += 4) {
+      data[i] = r; data[i + 1] = g; data[i + 2] = b; data[i + 3] = 255;
+    }
+    return { width: count, height: 1, data };
+  };
+
+  it('trusts a mid-grey sample and discounts a blown or crushed one', () => {
+    // The whole point: a pixel at the extremes carries no detail worth keeping.
+    expect(wellExposedness(0.5)).toBeCloseTo(1, 5);
+    expect(wellExposedness(1)).toBeLessThan(0.05);
+    expect(wellExposedness(0)).toBeLessThan(0.05);
+    expect(wellExposedness(0.5)).toBeGreaterThan(wellExposedness(0.8));
+  });
+
+  it('survives a NaN sample rather than poisoning the whole average', () => {
+    expect(wellExposedness(Number.NaN)).toBe(0);
+  });
+
+  it('keeps detail from whichever frame exposed the pixel best', () => {
+    // Blown highlight in one frame, well exposed in the other: the good one
+    // should dominate, which is the entire reason for bracketing.
+    const blown = px(255, 255, 255);
+    const good = px(128, 128, 128);
+    const fused = fuseExposures([blown, good])!;
+    expect(fused.data[0]).toBeGreaterThan(120);
+    expect(fused.data[0]).toBeLessThan(150);
+  });
+
+  it('falls back to the middle frame when every frame is hopeless', () => {
+    // All black: weights are ~0, and a naive average would divide by zero and
+    // punch a transparent hole in the picture.
+    const fused = fuseExposures([px(0, 0, 0), px(0, 0, 0), px(0, 0, 0)])!;
+    expect(fused.data[0]).toBe(0);
+    expect(fused.data[3]).toBe(255);
+  });
+
+  it('refuses frames that are not the same size', () => {
+    // These come from consecutive camera reads; a size change means the track
+    // reconfigured mid-bracket and the frames cannot be combined.
+    expect(fuseExposures([px(10, 10, 10, 2), px(10, 10, 10, 3)])).toBeNull();
+  });
+
+  it('passes a single frame straight through, and nothing at all as null', () => {
+    const one = px(90, 90, 90);
+    expect(fuseExposures([one])).toBe(one);
+    expect(fuseExposures([])).toBeNull();
+  });
+
+  it('never mutates the frames it was given', () => {
+    const a = px(255, 255, 255);
+    const b = px(0, 0, 0);
+    fuseExposures([a, b]);
+    expect(a.data[0]).toBe(255);
+    expect(b.data[0]).toBe(0);
+  });
+});
+
+describe('bracketStops', () => {
+  it('centres the bracket on the metered exposure', () => {
+    // The middle frame must be the one the camera would have taken anyway, so
+    // that abandoning fusion still leaves a correct photograph.
+    const stops = bracketStops({ min: -3, max: 3, step: 0.1 });
+    expect(stops).toHaveLength(3);
+    expect(stops[1]).toBe(0);
+    expect(stops[0]).toBe(-stops[2]);
+  });
+
+  it('stays inside what the camera actually allows', () => {
+    const stops = bracketStops({ min: -1, max: 1, step: 0.1 });
+    expect(Math.min(...stops)).toBeGreaterThanOrEqual(-1);
+    expect(Math.max(...stops)).toBeLessThanOrEqual(1);
+  });
+
+  it('does not bracket at all when there is no compensation to give', () => {
+    // A camera that cannot change exposure gets one frame, not three identical
+    // ones — three reads of the same exposure is latency for nothing.
+    expect(bracketStops({ min: 0, max: 0, step: 0 })).toEqual([0]);
+    expect(bracketStops(null)).toEqual([0]);
+  });
+});
+
+describe('cameraControls — the wider settings', () => {
+  type FakeTrack = Parameters<typeof cameraControls>[0];
+  const track = (caps: Record<string, unknown>): FakeTrack => ({
+    getCapabilities: () => caps,
+    applyConstraints: async () => {},
+  } as unknown as FakeTrack);
+
+  it('reads white balance, ISO and shutter when the camera offers them', () => {
+    const c = cameraControls(track({
+      colorTemperature: { min: 2500, max: 7500, step: 50 },
+      iso: { min: 50, max: 3200, step: 1 },
+      exposureTime: { min: 1, max: 10000, step: 1 },
+    }));
+    expect(c.colorTemperature?.max).toBe(7500);
+    expect(c.iso?.min).toBe(50);
+    expect(c.exposureTime?.max).toBe(10000);
+  });
+
+  it('only reports a torch the camera can actually switch on', () => {
+    // Cameras without a light still advertise the key, as [false]. Treating
+    // presence as support puts a dead button on the screen.
+    expect(cameraControls(track({ torch: [false] })).torch).toBe(false);
+    expect(cameraControls(track({ torch: [false, true] })).torch).toBe(true);
+    expect(cameraControls(track({})).torch).toBe(false);
+  });
+
+  it('reports whether the camera can be told where to focus', () => {
+    expect(cameraControls(track({ pointsOfInterest: {} })).pointsOfInterest).toBe(true);
+    expect(cameraControls(track({})).pointsOfInterest).toBe(false);
+  });
+});
+
+describe('applyPointOfInterest', () => {
+  type Applied = { advanced: Record<string, unknown>[] };
+  type FocusTrack = Parameters<typeof applyPointOfInterest>[0];
+  const spyTrack = () => {
+    const calls: Applied[] = [];
+    return {
+      calls,
+      track: {
+        applyConstraints: async (c: Applied) => { calls.push(c); },
+      } as unknown as FocusTrack,
+    };
+  };
+
+  it('sends normalised coordinates and pins the focus so it stops hunting', () => {
+    // Continuous autofocus wanders straight back off a tapped point, so the
+    // mode has to change with it.
+    const { calls, track } = spyTrack();
+    return applyPointOfInterest(track, 0.25, 0.75, ['single-shot', 'continuous']).then((ok) => {
+      expect(ok).toBe(true);
+      expect(calls[0].advanced[0].pointsOfInterest).toEqual([{ x: 0.25, y: 0.75 }]);
+      expect(calls[0].advanced[1].focusMode).toBe('single-shot');
+    });
+  });
+
+  it('clamps a tap that lands outside the frame', async () => {
+    const { calls, track } = spyTrack();
+    await applyPointOfInterest(track, -0.4, 1.9, []);
+    expect(calls[0].advanced[0].pointsOfInterest).toEqual([{ x: 0, y: 1 }]);
+  });
+
+  it('reports false rather than throwing when the camera refuses', async () => {
+    const track = {
+      applyConstraints: async () => { throw new Error('nope'); },
+    } as unknown as Parameters<typeof applyPointOfInterest>[0];
+    expect(await applyPointOfInterest(track, 0.5, 0.5, [])).toBe(false);
+    expect(await applyPointOfInterest(null, 0.5, 0.5, [])).toBe(false);
   });
 });

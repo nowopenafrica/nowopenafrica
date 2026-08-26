@@ -126,9 +126,19 @@ export interface CameraControls {
   exposureCompensation: NumericRange | null;
   /** Fallback brightness control on cameras without EV compensation. */
   brightness: NumericRange | null;
+  /** Manual white balance in kelvin. Only meaningful with whiteBalanceMode 'manual'. */
+  colorTemperature: NumericRange | null;
+  /** Sensor sensitivity. Only meaningful with exposureMode 'manual'. */
+  iso: NumericRange | null;
+  /** Shutter, in 100µs units per the spec. Only meaningful with exposureMode 'manual'. */
+  exposureTime: NumericRange | null;
   focusModes: string[];
   exposureModes: string[];
   whiteBalanceModes: string[];
+  /** The camera has a light that can be switched on. */
+  torch: boolean;
+  /** The camera can be told WHERE to focus, which is what tap-to-focus needs. */
+  pointsOfInterest: boolean;
 }
 
 const modeList = (caps: Record<string, unknown>, key: string): string[] => {
@@ -142,15 +152,167 @@ export function cameraControls(track: AdaptableTrack | null | undefined): Camera
   if (track && typeof track.getCapabilities === 'function') {
     try { caps = track.getCapabilities() || {}; } catch { caps = {}; }
   }
+  // torch is advertised as [false] on cameras that have no light and
+  // [false, true] on those that do, so its presence alone means nothing.
+  const torchValues = caps.torch;
   return {
     zoom: readRange(caps, 'zoom'),
     focusDistance: readRange(caps, 'focusDistance'),
     exposureCompensation: readRange(caps, 'exposureCompensation'),
     brightness: readRange(caps, 'brightness'),
+    colorTemperature: readRange(caps, 'colorTemperature'),
+    iso: readRange(caps, 'iso'),
+    exposureTime: readRange(caps, 'exposureTime'),
     focusModes: modeList(caps, 'focusMode'),
     exposureModes: modeList(caps, 'exposureMode'),
     whiteBalanceModes: modeList(caps, 'whiteBalanceMode'),
+    torch: Array.isArray(torchValues) ? torchValues.includes(true) : torchValues === true,
+    pointsOfInterest: 'pointsOfInterest' in caps,
   };
+}
+
+/**
+ * Point the camera's focus at a spot in the frame.
+ *
+ * `pointsOfInterest` takes NORMALISED coordinates — 0,0 is the top-left of the
+ * frame regardless of how the preview is sized or mirrored, so the caller must
+ * convert from client pixels before calling. Focus mode is set alongside it
+ * because a camera left on continuous autofocus will hunt straight back off the
+ * point it was just given.
+ */
+export async function applyPointOfInterest(
+  track: AdaptableTrack | null | undefined,
+  x: number,
+  y: number,
+  focusModes: string[] = [],
+): Promise<boolean> {
+  if (!track || typeof track.applyConstraints !== 'function') return false;
+  const clamp = (v: number) => Math.min(1, Math.max(0, v));
+  // single-shot focuses once and holds, which is what a tap means. Cameras
+  // without it take manual; without either, the point is still worth sending
+  // because some drivers honour it under continuous.
+  const mode = focusModes.includes('single-shot') ? 'single-shot'
+    : focusModes.includes('manual') ? 'manual'
+    : null;
+  const advanced: Record<string, unknown>[] = [
+    { pointsOfInterest: [{ x: clamp(x), y: clamp(y) }] },
+  ];
+  if (mode) advanced.push({ focusMode: mode });
+  try {
+    await track.applyConstraints({ advanced } as unknown as MediaTrackConstraints);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// --- exposure fusion ----------------------------------------------------------
+//
+// A phone camera cannot hold both a Lagos sky and a shopfront doorway in one
+// exposure: pick for the sky and the doorway is black, pick for the doorway and
+// the sky is white. That is the single biggest reason an owner's photo of their
+// own premises looks worse than the place does.
+//
+// There is no HDR switch in getUserMedia. What there IS, on cameras offering
+// exposureCompensation, is the ability to take the same frame two stops apart
+// and combine them, which is what exposure fusion means: keep each pixel from
+// whichever frame exposed it best.
+//
+// "Best" is the well-exposedness term from Mertens et al. — a Gaussian centred
+// on mid-grey. A pixel at 0.5 is fully trusted; one at 0 or 1 has been crushed
+// or blown and carries no detail to keep. Contrast and saturation terms are
+// omitted deliberately: they need a pyramid to avoid haloing, and a per-pixel
+// weight is honest about being the simple version.
+
+/** How much a sample at this luminance (0..1) should count. */
+export function wellExposedness(luminance: number, sigma = 0.2): number {
+  if (!Number.isFinite(luminance)) return 0;
+  const l = Math.min(1, Math.max(0, luminance));
+  return Math.exp(-((l - 0.5) ** 2) / (2 * sigma * sigma));
+}
+
+/** Rec. 709 luma, matching how the eye weights the channels. */
+export const luminanceOf = (r: number, g: number, b: number): number =>
+  (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+
+/**
+ * The EV offsets to bracket across, inside what the camera actually allows.
+ *
+ * Always an odd count centred on the metered exposure, so the middle frame is
+ * the one the camera would have taken anyway — if fusion is skipped or a frame
+ * is dropped, what is left is still a correctly exposed photograph.
+ */
+export function bracketStops(range: NumericRange | null, frames = 3): number[] {
+  if (!range || frames < 2) return [0];
+  const spread = Math.min(2, Math.max(range.max, 0), Math.abs(Math.min(range.min, 0)));
+  if (spread <= 0) return [0];
+  const half = Math.floor(frames / 2);
+  const stops: number[] = [];
+  for (let i = -half; i <= half; i++) {
+    stops.push(Math.round((i * (spread / half)) * 100) / 100);
+  }
+  return stops;
+}
+
+/**
+ * A frame of RGBA pixels — structurally an ImageData, without needing one.
+ *
+ * Typed this way on purpose: the fusion below is arithmetic, and tying it to a
+ * DOM constructor would make it untestable outside a browser for no benefit.
+ * The caller wraps the result with `new ImageData(out.data, out.width)`.
+ */
+export interface RgbaFrame {
+  width: number;
+  height: number;
+  data: Uint8ClampedArray;
+}
+
+/**
+ * Fuse bracketed frames into one.
+ *
+ * Frames must be the same size and aligned — they are consecutive reads of a
+ * held camera, so alignment is assumed rather than solved. Returns a new buffer
+ * and never mutates the inputs.
+ */
+export function fuseExposures(frames: RgbaFrame[]): RgbaFrame | null {
+  if (frames.length === 0) return null;
+  if (frames.length === 1) return frames[0];
+
+  const { width, height } = frames[0];
+  if (frames.some((f) => f.width !== width || f.height !== height)) return null;
+
+  const out: RgbaFrame = {
+    width,
+    height,
+    data: new Uint8ClampedArray(width * height * 4),
+  };
+  const n = width * height * 4;
+
+  for (let i = 0; i < n; i += 4) {
+    let wr = 0, wg = 0, wb = 0, total = 0;
+    for (const f of frames) {
+      const d = f.data;
+      const w = wellExposedness(luminanceOf(d[i], d[i + 1], d[i + 2]));
+      wr += d[i] * w;
+      wg += d[i + 1] * w;
+      wb += d[i + 2] * w;
+      total += w;
+    }
+    if (total <= 0) {
+      // Every frame crushed or blew this pixel; the middle one is the least
+      // wrong, and leaving it black would punch a hole in the picture.
+      const mid = frames[Math.floor(frames.length / 2)].data;
+      out.data[i] = mid[i];
+      out.data[i + 1] = mid[i + 1];
+      out.data[i + 2] = mid[i + 2];
+    } else {
+      out.data[i] = wr / total;
+      out.data[i + 1] = wg / total;
+      out.data[i + 2] = wb / total;
+    }
+    out.data[i + 3] = 255;
+  }
+  return out;
 }
 
 export function clampToRange(value: number, range: NumericRange): number {
