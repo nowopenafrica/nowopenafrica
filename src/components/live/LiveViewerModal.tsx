@@ -7,6 +7,7 @@ import { CAPTION_LANGUAGES } from '../../lib/liveStream';
 import VerifiedBadge from '../VerifiedBadge';
 import LiveChat from './LiveChat';
 import LiveAIAssistant from './LiveAIAssistant';
+import LivePinCard from './LivePinCard';
 import {
   X, Volume2, VolumeX, Users, Radio, Subtitles, MessageCircle, Sparkles,
   Phone, Navigation, CalendarCheck, Loader2,
@@ -33,7 +34,7 @@ export default function LiveViewerModal({ business, stream, onClose, onBook, onO
   const isLive = stream.status === 'live';
   const isOwner = !!user && user.id === business.user_id;
 
-  const { remoteStream, viewerCount, status: watchStatus, connected, currentCaption, retry } = useWatchStream(stream.id, isLive);
+  const { remoteStream, viewerCount, status: watchStatus, connected, currentCaption, pin, retry } = useWatchStream(stream.id, isLive);
   const videoRef = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
   const [panel, setPanel] = useState<'chat' | 'assistant'>('chat');
@@ -148,6 +149,22 @@ export default function LiveViewerModal({ business, stream, onClose, onBook, onO
             </span>
           )}
         </div>
+
+        {/* Whatever the owner is holding up right now, with a way to buy it
+            while it is still in shot. */}
+        {isLive && pin && (() => {
+          const module = features.find((f) => f.key === pin.moduleKey);
+          return (
+            <LivePinCard
+              pin={pin}
+              businessId={String(business.id)}
+              ctaLabel={module?.ctaLabel}
+              isCart={module?.cart}
+              onBook={onBook}
+              onOpenCart={onOpenCart}
+            />
+          );
+        })()}
 
         {/* Caption bar */}
         {isLive && captionsOn && displayCaption && (

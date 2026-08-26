@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
+import { PIN_EVENT, parsePinPayload, type PinPayload } from '../lib/livePin';
 import { supabase } from '../lib/supabase';
 import { RTC_CONFIG, channelName, getSessionId } from '../lib/liveStream';
 import type { RealtimeChannel } from '@supabase/supabase-js';
@@ -37,6 +38,9 @@ export function useWatchStream(streamId: string | null, active: boolean) {
   const [viewerCount, setViewerCount] = useState(0);
   const [status, setStatus] = useState<WatchStatus>('connecting');
   const [currentCaption, setCurrentCaption] = useState('');
+  // What the owner is holding up right now. Only the id and where to look it
+  // up — never the price, which the viewer reads from the database itself.
+  const [pin, setPin] = useState<PinPayload | null>(null);
 
   const viewerIdRef = useRef(getSessionId());
   const pcRef = useRef<RTCPeerConnection | null>(null);
@@ -122,6 +126,12 @@ export function useWatchStream(streamId: string | null, active: boolean) {
       const p = payload as SignalPayload;
       if (p.to === viewerId && p.candidate && pcRef.current) pcRef.current.addIceCandidate(new RTCIceCandidate(p.candidate)).catch(() => {});
     });
+    channel.on('broadcast', { event: PIN_EVENT }, ({ payload }) => {
+      // Anyone with the anon key can send to this channel, so the payload is
+      // validated rather than trusted; a malformed one is dropped, not shown.
+      const parsed = parsePinPayload(payload);
+      if (parsed) setPin(parsed.itemId ? parsed : null);
+    });
     channel.on('broadcast', { event: 'caption' }, ({ payload }) => {
       if (cancelled) return;
       setCurrentCaption(payload.text || '');
@@ -163,5 +173,5 @@ export function useWatchStream(streamId: string | null, active: boolean) {
     setRetryTick((t) => t + 1);
   }, []);
 
-  return { remoteStream, viewerCount, status, connected: status === 'connected', currentCaption, retry };
+  return { remoteStream, viewerCount, status, connected: status === 'connected', currentCaption, pin, retry };
 }

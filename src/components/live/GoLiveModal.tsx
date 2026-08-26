@@ -5,6 +5,7 @@ import { useBroadcastStream } from '../../hooks/useBroadcastStream';
 import LiveChat from './LiveChat';
 import StreamHistory from './StreamHistory';
 import LiveShareSheet from './LiveShareSheet';
+import LivePinPicker from './LivePinPicker';
 import {
   X, Radio, Mic, MicOff, Video, VideoOff, Subtitles, Loader2, Calendar, History,
   SwitchCamera, Zap, ZapOff,
@@ -12,7 +13,7 @@ import {
 import { previewTransform, oppositeFacing, facingLabel } from '../../lib/openReel';
 
 interface GoLiveModalProps {
-  business: { id: string; name: string; image_url?: string | null; logo_url?: string | null };
+  business: { id: string; name: string; category?: string | null; image_url?: string | null; logo_url?: string | null };
   onClose: () => void;
 }
 
@@ -226,6 +227,15 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
                   <button onClick={endStream} className="px-5 py-2.5 bg-red-600 text-white text-sm font-semibold rounded-full hover:bg-red-700 transition">
                     End Stream
                   </button>
+                </div>
+
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5">
+                  <LivePinPicker
+                    businessId={business.id}
+                    category={business.category}
+                    pinned={broadcaster.pinned}
+                    onPin={broadcaster.pinItem}
+                  />
                 </div>
 
                 {broadcaster.controls?.zoom && (

@@ -11,6 +11,7 @@ import {
   type FacingMode, type CameraControls,
 } from '../lib/openReel';
 import { livePosterPath, LIVE_POSTER_BUCKET } from '../lib/liveShare';
+import { PIN_EVENT, type PinPayload } from '../lib/livePin';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
 /** Frames per second the replay is drawn and encoded at. */
@@ -183,6 +184,7 @@ export function useBroadcastStream() {
   const [controls, setControls] = useState<CameraControls | null>(null);
   const [torchOn, setTorchOn] = useState(false);
   const [zoom, setZoom] = useState(1);
+  const [pinned, setPinned] = useState<PinPayload | null>(null);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
@@ -193,6 +195,11 @@ export function useBroadcastStream() {
   const outboundStreamRef = useRef<MediaStream | null>(null);
   const pumpRef = useRef<ReturnType<typeof createRecordingPump>>(null);
   const facingRef = useRef<FacingMode>('environment');
+  // What is pinned right now. Kept in a ref as well as state so it can be
+  // re-sent to a viewer who joins mid-broadcast — a broadcast event reaches
+  // only the people who were already listening, so without this anyone
+  // arriving after the pin sees nothing on screen.
+  const pinRef = useRef<PinPayload | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
   const speechRef = useRef<any | null>(null);
   const allViewersSeenRef = useRef<Set<string>>(new Set());
@@ -253,6 +260,11 @@ export function useBroadcastStream() {
     if (buffered) {
       pendingCandidatesRef.current.delete(payload.viewerId);
       buffered.forEach((c) => pc.addIceCandidate(new RTCIceCandidate(c)).catch(() => {}));
+    }
+
+    // Catch the new arrival up on what is currently pinned.
+    if (pinRef.current) {
+      channel.send({ type: 'broadcast', event: PIN_EVENT, payload: pinRef.current });
     }
   }, [rebalanceBitrates]);
 
@@ -502,6 +514,26 @@ export function useBroadcastStream() {
     if (ok) setZoom(next);
   }, [cameraTrack, controls]);
 
+  /**
+   * Put an item on every viewer's screen, or take it off.
+   *
+   * Only the id travels — see src/lib/livePin.ts for why a price must never
+   * cross this channel.
+   */
+  const pinItem = useCallback((payload: PinPayload | null) => {
+    const channel = channelRef.current;
+    pinRef.current = payload;
+    setPinned(payload);
+    if (!channel) return;
+    channel.send({
+      type: 'broadcast',
+      event: PIN_EVENT,
+      // Unpinning is a pin with no id, so viewers clear the card rather than
+      // being left with the last thing that was shown.
+      payload: payload ?? { itemId: null, source: 'product', moduleKey: 'none' },
+    });
+  }, []);
+
   const toggleCaptions = useCallback(() => {
     setCaptionsOn((prev) => {
       const next = !prev;
@@ -582,6 +614,8 @@ export function useBroadcastStream() {
     }
 
     streamIdRef.current = null;
+    pinRef.current = null;
+    setPinned(null);
     setLocalStream(null);
     setIsLive(false);
     setViewerCount(0);
@@ -593,6 +627,7 @@ export function useBroadcastStream() {
     start, stop, toggleMic, toggleCam, toggleCaptions,
     captionsSupported: speechRecognitionSupported(),
     facing, canFlip, flipping, flipCamera,
+    pinned, pinItem,
     controls, focusAt, torchOn, toggleTorch, zoom, applyZoom,
   };
 }

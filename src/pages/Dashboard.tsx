@@ -700,7 +700,13 @@ export default function Dashboard() {
                 />
                 {goLiveBusiness && (
                   <GoLiveModal
-                    business={{ id: String(goLiveBusiness.id), name: goLiveBusiness.name }}
+                    business={{
+                      id: String(goLiveBusiness.id),
+                      name: goLiveBusiness.name,
+                      category: goLiveBusiness.category,
+                      image_url: goLiveBusiness.image_url,
+                      logo_url: goLiveBusiness.logo_url,
+                    }}
                     onClose={() => setGoLiveBusiness(null)}
                   />
                 )}
