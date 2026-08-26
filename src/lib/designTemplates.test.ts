@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DESIGN_TEMPLATES, templateByKey, slotOf, slotBox, typePx, unitOf,
   motionAt, settleTime, surfaceLayers, hexAlpha, inkFor, SETTLED,
+  shapeGeometry, listRowBoxes, templateListRoles,
   type SlotSpec,
 } from './designTemplates';
 
@@ -163,5 +164,165 @@ describe('hexAlpha', () => {
     expect(hexAlpha('#ffffff', 5)).toBe('rgba(255, 255, 255, 1)');
     expect(hexAlpha('', 0.5)).toBe('rgba(0, 0, 0, 0.5)');
     expect(hexAlpha('not-a-colour', 0.5)).not.toContain('NaN');
+  });
+});
+
+describe('shapes', () => {
+  it('puts each wedge in its own corner', () => {
+    const at = (corner: 'tl' | 'tr' | 'bl' | 'br') =>
+      shapeGeometry({ kind: 'wedge', corner, w: 0.5, h: 0.5, tone: 'accent' }, 1000, 1000);
+
+    // The right angle sits IN the corner — get the winding wrong and the wedge
+    // appears on the opposite side of the layout, over the headline.
+    expect(at('tl')).toEqual({ kind: 'polygon', points: [[0, 0], [500, 0], [0, 500]] });
+    expect(at('tr')).toEqual({ kind: 'polygon', points: [[1000, 0], [500, 0], [1000, 500]] });
+    expect(at('bl')).toEqual({ kind: 'polygon', points: [[0, 1000], [500, 1000], [0, 500]] });
+    expect(at('br')).toEqual({ kind: 'polygon', points: [[1000, 1000], [500, 1000], [1000, 500]] });
+  });
+
+  it('shears a skewed rect into a parallelogram, keeping its height', () => {
+    const g = shapeGeometry(
+      { kind: 'rect', x: 0.1, y: 0.2, w: 0.5, h: 0.1, tone: 'accent', skew: 0.5 },
+      1000, 1000,
+    );
+    expect(g.kind).toBe('polygon');
+    if (g.kind !== 'polygon') return;
+    const ys = g.points.map(([, y]) => y);
+    expect(Math.min(...ys)).toBe(200);
+    expect(Math.max(...ys)).toBe(300);
+    // Top edge leans right of the bottom edge by skew * height.
+    expect(g.points[0][0] - g.points[3][0]).toBeCloseTo(50, 6);
+  });
+
+  it('scales circles by the short edge, so they stay round on any format', () => {
+    const wide = shapeGeometry({ kind: 'circle', cx: 0.5, cy: 0.5, r: 0.2, tone: 'accent' }, 2000, 1000);
+    const tall = shapeGeometry({ kind: 'circle', cx: 0.5, cy: 0.5, r: 0.2, tone: 'accent' }, 1000, 2000);
+    if (wide.kind !== 'circle' || tall.kind !== 'circle') throw new Error('expected circles');
+    expect(wide.r).toBe(200);
+    expect(tall.r).toBe(200);
+  });
+
+  it('rotates a stripe about its own centre', () => {
+    const g = shapeGeometry(
+      { kind: 'stripe', x: 0.25, y: 0.45, w: 0.5, h: 0.1, angle: 90, tone: 'accent' },
+      1000, 1000,
+    );
+    if (g.kind !== 'polygon') throw new Error('expected a polygon');
+    const cx = g.points.reduce((a, [x]) => a + x, 0) / 4;
+    const cy = g.points.reduce((a, [, y]) => a + y, 0) / 4;
+    expect(cx).toBeCloseTo(500, 6);
+    expect(cy).toBeCloseTo(500, 6);
+  });
+
+  it('resolves every shape in the catalogue at every format', () => {
+    for (const t of DESIGN_TEMPLATES) {
+      for (const shape of t.shapes ?? []) {
+        for (const [name, w, h] of FORMATS) {
+          const g = shapeGeometry(shape, w, h);
+          const nums = g.kind === 'polygon'
+            ? g.points.flat()
+            : g.kind === 'rect'
+              ? [g.x, g.y, g.w, g.h]
+              : [g.cx, g.cy, g.r];
+          for (const n of nums) {
+            expect(Number.isFinite(n), `${t.key}/${shape.kind} @ ${name}`).toBe(true);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe('list slots', () => {
+  const column: SlotSpec = { role: 'services', x: 0.1, y: 0.5, w: 0.8, size: 0.03, gap: 2 };
+  const strip: SlotSpec = { role: 'stats', x: 0.1, y: 0.5, w: 0.9, size: 0.03, direction: 'row' };
+
+  it('steps a column down by size x gap', () => {
+    const rows = listRowBoxes(column, 1000, 1000, 3);
+    expect(rows).toHaveLength(3);
+    expect(rows[0].y).toBe(500);
+    expect(rows[1].y - rows[0].y).toBe(60); // 0.03 * 1000 * 2
+    expect(rows.every(r => r.x === 100)).toBe(true);
+  });
+
+  it('divides a row strip into equal cells on one baseline', () => {
+    const rows = listRowBoxes(strip, 1000, 1000, 3);
+    expect(rows.map(r => Math.round(r.w))).toEqual([300, 300, 300]);
+    expect(new Set(rows.map(r => r.y)).size).toBe(1);
+  });
+
+  it('returns nothing for an empty list rather than one blank row', () => {
+    expect(listRowBoxes(column, 1000, 1000, 0)).toEqual([]);
+  });
+
+  it('reports only the list roles a template actually draws', () => {
+    // Drives which editors appear. Over-reporting turns the panel into a form.
+    const agency = templateByKey('agency-services');
+    expect(templateListRoles(agency).sort()).toEqual(['contact', 'services']);
+    expect(templateListRoles(templateByKey('statement'))).toEqual([]);
+  });
+
+  it('keeps every services column inside the canvas at its row cap', () => {
+    // A four-row list that runs off the bottom is invisible in a flat export,
+    // and the slot-bounds test above only checks the list's starting point.
+    for (const t of DESIGN_TEMPLATES) {
+      for (const slot of t.slots) {
+        if (slot.role === 'services' && slot.direction !== 'row') {
+          const rows = slot.max ?? 4;
+          for (const [name, w, h] of FORMATS) {
+            const boxes = listRowBoxes(slot, w, h, rows);
+            const last = boxes[boxes.length - 1];
+            expect(last.y + last.size, `${t.key} services @ ${name}`).toBeLessThanOrEqual(h);
+          }
+        }
+      }
+    }
+  });
+});
+
+describe('shapes never cover the headline', () => {
+  /** Axis-aligned bounds of a resolved shape, in pixels. */
+  function boundsOf(g: ReturnType<typeof shapeGeometry>) {
+    if (g.kind === 'polygon') {
+      const xs = g.points.map(([x]) => x);
+      const ys = g.points.map(([, y]) => y);
+      return { x0: Math.min(...xs), x1: Math.max(...xs), y0: Math.min(...ys), y1: Math.max(...ys) };
+    }
+    if (g.kind === 'circle' || g.kind === 'ring') {
+      return { x0: g.cx - g.r, x1: g.cx + g.r, y0: g.cy - g.r, y1: g.cy + g.r };
+    }
+    return { x0: g.x, x1: g.x + g.w, y0: g.y, y1: g.y + g.h };
+  }
+
+  // Only shapes big and opaque enough to actually obscure type. Hairline rules
+  // and 8%-alpha tints are design devices that sit under text on purpose.
+  const OPAQUE = 0.6;
+  const BIG = 0.02;
+
+  it('keeps every solid shape clear of the headline box, at every format', () => {
+    // The Promo Burst badge sat on top of the first headline line on every
+    // format before this existed, and it took a screenshot to notice.
+    for (const t of DESIGN_TEMPLATES) {
+      const headline = slotOf(t, 'headline');
+      if (!headline) continue;
+
+      for (const shape of t.shapes ?? []) {
+        if ((shape.alpha ?? 1) < OPAQUE) continue;
+
+        for (const [name, w, h] of FORMATS) {
+          const g = shapeGeometry(shape, w, h);
+          const b = boundsOf(g);
+          if ((b.x1 - b.x0) * (b.y1 - b.y0) < BIG * w * h) continue;
+
+          const box = slotBox(headline, w, h);
+          const lineH = typePx(headline.size, w, h) * 1.06;
+          const top = headline.fromBottom ? box.top - lineH * 1.6 : box.top;
+          const hb = { x0: box.left, x1: box.left + box.width, y0: top, y1: top + lineH * 1.6 };
+
+          const overlaps = b.x0 < hb.x1 && b.x1 > hb.x0 && b.y0 < hb.y1 && b.y1 > hb.y0;
+          expect(overlaps, `${t.key}: ${shape.kind} covers the headline @ ${name}`).toBe(false);
+        }
+      }
+    }
   });
 });

@@ -34,9 +34,22 @@ describe('motionProject — project model', () => {
     const b = motionProjectFromTemplate(t);
     expect(a.templateKey).toBe(t.key);
     expect(a.name).toBe(t.name);
-    expect(a.brief).toEqual({ ...t.preset, business: 'NowOpen' });
+    // The preset wins on every field it defines...
+    expect(a.brief).toMatchObject({ ...t.preset, business: 'NowOpen' });
     expect(a.palette).toEqual(t.palette);
     expect(a.id).not.toBe(b.id);
+  });
+
+  it('a template project still arrives with flyer content', () => {
+    // A MotionTemplatePreset carries only the motion fields, so without the
+    // defaults underneath it a business-flyer design template would render its
+    // services column and contact strip empty — which reads as broken, not as
+    // blank. Regression guard for that gap.
+    const t = motionTemplateByKey('aurora-glass') ?? MOTION_TEMPLATES[0];
+    const a = motionProjectFromTemplate(t);
+    expect(a.brief.services?.length).toBeGreaterThan(0);
+    expect(a.brief.contact?.length).toBeGreaterThan(0);
+    expect(a.brief.stats?.length).toBeGreaterThan(0);
   });
 });
 

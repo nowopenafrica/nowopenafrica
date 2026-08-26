@@ -53,6 +53,26 @@ const DEFAULT_BRIEF: MotionConfig = {
   aspect: 'Vertical',
   duration: 'medium',
   style: 'logo-reveal',
+  // Seeded so a flyer template renders as a finished layout the moment it is
+  // picked. An empty services column reads as a broken template, not an empty
+  // one, and nobody evaluates a design they cannot see.
+  //
+  // Service names and contact details are safe defaults — they describe or
+  // belong to NowOpen. The stat NUMBERS are placeholders and the editor says
+  // so: shipping invented proof points as if measured is exactly what the
+  // Trust Panel rule exists to prevent.
+  services: [
+    'Brand & identity design',
+    'Social media management',
+    'Web design & development',
+    'Paid ads & SEO',
+  ],
+  stats: [
+    { value: '10+', label: 'Years' },
+    { value: '250+', label: 'Projects' },
+    { value: '30+', label: 'Markets' },
+  ],
+  contact: ['+234 708 154 7726', 'hello@nowopenafrica.com', 'nowopenafrica.com'],
 };
 
 export const MOTION_PROJECTS_KEY = 'nowopen_motion_projects';
@@ -133,7 +153,9 @@ export function motionProjectFromTemplate(template: MotionTemplate, aspect: Rend
     templateKey: template.key,
     createdAt: now,
     updatedAt: now,
-    brief: { ...template.preset, business: 'NowOpen', aspect },
+    // DEFAULT_BRIEF first so a preset, which carries only the motion fields,
+    // still arrives with flyer content for the design templates that need it.
+    brief: { ...DEFAULT_BRIEF, ...template.preset, business: 'NowOpen', aspect },
     palette: template.palette,
     render: { source: 'canvas', tier: 'free', model: 'wan' },
   };
@@ -287,6 +309,7 @@ export function motionProjectFromPrompt(prompt: string): MotionProject {
     createdAt: now,
     updatedAt: now,
     brief: {
+      ...DEFAULT_BRIEF,
       business,
       headline: headlineFromPrompt(trimmed, percent),
       subhead: subheadFromPrompt(trimmed, business, percent),

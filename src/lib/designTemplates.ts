@@ -24,7 +24,18 @@
 // 1080x1920 and a 2480x3508 print poster without per-format variants — the thing
 // that made the old hardcoded layouts unusable outside their original size.
 
-export type SlotRole = 'brand' | 'eyebrow' | 'headline' | 'subline' | 'meta' | 'cta' | 'qr';
+export type SlotRole =
+  | 'brand' | 'eyebrow' | 'headline' | 'subline' | 'meta' | 'cta' | 'qr'
+  // Repeating slots. Everything above renders ONE string; these render a list,
+  // which is what a real business flyer is mostly made of — a services column,
+  // a proof-point row, a contact strip. Without them the catalogue could only
+  // ever produce posters, never the corporate layouts people actually order.
+  | 'services' | 'stats' | 'contact';
+
+/** Roles that render a list of rows rather than a single string. */
+export const LIST_ROLES: readonly SlotRole[] = ['services', 'stats', 'contact'];
+
+export const isListRole = (role: SlotRole): boolean => LIST_ROLES.includes(role);
 
 /** How a slot arrives. Named for the visual, not the CSS. */
 export type MotionIn = 'fade' | 'rise' | 'drop' | 'wipe' | 'pop' | 'blur';
@@ -85,7 +96,41 @@ export interface SlotSpec {
   /** Overrides the template font for this slot — a mono eyebrow over a serif headline. */
   font?: FontKey;
   motion?: SlotMotion;
+
+  // --- list slots only -------------------------------------------------------
+  /** Gap between rows, as a multiple of the row's type size. */
+  gap?: number;
+  /** Marker drawn before each row. */
+  bullet?: 'dot' | 'check' | 'number' | 'bar' | 'none';
+  /** Lay rows out across the box (a stat strip) instead of down it (a services column). */
+  direction?: 'row' | 'column';
+  /** Cap on rows drawn, so long content cannot overrun the layout. */
+  max?: number;
 }
+
+// --- decorative geometry -----------------------------------------------------
+//
+// The single biggest thing separating this catalogue from a real flyer library
+// was that a template could only paint a background and set type on it. Every
+// corporate flyer worth copying is built on hard geometry: a diagonal corner
+// wedge, a full-bleed footer bar carrying the phone number, a circular photo
+// cut-out, an angled accent stripe. Those are shapes, not gradients, and no
+// amount of surface tuning produces them.
+//
+// Painted between the surface and the type, in array order.
+
+export type ShapeTone = 'accent' | 'ink' | 'base' | 'white' | 'black';
+
+export type ShapeSpec =
+  /** Right-angled triangle filling one corner. The diagonal-cut look. */
+  | { kind: 'wedge'; corner: 'tl' | 'tr' | 'bl' | 'br'; w: number; h: number; tone: ShapeTone; alpha?: number }
+  /** Band, panel or footer bar. `skew` shears the vertical edges for an angled block. */
+  | { kind: 'rect'; x: number; y: number; w: number; h: number; tone: ShapeTone; alpha?: number; radius?: number; skew?: number }
+  | { kind: 'circle'; cx: number; cy: number; r: number; tone: ShapeTone; alpha?: number }
+  /** Outline circle — a photo frame or a decorative orbit. */
+  | { kind: 'ring'; cx: number; cy: number; r: number; tone: ShapeTone; alpha?: number; thickness?: number }
+  /** Rotated bar, for accent slashes that cross the layout. */
+  | { kind: 'stripe'; x: number; y: number; w: number; h: number; angle: number; tone: ShapeTone; alpha?: number };
 
 export interface SurfaceSpec {
   kind: 'gradient' | 'solid' | 'spotlight' | 'wash' | 'frame';
@@ -109,6 +154,8 @@ export interface DesignTemplate {
   /** Default family for every slot. Individual slots may override it. */
   font?: FontKey;
   surface: SurfaceSpec;
+  /** Painted between surface and type, in order. */
+  shapes?: ShapeSpec[];
   slots: SlotSpec[];
 }
 
@@ -312,6 +359,138 @@ export function surfaceLayers(tpl: DesignTemplate, accent: string, base: string)
 /** Default ink for the template's scheme. */
 export const inkFor = (tpl: DesignTemplate): string => (tpl.scheme === 'dark' ? '#ffffff' : '#0b1220');
 
+// --- shapes: one geometry, both renderers ------------------------------------
+//
+// Same contract as surfaceSpecLayers: resolve to pixel geometry HERE, so the
+// canvas painter and the DOM painter cannot disagree about where a wedge sits.
+// The canvas strokes these as paths; the DOM turns polygons into clip-path.
+
+export function shapeColor(tone: ShapeTone, accent: string, ink: string, base: string): string {
+  switch (tone) {
+    case 'accent': return accent;
+    case 'ink': return ink;
+    case 'base': return base;
+    case 'white': return '#ffffff';
+    case 'black': return '#000000';
+    default: return accent;
+  }
+}
+
+export type ShapeGeom =
+  | { kind: 'polygon'; points: [number, number][] }
+  | { kind: 'circle'; cx: number; cy: number; r: number }
+  | { kind: 'ring'; cx: number; cy: number; r: number; thickness: number }
+  | { kind: 'rect'; x: number; y: number; w: number; h: number; radius: number };
+
+/** Resolve a shape's fractional description to pixels on a w x h canvas. */
+export function shapeGeometry(shape: ShapeSpec, w: number, h: number): ShapeGeom {
+  const u = unitOf(w, h);
+
+  switch (shape.kind) {
+    case 'wedge': {
+      const sw = shape.w * w;
+      const sh = shape.h * h;
+      // The right angle sits IN the corner; the hypotenuse cuts across. Which
+      // two edges it runs between is what makes a wedge read as top-left vs
+      // bottom-right, so each corner needs its own winding.
+      const pts: Record<string, [number, number][]> = {
+        tl: [[0, 0], [sw, 0], [0, sh]],
+        tr: [[w, 0], [w - sw, 0], [w, sh]],
+        bl: [[0, h], [sw, h], [0, h - sh]],
+        br: [[w, h], [w - sw, h], [w, h - sh]],
+      };
+      return { kind: 'polygon', points: pts[shape.corner] };
+    }
+    case 'rect': {
+      const x = shape.x * w;
+      const y = shape.y * h;
+      const rw = shape.w * w;
+      const rh = shape.h * h;
+      if (shape.skew) {
+        // Shear the vertical edges. A positive skew leans the block right,
+        // which is the angled colour panel used across corporate flyers.
+        const d = shape.skew * rh;
+        return { kind: 'polygon', points: [[x + d, y], [x + rw + d, y], [x + rw, y + rh], [x, y + rh]] };
+      }
+      return { kind: 'rect', x, y, w: rw, h: rh, radius: (shape.radius ?? 0) * u };
+    }
+    case 'circle':
+      return { kind: 'circle', cx: shape.cx * w, cy: shape.cy * h, r: shape.r * u };
+    case 'ring':
+      return {
+        kind: 'ring',
+        cx: shape.cx * w,
+        cy: shape.cy * h,
+        r: shape.r * u,
+        thickness: (shape.thickness ?? 0.006) * u,
+      };
+    case 'stripe': {
+      const cx = (shape.x + shape.w / 2) * w;
+      const cy = (shape.y + shape.h / 2) * h;
+      const hw = (shape.w * w) / 2;
+      const hh = (shape.h * h) / 2;
+      const rad = (shape.angle * Math.PI) / 180;
+      const cos = Math.cos(rad);
+      const sin = Math.sin(rad);
+      const corner = (dx: number, dy: number): [number, number] => [
+        cx + dx * cos - dy * sin,
+        cy + dx * sin + dy * cos,
+      ];
+      return {
+        kind: 'polygon',
+        points: [corner(-hw, -hh), corner(hw, -hh), corner(hw, hh), corner(-hw, hh)],
+      };
+    }
+    default:
+      return { kind: 'rect', x: 0, y: 0, w: 0, h: 0, radius: 0 };
+  }
+}
+
+// --- list slots --------------------------------------------------------------
+
+export interface ListRowBox {
+  x: number;
+  y: number;
+  w: number;
+  /** Type size for this row, in pixels. */
+  size: number;
+}
+
+/**
+ * Where each row of a list slot sits.
+ *
+ * A 'column' list (services, "why choose us") steps DOWN by the type size times
+ * the gap. A 'row' list (a stat strip, a contact bar) divides the box ACROSS
+ * into equal cells. Both are resolved here so the canvas and DOM painters place
+ * row three in the same place.
+ */
+export function listRowBoxes(slot: SlotSpec, w: number, h: number, count: number): ListRowBox[] {
+  if (count <= 0) return [];
+  const box = slotBox(slot, w, h);
+  const size = typePx(slot.size, w, h);
+  const out: ListRowBox[] = [];
+
+  if (slot.direction === 'row') {
+    const cell = box.width / count;
+    for (let i = 0; i < count; i++) {
+      out.push({ x: box.left + i * cell, y: box.top, w: cell, size });
+    }
+    return out;
+  }
+
+  const step = size * (slot.gap ?? 1.9);
+  for (let i = 0; i < count; i++) {
+    out.push({ x: box.left, y: box.top + i * step, w: box.width, size });
+  }
+  return out;
+}
+
+/** Total height a column list occupies — used to keep a following slot clear. */
+export function listHeight(slot: SlotSpec, w: number, h: number, count: number): number {
+  if (count <= 0 || slot.direction === 'row') return 0;
+  return typePx(slot.size, w, h) * (slot.gap ?? 1.9) * count;
+}
+
 // --- the catalogue -----------------------------------------------------------
 //
 // Type steps are named so a template reads as a design decision rather than a
@@ -322,6 +501,12 @@ const HEAD_HERO = 0.115;
 const SUB = 0.036;
 const EYEBROW = 0.024;
 const META = 0.022;
+/** Row type for a services / "why choose us" column. */
+const LIST = 0.030;
+/** Base for a stat cell — the number renders at 1.55x this, the label at 0.62x. */
+const STAT = 0.034;
+/** Footer contact strip. Small on purpose: it is reference, not reading. */
+const CONTACT = 0.019;
 
 export const DESIGN_TEMPLATES: DesignTemplate[] = [
   {
@@ -503,10 +688,191 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { role: 'qr', x: 0.77, y: 0.17, w: 0.14, fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
     ],
   },
-];
 
+  // --- business flyers -------------------------------------------------------
+  //
+  // The twelve templates above are posters: a statement, some air, one idea.
+  // These are the layouts businesses actually commission — a service list, a
+  // reason to trust, a number to call. They are why 'services', 'stats',
+  // 'contact' and the shape layer exist; none of them can be built without.
+
+  {
+    key: 'agency-services',
+    label: 'Agency Services',
+    desc: 'Diagonal cut, service list, contact bar',
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 155, intensity: 0.4, vignette: 0.24 },
+    shapes: [
+      { kind: 'wedge', corner: 'tr', w: 0.44, h: 0.19, tone: 'accent', alpha: 0.92 },
+      { kind: 'rect', x: 0, y: 0.885, w: 1, h: 0.115, tone: 'accent', alpha: 0.95 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.085, w: 0.46, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.185, w: 0.56, size: EYEBROW, upper: true, tracking: 0.2, treatment: 'bar', tone: 'accent', motion: { in: 'wipe', at: 0.25, dur: 0.5 } },
+      { role: 'headline', x: 0.08, y: 0.245, w: 0.8, size: HEAD, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.4, dur: 0.6 } },
+      { role: 'subline', x: 0.08, y: 0.46, w: 0.74, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.7, dur: 0.5 } },
+      { role: 'services', x: 0.08, y: 0.57, w: 0.8, size: LIST, weight: 600, bullet: 'dot', gap: 1.95, max: 4, motion: { in: 'rise', at: 0.9, dur: 0.6 } },
+      { role: 'cta', x: 0.08, y: 0.2, w: 0.5, size: 0.03, weight: 700, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.25, dur: 0.45 } },
+      { role: 'contact', x: 0.07, y: 0.055, w: 0.86, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.4, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'why-choose-us',
+    label: 'Why Choose Us',
+    desc: 'Ticked reasons to trust, light and corporate',
+    mood: 'minimal', scheme: 'light', font: 'sans',
+    surface: { kind: 'solid' },
+    shapes: [
+      { kind: 'wedge', corner: 'tr', w: 0.5, h: 0.16, tone: 'accent', alpha: 0.9 },
+      { kind: 'stripe', x: 0.04, y: 0.145, w: 0.16, h: 0.008, angle: 0, tone: 'accent' },
+      { kind: 'rect', x: 0, y: 0.9, w: 1, h: 0.1, tone: 'accent', alpha: 0.12 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.08, w: 0.44, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.2, w: 0.76, size: HEAD, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.25, dur: 0.6 } },
+      { role: 'subline', x: 0.08, y: 0.4, w: 0.7, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.5 } },
+      { role: 'services', x: 0.08, y: 0.51, w: 0.82, size: LIST, weight: 600, bullet: 'check', gap: 2.05, max: 4, motion: { in: 'rise', at: 0.8, dur: 0.6 } },
+      { role: 'cta', x: 0.08, y: 0.21, w: 0.5, size: 0.03, weight: 700, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.2, dur: 0.45 } },
+      { role: 'contact', x: 0.07, y: 0.05, w: 0.86, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.35, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'proof-points',
+    label: 'Proof Points',
+    desc: 'The numbers lead — clients, projects, years',
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'spotlight', intensity: 0.45, vignette: 0.3 },
+    shapes: [
+      { kind: 'rect', x: 0.06, y: 0.585, w: 0.88, h: 0.185, tone: 'white', alpha: 0.07, radius: 0.03 },
+      { kind: 'circle', cx: 0.9, cy: 0.13, r: 0.11, tone: 'accent', alpha: 0.2 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.085, w: 0.44, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.19, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.25, w: 0.8, size: HEAD, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
+      { role: 'subline', x: 0.08, y: 0.46, w: 0.72, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.65, dur: 0.5 } },
+      { role: 'stats', x: 0.09, y: 0.625, w: 0.82, size: STAT, direction: 'row', align: 'left', max: 3, motion: { in: 'pop', at: 0.85, dur: 0.55 } },
+      { role: 'cta', x: 0.08, y: 0.19, w: 0.52, size: 0.03, weight: 700, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.15, dur: 0.45 } },
+      { role: 'contact', x: 0.08, y: 0.095, w: 0.84, size: CONTACT, weight: 600, tone: 'muted', direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.3, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'numbered-services',
+    label: 'Numbered Services',
+    desc: '01-04 down the page, editorial and calm',
+    mood: 'editorial', scheme: 'dark', font: 'sans',
+    surface: { kind: 'wash', angle: 190, intensity: 0.34, vignette: 0.28 },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.02, h: 1, tone: 'accent', alpha: 0.9 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.1, y: 0.085, w: 0.44, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.1, y: 0.18, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', font: 'mono', motion: { in: 'wipe', at: 0.2, dur: 0.5 } },
+      { role: 'headline', x: 0.1, y: 0.235, w: 0.78, size: 0.085, weight: 800, tracking: -0.02, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
+      { role: 'services', x: 0.1, y: 0.45, w: 0.8, size: LIST, weight: 600, bullet: 'number', gap: 2.2, max: 4, motion: { in: 'rise', at: 0.65, dur: 0.65 } },
+      { role: 'subline', x: 0.1, y: 0.24, w: 0.7, size: 0.03, tone: 'muted', fromBottom: true, motion: { in: 'fade', at: 1.05, dur: 0.5 } },
+      { role: 'contact', x: 0.1, y: 0.1, w: 0.82, size: CONTACT, weight: 600, tone: 'muted', direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.25, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'speaker-card',
+    label: 'Speaker Card',
+    desc: 'Portrait ring, name, role and the date',
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 165, intensity: 0.5, vignette: 0.34 },
+    shapes: [
+      { kind: 'wedge', corner: 'bl', w: 0.5, h: 0.22, tone: 'accent', alpha: 0.16 },
+      // Disc under ring. Alone, the ring read as an empty outline — a template
+      // that looks like it failed to load. Filled, it is a portrait vignette
+      // that works with a photo behind it and still looks deliberate without.
+      { kind: 'circle', cx: 0.5, cy: 0.29, r: 0.19, tone: 'white', alpha: 0.07 },
+      { kind: 'ring', cx: 0.5, cy: 0.29, r: 0.19, tone: 'accent', alpha: 0.85, thickness: 0.008 },
+    ],
+    slots: [
+      { role: 'eyebrow', x: 0.1, y: 0.085, w: 0.8, size: EYEBROW, align: 'center', upper: true, tracking: 0.24, tone: 'accent', motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'headline', x: 0.1, y: 0.53, w: 0.8, size: 0.082, weight: 800, align: 'center', tracking: -0.02, motion: { in: 'rise', at: 0.45, dur: 0.6 } },
+      { role: 'subline', x: 0.12, y: 0.665, w: 0.76, size: 0.03, align: 'center', tone: 'accent', upper: true, tracking: 0.12, motion: { in: 'fade', at: 0.75, dur: 0.5 } },
+      { role: 'meta', x: 0.15, y: 0.745, w: 0.7, size: META, align: 'center', treatment: 'pill', motion: { in: 'pop', at: 0.95, dur: 0.45 } },
+      { role: 'cta', x: 0.2, y: 0.155, w: 0.6, size: 0.028, weight: 700, align: 'center', treatment: 'outline', fromBottom: true, motion: { in: 'pop', at: 1.15, dur: 0.45 } },
+      { role: 'brand', x: 0.1, y: 0.075, w: 0.8, size: 0.024, align: 'center', upper: true, tracking: 0.18, tone: 'muted', fromBottom: true, motion: { in: 'fade', at: 1.3, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'promo-burst',
+    label: 'Promo Burst',
+    desc: 'The discount is the hero - dates and a deadline',
+    mood: 'street', scheme: 'dark', font: 'condensed',
+    surface: { kind: 'gradient', angle: 145, intensity: 0.62, vignette: 0.2 },
+    shapes: [
+      // Clear of the headline box on purpose: at cx 0.78 / r 0.2 this circle
+      // overlapped the first line of a two-line headline on every format.
+      { kind: 'circle', cx: 0.84, cy: 0.15, r: 0.13, tone: 'accent', alpha: 0.9 },
+      { kind: 'rect', x: -0.05, y: 0.6, w: 1.1, h: 0.1, tone: 'black', alpha: 0.35, skew: 0.12 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.085, w: 0.44, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.5, size: EYEBROW, upper: true, tracking: 0.22, treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.29, w: 0.66, size: HEAD_HERO, weight: 800, upper: true, tracking: -0.03, motion: { in: 'pop', at: 0.35, dur: 0.55 } },
+      { role: 'subline', x: 0.08, y: 0.62, w: 0.7, size: 0.032, weight: 700, upper: true, tracking: 0.08, motion: { in: 'wipe', at: 0.7, dur: 0.5 } },
+      { role: 'meta', x: 0.08, y: 0.73, w: 0.6, size: META, tone: 'muted', motion: { in: 'fade', at: 0.95, dur: 0.45 } },
+      { role: 'cta', x: 0.08, y: 0.19, w: 0.56, size: 0.032, weight: 800, upper: true, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
+      { role: 'contact', x: 0.08, y: 0.09, w: 0.84, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.25, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'consulting-clean',
+    label: 'Consulting Clean',
+    desc: 'Left rail, quiet type, services and a number to call',
+    mood: 'minimal', scheme: 'light', font: 'sans',
+    surface: { kind: 'solid' },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.055, h: 1, tone: 'accent', alpha: 0.95 },
+      { kind: 'rect', x: 0.115, y: 0.885, w: 0.82, h: 0.002, tone: 'ink', alpha: 0.2 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.115, y: 0.09, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.115, y: 0.19, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.115, y: 0.25, w: 0.76, size: 0.086, weight: 700, tracking: -0.02, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
+      { role: 'subline', x: 0.115, y: 0.45, w: 0.7, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.65, dur: 0.5 } },
+      { role: 'services', x: 0.115, y: 0.56, w: 0.78, size: LIST, weight: 600, bullet: 'bar', gap: 2.0, max: 4, motion: { in: 'rise', at: 0.85, dur: 0.6 } },
+      { role: 'contact', x: 0.115, y: 0.075, w: 0.82, size: CONTACT, weight: 600, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'report-cover',
+    label: 'Report Cover',
+    desc: 'Annual-report restraint - year, title, one rule',
+    mood: 'luxe', scheme: 'light', font: 'serif',
+    surface: { kind: 'frame', frame: 0.045 },
+    shapes: [
+      { kind: 'rect', x: 0.12, y: 0.455, w: 0.2, h: 0.004, tone: 'accent' },
+      { kind: 'rect', x: 0, y: 0.78, w: 1, h: 0.22, tone: 'accent', alpha: 0.08 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.12, y: 0.13, w: 0.5, size: 0.028, weight: 700, upper: true, tracking: 0.2, font: 'sans', motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.12, y: 0.24, w: 0.5, size: 0.05, weight: 400, tone: 'accent', font: 'sans', motion: { in: 'rise', at: 0.25, dur: 0.5 } },
+      { role: 'headline', x: 0.12, y: 0.3, w: 0.74, size: 0.088, weight: 500, tracking: -0.015, motion: { in: 'rise', at: 0.4, dur: 0.65 } },
+      { role: 'subline', x: 0.12, y: 0.51, w: 0.62, size: 0.032, tone: 'muted', font: 'sans', motion: { in: 'fade', at: 0.75, dur: 0.55 } },
+      { role: 'stats', x: 0.12, y: 0.83, w: 0.76, size: 0.03, direction: 'row', align: 'left', max: 3, font: 'sans', motion: { in: 'rise', at: 0.95, dur: 0.55 } },
+      { role: 'meta', x: 0.12, y: 0.075, w: 0.6, size: META, tone: 'muted', font: 'sans', fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.45 } },
+    ],
+  },
+];
 export const templateByKey = (key: string): DesignTemplate =>
   DESIGN_TEMPLATES.find(t => t.key === key) ?? DESIGN_TEMPLATES[0];
 
 export const slotOf = (tpl: DesignTemplate, role: SlotRole): SlotSpec | undefined =>
   tpl.slots.find(s => s.role === role);
+
+/**
+ * Which list roles a template actually uses.
+ *
+ * Drives the editor: a template with no services column should not offer a
+ * services editor. Showing every field for every template is what turns a
+ * design tool into a form.
+ */
+export function templateListRoles(tpl: DesignTemplate): SlotRole[] {
+  const seen = new Set<SlotRole>();
+  for (const slot of tpl.slots) if (isListRole(slot.role)) seen.add(slot.role);
+  return [...seen];
+}

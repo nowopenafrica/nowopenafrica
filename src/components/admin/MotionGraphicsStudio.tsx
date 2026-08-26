@@ -10,7 +10,7 @@ import {
 import type { DirectorScene, TextElementStyle, TextAnimationKey, TextEffectKey } from '../../lib/creativeDirector';
 import { TEXT_ANIMATIONS, TEXT_EFFECTS } from '../../lib/creativeDirector';
 import {
-  renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline, timelineAt,
+  renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
   sceneElementRegions, sceneLayerRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
   createBackgroundVideo, createBackgroundImage, MOTION_FONT_DEFAULT,
   type RenderAspect, type SceneFrameOptions, type MotionTreatment,
@@ -28,8 +28,8 @@ import { resolveAiVideoClips, releaseAiVideoClips, videoGenModelsForTier } from 
 import AiVideoGenPicker from '../studio/AiVideoGenPicker';
 import { MOTION_TEMPLATES, DESIGN_STYLES, motionTemplateByKey, type MotionTemplate } from '../../data/motionTemplates';
 import { pickPreviewVoice } from '../../lib/voicePreview';
-import { drawTemplateFrame } from '../../lib/drawTemplate';
-import { DESIGN_TEMPLATES, type DesignTemplate } from '../../lib/designTemplates';
+import { DESIGN_TEMPLATES, templateListRoles } from '../../lib/designTemplates';
+import FlyerContentEditor from './FlyerContentEditor';
 import { downloadBlob } from '../../lib/studio';
 import {
   blankMotionProject, motionProjectFromTemplate, motionProjectFromPrompt,
@@ -214,7 +214,7 @@ function timeAgo(iso: string): string {
  */
 function MotionPreview({
   opts, scenes, editMode, sceneIndex, playing, playhead, selectedLayer,
-  onProgress, onPick, onMoveElement, onSelectLayer, onMoveLayer, className, template,
+  onProgress, onPick, onMoveElement, onSelectLayer, onMoveLayer, className,
 }: {
   opts: SceneFrameOptions;
   scenes: DirectorScene[];
@@ -232,12 +232,6 @@ function MotionPreview({
   /** Called while dragging a layer, with the cumulative normalised delta. */
   onMoveLayer?: (i: number, dx: number, dy: number) => void;
   className?: string;
-  /**
-   * When set, frames come from the shared design template rather than the
-   * bespoke scene renderer — the same definition Creative Studio renders as a
-   * still, so the two cannot drift apart.
-   */
-  template?: DesignTemplate | null;
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const dragRef = useRef<{
@@ -265,28 +259,11 @@ function MotionPreview({
 
     // A single paint path. There were three separate drawSceneFrame calls, and
     // adding a template branch at each would be three chances to diverge.
+    // drawSceneFrame branches on opts.template internally, so the preview and
+    // the export share one paint path instead of two that have to be kept in
+    // step by hand.
     const paint = (frame: number) => {
-      if (!template) { drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame); return; }
-      const { scene, t } = timelineAt(timeline, frame);
-      const current = scenes[scene.index];
-      // motionAt works in seconds; timelineAt reports a 0..1 fraction of the
-      // scene, so convert rather than feeding it a fraction.
-      const seconds = (t * scene.frames) / timeline.fps;
-      drawTemplateFrame(
-        ctx,
-        template,
-        {
-          brand: opts.businessName,
-          eyebrow: opts.directionLabel,
-          headline: current?.text || opts.hook || '',
-          subline: current?.voiceover || current?.direction || '',
-          meta: opts.cta || '',
-          cta: opts.cta || '',
-        },
-        cw,
-        ch,
-        { accent: opts.palette?.[0] ?? '#9a3412', t: seconds },
-      );
+      drawSceneFrame(ctx, cw, ch, opts, scenes, timeline, frame);
     };
     const totalFrames = Math.max(1, timeline.totalFrames);
     let raf = 0;
@@ -367,8 +344,22 @@ function MotionPreview({
 
     if (!playing) {
       // Paused: one frozen frame at the playhead position.
+      //
+      // Except at the very start, where frame 0 is the moment BEFORE anything
+      // has entered — a design template whose first slot arrives at 0.25s
+      // renders as an empty surface, which reads as a broken template rather
+      // than an un-started animation. So an un-scrubbed preview shows the
+      // settled frame, the same rule editMode and renderPoster already use.
+      // Once the playhead has been moved it is honoured exactly.
+      const first = timeline.scenes[0];
+      const idleFrame = first
+        ? Math.min(
+            first.startFrame + Math.round(first.frames * 0.5),
+            Math.max(first.startFrame, first.endFrame - 1),
+          )
+        : 0;
       pauseLayerVideos();
-      paint(startFrame);
+      paint(playhead != null ? startFrame : idleFrame);
       return () => window.cancelAnimationFrame(raf);
     }
 
@@ -393,7 +384,7 @@ function MotionPreview({
     };
     raf = window.requestAnimationFrame(tick);
     return () => { window.cancelAnimationFrame(raf); pauseLayerVideos(); };
-  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead, selectedLayer, template]);
+  }, [opts, scenes, dims.width, dims.height, editMode, sceneIndex, playing, playhead, selectedLayer]);
 
   const pickAt = (e: React.PointerEvent<HTMLCanvasElement>): { kind: 'element' | 'layer'; key?: SceneElementKey; layerIndex?: number } | null => {
     const canvas = canvasRef.current;
@@ -821,6 +812,9 @@ export default function MotionGraphicsStudio() {
   const [editMode, setEditMode] = useState(false);
   const [designKey, setDesignKey] = useState<string | null>(null);
   const designTpl = designKey ? (DESIGN_TEMPLATES.find(t => t.key === designKey) ?? null) : null;
+  // Only the repeating sections this template draws. The scene renderer draws
+  // none of them, so with no design template selected the editor stays hidden.
+  const flyerRoles = designTpl ? templateListRoles(designTpl) : [];
   const [editSceneIndex, setEditSceneIndex] = useState(0);
   const [editing, setEditing] = useState<{ key: SceneElementKey; label: string; value: string } | null>(null);
 
@@ -1171,8 +1165,23 @@ export default function MotionGraphicsStudio() {
       treatment: TREATMENT_FOR_STYLE[brief.style],
       layers: layers.length > 0 ? layers : null,
       scenesCount: scenes.length,
+      // Carried on the options, not passed to the preview alone: the poster and
+      // the MP4 read the design from the same object the preview does, so what
+      // you download is what you were looking at.
+      template: designTpl,
+      templateContent: {
+        brand: brief.business || 'NowOpen',
+        eyebrow: label,
+        headline: brief.headline,
+        subline: brief.subhead,
+        meta: brief.cta || '',
+        cta: brief.cta || '',
+        services: brief.services ?? [],
+        stats: brief.stats ?? [],
+        contact: brief.contact ?? [],
+      },
     }),
-    [brief, label, project.palette, scenes.length, layers],
+    [brief, label, project.palette, scenes.length, layers, designTpl],
   );
   const seconds = useMemo(() => scenes.reduce((s, x) => s + x.seconds, 0), [scenes]);
   const renderSource = project.render.source;
@@ -1779,6 +1788,7 @@ export default function MotionGraphicsStudio() {
                         These are your caption cards. They sync with the brief — edit once, every matching card updates.
                       </p>
                     </div>
+                    <FlyerContentEditor brief={brief} onChange={editBrief} roles={flyerRoles} />
                     <section className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
                       <h5 className="text-[11px] font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
                         <Zap size={12} className="text-purple-500" /> Animate this clip
@@ -2016,7 +2026,6 @@ export default function MotionGraphicsStudio() {
                 <div className="flex-1 flex items-center justify-center min-h-[380px] bg-gray-50 dark:bg-gray-900 rounded-xl border border-gray-100 dark:border-gray-700 mx-3 my-2 p-3">
                   <div className="flex justify-center items-center" style={{ width: zoom === 'fit' ? '100%' : `${zoom}%`, height: '100%' }}>
                     <MotionPreview opts={opts} scenes={scenes} editMode={editMode} sceneIndex={editSceneIndex}
-                      template={designTpl}
                       playing={playing} playhead={playhead} selectedLayer={selectedLayer}
                       onProgress={onProgress} onPick={pickElement}
                       onMoveElement={onMoveElement}

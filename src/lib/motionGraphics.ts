@@ -38,6 +38,19 @@ export interface MotionConfig {
   aspect: RenderAspect;
   duration: MotionDuration;
   style: MotionStyle;
+
+  // --- flyer content ---------------------------------------------------------
+  //
+  // Used by the business-flyer design templates (services list, proof-point
+  // row, contact strip). Optional so every project saved before these existed
+  // still loads: a template that wants a list and finds none simply draws no
+  // rows rather than failing to render.
+  /** Offer list — "Brand Design", "SEO & Content", … */
+  services?: string[];
+  /** Proof points: a number and what it counts. */
+  stats?: { value: string; label: string }[];
+  /** Contact strip — phone, email, website, in display order. */
+  contact?: string[];
 }
 
 /** Seconds per card scene for the chosen pacing. */

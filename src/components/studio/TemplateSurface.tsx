@@ -1,7 +1,8 @@
 import { useRef } from 'react';
 import {
-  type DesignTemplate, type SlotRole, type SlotSpec,
+  type DesignTemplate, type ShapeSpec, type SlotRole, type SlotSpec,
   slotBox, typePx, motionAt, settleTime, surfaceLayers, inkFor, hexAlpha, unitOf, fontStack,
+  isListRole, listRowBoxes, shapeColor, shapeGeometry,
 } from '../../lib/designTemplates';
 
 // Renders a DesignTemplate. One component for stills and for motion frames.
@@ -24,6 +25,12 @@ export interface TemplateContent {
   subline?: string;
   meta?: string;
   cta?: string;
+  /** Rows for a 'services' slot. */
+  services?: string[];
+  /** Rows for a 'stats' slot. */
+  stats?: { value: string; label: string }[];
+  /** Rows for a 'contact' slot. */
+  contact?: string[];
   logoUrl?: string | null;
   /** data: URL — a remote QR would taint the export canvas. */
   qrUrl?: string | null;
@@ -50,6 +57,74 @@ export interface TemplateSurfaceProps {
 
 const TEXT_ROLES: SlotRole[] = ['brand', 'eyebrow', 'headline', 'subline', 'meta', 'cta'];
 
+/**
+ * One decorative shape.
+ *
+ * Geometry comes from shapeGeometry so this and the canvas painter cannot
+ * disagree about where a wedge sits. Polygons become clip-path, which survives
+ * PNG export because html-to-image rasterises through <foreignObject> and lets
+ * the browser's own engine draw the CSS.
+ */
+function Shape({
+  shape, width, height, accent, ink, base,
+}: {
+  shape: ShapeSpec; width: number; height: number; accent: string; ink: string; base: string;
+}) {
+  const geom = shapeGeometry(shape, width, height);
+  const color = shapeColor(shape.tone, accent, ink, base);
+  const opacity = shape.alpha ?? 1;
+
+  if (geom.kind === 'polygon') {
+    const points = geom.points.map(([x, y]) => `${x}px ${y}px`).join(', ');
+    return (
+      <div
+        style={{
+          position: 'absolute', inset: 0,
+          background: color, opacity,
+          clipPath: `polygon(${points})`,
+        }}
+      />
+    );
+  }
+  if (geom.kind === 'circle') {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: geom.cx - geom.r, top: geom.cy - geom.r,
+          width: geom.r * 2, height: geom.r * 2,
+          borderRadius: '50%', background: color, opacity,
+        }}
+      />
+    );
+  }
+  if (geom.kind === 'ring') {
+    return (
+      <div
+        style={{
+          position: 'absolute',
+          left: geom.cx - geom.r, top: geom.cy - geom.r,
+          width: geom.r * 2, height: geom.r * 2,
+          borderRadius: '50%',
+          border: `${geom.thickness}px solid ${color}`,
+          opacity,
+          boxSizing: 'border-box',
+        }}
+      />
+    );
+  }
+  return (
+    <div
+      style={{
+        position: 'absolute',
+        left: geom.x, top: geom.y, width: geom.w, height: geom.h,
+        borderRadius: geom.radius || undefined,
+        background: color, opacity,
+      }}
+    />
+  );
+}
+
 /** Edit in place without a modal. Commits on blur so a stray keypress is cheap. */
 function EditableSlot({
   value, onCommit, style,
@@ -72,6 +147,119 @@ function EditableSlot({
     >
       {value}
     </div>
+  );
+}
+
+/**
+ * Marker before a services / contact row.
+ *
+ * The tick is drawn as an SVG rather than a ✓ character for the same reason the
+ * canvas painter draws it with strokes: the glyph is missing from enough system
+ * fonts to ship a tofu box into somebody's flyer.
+ */
+function Bullet({ slot, size, index, accent }: { slot: SlotSpec; size: number; index: number; accent: string }) {
+  switch (slot.bullet) {
+    case 'dot':
+      return <span style={{ width: size * 0.38, height: size * 0.38, borderRadius: '50%', background: accent, flexShrink: 0 }} />;
+    case 'bar':
+      return <span style={{ width: size * 0.16, height: size * 0.64, background: accent, flexShrink: 0 }} />;
+    case 'check':
+      return (
+        <svg width={size * 0.62} height={size * 0.62} viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0 }} aria-hidden="true">
+          <path d="M4 13l5 5L20 6" stroke={accent} strokeWidth={3.2} strokeLinecap="round" strokeLinejoin="round" />
+        </svg>
+      );
+    case 'number':
+      return (
+        <span style={{ color: accent, fontWeight: 700, fontSize: size * 0.86, flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>
+          {String(index + 1).padStart(2, '0')}
+        </span>
+      );
+    default:
+      return null;
+  }
+}
+
+/**
+ * A repeating slot: a services column, a proof-point strip, a contact bar.
+ *
+ * Row positions come from listRowBoxes, the same resolver the canvas painter
+ * uses. Line height is 1.4 deliberately — that places the DOM text baseline at
+ * roughly row.y + size, which is exactly where canvas fillText puts it, so the
+ * two renderers land on the same pixel instead of drifting a few px per row.
+ */
+function ListSlot({
+  slot, content, width, height, accent, ink, template,
+}: {
+  slot: SlotSpec;
+  content: TemplateContent;
+  width: number;
+  height: number;
+  accent: string;
+  ink: string;
+  template: DesignTemplate;
+}) {
+  const all =
+    slot.role === 'services' ? (content.services ?? [])
+    : slot.role === 'contact' ? (content.contact ?? [])
+    : (content.stats ?? []);
+  const count = slot.max ? Math.min(all.length, slot.max) : all.length;
+  if (count === 0) return null;
+
+  const boxes = listRowBoxes(slot, width, height, count);
+  const family = fontStack(slot.font ?? template.font);
+  const tone = slot.tone === 'accent' ? accent : slot.tone === 'muted' ? hexAlpha(ink, 0.72) : ink;
+  const align = slot.align ?? 'left';
+
+  return (
+    <>
+      {boxes.map((row, i) => {
+        const size = row.size;
+        const common: React.CSSProperties = {
+          position: 'absolute',
+          left: row.x,
+          top: row.y,
+          width: row.w,
+          fontFamily: family,
+        };
+
+        if (slot.role === 'stats') {
+          const stat = (content.stats ?? [])[i];
+          return (
+            <div key={i} style={{ ...common, textAlign: align }}>
+              <div style={{ fontSize: size * 1.55, fontWeight: 800, lineHeight: 1.4, color: slot.tone === 'muted' ? tone : accent }}>
+                {stat?.value ?? ''}
+              </div>
+              <div style={{ fontSize: size * 0.62, fontWeight: 600, lineHeight: 1.4, color: hexAlpha(ink, 0.7), textTransform: 'uppercase' }}>
+                {stat?.label ?? ''}
+              </div>
+            </div>
+          );
+        }
+
+        const text = String(all[i] ?? '');
+        if (!text) return null;
+        return (
+          <div
+            key={i}
+            style={{
+              ...common,
+              display: 'flex',
+              alignItems: 'center',
+              gap: size * 0.42,
+              fontSize: size,
+              fontWeight: slot.weight ?? 600,
+              lineHeight: 1.4,
+              color: tone,
+              textTransform: slot.upper ? 'uppercase' : undefined,
+            }}
+          >
+            <Bullet slot={slot} size={size} index={i} accent={accent} />
+            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
+          </div>
+        );
+      })}
+    </>
   );
 }
 
@@ -166,6 +354,13 @@ export default function TemplateSurface({
         <div key={i} style={{ position: 'absolute', inset: 0, background: bg }} />
       ))}
 
+      {/* Geometry over the surface, under the type — same order as the canvas
+          painter, so a wedge never lands on top of a headline in one renderer
+          and behind it in the other. */}
+      {(template.shapes ?? []).map((shape, i) => (
+        <Shape key={i} shape={shape} width={width} height={height} accent={accent} ink={ink} base={surfaceBase} />
+      ))}
+
       {template.surface.kind === 'frame' && (
         <div
           style={{
@@ -193,6 +388,22 @@ export default function TemplateSurface({
           clipPath: m.clip ? `inset(${m.clip[0]}% ${m.clip[1]}% ${m.clip[2]}% ${m.clip[3]}%)` : undefined,
           ...(slot.fromBottom ? { bottom: height - box.top } : { top: box.top }),
         };
+
+        if (isListRole(slot.role)) {
+          return (
+            <div key={slot.role} style={{ ...common, left: 0, width, top: 0, bottom: undefined, textAlign: 'left' }}>
+              <ListSlot
+                slot={slot}
+                content={content}
+                width={width}
+                height={height}
+                accent={accent}
+                ink={ink}
+                template={template}
+              />
+            </div>
+          );
+        }
 
         if (slot.role === 'qr') {
           if (!content.qrUrl) return null;

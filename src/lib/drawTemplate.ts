@@ -16,8 +16,9 @@
 // a missing blur loses an effect, it does not lose the frame.
 
 import {
-  type DesignTemplate, type SlotSpec, type SurfaceLayer,
+  type DesignTemplate, type SlotSpec, type SurfaceLayer, type ShapeSpec,
   slotBox, typePx, motionAt, settleTime, surfaceSpecLayers, inkFor, hexAlpha, unitOf, fontStack,
+  isListRole, listRowBoxes, shapeColor, shapeGeometry,
 } from './designTemplates';
 
 export interface TemplatePaintContent {
@@ -27,6 +28,12 @@ export interface TemplatePaintContent {
   subline?: string;
   meta?: string;
   cta?: string;
+  /** Rows for a 'services' slot — the offer list a business flyer is built on. */
+  services?: string[];
+  /** Rows for a 'stats' slot: a number and what it counts. */
+  stats?: { value: string; label: string }[];
+  /** Rows for a 'contact' slot — phone, email, site, address, in display order. */
+  contact?: string[];
   /** Already-loaded images. Loading is the caller's job — painting must be sync. */
   logo?: CanvasImageSource | null;
   qr?: CanvasImageSource | null;
@@ -147,6 +154,188 @@ const textFor = (c: TemplatePaintContent, role: SlotSpec['role']): string => {
   }
 };
 
+/** How many rows a list slot has content for. */
+function listCount(content: TemplatePaintContent, slot: SlotSpec): number {
+  const n =
+    slot.role === 'services' ? (content.services?.length ?? 0)
+    : slot.role === 'stats' ? (content.stats?.length ?? 0)
+    : slot.role === 'contact' ? (content.contact?.length ?? 0)
+    : 0;
+  return slot.max ? Math.min(n, slot.max) : n;
+}
+
+function paintShape(
+  ctx: CanvasRenderingContext2D,
+  shape: ShapeSpec,
+  w: number,
+  h: number,
+  accent: string,
+  ink: string,
+  base: string,
+) {
+  const geom = shapeGeometry(shape, w, h);
+  const color = shapeColor(shape.tone, accent, ink, base);
+
+  // Same feature-detection contract as the rest of this file: a context that
+  // cannot draw paths (jsdom, and any canvas polyfill) loses the decoration,
+  // not the frame. Shapes are the one part of a template that is purely
+  // decorative, so dropping them degrades cleanly.
+  const canPath =
+    typeof ctx.beginPath === 'function' &&
+    typeof ctx.fill === 'function' &&
+    typeof ctx.arc === 'function';
+  if (!canPath && geom.kind !== 'rect') return;
+
+  ctx.save();
+  ctx.globalAlpha = Math.max(0, Math.min(1, shape.alpha ?? 1));
+  ctx.fillStyle = color;
+
+  switch (geom.kind) {
+    case 'polygon': {
+      ctx.beginPath();
+      geom.points.forEach(([x, y], i) => (i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y)));
+      ctx.closePath();
+      ctx.fill();
+      break;
+    }
+    case 'circle':
+      ctx.beginPath();
+      ctx.arc(geom.cx, geom.cy, geom.r, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'ring':
+      ctx.beginPath();
+      ctx.arc(geom.cx, geom.cy, geom.r, 0, Math.PI * 2);
+      ctx.strokeStyle = color;
+      ctx.lineWidth = geom.thickness;
+      ctx.stroke();
+      break;
+    case 'rect':
+      if (geom.radius > 0 && canPath) {
+        roundRect(ctx, geom.x, geom.y, geom.w, geom.h, geom.radius);
+        ctx.fill();
+      } else if (typeof ctx.fillRect === 'function') {
+        ctx.fillRect(geom.x, geom.y, geom.w, geom.h);
+      }
+      break;
+  }
+  ctx.restore();
+}
+
+/** The marker before a list row. Returns how far to indent the text. */
+function paintBullet(
+  ctx: CanvasRenderingContext2D,
+  slot: SlotSpec,
+  x: number,
+  baseline: number,
+  size: number,
+  index: number,
+  accent: string,
+  family: string,
+): number {
+  const style = slot.bullet ?? 'none';
+  if (style === 'none') return 0;
+
+  const mid = baseline - size * 0.32;
+  ctx.save();
+  ctx.fillStyle = accent;
+
+  switch (style) {
+    case 'dot':
+      ctx.beginPath();
+      ctx.arc(x + size * 0.28, mid, size * 0.19, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    case 'bar':
+      ctx.fillRect(x, mid - size * 0.32, size * 0.16, size * 0.64);
+      break;
+    case 'check':
+      // Drawn, not a glyph: ✓ is missing from enough system fonts that a
+      // tofu box would ship into an exported poster.
+      ctx.strokeStyle = accent;
+      ctx.lineWidth = Math.max(1.5, size * 0.11);
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      ctx.moveTo(x + size * 0.06, mid + size * 0.02);
+      ctx.lineTo(x + size * 0.24, mid + size * 0.22);
+      ctx.lineTo(x + size * 0.55, mid - size * 0.26);
+      ctx.stroke();
+      break;
+    case 'number': {
+      ctx.font = `700 ${Math.round(size * 0.86)}px ${family}`;
+      ctx.textAlign = 'left';
+      ctx.fillStyle = accent;
+      ctx.fillText(String(index + 1).padStart(2, '0'), x, baseline);
+      break;
+    }
+  }
+  ctx.restore();
+  return size * (style === 'number' ? 1.7 : 0.95);
+}
+
+/**
+ * Paint a repeating slot.
+ *
+ * Kept separate from the single-string path because the two disagree about
+ * almost everything: a list owns its own vertical rhythm, draws a marker per
+ * row, and in the 'stats' case stacks two type sizes inside one cell.
+ */
+function paintListSlot(
+  ctx: CanvasRenderingContext2D,
+  slot: SlotSpec,
+  content: TemplatePaintContent,
+  w: number,
+  h: number,
+  accent: string,
+  ink: string,
+  family: string,
+) {
+  const count = listCount(content, slot);
+  if (count === 0) return;
+
+  const boxes = listRowBoxes(slot, w, h, count);
+  const weight = slot.weight ?? 600;
+  const tone = slot.tone === 'accent' ? accent : slot.tone === 'muted' ? hexAlpha(ink, 0.72) : ink;
+  const align = slot.align ?? 'left';
+
+  for (let i = 0; i < count; i++) {
+    const row = boxes[i];
+    const size = row.size;
+
+    if (slot.role === 'stats') {
+      const stat = content.stats![i];
+      const cx = align === 'center' ? row.x + row.w / 2 : align === 'right' ? row.x + row.w : row.x;
+      ctx.textAlign = align;
+
+      // The number is the point of a stat, so it carries the accent and the
+      // weight; the label rides underneath at a fraction of the size.
+      ctx.font = `800 ${Math.round(size * 1.55)}px ${family}`;
+      ctx.fillStyle = slot.tone === 'muted' ? tone : accent;
+      ctx.fillText(stat.value ?? '', cx, row.y + size * 1.4);
+
+      ctx.font = `600 ${Math.round(size * 0.62)}px ${family}`;
+      ctx.fillStyle = hexAlpha(ink, 0.7);
+      ctx.fillText((stat.label ?? '').toUpperCase(), cx, row.y + size * 2.25);
+      continue;
+    }
+
+    const raw = slot.role === 'services' ? content.services![i] : content.contact![i];
+    const text = slot.upper ? (raw ?? '').toUpperCase() : (raw ?? '');
+    if (!text) continue;
+
+    const baseline = row.y + size;
+    ctx.textAlign = 'left';
+    const indent = paintBullet(ctx, slot, row.x, baseline, size, i, accent, family);
+
+    ctx.font = `${weight} ${Math.round(size)}px ${family}`;
+    ctx.fillStyle = tone;
+    const avail = Math.max(0, row.w - indent);
+    const [line] = wrapLines((t) => ctx.measureText(t).width, text, avail, 1);
+    ctx.fillText(line, row.x + indent, baseline);
+  }
+}
+
 /** Headlines wrap to a few lines; supporting copy stays on one or two. */
 const maxLinesFor = (role: SlotSpec['role']): number =>
   role === 'headline' ? 3 : role === 'subline' ? 2 : 1;
@@ -195,6 +384,12 @@ export function drawTemplateFrame(
     paintLayer(ctx, layer, w, h);
   }
 
+  // Geometry over the surface, under the type. A wedge that covered the
+  // headline would make the template unusable, and shapes are decoration.
+  for (const shape of tpl.shapes ?? []) {
+    paintShape(ctx, shape, w, h, accent, ink, base);
+  }
+
   if (tpl.surface.kind === 'frame') {
     const inset = (tpl.surface.frame ?? 0.035) * u;
     ctx.strokeStyle = hexAlpha(ink, 0.9);
@@ -212,6 +407,14 @@ export function drawTemplateFrame(
 
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, m.opacity));
+
+    if (isListRole(slot.role)) {
+      const family = slot.font || tpl.font ? fontStack(slot.font ?? tpl.font) : font;
+      ctx.translate(m.dx, m.dy);
+      paintListSlot(ctx, slot, content, w, h, accent, ink, family);
+      ctx.restore();
+      continue;
+    }
 
     // A wipe reveals by geometry, so it clips rather than fades.
     if (m.clip) {

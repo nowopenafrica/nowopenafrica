@@ -28,6 +28,8 @@
 import type { DirectorScene, SceneTextElement, TextAnimationKey, TextEffectKey } from './creativeDirector';
 import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
+import { drawTemplateFrame, type TemplatePaintContent } from './drawTemplate';
+import type { DesignTemplate } from './designTemplates';
 
 export type RenderAspect = 'Square' | 'Vertical' | 'Landscape' | 'Ratio4x5' | 'Ratio16x9';
 
@@ -1223,6 +1225,18 @@ function roundRect(ctx: CanvasRenderingContext2D, x: number, y: number, w: numbe
 
 export interface SceneFrameOptions extends RenderOptions {
   scenesCount: number;
+  /**
+   * When set, every frame paints from this shared design template instead of
+   * the bespoke scene renderer.
+   *
+   * It lives on the OPTIONS rather than being a parameter of the preview only,
+   * which is the whole point: the preview, the poster and the MP4 all read it
+   * from the same place. Before this, picking a design template changed what
+   * you saw and not what you downloaded.
+   */
+  template?: DesignTemplate | null;
+  /** Words and images for the template's slots. */
+  templateContent?: TemplatePaintContent;
 }
 
 function drawTimelineFrame(
@@ -1238,6 +1252,32 @@ function drawTimelineFrame(
 ): void {
   const { scene, t } = timelineAt(timeline, frame);
   const current = scenes[scene.index];
+
+  // drawSceneFrame, drawFootageFrame, renderPoster and renderVideo all funnel
+  // through here, so this single branch is what keeps the exported file and the
+  // on-screen preview showing the same design.
+  if (opts.template) {
+    // motionAt works in seconds; timelineAt reports a 0..1 fraction of the
+    // scene, so convert rather than feeding it a fraction.
+    const seconds = (t * scene.frames) / timeline.fps;
+    const content = opts.templateContent ?? {};
+    drawTemplateFrame(
+      ctx,
+      opts.template,
+      {
+        ...content,
+        // The storyboard still drives the words that change per scene;
+        // everything else (services, contact, brand) is constant across the film.
+        headline: current?.text || content.headline || '',
+        subline: current?.voiceover || current?.direction || content.subline || '',
+      },
+      w,
+      h,
+      { accent: opts.palette?.[0] ?? '#9a3412', t: seconds },
+    );
+    return;
+  }
+
   const plan = sceneRenderPlan(opts, current, scene.index);
   const source = resolveSource(videos?.[scene.index] ?? null, images?.[scene.index] ?? null, opts.layers);
 
