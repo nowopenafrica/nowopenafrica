@@ -671,3 +671,81 @@ export function nativeZoomTarget(
   const target = zoom.min * desired;
   return Math.min(zoom.max, Math.max(zoom.min, target));
 }
+
+// --- Which camera, and which way round ----------------------------------------
+//
+// OpenReel opened `facingMode: 'environment'` and offered no way back, so an
+// owner could film their shop but never themselves; NowOpen Live asked for no
+// facing at all, which on a phone means the browser picks — usually the selfie
+// camera, the wrong one for showing stock. Both now go through here, so the two
+// behave the same way and there is one place that knows the rules.
+
+export type FacingMode = 'user' | 'environment';
+
+export const oppositeFacing = (facing: FacingMode): FacingMode =>
+  facing === 'user' ? 'environment' : 'user';
+
+export function facingLabel(facing: FacingMode): string {
+  return facing === 'user' ? 'Front camera' : 'Back camera';
+}
+
+/**
+ * Constraints for one camera.
+ *
+ * `facingMode` is a plain value, not `{ exact: … }`: exact makes getUserMedia
+ * REJECT on a device with only one camera, and a laptop with a single webcam
+ * should still open it rather than fail. The ideal form falls back to whatever
+ * exists.
+ */
+export function videoConstraintsFor(
+  facing: FacingMode,
+  width: number,
+  height: number,
+  frameRate?: number,
+): MediaTrackConstraints {
+  return {
+    facingMode: facing,
+    width: { ideal: width },
+    height: { ideal: height },
+    ...(frameRate ? { frameRate: { ideal: frameRate, max: frameRate } } : {}),
+  };
+}
+
+/**
+ * Is there a second camera worth offering a flip button for?
+ *
+ * Counting videoinput devices is the only signal the web gives before opening
+ * one. Labels are empty until permission is granted, so this must never depend
+ * on them. A single-camera laptop gets no button, because a control that does
+ * nothing is worse than an absent one.
+ */
+export function canFlipCamera(devices: { kind: string }[] | null | undefined): boolean {
+  if (!Array.isArray(devices)) return false;
+  return devices.filter((d) => d.kind === 'videoinput').length > 1;
+}
+
+/**
+ * Should the PREVIEW be flipped left-to-right?
+ *
+ * Only for the front camera, and only for the preview. People expect a selfie
+ * view to behave like a mirror — raise your right hand, the image's right hand
+ * goes up — and an unmirrored preview makes framing yourself unexpectedly hard.
+ *
+ * The captured file is deliberately NOT mirrored. An owner holding up a price
+ * tag, a label or a sign would otherwise publish it written backwards, which is
+ * the one thing a business photo cannot afford. This is the same split iOS
+ * ships: mirrored while you aim, true when you look at what you took.
+ */
+export const shouldMirrorPreview = (facing: FacingMode): boolean => facing === 'user';
+
+/**
+ * The CSS transform for the preview element, combining mirroring with the
+ * software-zoom scale so the two cannot overwrite each other — setting
+ * `transform` twice in one style object silently keeps only the last.
+ */
+export function previewTransform(facing: FacingMode, softwareZoom: number): string | undefined {
+  const mirrored = shouldMirrorPreview(facing);
+  const zoom = Number.isFinite(softwareZoom) && softwareZoom > 0 ? softwareZoom : 1;
+  if (!mirrored && zoom === 1) return undefined;
+  return `scale(${mirrored ? -zoom : zoom}, ${zoom})`;
+}

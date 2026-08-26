@@ -7,7 +7,9 @@ import StreamHistory from './StreamHistory';
 import LiveShareSheet from './LiveShareSheet';
 import {
   X, Radio, Mic, MicOff, Video, VideoOff, Subtitles, Loader2, Calendar, History,
+  SwitchCamera, Zap, ZapOff,
 } from 'lucide-react';
+import { previewTransform, oppositeFacing, facingLabel } from '../../lib/openReel';
 
 interface GoLiveModalProps {
   business: { id: string; name: string; image_url?: string | null; logo_url?: string | null };
@@ -25,6 +27,8 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
   // The form's title field is cleared and re-used; the share card still needs
   // to know what this broadcast is called.
   const [liveTitle, setLiveTitle] = useState('');
+  // Where the last tap landed, so a focus ring can be drawn over the preview.
+  const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
 
   const broadcaster = useBroadcastStream();
@@ -91,6 +95,25 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
     toast.success('Stream ended — replay is processing');
   };
 
+  /**
+   * Tap the preview to focus there.
+   *
+   * The point is normalised against the preview's own box, which is close
+   * enough for a focus target and avoids re-deriving the object-cover crop.
+   * The ring fades on its own — a permanent marker would sit in the shot every
+   * viewer is watching.
+   */
+  const focusAtPoint = async (e: React.MouseEvent<HTMLElement>) => {
+    if (!broadcaster.controls?.pointsOfInterest) return;
+    const box = e.currentTarget.getBoundingClientRect();
+    if (!box.width || !box.height) return;
+    const x = (e.clientX - box.left) / box.width;
+    const y = (e.clientY - box.top) / box.height;
+    setFocusPoint({ x, y });
+    window.setTimeout(() => setFocusPoint(null), 1200);
+    await broadcaster.focusAt(x, y);
+  };
+
   const isBroadcasting = !!streamId;
 
   return (
@@ -125,8 +148,44 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
               </div>
             ) : (
               <>
-                <div className="relative rounded-xl overflow-hidden bg-black aspect-video">
-                  <video ref={videoRef} autoPlay muted playsInline className="w-full h-full object-cover" />
+                <div
+                  className="relative rounded-xl overflow-hidden bg-black aspect-video"
+                  onClick={broadcaster.controls?.pointsOfInterest ? focusAtPoint : undefined}
+                  style={broadcaster.controls?.pointsOfInterest ? { cursor: 'crosshair' } : undefined}
+                >
+                  <video
+                    ref={videoRef}
+                    autoPlay
+                    muted
+                    playsInline
+                    className="w-full h-full object-cover"
+                    // Mirrored on the front camera only, and only here: viewers
+                    // and the replay get the true image, so a price tag held up
+                    // to the lens does not go out written backwards.
+                    style={{ transform: previewTransform(broadcaster.facing, 1) }}
+                  />
+
+                  {focusPoint && (
+                    <span
+                      aria-hidden="true"
+                      className="pointer-events-none absolute w-14 h-14 -ml-7 -mt-7 rounded-full border-2 border-amber-300 animate-ping"
+                      style={{ left: `${focusPoint.x * 100}%`, top: `${focusPoint.y * 100}%` }}
+                    />
+                  )}
+
+                  {broadcaster.canFlip && (
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); broadcaster.flipCamera(); }}
+                      disabled={broadcaster.flipping}
+                      aria-label={`Switch to the ${facingLabel(oppositeFacing(broadcaster.facing)).toLowerCase()}`}
+                      title={`${facingLabel(broadcaster.facing)} — tap to switch. Viewers keep watching through the change.`}
+                      className="absolute top-2.5 right-2.5 inline-flex items-center justify-center w-[44px] h-[44px] rounded-full bg-black/55 text-white hover:bg-black/70 transition disabled:opacity-40"
+                    >
+                      {broadcaster.flipping ? <Loader2 size={17} className="animate-spin" /> : <SwitchCamera size={17} />}
+                    </button>
+                  )}
+
                   <div className="absolute top-2.5 left-2.5 flex items-center gap-2">
                     <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-md">
                       <Radio size={11} className="animate-pulse" /> LIVE
@@ -149,6 +208,16 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
                   <button onClick={broadcaster.toggleCam} className={`p-2.5 rounded-full transition ${broadcaster.camOn ? 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300' : 'bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400'}`}>
                     {broadcaster.camOn ? <Video size={16} /> : <VideoOff size={16} />}
                   </button>
+                  {broadcaster.controls?.torch && (
+                    <button
+                      onClick={broadcaster.toggleTorch}
+                      aria-pressed={broadcaster.torchOn}
+                      title={broadcaster.torchOn ? 'Light on' : 'Light off — useful in a back room or after dark'}
+                      className={`p-2.5 rounded-full transition ${broadcaster.torchOn ? 'bg-amber-400 text-gray-900' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`}
+                    >
+                      {broadcaster.torchOn ? <Zap size={16} /> : <ZapOff size={16} />}
+                    </button>
+                  )}
                   {broadcaster.captionsSupported && (
                     <button onClick={broadcaster.toggleCaptions} className={`p-2.5 rounded-full transition ${broadcaster.captionsOn ? 'bg-blue-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-300'}`} title="AI captions">
                       <Subtitles size={16} />
@@ -158,6 +227,24 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
                     End Stream
                   </button>
                 </div>
+
+                {broadcaster.controls?.zoom && (
+                  <div className="flex items-center gap-3 px-1">
+                    <label htmlFor="live-zoom" className="text-xs font-medium text-gray-500 dark:text-gray-400 flex-shrink-0">
+                      Zoom
+                    </label>
+                    <input
+                      id="live-zoom"
+                      type="range"
+                      min={broadcaster.controls.zoom.min}
+                      max={broadcaster.controls.zoom.max}
+                      step={broadcaster.controls.zoom.step || 0.1}
+                      value={broadcaster.zoom}
+                      onChange={(e) => broadcaster.applyZoom(Number(e.target.value))}
+                      className="flex-1 min-h-[44px] accent-blue-600"
+                    />
+                  </div>
+                )}
 
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5">
                   <h3 className="text-sm font-semibold text-gray-900 dark:text-white mb-2">

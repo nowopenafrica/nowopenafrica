@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { X, Camera, Video, Circle, Square, Loader2, Check, RotateCcw, Pause, Play, Sun, Settings2, Minus, Plus } from 'lucide-react';
+import { X, Camera, Video, Circle, Square, Loader2, Check, RotateCcw, Pause, Play, Sun, Settings2, Minus, Plus, SwitchCamera } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { compressImage } from '../../lib/imageCompression';
 import {
@@ -10,7 +10,8 @@ import {
   applyAutoAdapt, cameraControls, clampToRange, stepValue, midpointOf,
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
   applyPointOfInterest, bracketStops, fuseExposures,
-  type ZoomStep, type CameraControls, type RgbaFrame,
+  videoConstraintsFor, canFlipCamera, previewTransform, oppositeFacing, facingLabel,
+  type ZoomStep, type CameraControls, type RgbaFrame, type FacingMode,
 } from '../../lib/openReel';
 import { POSTER_SUFFIX } from '../../lib/reelShare';
 import { formatReelLimit } from '../../data/pricingPlans';
@@ -79,6 +80,13 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   const [capturing, setCapturing] = useState(false);
   // Where the last tap landed, so the ring can be drawn over the preview.
   const [focusPoint, setFocusPoint] = useState<{ x: number; y: number } | null>(null);
+  // Which camera is open. The back one to start with, because most of what a
+  // business photographs — stock, a shopfront, a finished job — is in front of
+  // them, not behind the phone.
+  const [facing, setFacing] = useState<FacingMode>('environment');
+  const [canFlip, setCanFlip] = useState(false);
+  const [flipping, setFlipping] = useState(false);
+  const facingRef = useRef<FacingMode>('environment');
 
   /** The live video track, cast past the DOM typings for camera capabilities. */
   const videoTrack = useCallback(() => (
@@ -115,17 +123,24 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   // `desiredMode` is passed in rather than read from state: switchMode calls
   // this immediately after setMode, when the state value is still the old one —
   // which meant switching to Reel captured a stream with no audio track.
-  const startCamera = useCallback(async (desiredMode: Mode) => {
+  // `desiredFacing` is passed for exactly the same reason.
+  const startCamera = useCallback(async (desiredMode: Mode, desiredFacing?: FacingMode) => {
+    const wanted = desiredFacing ?? facingRef.current;
     try {
       // Photos always want the full sensor. Video asks for the resolution the
       // plan's maximum length can actually afford in bits — a 20-minute clip
       // held to the upload cap looks better at 360p than smeared over 1080p.
       const res = desiredMode === 'video' ? captureResolutionFor(limitSeconds) : { width: 1920, height: 1080 };
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: 'environment', width: { ideal: res.width }, height: { ideal: res.height } },
+        video: videoConstraintsFor(wanted, res.width, res.height),
         audio: desiredMode === 'video',
       });
+      // Whatever was open has to be released, or the second camera opens onto a
+      // busy device on Android and the preview stays black.
+      streamRef.current?.getTracks().forEach((t) => t.stop());
       streamRef.current = stream;
+      facingRef.current = wanted;
+      setFacing(wanted);
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         const playPromise = videoRef.current.play();
@@ -157,6 +172,15 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
       nativeZoomRef.current = native;
       setSoftwareZoom(!native && zoomRef.current !== 1);
       setCameraError(null);
+
+      try {
+        const devices = await navigator.mediaDevices?.enumerateDevices?.();
+        setCanFlip(canFlipCamera(devices));
+      } catch {
+        // Some embedded webviews refuse to enumerate; no button is better than
+        // one that cannot work.
+        setCanFlip(false);
+      }
     } catch (err: any) {
       if (err?.name === 'AbortError' || err?.name === 'NotReadableError') return;
       setCameraError(err?.message || 'Camera access denied');
@@ -214,6 +238,12 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
     // the lens needs hardware — either a zoom range that reaches below 1, or a
     // separate ultra-wide camera.
     if (next < 1 && !zoomStepSupported(controls?.zoom ?? null, next)) {
+      // The ultra-wide is a rear lens on every phone that has one, and the
+      // label search would happily switch the owner's selfie shot to it.
+      if (facingRef.current === 'user') {
+        toast('0.5x is a back-camera lens — switch to the back camera first.');
+        return;
+      }
       const switched = await switchToUltraWide();
       if (!switched) {
         toast('This device has no ultra-wide lens, so 0.5x isn\'t available.');
@@ -631,6 +661,28 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
     startCamera(mode);
   }, [startCamera, mode]);
 
+  /**
+   * Swap between the front and back cameras.
+   *
+   * Blocked while recording: changing the source mid-take gives MediaRecorder a
+   * new track with different dimensions, and the clip either stops there or
+   * comes out corrupt.
+   *
+   * startCamera stops the previous tracks before opening the new ones, which
+   * matters on Android — some devices will not hand out the second camera while
+   * the first is still held, and the preview comes back black.
+   */
+  const flipCamera = useCallback(async () => {
+    if (recording || flipping) return;
+    setFlipping(true);
+    const target = oppositeFacing(facingRef.current);
+    try {
+      await startCamera(mode, target);
+    } finally {
+      setFlipping(false);
+    }
+  }, [recording, flipping, mode, startCamera]);
+
   const switchMode = useCallback((newMode: Mode) => {
     if (recording) return;
     setMode(newMode);
@@ -697,11 +749,29 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
                 muted
                 playsInline
                 className="w-full max-h-[60vh] object-cover"
-                // Only when the camera can't zoom itself — otherwise the frame
-                // arrives already zoomed and this would compound it.
-                style={softwareZoom ? { transform: `scale(${zoom})` } : undefined}
+                // Two things share this transform: the selfie mirror, and the
+                // software zoom used only where the camera cannot zoom itself
+                // (otherwise the frame arrives already zoomed and this would
+                // compound it). They are composed in one string because a second
+                // `transform` would silently replace the first.
+                style={{ transform: previewTransform(facing, softwareZoom ? zoom : 1) }}
                 onError={() => {}}
               />
+
+              {/* Front/back. Only shown where a second camera exists, and it
+                  stops the click reaching the tap-to-focus handler underneath. */}
+              {canFlip && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); flipCamera(); }}
+                  disabled={recording || flipping}
+                  aria-label={`Switch to the ${facingLabel(oppositeFacing(facing)).toLowerCase()}`}
+                  title={`${facingLabel(facing)} — tap to switch`}
+                  className="absolute top-3 right-3 inline-flex items-center justify-center w-[44px] h-[44px] rounded-full bg-black/55 text-white hover:bg-black/70 transition disabled:opacity-40"
+                >
+                  {flipping ? <Loader2 size={18} className="animate-spin" /> : <SwitchCamera size={18} />}
+                </button>
+              )}
 
               {/* Where the tap landed. Drawn over the preview and gone in about
                   a second, because a permanent marker sits in the shot. */}
@@ -888,7 +958,8 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
                 {ZOOM_STEPS.map((step) => {
                   // 0.5x needs a physically wider lens; the rest can be cropped.
                   const hardwareOnly = step < 1;
-                  const unavailable = hardwareOnly && !zoomStepSupported(controls?.zoom ?? null, step);
+                  const unavailable = hardwareOnly
+                    && (facing === 'user' || !zoomStepSupported(controls?.zoom ?? null, step));
                   return (
                     <button
                       key={step}
@@ -897,7 +968,11 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
                       disabled={recording}
                       aria-pressed={zoom === step}
                       aria-label={`Zoom ${step}x`}
-                      title={unavailable ? 'Needs an ultra-wide lens — we\'ll try to switch to one' : `Zoom ${step}x`}
+                      title={
+                        !unavailable ? `Zoom ${step}x`
+                          : facing === 'user' ? '0.5x is a back-camera lens'
+                            : 'Needs an ultra-wide lens — we\'ll try to switch to one'
+                      }
                       className={`px-3 py-1 rounded-full text-xs font-semibold transition disabled:opacity-40 ${
                         zoom === step
                           ? 'bg-white text-gray-900'

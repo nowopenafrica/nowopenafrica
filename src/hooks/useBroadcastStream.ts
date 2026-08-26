@@ -4,9 +4,88 @@ import {
   RTC_CONFIG, channelName, getSpeechRecognition, speechRecognitionSupported,
   CAMERA_CONSTRAINTS, MIC_CONSTRAINTS, REPLAY_VIDEO_BITRATE_BPS, computePerViewerBitrate,
 } from '../lib/liveStream';
-import { coverCropRect } from '../lib/openReel';
+import {
+  coverCropRect, videoConstraintsFor, oppositeFacing, canFlipCamera,
+  applyAutoAdapt, cameraControls, applyPointOfInterest, applyTrackValue,
+  nativeZoomTarget, clampToRange,
+  type FacingMode, type CameraControls,
+} from '../lib/openReel';
 import { livePosterPath, LIVE_POSTER_BUCKET } from '../lib/liveShare';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+
+/** Frames per second the replay is drawn and encoded at. */
+export const REPLAY_FPS = 30;
+
+interface RecordingPump {
+  /** The stream handed to MediaRecorder. Its tracks never change. */
+  stream: MediaStream;
+  /** Point the pump at a different camera without interrupting the recording. */
+  setSource: (track: MediaStreamTrack) => void;
+  stop: () => void;
+}
+
+/**
+ * A recording source that survives a camera swap.
+ *
+ * MediaRecorder records the tracks a stream had when start() was called, and
+ * the spec is explicit that adding or removing tracks afterwards is an error —
+ * Chrome fires onerror and stops. So flipping the camera mid-broadcast would
+ * end the replay at the moment of the flip, silently, and the owner would only
+ * find out afterwards.
+ *
+ * Drawing the camera into a canvas and recording canvas.captureStream() gives
+ * the recorder one track that never changes; flipping just re-points the
+ * offscreen <video> the canvas copies from. Viewers are unaffected either way —
+ * they get the camera track directly through replaceTrack, not this canvas.
+ *
+ * Driven by setInterval rather than requestAnimationFrame on purpose: rAF stops
+ * completely when the broadcaster switches apps, which would freeze the replay,
+ * whereas a background interval is throttled to about a second. A low-framerate
+ * replay is a far better outcome than a frozen one.
+ */
+function createRecordingPump(track: MediaStreamTrack, audio: MediaStreamTrack | null): RecordingPump | null {
+  if (typeof document === 'undefined') return null;
+  const settings = track.getSettings();
+  const width = settings.width || 1280;
+  const height = settings.height || 720;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx || typeof canvas.captureStream !== 'function') return null;
+
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.srcObject = new MediaStream([track]);
+  video.play().catch(() => {});
+
+  const timer = setInterval(() => {
+    if (!video.videoWidth) return;
+    // The camera behind the pump can change shape — a front camera is often a
+    // different resolution from the back one — so cover-crop into the canvas
+    // the recording started with rather than letting the picture squash.
+    const crop = coverCropRect(video.videoWidth, video.videoHeight, canvas.width, canvas.height, 1);
+    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
+  }, Math.round(1000 / REPLAY_FPS));
+
+  const stream = canvas.captureStream(REPLAY_FPS);
+  if (audio) stream.addTrack(audio);
+
+  return {
+    stream,
+    setSource: (next: MediaStreamTrack) => {
+      video.srcObject = new MediaStream([next]);
+      video.play().catch(() => {});
+    },
+    stop: () => {
+      clearInterval(timer);
+      video.srcObject = null;
+      stream.getVideoTracks().forEach((t) => t.stop());
+    },
+  };
+}
 
 /**
  * The share poster: one frame from the broadcast itself.
@@ -96,10 +175,24 @@ export function useBroadcastStream() {
   const [captionsOn, setCaptionsOn] = useState(false);
   const [currentCaption, setCurrentCaption] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // Camera state, mirroring what OpenReel already offers so an owner does not
+  // meet two different cameras in one product.
+  const [facing, setFacing] = useState<FacingMode>('environment');
+  const [canFlip, setCanFlip] = useState(false);
+  const [flipping, setFlipping] = useState(false);
+  const [controls, setControls] = useState<CameraControls | null>(null);
+  const [torchOn, setTorchOn] = useState(false);
+  const [zoom, setZoom] = useState(1);
 
   const channelRef = useRef<RealtimeChannel | null>(null);
   const peersRef = useRef<Map<string, RTCPeerConnection>>(new Map());
   const recorderRef = useRef<MediaRecorder | null>(null);
+  // The stream new viewers are given. Held in a ref, not a closure: after a
+  // camera flip the old closure still points at a stopped track, so a viewer
+  // arriving after the flip would connect to a dead camera.
+  const outboundStreamRef = useRef<MediaStream | null>(null);
+  const pumpRef = useRef<ReturnType<typeof createRecordingPump>>(null);
+  const facingRef = useRef<FacingMode>('environment');
   const chunksRef = useRef<BlobPart[]>([]);
   const speechRef = useRef<any | null>(null);
   const allViewersSeenRef = useRef<Set<string>>(new Set());
@@ -135,9 +228,10 @@ export function useBroadcastStream() {
     });
   }, []);
 
-  const handleViewerOffer = useCallback(async (payload: SignalPayload, stream: MediaStream) => {
+  const handleViewerOffer = useCallback(async (payload: SignalPayload) => {
     const channel = channelRef.current;
-    if (!channel || !payload.sdp) return;
+    const stream = outboundStreamRef.current;
+    if (!channel || !payload.sdp || !stream) return;
     closePeer(payload.viewerId);
 
     const pc = new RTCPeerConnection(RTC_CONFIG);
@@ -162,23 +256,49 @@ export function useBroadcastStream() {
     }
   }, [rebalanceBitrates]);
 
-  const start = useCallback(async (id: string, opts?: { video?: boolean; audio?: boolean }) => {
+  const start = useCallback(async (id: string, opts?: { video?: boolean; audio?: boolean; facing?: FacingMode }) => {
     if (!id) return;
     streamIdRef.current = id;
     setError(null);
     try {
+      // Ask for a specific camera. Live previously asked for none at all, so on
+      // a phone the browser chose — nearly always the selfie camera, which is
+      // the wrong one for showing a shop, a workshop or stock.
+      const wanted = opts?.facing ?? facingRef.current;
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: opts?.video === false ? false : CAMERA_CONSTRAINTS,
+        video: opts?.video === false
+          ? false
+          : { ...CAMERA_CONSTRAINTS, ...videoConstraintsFor(wanted, 1280, 720, 30) },
         audio: opts?.audio === false ? false : MIC_CONSTRAINTS,
       });
+      facingRef.current = wanted;
+      setFacing(wanted);
       setLocalStream(stream);
+      outboundStreamRef.current = stream;
+
+      // The same metering pass OpenReel runs, so a stream from a dim shop or a
+      // sunlit street is watchable without the owner touching anything.
+      const camTrack = stream.getVideoTracks()[0] as unknown as Parameters<typeof applyAutoAdapt>[0] | undefined;
+      if (camTrack) {
+        await applyAutoAdapt(camTrack);
+        setControls(cameraControls(camTrack));
+      }
+      setTorchOn(false);
+      setZoom(1);
+
+      try {
+        const devices = await navigator.mediaDevices?.enumerateDevices?.();
+        setCanFlip(canFlipCamera(devices));
+      } catch {
+        setCanFlip(false);
+      }
 
       const channel = supabase.channel(channelName(id), { config: { presence: { key: 'broadcaster' } } });
       channelRef.current = channel;
 
       channel.on('broadcast', { event: 'viewer-offer' }, ({ payload }) => {
         allViewersSeenRef.current.add(payload.viewerId);
-        handleViewerOffer(payload as SignalPayload, stream);
+        handleViewerOffer(payload as SignalPayload);
       });
       channel.on('broadcast', { event: 'ice-candidate' }, ({ payload }) => {
         const p = payload as SignalPayload;
@@ -211,7 +331,15 @@ export function useBroadcastStream() {
       // Local recording for replay support — no external service needed.
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
       chunksRef.current = [];
-      const recorder = new MediaRecorder(stream, { mimeType, videoBitsPerSecond: REPLAY_VIDEO_BITRATE_BPS });
+      // Recorded through the pump so a camera flip does not end the replay —
+      // see createRecordingPump. Falls back to the camera stream where canvas
+      // capture is unavailable, which costs the flip its seamlessness but never
+      // costs the replay entirely.
+      const videoTrack = stream.getVideoTracks()[0];
+      const audioTrack = stream.getAudioTracks()[0] || null;
+      pumpRef.current = videoTrack ? createRecordingPump(videoTrack, audioTrack) : null;
+      const recordStream = pumpRef.current?.stream ?? stream;
+      const recorder = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: REPLAY_VIDEO_BITRATE_BPS });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.start(1000);
       recorderRef.current = recorder;
@@ -258,6 +386,121 @@ export function useBroadcastStream() {
       setError(err?.message || 'Could not access your camera/microphone.');
     }
   }, [handleViewerOffer, rebalanceBitrates]);
+
+  /** The camera track currently going out, cast past the DOM typings. */
+  const cameraTrack = useCallback(() => (
+    outboundStreamRef.current?.getVideoTracks()[0] as unknown as Parameters<typeof applyAutoAdapt>[0] | undefined
+  ), []);
+
+  /**
+   * Swap between the front and back cameras mid-broadcast.
+   *
+   * Three things have to happen together, and missing any one of them shows:
+   *
+   *  - Every peer connection gets the new track through replaceTrack, which
+   *    swaps the source WITHOUT renegotiating. Removing and re-adding the track
+   *    instead would make every viewer's picture drop while SDP is exchanged.
+   *  - outboundStreamRef is updated, so a viewer who joins after the flip is
+   *    given the camera that is actually running.
+   *  - The recording pump is re-pointed, so the replay follows the flip instead
+   *    of ending at it.
+   *
+   * Video only: the microphone track is deliberately kept, because reopening it
+   * would break the recorder (its audio track must not change) and would drop a
+   * word or two of whatever the owner was saying.
+   */
+  const flipCamera = useCallback(async () => {
+    const current = outboundStreamRef.current;
+    if (!current || flipping) return;
+    setFlipping(true);
+    const target = oppositeFacing(facingRef.current);
+    const previous = current.getVideoTracks()[0];
+
+    try {
+      const next = await navigator.mediaDevices.getUserMedia({
+        video: { ...CAMERA_CONSTRAINTS, ...videoConstraintsFor(target, 1280, 720, 30) },
+        audio: false,
+      });
+      const nextTrack = next.getVideoTracks()[0];
+      if (!nextTrack) { next.getTracks().forEach((t) => t.stop()); return; }
+
+      await Promise.all(
+        Array.from(peersRef.current.values()).map((pc) => {
+          const sender = pc.getSenders().find((sd) => sd.track?.kind === 'video');
+          return sender ? sender.replaceTrack(nextTrack).catch(() => {}) : Promise.resolve();
+        }),
+      );
+
+      const audio = current.getAudioTracks();
+      const composed = new MediaStream([nextTrack, ...audio]);
+      outboundStreamRef.current = composed;
+      setLocalStream(composed);
+      pumpRef.current?.setSource(nextTrack);
+
+      // Only now is the old camera released — stopping it before the new one is
+      // live would blank both the preview and every viewer.
+      previous?.stop();
+
+      facingRef.current = target;
+      setFacing(target);
+
+      const adapted = nextTrack as unknown as Parameters<typeof applyAutoAdapt>[0];
+      await applyAutoAdapt(adapted);
+      setControls(cameraControls(adapted));
+      // The new camera has its own lamp and its own zoom range; carrying the old
+      // camera's state across would leave the UI describing a lens that is no
+      // longer open.
+      setTorchOn(false);
+      setZoom(1);
+    } catch (err) {
+      console.warn('Camera flip failed:', err);
+      setError('Could not switch camera — the other one may be in use.');
+    } finally {
+      setFlipping(false);
+    }
+  }, [flipping]);
+
+  /**
+   * Focus where the owner tapped, in coordinates normalised to the preview.
+   *
+   * Continuous autofocus is switched off by the tap, because otherwise the
+   * camera wanders straight back off the spot it was just given.
+   */
+  const focusAt = useCallback(async (x: number, y: number): Promise<boolean> => {
+    const track = cameraTrack();
+    if (!track || !controls?.pointsOfInterest) return false;
+    return applyPointOfInterest(track, x, y, controls.focusModes);
+  }, [cameraTrack, controls]);
+
+  /** The lamp. Worth having on a live stream in a back room or after dark. */
+  const toggleTorch = useCallback(async () => {
+    const track = cameraTrack();
+    if (!track || !controls?.torch) return;
+    const next = !torchOn;
+    const ok = await applyTrackValue(track, 'torch', next as unknown as number);
+    if (ok) setTorchOn(next);
+  }, [cameraTrack, controls, torchOn]);
+
+  /**
+   * Hardware zoom only.
+   *
+   * OpenReel can fall back to cropping because it owns the canvas it captures
+   * from; here the frame goes straight to the peer connections, so a crop would
+   * mean re-encoding every frame on the broadcaster's phone while it is already
+   * encoding for every viewer. A camera that cannot zoom simply does not offer
+   * the control.
+   */
+  const applyZoom = useCallback(async (value: number) => {
+    const track = cameraTrack();
+    if (!track || !controls?.zoom) return;
+    const next = clampToRange(value, controls.zoom);
+    const target = nativeZoomTarget(
+      track as unknown as { getCapabilities?: () => { zoom?: { min?: number; max?: number } } },
+      next / (controls.zoom.min || 1),
+    );
+    const ok = await applyTrackValue(track, 'zoom', target ?? next);
+    if (ok) setZoom(next);
+  }, [cameraTrack, controls]);
 
   const toggleCaptions = useCallback(() => {
     setCaptionsOn((prev) => {
@@ -315,9 +558,16 @@ export function useBroadcastStream() {
       });
     }
 
+    pumpRef.current?.stop();
+    pumpRef.current = null;
     peersRef.current.forEach((pc) => pc.close());
     peersRef.current.clear();
+    // outboundStreamRef, not localStream: after a flip they are the same object,
+    // but before React has re-rendered they are not, and the camera that is
+    // actually open is the one in the ref.
+    outboundStreamRef.current?.getTracks().forEach((t) => t.stop());
     localStream?.getTracks().forEach((t) => t.stop());
+    outboundStreamRef.current = null;
     if (channelRef.current) { await channelRef.current.unsubscribe(); channelRef.current = null; }
 
     if (id) {
@@ -338,5 +588,11 @@ export function useBroadcastStream() {
     setCurrentCaption('');
   }, [localStream]);
 
-  return { localStream, isLive, viewerCount, micOn, camOn, captionsOn, currentCaption, error, start, stop, toggleMic, toggleCam, toggleCaptions, captionsSupported: speechRecognitionSupported() };
+  return {
+    localStream, isLive, viewerCount, micOn, camOn, captionsOn, currentCaption, error,
+    start, stop, toggleMic, toggleCam, toggleCaptions,
+    captionsSupported: speechRecognitionSupported(),
+    facing, canFlip, flipping, flipCamera,
+    controls, focusAt, torchOn, toggleTorch, zoom, applyZoom,
+  };
 }
