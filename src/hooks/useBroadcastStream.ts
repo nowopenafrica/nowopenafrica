@@ -5,7 +5,7 @@ import {
   CAMERA_CONSTRAINTS, MIC_CONSTRAINTS, REPLAY_VIDEO_BITRATE_BPS, computePerViewerBitrate,
 } from '../lib/liveStream';
 import {
-  coverCropRect, videoConstraintsFor, oppositeFacing, canFlipCamera,
+  coverCropRect, containRect, videoConstraintsFor, oppositeFacing, canFlipCamera,
   applyAutoAdapt, cameraControls, applyPointOfInterest, applyTrackValue,
   nativeZoomTarget, clampToRange,
   type FacingMode, type CameraControls,
@@ -44,31 +44,56 @@ interface RecordingPump {
  * whereas a background interval is throttled to about a second. A low-framerate
  * replay is a far better outcome than a frozen one.
  */
-function createRecordingPump(track: MediaStreamTrack, audio: MediaStreamTrack | null): RecordingPump | null {
+async function createRecordingPump(
+  track: MediaStreamTrack,
+  audio: MediaStreamTrack | null,
+): Promise<RecordingPump | null> {
   if (typeof document === 'undefined') return null;
-  const settings = track.getSettings();
-  const width = settings.width || 1280;
-  const height = settings.height || 720;
-
-  const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  if (!ctx || typeof canvas.captureStream !== 'function') return null;
 
   const video = document.createElement('video');
   video.muted = true;
   video.playsInline = true;
   video.srcObject = new MediaStream([track]);
-  video.play().catch(() => {});
+  try { await video.play(); } catch { /* autoplay of a muted local stream */ }
+
+  // Sized from the frame that actually arrives, NOT from track.getSettings().
+  //
+  // The two disagree, and the disagreement is exactly the bug: iOS Safari
+  // reports the sensor in its native landscape while the <video> element
+  // exposes the rotation-applied size, so a phone held upright reported
+  // 1280x720 and delivered 720x1280. The canvas was then built landscape and
+  // the upright frame was cropped to a middle strip — the owner's head and
+  // hands recorded off-frame.
+  for (let i = 0; i < 20 && !video.videoWidth; i++) {
+    await new Promise((r) => window.setTimeout(r, 100));
+  }
+  const width = video.videoWidth || track.getSettings().width || 1280;
+  const height = video.videoHeight || track.getSettings().height || 720;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+  if (!ctx || typeof canvas.captureStream !== 'function') {
+    video.srcObject = null;
+    return null;
+  }
 
   const timer = setInterval(() => {
     if (!video.videoWidth) return;
-    // The camera behind the pump can change shape — a front camera is often a
-    // different resolution from the back one — so cover-crop into the canvas
-    // the recording started with rather than letting the picture squash.
-    const crop = coverCropRect(video.videoWidth, video.videoHeight, canvas.width, canvas.height, 1);
-    ctx.drawImage(video, crop.sx, crop.sy, crop.sw, crop.sh, 0, 0, canvas.width, canvas.height);
+    // CONTAIN, not cover. The canvas cannot be resized once MediaRecorder is
+    // running, so a flip to a camera of a different shape has to fit inside the
+    // one the recording started with — and for a replay, the part that hangs
+    // over the edge is the part the owner was pointing at. Letterbox bars are a
+    // far better outcome than a cropped frame. Same-device cameras almost
+    // always share an aspect, so in practice this draws edge to edge.
+    const fit = containRect(video.videoWidth, video.videoHeight, canvas.width, canvas.height);
+    if (fit.dw !== canvas.width || fit.dh !== canvas.height) {
+      // Clear first, or the bars keep whatever the previous camera left there.
+      ctx.fillStyle = '#000';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+    ctx.drawImage(video, fit.dx, fit.dy, fit.dw, fit.dh);
   }, Math.round(1000 / REPLAY_FPS));
 
   const stream = canvas.captureStream(REPLAY_FPS);
@@ -193,7 +218,7 @@ export function useBroadcastStream() {
   // camera flip the old closure still points at a stopped track, so a viewer
   // arriving after the flip would connect to a dead camera.
   const outboundStreamRef = useRef<MediaStream | null>(null);
-  const pumpRef = useRef<ReturnType<typeof createRecordingPump>>(null);
+  const pumpRef = useRef<RecordingPump | null>(null);
   const facingRef = useRef<FacingMode>('environment');
   // What is pinned right now. Kept in a ref as well as state so it can be
   // re-sent to a viewer who joins mid-broadcast — a broadcast event reaches
@@ -349,7 +374,7 @@ export function useBroadcastStream() {
       // costs the replay entirely.
       const videoTrack = stream.getVideoTracks()[0];
       const audioTrack = stream.getAudioTracks()[0] || null;
-      pumpRef.current = videoTrack ? createRecordingPump(videoTrack, audioTrack) : null;
+      pumpRef.current = videoTrack ? await createRecordingPump(videoTrack, audioTrack) : null;
       const recordStream = pumpRef.current?.stream ?? stream;
       const recorder = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: REPLAY_VIDEO_BITRATE_BPS });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };

@@ -149,8 +149,15 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
               </div>
             ) : (
               <>
+                {/* No fixed 16:9 box, and contain rather than cover.
+                    The preview used to be an aspect-video frame with
+                    object-cover, so an upright phone showed the owner a cropped
+                    middle strip while viewers and the replay got the whole
+                    frame. An owner cannot frame a shot against a preview that
+                    is lying to them, so the box now takes the camera's own
+                    shape — the same full-frame view OpenReel gives. */}
                 <div
-                  className="relative rounded-xl overflow-hidden bg-black aspect-video"
+                  className="relative rounded-xl overflow-hidden bg-black"
                   onClick={broadcaster.controls?.pointsOfInterest ? focusAtPoint : undefined}
                   style={broadcaster.controls?.pointsOfInterest ? { cursor: 'crosshair' } : undefined}
                 >
@@ -159,7 +166,7 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
                     autoPlay
                     muted
                     playsInline
-                    className="w-full h-full object-cover"
+                    className="w-full max-h-[55vh] object-contain"
                     // Mirrored on the front camera only, and only here: viewers
                     // and the replay get the true image, so a price tag held up
                     // to the lens does not go out written backwards.

@@ -66,12 +66,23 @@ export function computePerViewerBitrate(viewerCount: number): number {
   return Math.round(Math.min(MAX_VIEWER_BITRATE_BPS, Math.max(MIN_VIEWER_BITRATE_BPS, share)));
 }
 
-// Capped resolution/framerate so the encoder doesn't start out heavier than
-// the network can realistically carry — WebRTC's own congestion control,
+// Resolution/framerate preferences so the encoder doesn't start out heavier
+// than the network can realistically carry — WebRTC's own congestion control,
 // plus the bitrate cap above, then adapts further as conditions change.
+//
+// NOTE THE ABSENT `max` ON WIDTH AND HEIGHT. It used to be there, and it cost
+// owners their framing: `width.max: 1280` with `height.max: 720` rejects a
+// portrait 720x1280 frame, so a phone held upright — which is how a phone is
+// held — was forced to hand back a landscape frame. The broadcast then showed a
+// letterboxed middle strip of whatever the owner was pointing at.
+//
+// `ideal` still steers to roughly 720p, in whichever orientation the device is
+// actually in, and bandwidth is governed where it should be: by the per-viewer
+// bitrate cap above, applied through RTCRtpSender.setParameters. Capping pixels
+// to control bandwidth was doing that job twice, and badly.
 export const CAMERA_CONSTRAINTS: MediaTrackConstraints = {
-  width: { ideal: 1280, max: 1280 },
-  height: { ideal: 720, max: 720 },
+  width: { ideal: 1280 },
+  height: { ideal: 720 },
   frameRate: { ideal: 30, max: 30 },
 };
 

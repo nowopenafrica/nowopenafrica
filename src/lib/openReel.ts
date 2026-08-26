@@ -749,3 +749,30 @@ export function previewTransform(facing: FacingMode, softwareZoom: number): stri
   if (!mirrored && zoom === 1) return undefined;
   return `scale(${mirrored ? -zoom : zoom}, ${zoom})`;
 }
+
+/**
+ * Where a frame lands inside a box when nothing may be cropped.
+ *
+ * The opposite choice from coverCropRect, and the right one for a RECORDING.
+ * Cover fills the box by throwing away whatever hangs over the edges — fine for
+ * a preview the owner is composing against, and wrong for a replay, where the
+ * part that hangs over the edge is the part they were pointing at.
+ *
+ * Returns the destination rect to draw into, centred, with the leftover space
+ * left as letterbox. Callers should clear the box first, or the bars fill with
+ * whatever the last frame left there.
+ */
+export interface FitRect { dx: number; dy: number; dw: number; dh: number }
+
+export function containRect(
+  srcWidth: number, srcHeight: number, boxWidth: number, boxHeight: number,
+): FitRect {
+  const w = Math.max(0, srcWidth);
+  const h = Math.max(0, srcHeight);
+  if (!w || !h || boxWidth <= 0 || boxHeight <= 0) return { dx: 0, dy: 0, dw: 0, dh: 0 };
+
+  const scale = Math.min(boxWidth / w, boxHeight / h);
+  const dw = Math.round(w * scale);
+  const dh = Math.round(h * scale);
+  return { dx: Math.round((boxWidth - dw) / 2), dy: Math.round((boxHeight - dh) / 2), dw, dh };
+}
