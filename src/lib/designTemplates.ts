@@ -288,6 +288,14 @@ export const hexAlpha = (hex: string, a: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, a))})`;
 };
 
+/** Multiply the alpha of an rgba() string produced by hexAlpha. */
+function scaleAlpha(rgba: string, scale: number): string {
+  const m = /^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/.exec(rgba);
+  if (!m) return rgba;
+  const a = parseFloat(m[4]) * scale;
+  return `rgba(${m[1].trim()}, ${m[2].trim()}, ${m[3].trim()}, ${a})`;
+}
+
 /**
  * A background layer, described structurally rather than as a CSS string.
  *
@@ -301,8 +309,23 @@ export type SurfaceLayer =
   | { kind: 'linear'; angle: number; stops: { at: number; color: string }[] }
   | { kind: 'radial'; cx: number; cy: number; r: number; stops: { at: number; color: string }[] };
 
-/** The structured surface description. Both renderers consume this. */
-export function surfaceSpecLayers(tpl: DesignTemplate, accent: string, base: string): SurfaceLayer[] {
+/**
+ * The structured surface description. Both renderers consume this.
+ *
+ * `alphaScale` thins every tint layer so a background photo or video can read
+ * through. At 1 the surface is the opaque design it always was — which is why
+ * it defaults to 1 and nothing that does not pass it changes at all.
+ *
+ * The vignette is deliberately NOT scaled: it darkens the edges, and that is
+ * what keeps a headline legible over a busy photograph. Thinning it along with
+ * the tint would remove the legibility aid exactly when the image needs it.
+ */
+export function surfaceSpecLayers(
+  tpl: DesignTemplate,
+  accent: string,
+  base: string,
+  alphaScale = 1,
+): SurfaceLayer[] {
   const s = tpl.surface;
   const k = s.intensity ?? 0.5;
   const out: SurfaceLayer[] = [];
@@ -342,24 +365,51 @@ export function surfaceSpecLayers(tpl: DesignTemplate, accent: string, base: str
       break;
   }
 
+  const scale = Math.max(0, Math.min(1, alphaScale));
+  const scaled = scale === 1
+    ? out
+    : out.map((layer) => ({
+        ...layer,
+        stops: layer.stops.map((st) => ({ ...st, color: scaleAlpha(st.color, scale) })),
+      })) as SurfaceLayer[];
+
   if (s.vignette) {
-    out.push({ kind: 'radial', cx: 0.5, cy: 0.45, r: 1.15, stops: [
+    scaled.push({ kind: 'radial', cx: 0.5, cy: 0.45, r: 1.15, stops: [
       { at: 0.42, color: hexAlpha('#000000', 0) },
       { at: 1, color: hexAlpha('#000000', s.vignette) },
     ] });
   }
-  return out;
+  return scaled;
 }
 
 /** CSS form, for the DOM renderer. Derived from surfaceSpecLayers. */
-export function surfaceLayers(tpl: DesignTemplate, accent: string, base: string): string[] {
-  return surfaceSpecLayers(tpl, accent, base).map((l) => {
+export function surfaceLayers(
+  tpl: DesignTemplate,
+  accent: string,
+  base: string,
+  alphaScale = 1,
+): string[] {
+  return surfaceSpecLayers(tpl, accent, base, alphaScale).map((l) => {
     const stops = l.stops.map(st => `${st.color} ${Math.round(st.at * 100)}%`).join(', ');
     return l.kind === 'linear'
       ? `linear-gradient(${l.angle}deg, ${stops})`
       : `radial-gradient(${Math.round(l.r * 100)}% ${Math.round(l.r * 100)}% at ${Math.round(l.cx * 100)}% ${Math.round(l.cy * 100)}%, ${stops})`;
   });
 }
+
+/**
+ * How much of a template's tint to keep over a background photo or video.
+ *
+ * Scheme-aware, because the two schemes fail in opposite directions. A dark
+ * template writes in white: a vignette plus half its tint keeps that readable
+ * over most images. A LIGHT template writes in near-black and needs a pale
+ * ground to sit on — thin its surface the same amount and the headline lands
+ * dark-on-dark and disappears, which is what a flat default did.
+ *
+ * Both are starting points; the background-strength slider overrides them.
+ */
+export const defaultMediaScrim = (tpl: DesignTemplate): number =>
+  tpl.scheme === 'light' ? 0.78 : 0.5;
 
 /** Default ink for the template's scheme. */
 export const inkFor = (tpl: DesignTemplate): string => (tpl.scheme === 'dark' ? '#ffffff' : '#0b1220');

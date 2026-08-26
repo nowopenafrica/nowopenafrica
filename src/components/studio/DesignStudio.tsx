@@ -25,7 +25,7 @@ import InspirationUpload from './InspirationUpload';
 import GeneratePanel from './GeneratePanel';
 import { track } from '../../lib/telemetry';
 import TemplateSurface from './TemplateSurface';
-import { DESIGN_TEMPLATES, templateByKey, templateListRoles, type SlotRole } from '../../lib/designTemplates';
+import { DESIGN_TEMPLATES, templateByKey, templateListRoles, defaultMediaScrim, type SlotRole } from '../../lib/designTemplates';
 import FlyerContentEditor, { type FlyerContent } from '../admin/FlyerContentEditor';
 import { currencyInfo, detectRegionCurrency, formatUsdAmount } from '../../lib/currency';
 import type { InspirationPlan } from '../../lib/designInspiration';
@@ -966,6 +966,13 @@ export default function DesignStudio({
           width={w}
           height={h}
           accent={accent}
+          base={bgColor ?? undefined}
+          // The Style tab's background upload did nothing on a modern template
+          // — it was never passed down. The tint is thinned so the picture can
+          // actually be seen, by the same scheme-aware rule Motion Studio uses.
+          mediaUrl={bg?.url ?? null}
+          mediaKind={bg?.type === 'video' ? 'video' : 'image'}
+          surfaceOpacity={bg ? defaultMediaScrim(modernTpl) : bgAlpha}
           content={{
             brand: business.name,
             eyebrow: badge,

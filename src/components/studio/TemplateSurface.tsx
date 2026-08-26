@@ -54,6 +54,8 @@ export interface TemplateSurfaceProps {
   mediaKind?: 'image' | 'video';
   /** 0..100 — how much of the media shows through the surface. */
   mediaOpacity?: number;
+  /** 0..1 — how opaque the template's own tint is over that media. */
+  surfaceOpacity?: number;
   /** When set, text slots become editable in place. */
   onEditText?: (role: SlotRole, value: string) => void;
 }
@@ -300,13 +302,13 @@ function ListSlot({
 
 export default function TemplateSurface({
   template, content, width, height, accent, base,
-  t, mediaUrl, mediaKind = 'image', mediaOpacity = 100, onEditText,
+  t, mediaUrl, mediaKind = 'image', mediaOpacity = 100, surfaceOpacity = 1, onEditText,
 }: TemplateSurfaceProps) {
   const ink = inkFor(template);
   const surfaceBase = base ?? (template.scheme === 'dark' ? '#0b1220' : '#f7f7f5');
   const u = unitOf(width, height);
   const at = t ?? settleTime(template);
-  const layers = surfaceLayers(template, accent, surfaceBase);
+  const layers = surfaceLayers(template, accent, surfaceBase, surfaceOpacity);
 
   const textFor = (role: SlotRole): string => {
     switch (role) {

@@ -50,6 +50,11 @@ export interface PaintOptions {
   t?: number;
   /** 0..1 — how much of the media shows through. */
   mediaOpacity?: number;
+  /**
+   * 0..1 — how opaque the template's own tint is over that media. 1 keeps the
+   * design exactly as authored; lower lets a background photo or video read.
+   */
+  surfaceOpacity?: number;
   fontFamily?: string;
 }
 
@@ -443,7 +448,7 @@ export function drawTemplateFrame(
     ctx.globalAlpha = 1;
   }
 
-  for (const layer of surfaceSpecLayers(tpl, accent, base)) {
+  for (const layer of surfaceSpecLayers(tpl, accent, base, opts.surfaceOpacity ?? 1)) {
     paintLayer(ctx, layer, w, h);
   }
 

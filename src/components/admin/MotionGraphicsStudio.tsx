@@ -5,7 +5,7 @@ import {
   LayoutTemplate, Check, Plus, Copy, Trash2, FolderOpen, Wand2, Clapperboard,
   Layers, ChevronUp, ChevronDown, ArrowLeft, Undo2, Redo2, Play, Pause, Save,
   Type, Music, Palette, Shapes, Scissors, RotateCcw, Timer, Share2,
-  HelpCircle, Settings, Eye, EyeOff, Zap, Link2,
+  HelpCircle, Settings, Eye, EyeOff, Zap, Link2, Camera,
 } from 'lucide-react';
 import type { DirectorScene, TextElementStyle, TextAnimationKey, TextEffectKey } from '../../lib/creativeDirector';
 import { TEXT_ANIMATIONS, TEXT_EFFECTS } from '../../lib/creativeDirector';
@@ -30,6 +30,7 @@ import { MOTION_TEMPLATES, DESIGN_STYLES, motionTemplateByKey, type MotionTempla
 import { pickPreviewVoice } from '../../lib/voicePreview';
 import { DESIGN_TEMPLATES, templateListRoles } from '../../lib/designTemplates';
 import FlyerContentEditor from './FlyerContentEditor';
+import OpenReelCapture from '../dashboard/OpenReelCapture';
 import { backgroundSourceIssue } from '../../lib/videoEmbeds';
 import { isVideoUrl } from '../../lib/galleryMedia';
 import { downloadBlob } from '../../lib/studio';
@@ -799,11 +800,19 @@ function ElementInspector({
 
 /**
  * @param businessName Seeds the brand lockup on projects created from here.
+ * @param userId Enables the OpenReel camera as a background source. Passed in
+ *   rather than read from useAuth() on purpose: that hook THROWS outside its
+ *   provider, and the admin smoke test renders this tool with no providers at
+ *   all. A prop also states the truth plainly — without a signed-in user there
+ *   is nowhere to upload a recording, so the button is simply absent.
  *   Optional because Admin Creator runs this tool without a business in
  *   context; NowOpen Studio always has one, and an owner should not have to
  *   retype their own name onto every new project.
  */
-export default function MotionGraphicsStudio({ businessName }: { businessName?: string } = {}) {
+export default function MotionGraphicsStudio({
+  businessName,
+  userId,
+}: { businessName?: string; userId?: string } = {}) {
   const [mode, setMode] = useState<Mode>('quick');
   // Applied on creation only. An existing project keeps whatever brand it was
   // saved with — silently rewriting saved work would be worse than a stale name.
@@ -864,6 +873,7 @@ export default function MotionGraphicsStudio({ businessName }: { businessName?: 
   const [selectedLayer, setSelectedLayer] = useState<number | null>(null);
   const [layerLink, setLayerLink] = useState('');
   const [layerLinkIssue, setLayerLinkIssue] = useState<string | null>(null);
+  const [showBgCamera, setShowBgCamera] = useState(false);
   const selectedLayerRef = useRef(selectedLayer);
   selectedLayerRef.current = selectedLayer;
   useEffect(() => () => {
@@ -1744,6 +1754,15 @@ export default function MotionGraphicsStudio({ businessName }: { businessName?: 
                           Add
                         </button>
                       </div>
+                      {userId && (
+                        <button
+                          type="button"
+                          onClick={() => setShowBgCamera(true)}
+                          className="w-full inline-flex items-center justify-center gap-2 px-3 min-h-[44px] rounded-lg text-[11px] font-semibold bg-black text-white hover:bg-gray-800 transition"
+                        >
+                          <Camera size={13} aria-hidden="true" /> Record with OpenReel Camera
+                        </button>
+                      )}
                       {layerLinkIssue && (
                         <p role="status" className="text-[10px] leading-snug text-amber-700 dark:text-amber-400">
                           {layerLinkIssue}
@@ -2387,6 +2406,27 @@ export default function MotionGraphicsStudio({ businessName }: { businessName?: 
             {error && <p role="alert" className="mt-3 text-xs text-red-600 dark:text-red-400">{error}</p>}
           </section>
         </>
+      )}
+
+      {/* Record a backdrop with the OpenReel camera. It uploads to storage and
+          hands back a public URL, which becomes a layer like any other — same
+          path as a pasted link, so the export composites it identically. */}
+      {showBgCamera && userId && (
+        <OpenReelCapture
+          userId={userId}
+          maxSeconds={60}
+          onCaptured={(url, kind) => {
+            const media: MotionLayer = kind === 'video'
+              ? { kind: 'video', url, video: createBackgroundVideo(url) }
+              : { kind: 'image', url, image: createBackgroundImage(url) };
+            repaintWhenReady(media);
+            setLayers((prev) => [...prev, { ...media, name: kind === 'video' ? 'OpenReel clip' : 'OpenReel photo' }]);
+            setLayerLinkIssue(null);
+            setShowBgCamera(false);
+            toast.success(kind === 'video' ? 'Recorded clip added as a layer' : 'Photo added as a layer');
+          }}
+          onClose={() => setShowBgCamera(false)}
+        />
       )}
     </div>
   );

@@ -29,7 +29,7 @@ import type { DirectorScene, SceneTextElement, TextAnimationKey, TextEffectKey }
 import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
 import { drawTemplateFrame, type TemplatePaintContent } from './drawTemplate';
-import type { DesignTemplate } from './designTemplates';
+import { defaultMediaScrim, type DesignTemplate } from './designTemplates';
 
 export type RenderAspect = 'Square' | 'Vertical' | 'Landscape' | 'Ratio4x5' | 'Ratio16x9';
 
@@ -1290,6 +1290,21 @@ function drawTimelineFrame(
     // scene, so convert rather than feeding it a fraction.
     const seconds = (t * scene.frames) / timeline.fps;
     const content = opts.templateContent ?? {};
+
+    // The SAME backdrop the scene renderer would have used. Design templates
+    // ignored uploads entirely before this: a background image or video changed
+    // the preview on "Scene renderer" and vanished the moment a template was
+    // picked, which reads as the upload having failed.
+    const backdrop = resolveSource(
+      videos?.[scene.index] ?? null,
+      images?.[scene.index] ?? null,
+      opts.layers,
+    );
+    const media =
+      backdrop.kind === 'video' ? backdrop.video
+      : backdrop.kind === 'image' ? backdrop.image
+      : null;
+
     drawTemplateFrame(
       ctx,
       opts.template,
@@ -1299,6 +1314,7 @@ function drawTimelineFrame(
         // everything else (services, contact, brand) is constant across the film.
         headline: current?.text || content.headline || '',
         subline: current?.voiceover || current?.direction || content.subline || '',
+        media,
       },
       w,
       h,
@@ -1306,9 +1322,16 @@ function drawTimelineFrame(
         accent: opts.palette?.[0] ?? '#9a3412',
         t: seconds,
         base: opts.background,
-        // Inverted on purpose — see backgroundStrength. Left undefined when no
-        // background colour is set so the template keeps its own default.
-        mediaOpacity: opts.background ? 1 - clamp(opts.backgroundStrength ?? 1, 0, 1) : undefined,
+        // Thin the template's own tint so the picture reads through it. Full
+        // opacity would leave the media technically drawn and effectively
+        // invisible — the surface sits over it at 0.92-0.98 alpha by design.
+        //
+        // Only when there IS media: with none, a low strength would strip the
+        // template's surface and leave bare colour, which is not what the
+        // slider claims to do.
+        surfaceOpacity: media
+          ? clamp(opts.backgroundStrength ?? defaultMediaScrim(opts.template), 0, 1)
+          : 1,
       },
     );
     return;

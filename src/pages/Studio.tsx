@@ -156,7 +156,7 @@ export default function Studio() {
       case 'card': return <BrandCardStudio business={business} />;
       case 'social': return <SocialStudioHub key={`${business.id}-social`} business={business} onNavigate={go} />;
       case 'design': return <DesignStudioHub business={business} />;
-      case 'video': return <MotionGraphicsStudio key={`${business.id}-video`} businessName={business.name} />;
+      case 'video': return <MotionGraphicsStudio key={`${business.id}-video`} businessName={business.name} userId={user?.id} />;
       case 'promotions': return <DesignStudioHub key={`${business.id}-promo`} business={business} initialTab="promo" />;
       case 'copywriter': return <SocialStudioHub key={`${business.id}-social-factory`} business={business} onNavigate={go} initialTab="factory" />;
       case 'assistant': return <SocialStudioHub key={`${business.id}-social-director`} business={business} onNavigate={go} initialTab="director" />;

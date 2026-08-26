@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DESIGN_TEMPLATES, templateByKey, slotOf, slotBox, typePx, unitOf,
   motionAt, settleTime, surfaceLayers, hexAlpha, inkFor, SETTLED,
-  shapeGeometry, listRowBoxes, templateListRoles, isListRole,
+  shapeGeometry, listRowBoxes, templateListRoles, isListRole, defaultMediaScrim, surfaceSpecLayers,
   type SlotSpec,
 } from './designTemplates';
 
@@ -361,6 +361,56 @@ describe('promo primitives', () => {
           expect(box.top + box.width, `${t.key} disc @ ${name}`).toBeLessThanOrEqual(h + 0.5);
         }
       }
+    }
+  });
+});
+
+describe('background media scrim', () => {
+  const alphaOf = (rgba: string) => Number(/rgba\([^,]+,[^,]+,[^,]+,([^)]+)\)/.exec(rgba)?.[1] ?? '1');
+
+  it('keeps more surface for a light template than a dark one', () => {
+    // The two schemes fail in opposite directions. A dark template writes in
+    // white and survives a thin tint; a light one writes in near-black and
+    // needs a pale ground, so thinning it equally loses the headline into the
+    // photo. A single flat default did exactly that.
+    const dark = DESIGN_TEMPLATES.find(t => t.scheme === 'dark')!;
+    const light = DESIGN_TEMPLATES.find(t => t.scheme === 'light')!;
+    expect(defaultMediaScrim(light)).toBeGreaterThan(defaultMediaScrim(dark));
+  });
+
+  it('never fully hides or fully removes the surface by default', () => {
+    for (const t of DESIGN_TEMPLATES) {
+      const scrim = defaultMediaScrim(t);
+      expect(scrim, t.key).toBeGreaterThan(0.2);
+      expect(scrim, t.key).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it('thins the tint layers in proportion', () => {
+    const tpl = templateByKey('agency-services');
+    const full = surfaceSpecLayers(tpl, '#f59e0b', '#0b1220', 1);
+    const half = surfaceSpecLayers(tpl, '#f59e0b', '#0b1220', 0.5);
+    expect(half).toHaveLength(full.length);
+    // Compare the first tint layer, which is not the vignette.
+    const a = alphaOf(full[0].stops[0].color);
+    const b = alphaOf(half[0].stops[0].color);
+    expect(b).toBeCloseTo(a * 0.5, 5);
+  });
+
+  it('leaves the vignette at full strength', () => {
+    // The vignette is a legibility aid over photography — thinning it along
+    // with the tint would remove it exactly when the image needs it.
+    const tpl = DESIGN_TEMPLATES.find(t => (t.surface.vignette ?? 0) > 0)!;
+    const full = surfaceSpecLayers(tpl, '#f59e0b', '#0b1220', 1);
+    const thin = surfaceSpecLayers(tpl, '#f59e0b', '#0b1220', 0.3);
+    const lastAlpha = (ls: typeof full) => alphaOf(ls[ls.length - 1].stops.slice(-1)[0].color);
+    expect(lastAlpha(thin)).toBeCloseTo(lastAlpha(full), 5);
+  });
+
+  it('is a no-op at full opacity, so untouched callers render identically', () => {
+    for (const t of DESIGN_TEMPLATES) {
+      expect(surfaceSpecLayers(t, '#f59e0b', '#0b1220', 1))
+        .toEqual(surfaceSpecLayers(t, '#f59e0b', '#0b1220'));
     }
   });
 });
