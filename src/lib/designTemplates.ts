@@ -30,10 +30,10 @@ export type SlotRole =
   // which is what a real business flyer is mostly made of — a services column,
   // a proof-point row, a contact strip. Without them the catalogue could only
   // ever produce posters, never the corporate layouts people actually order.
-  | 'services' | 'stats' | 'contact';
+  | 'services' | 'stats' | 'contact' | 'price';
 
 /** Roles that render a list of rows rather than a single string. */
-export const LIST_ROLES: readonly SlotRole[] = ['services', 'stats', 'contact'];
+export const LIST_ROLES: readonly SlotRole[] = ['services', 'stats', 'contact', 'price'];
 
 export const isListRole = (role: SlotRole): boolean => LIST_ROLES.includes(role);
 
@@ -42,7 +42,12 @@ export type MotionIn = 'fade' | 'rise' | 'drop' | 'wipe' | 'pop' | 'blur';
 
 export type Mood = 'editorial' | 'bold' | 'minimal' | 'luxe' | 'street' | 'warm';
 
-export type Treatment = 'plain' | 'pill' | 'panel' | 'underline' | 'outline' | 'bar';
+export type Treatment = 'plain' | 'pill' | 'panel' | 'underline' | 'outline' | 'bar' | 'disc';
+//
+// 'disc' is the discount badge every sale post is built around — a filled
+// circle with a short line centred in it. Its diameter is the slot's own `w`
+// rather than anything measured from the text, so the canvas and the DOM
+// arrive at the same circle instead of each guessing from font metrics.
 
 /**
  * Type families.
@@ -456,6 +461,14 @@ export interface ListRowBox {
   size: number;
 }
 
+/** One row of a 'price' slot: what it is, and what it costs. */
+export interface PriceRow {
+  label: string;
+  price: string;
+  /** Optional was-price, struck through beside the current one. */
+  was?: string;
+}
+
 /**
  * Where each row of a list slot sits.
  *
@@ -857,8 +870,157 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { role: 'meta', x: 0.12, y: 0.075, w: 0.6, size: META, tone: 'muted', font: 'sans', fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.45 } },
     ],
   },
-];
-export const templateByKey = (key: string): DesignTemplate =>
+
+  // --- social promo posts ----------------------------------------------------
+  //
+  // The flyers above are what a business hands someone. These are what it posts
+  // on a Tuesday: a discount, a price list, a countdown, a giveaway, a review.
+  // They are square-first because that is where they live, and they lean on the
+  // 'disc' badge and the 'price' rows rather than long-form copy.
+
+  {
+    key: 'flash-sale',
+    label: 'Flash Sale',
+    desc: 'The discount is a badge and nothing competes with it',
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 150, intensity: 0.6, vignette: 0.22 },
+    shapes: [
+      { kind: 'wedge', corner: 'tl', w: 0.4, h: 0.16, tone: 'accent', alpha: 0.18 },
+      { kind: 'rect', x: 0, y: 0.9, w: 1, h: 0.1, tone: 'black', alpha: 0.35 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.08, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.19, w: 0.55, size: EYEBROW, upper: true, tracking: 0.22, treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.28, w: 0.56, size: 0.086, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.35, dur: 0.55 } },
+      // The badge: a disc whose diameter is this slot's width.
+      { role: 'cta', x: 0.63, y: 0.3, w: 0.29, size: 0.05, weight: 800, align: 'center', upper: true, treatment: 'disc', tone: 'accent', motion: { in: 'pop', at: 0.55, dur: 0.5 } },
+      { role: 'subline', x: 0.08, y: 0.56, w: 0.72, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.8, dur: 0.5 } },
+      { role: 'meta', x: 0.08, y: 0.68, w: 0.6, size: META, upper: true, tracking: 0.1, treatment: 'bar', tone: 'accent', motion: { in: 'wipe', at: 1, dur: 0.45 } },
+      { role: 'contact', x: 0.08, y: 0.055, w: 0.84, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'price-list',
+    label: 'Price List',
+    desc: 'Menu-style rows, leader rules, prices right',
+    mood: 'editorial', scheme: 'dark', font: 'sans',
+    surface: { kind: 'spotlight', intensity: 0.36, vignette: 0.32 },
+    shapes: [
+      { kind: 'rect', x: 0.06, y: 0.3, w: 0.88, h: 0.53, tone: 'white', alpha: 0.06, radius: 0.03 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.085, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.16, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.205, w: 0.8, size: 0.072, weight: 800, tracking: -0.02, motion: { in: 'rise', at: 0.3, dur: 0.55 } },
+      { role: 'price', x: 0.1, y: 0.35, w: 0.8, size: 0.031, weight: 600, gap: 2.1, max: 5, motion: { in: 'rise', at: 0.55, dur: 0.6 } },
+      { role: 'cta', x: 0.08, y: 0.2, w: 0.54, size: 0.03, weight: 700, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.05, dur: 0.45 } },
+      { role: 'contact', x: 0.08, y: 0.085, w: 0.84, size: CONTACT, weight: 600, tone: 'muted', direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.25, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'price-drop',
+    label: 'Price Drop',
+    desc: 'Was and now, with the old price struck out',
+    mood: 'bold', scheme: 'light', font: 'sans',
+    surface: { kind: 'solid' },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 1, h: 0.14, tone: 'accent', alpha: 0.95 },
+      { kind: 'circle', cx: 0.85, cy: 0.62, r: 0.13, tone: 'accent', alpha: 0.14 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.045, w: 0.5, size: 0.026, weight: 800, upper: true, tracking: 0.18, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.25, w: 0.76, size: 0.072, weight: 800, tracking: -0.02, motion: { in: 'rise', at: 0.32, dur: 0.55 } },
+      { role: 'subline', x: 0.08, y: 0.43, w: 0.7, size: 0.03, tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.45 } },
+      // The was/now pair goes through the price row rather than a struck meta
+      // slot. Overloading meta meant that any content WITHOUT a price — which
+      // is what a generic caller passes — rendered a struck-through sentence.
+      // A price slot with no price data simply draws nothing.
+      { role: 'price', x: 0.08, y: 0.55, w: 0.84, size: 0.046, weight: 700, gap: 2.1, max: 2, motion: { in: 'pop', at: 0.8, dur: 0.5 } },
+      { role: 'cta', x: 0.08, y: 0.22, w: 0.52, size: 0.03, weight: 700, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
+      { role: 'contact', x: 0.08, y: 0.09, w: 0.84, size: CONTACT, weight: 600, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.25, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'countdown-post',
+    label: 'Countdown',
+    desc: 'Days to go, huge — then where and when',
+    mood: 'street', scheme: 'dark', font: 'condensed',
+    surface: { kind: 'gradient', angle: 170, intensity: 0.55, vignette: 0.3 },
+    shapes: [
+      { kind: 'wedge', corner: 'br', w: 0.58, h: 0.28, tone: 'accent', alpha: 0.18 },
+      { kind: 'rect', x: 0.08, y: 0.355, w: 0.16, h: 0.008, tone: 'accent' },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.085, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.6, size: EYEBROW, upper: true, tracking: 0.24, tone: 'accent', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.42, w: 0.84, size: HEAD_HERO, weight: 800, upper: true, tracking: -0.03, motion: { in: 'pop', at: 0.4, dur: 0.55 } },
+      { role: 'subline', x: 0.08, y: 0.63, w: 0.72, size: 0.034, weight: 700, upper: true, tracking: 0.08, motion: { in: 'wipe', at: 0.75, dur: 0.5 } },
+      { role: 'meta', x: 0.08, y: 0.72, w: 0.66, size: META, tone: 'muted', motion: { in: 'fade', at: 0.95, dur: 0.45 } },
+      { role: 'cta', x: 0.08, y: 0.2, w: 0.56, size: 0.03, weight: 800, upper: true, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
+      { role: 'contact', x: 0.08, y: 0.09, w: 0.84, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.25, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'giveaway-steps',
+    label: 'Giveaway',
+    desc: 'Numbered steps to enter, prize up top',
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 200, intensity: 0.52, vignette: 0.24 },
+    shapes: [
+      { kind: 'circle', cx: 0.12, cy: 0.12, r: 0.09, tone: 'accent', alpha: 0.22 },
+      { kind: 'circle', cx: 0.9, cy: 0.2, r: 0.06, tone: 'accent', alpha: 0.3 },
+      { kind: 'rect', x: 0.06, y: 0.47, w: 0.88, h: 0.34, tone: 'white', alpha: 0.07, radius: 0.035 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.085, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.6, size: EYEBROW, upper: true, tracking: 0.24, tone: 'accent', motion: { in: 'pop', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.08, y: 0.25, w: 0.8, size: 0.082, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.32, dur: 0.55 } },
+      { role: 'subline', x: 0.08, y: 0.42, w: 0.74, size: 0.03, tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.45 } },
+      { role: 'services', x: 0.1, y: 0.52, w: 0.78, size: LIST, weight: 700, bullet: 'number', gap: 2.15, max: 3, motion: { in: 'rise', at: 0.75, dur: 0.6 } },
+      { role: 'meta', x: 0.08, y: 0.19, w: 0.7, size: META, tone: 'muted', fromBottom: true, motion: { in: 'fade', at: 1.05, dur: 0.45 } },
+      { role: 'contact', x: 0.08, y: 0.09, w: 0.84, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'testimonial-card',
+    label: 'Client Review',
+    desc: 'A quote, who said it, and a rating',
+    mood: 'warm', scheme: 'light', font: 'serif',
+    surface: { kind: 'solid' },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.06, h: 1, tone: 'accent', alpha: 0.9 },
+      { kind: 'circle', cx: 0.86, cy: 0.16, r: 0.1, tone: 'accent', alpha: 0.12 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.13, y: 0.09, w: 0.5, size: 0.026, weight: 800, upper: true, tracking: 0.18, font: 'sans', motion: { in: 'fade', at: 0, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.13, y: 0.2, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', font: 'sans', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
+      { role: 'headline', x: 0.13, y: 0.27, w: 0.76, size: 0.062, weight: 500, tracking: -0.01, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
+      { role: 'subline', x: 0.13, y: 0.6, w: 0.66, size: 0.03, weight: 700, upper: true, tracking: 0.1, tone: 'accent', font: 'sans', motion: { in: 'fade', at: 0.8, dur: 0.5 } },
+      { role: 'meta', x: 0.13, y: 0.67, w: 0.6, size: META, tone: 'muted', font: 'sans', motion: { in: 'fade', at: 0.95, dur: 0.45 } },
+      { role: 'stats', x: 0.13, y: 0.8, w: 0.74, size: 0.028, direction: 'row', align: 'left', max: 3, font: 'sans', motion: { in: 'rise', at: 1.05, dur: 0.5 } },
+      { role: 'contact', x: 0.13, y: 0.075, w: 0.8, size: CONTACT, weight: 600, direction: 'row', max: 3, fromBottom: true, font: 'sans', motion: { in: 'fade', at: 1.25, dur: 0.4 } },
+    ],
+  },
+  {
+    key: 'coming-soon',
+    label: 'Coming Soon',
+    desc: 'One promise, a date, and room to breathe',
+    mood: 'minimal', scheme: 'dark', font: 'sans',
+    surface: { kind: 'spotlight', intensity: 0.42, vignette: 0.36 },
+    shapes: [
+      { kind: 'ring', cx: 0.5, cy: 0.5, r: 0.34, tone: 'accent', alpha: 0.25, thickness: 0.004 },
+    ],
+    slots: [
+      { role: 'brand', x: 0.1, y: 0.09, w: 0.8, size: 0.026, align: 'center', weight: 800, upper: true, tracking: 0.2, motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.15, y: 0.38, w: 0.7, size: EYEBROW, align: 'center', upper: true, tracking: 0.3, tone: 'accent', motion: { in: 'rise', at: 0.3, dur: 0.5 } },
+      { role: 'headline', x: 0.1, y: 0.44, w: 0.8, size: 0.088, weight: 800, align: 'center', tracking: -0.03, upper: true, motion: { in: 'pop', at: 0.45, dur: 0.55 } },
+      { role: 'subline', x: 0.15, y: 0.62, w: 0.7, size: 0.03, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.8, dur: 0.5 } },
+      { role: 'meta', x: 0.25, y: 0.28, w: 0.5, size: META, align: 'center', treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1, dur: 0.45 } },
+      { role: 'contact', x: 0.1, y: 0.09, w: 0.8, size: CONTACT, weight: 600, tone: 'muted', direction: 'row', max: 3, align: 'center', fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.4 } },
+    ],
+  },
+];export const templateByKey = (key: string): DesignTemplate =>
   DESIGN_TEMPLATES.find(t => t.key === key) ?? DESIGN_TEMPLATES[0];
 
 export const slotOf = (tpl: DesignTemplate, role: SlotRole): SlotSpec | undefined =>

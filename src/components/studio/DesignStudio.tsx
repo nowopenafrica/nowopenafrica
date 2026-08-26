@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useMemo, createContext, useContext } from 
 import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
-import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge, Move, Camera } from 'lucide-react';
+import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge, Move, Camera, ListChecks } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 import { backgroundSourceIssue } from '../../lib/videoEmbeds';
 import { extractBackgroundClip, BACKGROUND_CLIP_SECONDS } from '../../lib/backgroundClip';
@@ -25,7 +25,9 @@ import InspirationUpload from './InspirationUpload';
 import GeneratePanel from './GeneratePanel';
 import { track } from '../../lib/telemetry';
 import TemplateSurface from './TemplateSurface';
-import { DESIGN_TEMPLATES, templateByKey, type SlotRole } from '../../lib/designTemplates';
+import { DESIGN_TEMPLATES, templateByKey, templateListRoles, type SlotRole } from '../../lib/designTemplates';
+import FlyerContentEditor, { type FlyerContent } from '../admin/FlyerContentEditor';
+import { currencyInfo, detectRegionCurrency, formatUsdAmount } from '../../lib/currency';
 import type { InspirationPlan } from '../../lib/designInspiration';
 import { docFromRenderedLayout } from '../../lib/layoutImport';
 import { pickRecorderMime } from '../../lib/renderVideo';
@@ -326,6 +328,46 @@ export default function DesignStudio({
   const [headline, setHeadline] = useState(startTemplate.headline);
   const [subline, setSubline] = useState(startTemplate.subline);
   const [badge, setBadge] = useState(startTemplate.badge);
+
+  // The repeating parts of the newer templates — services, proof points, price
+  // rows. Held here rather than derived, because they are the parts the owner
+  // edits; the contact strip below is derived, because it is already on record.
+  //
+  // Seeded, because an empty services column or price panel renders as a blank
+  // area that reads as a broken template rather than an unfilled one.
+  //
+  // The amounts go through the currency layer instead of a hardcoded symbol: a
+  // studio that seeds ₦ for a business billing in cedis is telling them, at a
+  // glance, that the tool was not built for them.
+  //
+  // The pure helpers rather than useCurrency(), deliberately. This is
+  // placeholder text the owner immediately overwrites, and it is not worth
+  // making a 2,000-line editor refuse to mount without a CurrencyProvider —
+  // which is exactly what the admin smoke test does not have. Bundled fallback
+  // rates are fine for a number nobody is meant to keep.
+  const [flyer, setFlyer] = useState<FlyerContent>(() => {
+    const code = detectRegionCurrency();
+    const rate = currencyInfo(code).fallbackRate;
+    const money = (usd: number) => formatUsdAmount(usd, code, rate);
+    return {
+      services: [
+        'Brand & identity design',
+        'Social media management',
+        'Web design & development',
+        'Paid ads & SEO',
+      ],
+      stats: [
+        { value: '10+', label: 'Years' },
+        { value: '250+', label: 'Projects' },
+        { value: '30+', label: 'Markets' },
+      ],
+      price: [
+        { label: 'Consultation', price: money(25) },
+        { label: 'Standard package', price: money(120) },
+        { label: 'Premium package', price: money(300) },
+      ],
+    };
+  });
   const [accent, setAccent] = useState(startTemplate.accent);
   const { user } = useAuth();
   const [bgColor, setBgColor] = useState<string | null>(null);
@@ -378,6 +420,13 @@ export default function DesignStudio({
   const { w, h } = format;
   const url = profileUrl(business);
   const brandUrl = url.replace(/^https?:\/\//, '');
+
+  // Built from the business record rather than typed again. These are details
+  // the owner has already given us, and a contact strip that disagrees with the
+  // profile is worse than no contact strip.
+  const derivedContact = [business.phone, business.email, brandUrl]
+    .map((v) => (v ?? '').trim())
+    .filter(Boolean);
   const scale = 460 / Math.max(w, h);
   const u = Math.min(w, h);
   const hasVideo = bg?.type === 'video';
@@ -924,6 +973,10 @@ export default function DesignStudio({
             subline,
             meta: brandUrl,
             cta: 'Book now',
+            services: flyer.services ?? [],
+            stats: flyer.stats ?? [],
+            price: flyer.price ?? [],
+            contact: derivedContact,
             logoUrl: business.logo_url,
             qrUrl: qr || null,
           }}
@@ -1567,6 +1620,18 @@ export default function DesignStudio({
 
         {editorTab === 'content' && (
         <>
+        {/* Only for the data-driven templates, and only the sections the chosen
+            one actually draws. The hand-written layouts have no list slots, so
+            this renders nothing for them. */}
+        {modernTpl && templateListRoles(modernTpl).length > 0 && (
+          <StudioSection icon={ListChecks} title="Template content">
+            <FlyerContentEditor
+              value={flyer}
+              onChange={(partial) => setFlyer((prev) => ({ ...prev, ...partial }))}
+              roles={templateListRoles(modernTpl)}
+            />
+          </StudioSection>
+        )}
         <StudioSection icon={Type} title="Content">
           <div>
             <div className="flex items-center justify-between mb-1">

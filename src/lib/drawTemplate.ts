@@ -19,6 +19,7 @@ import {
   type DesignTemplate, type SlotSpec, type SurfaceLayer, type ShapeSpec,
   slotBox, typePx, motionAt, settleTime, surfaceSpecLayers, inkFor, hexAlpha, unitOf, fontStack,
   isListRole, listRowBoxes, shapeColor, shapeGeometry,
+  type PriceRow,
 } from './designTemplates';
 
 export interface TemplatePaintContent {
@@ -34,6 +35,8 @@ export interface TemplatePaintContent {
   stats?: { value: string; label: string }[];
   /** Rows for a 'contact' slot — phone, email, site, address, in display order. */
   contact?: string[];
+  /** Rows for a 'price' slot: what it is, what it costs, optionally what it was. */
+  price?: PriceRow[];
   /** Already-loaded images. Loading is the caller's job — painting must be sync. */
   logo?: CanvasImageSource | null;
   qr?: CanvasImageSource | null;
@@ -160,9 +163,14 @@ function listCount(content: TemplatePaintContent, slot: SlotSpec): number {
     slot.role === 'services' ? (content.services?.length ?? 0)
     : slot.role === 'stats' ? (content.stats?.length ?? 0)
     : slot.role === 'contact' ? (content.contact?.length ?? 0)
+    : slot.role === 'price' ? (content.price?.length ?? 0)
     : 0;
   return slot.max ? Math.min(n, slot.max) : n;
 }
+
+/** Whether this context can stroke paths at all — jsdom and polyfills cannot. */
+const canPathHere = (ctx: CanvasRenderingContext2D): boolean =>
+  typeof ctx.beginPath === 'function' && typeof ctx.arc === 'function' && typeof ctx.fill === 'function';
 
 function paintShape(
   ctx: CanvasRenderingContext2D,
@@ -317,6 +325,61 @@ function paintListSlot(
       ctx.font = `600 ${Math.round(size * 0.62)}px ${family}`;
       ctx.fillStyle = hexAlpha(ink, 0.7);
       ctx.fillText((stat.label ?? '').toUpperCase(), cx, row.y + size * 2.25);
+      continue;
+    }
+
+    if (slot.role === 'price') {
+      const item: PriceRow = content.price![i];
+      const baseline = row.y + size;
+
+      // Label left, price right, on one baseline. A leader rule fills the gap
+      // so the eye tracks across — the thing that makes a list read as a menu
+      // rather than two unrelated columns.
+      ctx.textAlign = 'left';
+      ctx.font = `${slot.weight ?? 600} ${Math.round(size)}px ${family}`;
+      ctx.fillStyle = tone;
+      const label = slot.upper ? (item.label ?? '').toUpperCase() : (item.label ?? '');
+      const priceText = item.price ?? '';
+
+      ctx.save();
+      ctx.font = `800 ${Math.round(size)}px ${family}`;
+      const priceW = ctx.measureText(priceText).width;
+      const wasW = item.was ? ctx.measureText(item.was).width + size * 0.5 : 0;
+      ctx.restore();
+
+      ctx.font = `${slot.weight ?? 600} ${Math.round(size)}px ${family}`;
+      const [labelLine] = wrapLines(
+        (t) => ctx.measureText(t).width,
+        label,
+        Math.max(0, row.w - priceW - wasW - size * 0.8),
+        1,
+      );
+      ctx.fillText(labelLine, row.x, baseline);
+
+      const labelW = ctx.measureText(labelLine).width;
+      const gapStart = row.x + labelW + size * 0.35;
+      const gapEnd = row.x + row.w - priceW - wasW - size * 0.35;
+      if (gapEnd > gapStart) {
+        ctx.save();
+        ctx.globalAlpha = (ctx.globalAlpha || 1) * 0.35;
+        ctx.fillStyle = tone;
+        ctx.fillRect(gapStart, baseline - size * 0.22, gapEnd - gapStart, Math.max(1, size * 0.045));
+        ctx.restore();
+      }
+
+      ctx.textAlign = 'right';
+      if (item.was) {
+        ctx.font = `600 ${Math.round(size)}px ${family}`;
+        ctx.fillStyle = hexAlpha(ink, 0.55);
+        const wasX = row.x + row.w - priceW - size * 0.5;
+        ctx.fillText(item.was, wasX, baseline);
+        // Struck through, because "was" only means anything crossed out.
+        const wm = ctx.measureText(item.was).width;
+        ctx.fillRect(wasX - wm, baseline - size * 0.28, wm, Math.max(1, size * 0.05));
+      }
+      ctx.font = `800 ${Math.round(size)}px ${family}`;
+      ctx.fillStyle = accent;
+      ctx.fillText(priceText, row.x + row.w, baseline);
       continue;
     }
 
@@ -491,7 +554,25 @@ export function drawTemplateFrame(
       ctx.fillRect(-pad, 0, Math.max(2, u * 0.008), blockH - pad * 0.4);
     }
 
-    ctx.fillStyle = tone;
+    // The discount badge. Diameter comes from the slot's own width, never from
+    // measured text, so this circle and the DOM renderer's circle are the same
+    // circle — font metrics differ enough between the two to shift a badge by
+    // several pixels otherwise.
+    if (slot.treatment === 'disc' && canPathHere(ctx)) {
+      const d = box.width;
+      const cx = box.textAlign === 'center' ? anchorX : box.textAlign === 'right' ? anchorX - d / 2 : d / 2;
+      const cy = (lines.length * lineHeight) / 2 - lineHeight * 0.18;
+      ctx.beginPath();
+      ctx.arc(cx, cy, d / 2, 0, Math.PI * 2);
+      ctx.fillStyle = slot.tone === 'accent' ? accent : hexAlpha(ink, 0.92);
+      ctx.fill();
+    }
+
+    ctx.fillStyle = slot.treatment === 'disc'
+      // On a filled disc the slot tone is the disc, so the words take the
+      // surface colour underneath it or they vanish into their own badge.
+      ? (slot.tone === 'accent' ? base : accent)
+      : tone;
     lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
 
     if (slot.treatment === 'underline') {

@@ -1,7 +1,6 @@
-import { Plus, Trash2, ListChecks, BarChart3, Phone, Info } from 'lucide-react';
+import { Plus, Trash2, ListChecks, BarChart3, Phone, Info, Tag } from 'lucide-react';
 
-import type { MotionConfig } from '../../lib/motionGraphics';
-import type { SlotRole } from '../../lib/designTemplates';
+import type { PriceRow, SlotRole } from '../../lib/designTemplates';
 
 // The editor for the repeating parts of a business flyer.
 //
@@ -31,9 +30,24 @@ const ADD_BTN =
 /** Above this a list stops being scannable and starts overflowing the layout. */
 const MAX_ROWS = 6;
 
+/**
+ * Just the repeating parts of a design.
+ *
+ * Typed on the SHAPE rather than on MotionConfig so Creative Studio can use the
+ * same editor without pretending its business record is a motion brief — the
+ * two studios draw the same templates and should not need two editors for the
+ * same four fields.
+ */
+export interface FlyerContent {
+  services?: string[];
+  stats?: { value: string; label: string }[];
+  contact?: string[];
+  price?: PriceRow[];
+}
+
 interface Props {
-  brief: MotionConfig;
-  onChange: (partial: Partial<MotionConfig>) => void;
+  value: FlyerContent;
+  onChange: (partial: FlyerContent) => void;
   /** Which list sections this template needs. */
   roles: SlotRole[];
 }
@@ -57,19 +71,23 @@ function SectionHead({
   );
 }
 
-export default function FlyerContentEditor({ brief, onChange, roles }: Props) {
+export default function FlyerContentEditor({ value, onChange, roles }: Props) {
   if (roles.length === 0) return null;
 
-  const services = brief.services ?? [];
-  const stats = brief.stats ?? [];
-  const contact = brief.contact ?? [];
+  const services = value.services ?? [];
+  const stats = value.stats ?? [];
+  const contact = value.contact ?? [];
+  const price = value.price ?? [];
 
   const setStrings = (
     field: 'services' | 'contact',
     list: string[],
     index: number,
-    value: string,
-  ) => onChange({ [field]: list.map((v, i) => (i === index ? value : v)) } as Partial<MotionConfig>);
+    next: string,
+  ) => onChange({ [field]: list.map((v, i) => (i === index ? next : v)) } as FlyerContent);
+
+  const setPrice = (index: number, patch: Partial<PriceRow>) =>
+    onChange({ price: price.map((r, i) => (i === index ? { ...r, ...patch } : r)) });
 
   return (
     <div className="space-y-4">
@@ -80,10 +98,10 @@ export default function FlyerContentEditor({ brief, onChange, roles }: Props) {
             title="Services"
             hint="One line each — what you sell, in the customer's words. The template draws the bullets."
           />
-          {services.map((value, i) => (
+          {services.map((row, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <input
-                value={value}
+                value={row}
                 onChange={(e) => setStrings('services', services, i, e.target.value)}
                 aria-label={`Service ${i + 1}`}
                 placeholder={`Service ${i + 1}`}
@@ -170,6 +188,62 @@ export default function FlyerContentEditor({ brief, onChange, roles }: Props) {
         </section>
       )}
 
+      {roles.includes('price') && (
+        <section className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
+          <SectionHead
+            icon={<Tag size={12} className="text-purple-500" />}
+            title="Price list"
+            hint="What it is and what it costs. Leave “was” empty unless the price actually dropped."
+          />
+          {price.map((row, i) => (
+            <div key={i} className="space-y-1.5">
+              <div className="flex items-center gap-1.5">
+                <input
+                  value={row.label}
+                  onChange={(e) => setPrice(i, { label: e.target.value })}
+                  aria-label={`Item ${i + 1} name`}
+                  placeholder="Haircut & styling"
+                  className={ROW_INPUT}
+                />
+                <button
+                  type="button"
+                  onClick={() => onChange({ price: price.filter((_, j) => j !== i) })}
+                  aria-label={`Remove item ${i + 1}`}
+                  className={ICON_BTN}
+                >
+                  <Trash2 size={13} aria-hidden="true" />
+                </button>
+              </div>
+              <div className="flex items-center gap-1.5 pr-[50px]">
+                <input
+                  value={row.price}
+                  onChange={(e) => setPrice(i, { price: e.target.value })}
+                  aria-label={`Item ${i + 1} price`}
+                  placeholder="₦8,500"
+                  className={`${ROW_INPUT} font-semibold`}
+                />
+                <input
+                  value={row.was ?? ''}
+                  onChange={(e) => setPrice(i, { was: e.target.value || undefined })}
+                  aria-label={`Item ${i + 1} previous price`}
+                  placeholder="was (optional)"
+                  className={ROW_INPUT}
+                />
+              </div>
+            </div>
+          ))}
+          {price.length < MAX_ROWS && (
+            <button
+              type="button"
+              onClick={() => onChange({ price: [...price, { label: '', price: '' }] })}
+              className={ADD_BTN}
+            >
+              <Plus size={13} aria-hidden="true" /> Add item
+            </button>
+          )}
+        </section>
+      )}
+
       {roles.includes('contact') && (
         <section className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
           <SectionHead
@@ -177,10 +251,10 @@ export default function FlyerContentEditor({ brief, onChange, roles }: Props) {
             title="Contact strip"
             hint="Phone, email, website — however many you want along the footer."
           />
-          {contact.map((value, i) => (
+          {contact.map((row, i) => (
             <div key={i} className="flex items-center gap-1.5">
               <input
-                value={value}
+                value={row}
                 onChange={(e) => setStrings('contact', contact, i, e.target.value)}
                 aria-label={`Contact detail ${i + 1}`}
                 placeholder="+234 708 154 7726"

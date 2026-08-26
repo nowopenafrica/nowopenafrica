@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   DESIGN_TEMPLATES, templateByKey, slotOf, slotBox, typePx, unitOf,
   motionAt, settleTime, surfaceLayers, hexAlpha, inkFor, SETTLED,
-  shapeGeometry, listRowBoxes, templateListRoles,
+  shapeGeometry, listRowBoxes, templateListRoles, isListRole,
   type SlotSpec,
 } from './designTemplates';
 
@@ -262,17 +262,17 @@ describe('list slots', () => {
     expect(templateListRoles(templateByKey('statement'))).toEqual([]);
   });
 
-  it('keeps every services column inside the canvas at its row cap', () => {
+  it('keeps every column list inside the canvas at its row cap', () => {
     // A four-row list that runs off the bottom is invisible in a flat export,
     // and the slot-bounds test above only checks the list's starting point.
     for (const t of DESIGN_TEMPLATES) {
       for (const slot of t.slots) {
-        if (slot.role === 'services' && slot.direction !== 'row') {
+        if ((slot.role === 'services' || slot.role === 'price') && slot.direction !== 'row') {
           const rows = slot.max ?? 4;
           for (const [name, w, h] of FORMATS) {
             const boxes = listRowBoxes(slot, w, h, rows);
             const last = boxes[boxes.length - 1];
-            expect(last.y + last.size, `${t.key} services @ ${name}`).toBeLessThanOrEqual(h);
+            expect(last.y + last.size, `${t.key} ${slot.role} @ ${name}`).toBeLessThanOrEqual(h);
           }
         }
       }
@@ -321,6 +321,44 @@ describe('shapes never cover the headline', () => {
 
           const overlaps = b.x0 < hb.x1 && b.x1 > hb.x0 && b.y0 < hb.y1 && b.y1 > hb.y0;
           expect(overlaps, `${t.key}: ${shape.kind} covers the headline @ ${name}`).toBe(false);
+        }
+      }
+    }
+  });
+});
+
+describe('promo primitives', () => {
+  it('counts price as a list role', () => {
+    expect(isListRole('price')).toBe(true);
+    expect(templateListRoles(templateByKey('price-list'))).toContain('price');
+  });
+
+  it('offers a price editor only where a price slot exists', () => {
+    expect(templateListRoles(templateByKey('flash-sale'))).not.toContain('price');
+  });
+
+  it('gives every disc badge a width to be a circle of', () => {
+    // The disc's diameter is the slot's own `w` — that is what lets the canvas
+    // and the DOM draw the same circle instead of each measuring the text.
+    for (const t of DESIGN_TEMPLATES) {
+      for (const slot of t.slots) {
+        if (slot.treatment === 'disc') {
+          expect(slot.w, `${t.key}/${slot.role}`).toBeGreaterThan(0);
+          expect(slot.w, `${t.key}/${slot.role}`).toBeLessThanOrEqual(0.5);
+        }
+      }
+    }
+  });
+
+  it('keeps a disc badge on the canvas at every format', () => {
+    for (const t of DESIGN_TEMPLATES) {
+      for (const slot of t.slots) {
+        if (slot.treatment !== 'disc') continue;
+        for (const [name, w, h] of FORMATS) {
+          const box = slotBox(slot, w, h);
+          // The circle is as tall as it is wide, so a badge low on a wide
+          // canvas can run off the bottom even though its origin is inside.
+          expect(box.top + box.width, `${t.key} disc @ ${name}`).toBeLessThanOrEqual(h + 0.5);
         }
       }
     }

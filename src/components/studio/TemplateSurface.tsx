@@ -3,6 +3,7 @@ import {
   type DesignTemplate, type ShapeSpec, type SlotRole, type SlotSpec,
   slotBox, typePx, motionAt, settleTime, surfaceLayers, inkFor, hexAlpha, unitOf, fontStack,
   isListRole, listRowBoxes, shapeColor, shapeGeometry,
+  type PriceRow,
 } from '../../lib/designTemplates';
 
 // Renders a DesignTemplate. One component for stills and for motion frames.
@@ -31,6 +32,8 @@ export interface TemplateContent {
   stats?: { value: string; label: string }[];
   /** Rows for a 'contact' slot. */
   contact?: string[];
+  /** Rows for a 'price' slot. */
+  price?: PriceRow[];
   logoUrl?: string | null;
   /** data: URL — a remote QR would taint the export canvas. */
   qrUrl?: string | null;
@@ -202,6 +205,7 @@ function ListSlot({
   const all =
     slot.role === 'services' ? (content.services ?? [])
     : slot.role === 'contact' ? (content.contact ?? [])
+    : slot.role === 'price' ? (content.price ?? [])
     : (content.stats ?? []);
   const count = slot.max ? Math.min(all.length, slot.max) : all.length;
   if (count === 0) return null;
@@ -223,6 +227,37 @@ function ListSlot({
           fontFamily: family,
         };
 
+        if (slot.role === 'price') {
+          const item = (content.price ?? [])[i];
+          return (
+            <div
+              key={i}
+              style={{
+                ...common,
+                display: 'flex',
+                alignItems: 'baseline',
+                gap: size * 0.35,
+                fontSize: size,
+                lineHeight: 1.4,
+                color: tone,
+              }}
+            >
+              <span style={{ fontWeight: slot.weight ?? 600, whiteSpace: 'nowrap', textTransform: slot.upper ? 'uppercase' : undefined }}>
+                {item?.label ?? ''}
+              </span>
+              {/* The leader rule: it is what makes two columns read as one menu
+                  line. flex:1 fills whatever the label and price leave behind. */}
+              <span style={{ flex: 1, height: Math.max(1, size * 0.045), background: tone, opacity: 0.35 }} />
+              {item?.was && (
+                <span style={{ color: hexAlpha(ink, 0.55), textDecoration: 'line-through', whiteSpace: 'nowrap' }}>
+                  {item.was}
+                </span>
+              )}
+              <span style={{ fontWeight: 800, color: accent, whiteSpace: 'nowrap' }}>{item?.price ?? ''}</span>
+            </div>
+          );
+        }
+
         if (slot.role === 'stats') {
           const stat = (content.stats ?? [])[i];
           return (
@@ -237,7 +272,7 @@ function ListSlot({
           );
         }
 
-        const text = String(all[i] ?? '');
+        const text = String((all as (string | unknown)[])[i] ?? '');
         if (!text) return null;
         return (
           <div
@@ -322,6 +357,20 @@ export default function TemplateSurface({
       case 'bar':
         // A leading accent rule — the editorial device.
         return { borderLeft: `${Math.max(2, u * 0.008)}px solid ${accent}`, paddingLeft: pad };
+      case 'disc':
+        // Diameter is the slot's own width, matching the canvas painter exactly.
+        return {
+          width: '100%',
+          aspectRatio: '1 / 1',
+          borderRadius: '50%',
+          background: slot.tone === 'accent' ? accent : hexAlpha(ink, 0.92),
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          padding: pad,
+          boxSizing: 'border-box',
+        };
       default:
         return {};
     }
@@ -429,7 +478,11 @@ export default function TemplateSurface({
           letterSpacing: `${slot.tracking ?? 0}em`,
           fontFamily: fontStack(slot.font ?? template.font),
           textTransform: slot.upper ? 'uppercase' : undefined,
-          color: toneColor(slot),
+          // On a filled disc the slot tone IS the disc, so the words take the
+          // surface colour under it or they disappear into their own badge.
+          color: slot.treatment === 'disc'
+            ? (slot.tone === 'accent' ? surfaceBase : accent)
+            : toneColor(slot),
           ...treatmentStyle(slot),
         };
 

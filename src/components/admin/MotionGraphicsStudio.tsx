@@ -1253,6 +1253,7 @@ export default function MotionGraphicsStudio() {
         services: brief.services ?? [],
         stats: brief.stats ?? [],
         contact: brief.contact ?? [],
+        price: brief.price ?? [],
       },
     }),
     [brief, label, project.palette, scenes.length, layers, designTpl],
@@ -1897,7 +1898,7 @@ export default function MotionGraphicsStudio() {
                         These are your caption cards. They sync with the brief — edit once, every matching card updates.
                       </p>
                     </div>
-                    <FlyerContentEditor brief={brief} onChange={editBrief} roles={flyerRoles} />
+                    <FlyerContentEditor value={brief} onChange={editBrief} roles={flyerRoles} />
                     <section className="pt-2 border-t border-gray-100 dark:border-gray-700 space-y-2">
                       <h5 className="text-[11px] font-bold text-gray-900 dark:text-white inline-flex items-center gap-1.5">
                         <Zap size={12} className="text-purple-500" /> Animate this clip

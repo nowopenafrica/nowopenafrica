@@ -51,6 +51,8 @@ export interface MotionConfig {
   stats?: { value: string; label: string }[];
   /** Contact strip — phone, email, website, in display order. */
   contact?: string[];
+  /** Menu / price-list rows. */
+  price?: { label: string; price: string; was?: string }[];
 }
 
 /** Seconds per card scene for the chosen pacing. */
