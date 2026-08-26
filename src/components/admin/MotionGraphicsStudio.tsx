@@ -5,7 +5,7 @@ import {
   LayoutTemplate, Check, Plus, Copy, Trash2, FolderOpen, Wand2, Clapperboard,
   Layers, ChevronUp, ChevronDown, ArrowLeft, Undo2, Redo2, Play, Pause, Save,
   Type, Music, Palette, Shapes, Scissors, RotateCcw, Timer, Share2,
-  HelpCircle, Settings, Eye, EyeOff, Zap,
+  HelpCircle, Settings, Eye, EyeOff, Zap, Link2,
 } from 'lucide-react';
 import type { DirectorScene, TextElementStyle, TextAnimationKey, TextEffectKey } from '../../lib/creativeDirector';
 import { TEXT_ANIMATIONS, TEXT_EFFECTS } from '../../lib/creativeDirector';
@@ -30,6 +30,8 @@ import { MOTION_TEMPLATES, DESIGN_STYLES, motionTemplateByKey, type MotionTempla
 import { pickPreviewVoice } from '../../lib/voicePreview';
 import { DESIGN_TEMPLATES, templateListRoles } from '../../lib/designTemplates';
 import FlyerContentEditor from './FlyerContentEditor';
+import { backgroundSourceIssue } from '../../lib/videoEmbeds';
+import { isVideoUrl } from '../../lib/galleryMedia';
 import { downloadBlob } from '../../lib/studio';
 import {
   blankMotionProject, motionProjectFromTemplate, motionProjectFromPrompt,
@@ -842,11 +844,82 @@ export default function MotionGraphicsStudio() {
   // The layer whose transform controls the Media drawer edits (and the preview
   // highlights). Mirrored in a ref so canvas drags never need a re-render.
   const [selectedLayer, setSelectedLayer] = useState<number | null>(null);
+  const [layerLink, setLayerLink] = useState('');
+  const [layerLinkIssue, setLayerLinkIssue] = useState<string | null>(null);
   const selectedLayerRef = useRef(selectedLayer);
   selectedLayerRef.current = selectedLayer;
   useEffect(() => () => {
     layersRef.current.forEach((l) => { if (l.url) URL.revokeObjectURL(l.url); });
   }, []);
+
+  /**
+   * Repaint once a layer's media is actually decodable.
+   *
+   * The preview paints when `layers` changes, which is BEFORE an image or video
+   * has loaded — resolveSource then finds nothing ready and falls back to the
+   * gradient. Nothing re-ran afterwards, so a linked background never appeared
+   * at all and an uploaded one only appeared because an object URL decodes fast
+   * enough to win the race. Replacing the array gives it a new identity, which
+   * is what the preview effect depends on.
+   */
+  const repaintWhenReady = (media: MotionLayer) => {
+    const el = media.kind === 'video' ? media.video : media.image;
+    const event = media.kind === 'video' ? 'loadeddata' : 'load';
+    el?.addEventListener(event, () => setLayers((prev) => [...prev]), { once: true });
+  };
+
+  /** A readable label from a URL, so the layer list does not show the whole link. */
+  const layerNameFromUrl = (url: string): string => {
+    try {
+      const last = new URL(url, window.location.origin).pathname.split('/').filter(Boolean).pop();
+      return decodeURIComponent(last || url).slice(0, 40) || 'Linked media';
+    } catch {
+      return 'Linked media';
+    }
+  };
+
+  /**
+   * Add a background layer from a link, alongside the upload path.
+   *
+   * Platform links (YouTube, TikTok, …) are refused by backgroundSourceIssue
+   * for the same reason as in Creative Studio: the export composites into a
+   * canvas and an iframe cannot be drawn into one.
+   *
+   * Direct links still may not work. The loaders request crossOrigin
+   * 'anonymous' so that a host without CORS headers FAILS rather than tainting
+   * the canvas — a tainted canvas would break the MP4 export at the last step,
+   * long after the mistake. The trade is that failure is silent, so the error
+   * event is surfaced here instead of leaving a background that never appears.
+   */
+  const addLayerUrl = () => {
+    const url = layerLink.trim();
+    if (!url) { setLayerLinkIssue(null); return; }
+
+    const issue = backgroundSourceIssue(url);
+    if (issue) { setLayerLinkIssue(issue); return; }
+    setLayerLinkIssue(null);
+
+    const kind: MotionLayer['kind'] = isVideoUrl(url) ? 'video' : 'image';
+    const media: MotionLayer = kind === 'video'
+      ? { kind: 'video', url, video: createBackgroundVideo(url) }
+      : { kind: 'image', url, image: createBackgroundImage(url) };
+
+    const el = kind === 'video' ? media.video : media.image;
+    el?.addEventListener('error', () => {
+      // Drop it again rather than leaving a row that draws nothing. A layer
+      // listed as "BG · IMAGE" over an unchanged preview reads as a rendering
+      // bug; an explained removal reads as what actually happened.
+      setLayers((prev) => prev.filter((l) => l.url !== url));
+      setLayerLinkIssue(
+        'That link would not load, so the layer was removed. The host may not allow other sites to use it — download the file and upload it instead.',
+      );
+    }, { once: true });
+
+    repaintWhenReady(media);
+    setLayers((prev) => [...prev, { ...media, name: layerNameFromUrl(url) }]);
+    setLayerLink('');
+    toast(`Added a ${kind} layer from the link — kept on this device only.`);
+  };
 
   const addLayerFiles = (files: FileList | File[]) => {
     const fileList = Array.from(files);
@@ -861,6 +934,7 @@ export default function MotionGraphicsStudio() {
       const media: MotionLayer = file.type.startsWith('video/')
         ? { kind: 'video', url, video: createBackgroundVideo(url) }
         : { kind: 'image', url, image: createBackgroundImage(url) };
+      repaintWhenReady(media);
       return { ...media, name: file.name };
     });
     setLayers((prev) => [...prev, ...next]);
@@ -1619,6 +1693,41 @@ export default function MotionGraphicsStudio() {
                           e.target.value = '';
                         }} />
                       </label>
+
+                      {/* …or from a link, the same option Creative Studio's Style
+                          tab offers. Committing on blur and on Enter matches it too. */}
+                      <div className="flex items-center gap-1.5">
+                        <span className="sr-only" id="motion-layer-link-help">
+                          Paste a direct image or video URL to add it as a layer
+                        </span>
+                        <div className="relative flex-1">
+                          <Link2 size={13} aria-hidden="true" className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" />
+                          <input
+                            type="text"
+                            value={layerLink}
+                            aria-label="Background image or video URL"
+                            aria-describedby="motion-layer-link-help"
+                            onChange={(e) => setLayerLink(e.target.value)}
+                            onBlur={addLayerUrl}
+                            onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addLayerUrl(); } }}
+                            placeholder="…or paste a direct image/video URL"
+                            className="w-full pl-7 pr-2.5 min-h-[44px] rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 text-xs text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500"
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          onClick={addLayerUrl}
+                          disabled={!layerLink.trim()}
+                          className="inline-flex items-center justify-center px-3 min-h-[44px] rounded-lg text-[11px] font-semibold border border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-600 disabled:opacity-40 disabled:hover:border-gray-200 disabled:hover:text-gray-600 transition"
+                        >
+                          Add
+                        </button>
+                      </div>
+                      {layerLinkIssue && (
+                        <p role="status" className="text-[10px] leading-snug text-amber-700 dark:text-amber-400">
+                          {layerLinkIssue}
+                        </p>
+                      )}
                       {layers.length > 0 && (
                         <ul className="space-y-1.5">
                           {layers.map((l, i) => (
