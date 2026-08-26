@@ -153,6 +153,20 @@ const CREATIVE_SERVICES = [
   { title: 'Serengeti Signs — Billboard & OOH Creative', service_type: 'Graphic Design', description: 'High-impact large-format artwork for billboards, transit wraps and mall screens, sized to any placement spec.', pricing: 320, pricing_model: 'per design', delivery_time: '5 days', clients_served: 88, review_count: 41, rating: 4.5, img: 4348404 },
   { title: 'Atlas Media — TV Commercial Production', service_type: 'Videography', description: 'Broadcast-standard TV commercials: casting, studio or location shoots, licensed music and clearance-ready masters.', pricing: 4500, pricing_model: 'per commercial', delivery_time: '45 days', clients_served: 29, review_count: 15, rating: 4.9, img: 3062541 },
   { title: 'Accra Food Frames — Menu & Food Photography', service_type: 'Photography', description: 'Appetising menu, delivery-app and social photography for restaurants — styled, shot and delivered ready to upload.', pricing: 220, pricing_model: 'per menu shoot', delivery_time: '4 days', clients_served: 112, review_count: 57, rating: 4.7, img: 279906 },
+
+  // Advertising had no listing at all, so filtering the Create page by it
+  // returned an empty grid — the one category that looked broken rather than
+  // quiet. These two cover the media-buying and performance halves of it.
+  { title: 'Meridian Media Buying — Radio, TV & Outdoor', service_type: 'Advertising', description: 'Media planning and buying across radio, TV and billboards. Audience research, rate negotiation, spot scheduling and a post-campaign reach report.', pricing: 650, pricing_model: 'per month retainer', delivery_time: 'ongoing', clients_served: 68, review_count: 31, rating: 4.5, img: 590041 },
+  { title: 'Kwanza Ads — Paid Social & Search', service_type: 'Advertising', description: 'Meta, TikTok and Google campaigns built and managed end to end: creative testing, audience targeting, budget pacing and weekly reporting.', pricing: 380, pricing_model: 'per month retainer', delivery_time: 'ongoing', clients_served: 143, review_count: 71, rating: 4.6, img: 265087 },
+
+  // Second listings for the disciplines people search most. A category page
+  // holding a single card reads as an empty directory, which is the same thin
+  // -content problem the discovery pages guard against.
+  { title: 'Indigo & Ochre — Brand Strategy Workshop', service_type: 'Branding', description: 'A facilitated two-day session that settles positioning, tone of voice and messaging before any design starts. Ends with a written brand platform.', pricing: 600, pricing_model: 'per workshop', delivery_time: '10 days', clients_served: 47, review_count: 22, rating: 4.8, img: 3184338 },
+  { title: 'Harmattan Commerce — Online Store Build', service_type: 'Web Design', description: 'Shopify or WooCommerce storefronts with payment gateways set up for African cards and mobile money, plus product upload and staff training.', pricing: 1400, pricing_model: 'per store', delivery_time: '25 days', clients_served: 73, review_count: 36, rating: 4.7, img: 265685 },
+  { title: 'Content Kitchen — Monthly Shoot & Scheduling', service_type: 'Social Media Management', description: 'One shoot day a month producing 30 photos and 8 short videos, captioned, scheduled and posted across your channels.', pricing: 320, pricing_model: 'per month', delivery_time: 'ongoing', clients_served: 118, review_count: 63, rating: 4.6, img: 3183197 },
+  { title: 'Summit Frames — Conference & Awards Coverage', service_type: 'Event Photography', description: 'Corporate event coverage with same-day social edits and a full gallery within 72 hours. Two photographers and on-site backup included.', pricing: 480, pricing_model: 'per event day', delivery_time: '3 days', clients_served: 96, review_count: 44, rating: 4.7, img: 3184291 },
 ];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
