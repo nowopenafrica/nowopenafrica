@@ -64,6 +64,21 @@ describe('ad placement sample data', () => {
     }
   });
 
+  it('never shows the same photo on two placements', () => {
+    // generateAdverts indexes each type's photo pool with `% pool.length`, so a
+    // pool shorter than that type's placement count silently repeats. Three
+    // billboard photos across twenty-six billboards put the same picture on the
+    // page nine times, which reads as one placement listed over and over.
+    const images = adverts.map((a) => a.image_url);
+    const seen = new Map<string, string[]>();
+    adverts.forEach((a) => {
+      seen.set(a.image_url, [...(seen.get(a.image_url) ?? []), a.title]);
+    });
+    const repeated = [...seen.entries()].filter(([, titles]) => titles.length > 1);
+    expect(repeated.map(([, t]) => t), 'these placements share a photo').toEqual([]);
+    expect(new Set(images).size).toBe(images.length);
+  });
+
   it('gives every placement a unique title, so the pricing SQL matches one row', () => {
     // update_placement_pricing.sql keys on the title. A duplicate would let one
     // statement rewrite two placements.

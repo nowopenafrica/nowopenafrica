@@ -125,14 +125,47 @@ const AD_PLACEMENTS: PlacementSeed[] = [
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show
 // realistic imagery — billboards for billboards, terminals for airport ads…
+// Every pool must be at least as long as the number of placements of that
+// type, because generateAdverts indexes it with `% pool.length` — three
+// billboard photos across twenty-six billboards meant the same picture
+// appeared nine times down the page, which reads as one placement listed over
+// and over rather than an inventory.
+//
+// Order matters: the first entries are the most African-looking, and Nigerian
+// placements come first in AD_PLACEMENTS, so Lagos inventory gets Lagos
+// imagery rather than Times Square.
+//
+// Every id below was loaded before being committed — a 404 here is an empty
+// card, and Pexels ids are not guessable.
 const AD_TYPE_IMAGES: Record<string, string[]> = {
-  'Billboard': [802024, 1580625, 1058759].map(pexels),
-  'Digital Screen': [2506923, 2614818, 2372982].map(pexels),
-  'Transit': [2031758, 3626589].map(pexels),
-  'Mall Media': [264636, 2861656, 3962285].map(pexels),
-  'Airport': [227690, 2033343, 358319].map(pexels),
-  'Street Furniture': [374815, 2422588].map(pexels),
-  'Stadium': [270085, 2263436].map(pexels),
+  // 26 billboard placements
+  'Billboard': [
+    33644177, 29812611, 8181296, 4913828, 38162696, 8655746,
+    802024, 1580625, 1058759, 13986019, 32765072, 14536799,
+    31432654, 5102100, 18037899, 36519146, 33753279, 32459947,
+    5983052, 15829239, 5785306, 788662, 38380369, 4700105,
+    4700102, 34149123, 14189082, 12654945, 15185245, 11519039, 32418922,
+  ].map(pexels),
+  // 8 digital screen placements
+  'Digital Screen': [
+    3927753, 18187188, 14363740, 12849349, 2506923, 2614818,
+    2372982, 12602146, 35072459, 27164635, 38833542, 11744955,
+  ].map(pexels),
+  // 4 transit placements
+  'Transit': [12641815, 35611756, 2031758, 3626589, 5870361, 34503103, 12707546].map(pexels),
+  // 5 mall media placements
+  'Mall Media': [
+    13100935, 37713979, 264636, 2861656, 3962285,
+    36542205, 11503089, 19335728, 17409586, 32094984,
+  ].map(pexels),
+  // 9 airport placements
+  'Airport': [
+    30220728, 392265, 13716228, 227690, 2033343, 358319,
+    16292057, 12932408, 2073082, 16936915, 18695674, 33598033, 4836109,
+  ].map(pexels),
+  // 4 street furniture placements
+  'Street Furniture': [1661496, 12534782, 374815, 2422588, 9053669, 20037923, 22431309, 6542518].map(pexels),
+  'Stadium': [270085, 2263436, 28772774].map(pexels),
   'Radio': [164829, 1054713, 744318].map(pexels),
 };
 
