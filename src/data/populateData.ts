@@ -146,15 +146,50 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // Cinema, Vehicle Wrap, Television, Print and Online are all filters on the
   // Promote page and every one returned an empty grid.
   //
-  // HONEST NOTE ON THESE FIVE: the OOH rates above are derived from published
-  // billboard rate cards. Broadcast, press and online are not — no comparable
-  // public rate card was checked, so their day rates are informed estimates
-  // and are marked as such rather than presented as sourced.
+  // HONEST NOTE: the OOH and television rates are taken from published rate
+  // cards. Cinema, press and online are NOT — no comparable public card was
+  // checked for those three, so their day rates are informed estimates and are
+  // marked here rather than presented as sourced.
   ['Pre-Roll Slot, Filmhouse Cinemas Lekki, Lagos', 'Cinema', 'Lagos, Nigeria', 18, '30 seconds', 'medium'],
   ['Keke Napep Fleet Wrap (25 units), Aba', 'Vehicle Wrap', 'Aba, Nigeria', 9, 'Full vehicle', 'high'],
-  ['Prime-Time Slot (30s), National Broadcast, Lagos', 'Television', 'Lagos, Nigeria', 67, '30 seconds', 'high'],
+  ['Channels TV Prime Belt Spot (30s), Lagos', 'Television', 'Lagos, Nigeria', 90, '30s spot, one a day', 'high'],
   ['Full-Page Colour, National Daily, Lagos', 'Print', 'Lagos, Nigeria', 56, 'Full page', 'high'],
-  ['Display Network, Nigerian Publisher Sites', 'Online', 'Lagos, Nigeria', 20, '300x250 & 728x90', 'high']
+  ['Display Network, Nigerian Publisher Sites', 'Online', 'Lagos, Nigeria', 20, '300x250 & 728x90', 'high'],
+
+  // --- BRT bus branding, Lagos ----------------------------------------------
+  //
+  // Lagos BRT is the format an SME here can actually start with: a single bus
+  // runs N60-400k a month against N500k+ for the cheapest static board. Rates
+  // are per bus per month from the published card; the fleet count is what the
+  // buyer chooses, so each row is priced for one vehicle.
+  ['BRT Interior TV Network Slot, Lagos', 'Transit', 'Lagos, Nigeria', 2, 'Onboard screen loop', 'high'],
+  ['BRT Interior Panel Branding (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 4, 'Interior panels', 'high'],
+  ['BRT Bus Branding — Benz (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 6, 'Full exterior', 'high'],
+  ['BRT Bus Branding — TATA (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 7, 'Full exterior', 'high'],
+  ['BRT Bus Branding — Marcopolo (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high'],
+  ['BRT Bus Branding — CNG Fleet (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high'],
+
+  // --- Mobile truck & roadshow ----------------------------------------------
+  //
+  // Advertising that drives to the audience rather than waiting for it. Spans
+  // the widest range on the platform: N75k for a truck board in Kano up to
+  // N7m for a pan-Nigeria tour.
+  ['Mobile Truck Billboard, Kano', 'Vehicle Wrap', 'Kano, Nigeria', 2, 'Both flanks', 'medium'],
+  ['Mobile Roadshow Stage, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 7, 'Stage truck + PA', 'high'],
+  ['Mobile Roadshow Stage, South-West Circuit', 'Vehicle Wrap', 'Ibadan, Nigeria', 11, 'Stage truck + PA', 'high'],
+  ['Digital LED Truck, Port Harcourt', 'Vehicle Wrap', 'Port Harcourt, Nigeria', 20, 'LED both flanks', 'high'],
+  ['Double-Sided LED Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 20, 'LED both flanks', 'high'],
+  ['Mobile Billboard Truck, Abuja', 'Vehicle Wrap', 'Abuja, Nigeria', 25, 'Both flanks + rear', 'high'],
+  ['Mobile Billboard Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 40, 'Both flanks + rear', 'high'],
+  ['Mobile Truck Tour, Pan-Nigeria Circuit', 'Vehicle Wrap', 'Lagos, Nigeria', 156, 'Multi-city route', 'high'],
+
+  // --- Television -------------------------------------------------------------
+  //
+  // Priced per spot on the published card, so the day rate here is one spot a
+  // day: a month of daily prime-belt spots works out at roughly N4m, which is
+  // what a buyer would actually be quoted.
+  ['Channels TV Sunrise Breakfast Spot (30s), Lagos', 'Television', 'Lagos, Nigeria', 126, '30s spot, one a day', 'high'],
+  ['Channels TV Programme Sponsorship, Lagos', 'Television', 'Lagos, Nigeria', 50, 'Programme billing', 'high']
 ];
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show
@@ -187,8 +222,12 @@ const AD_TYPE_IMAGES: Record<string, string[]> = {
     3927753, 18187188, 14363740, 12849349, 2506923, 2614818,
     2372982, 12602146, 35072459, 27164635, 38833542, 11744955,
   ].map(pexels),
-  // 4 transit placements
-  'Transit': [12641815, 35611756, 2031758, 3626589, 5870361, 34503103, 12707546].map(pexels),
+  // 10 transit placements (BRT fleet branding is most of them)
+  'Transit': [
+    27782512, 12641815, 35611756, 2031758, 3626589, 4774659,
+    13012408, 17177127, 28757904, 16464135, 17994718, 12382508,
+    9678165, 32441052,
+  ].map(pexels),
   // 5 mall media placements
   'Mall Media': [
     13100935, 37713979, 264636, 2861656, 3962285,
@@ -204,7 +243,11 @@ const AD_TYPE_IMAGES: Record<string, string[]> = {
   'Stadium': [270085, 2263436, 28772774].map(pexels),
   'Radio': [164829, 1054713, 744318].map(pexels),
   'Cinema': [18758034, 7991486, 3709371, 32682154].map(pexels),
-  'Vehicle Wrap': [34503103, 12707546, 5870361, 35611756].map(pexels),
+  // 9 vehicle-wrap placements (mobile truck and roadshow inventory)
+  'Vehicle Wrap': [
+    12418932, 5410923, 38199714, 28158703, 9754798,
+    15379824, 11040957, 31310062, 16370722, 34503103,
+  ].map(pexels),
   'Television': [33925166, 7865064, 39071437, 14699396].map(pexels),
   'Print': [10004971, 36376366, 3866816, 36412293].map(pexels),
   'Online': [1181675, 927022, 3153201, 1181673].map(pexels),
