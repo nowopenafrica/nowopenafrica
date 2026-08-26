@@ -1,4 +1,9 @@
-// NowOpen Studio — Reel & Video Studio.
+// Reel script generator — Admin Creator's AI Video Studio.
+//
+// No longer NowOpen Studio's video module: that now opens Motion Studio, which
+// designs a motion graphic rather than planning a shoot. This still writes the
+// shootable script (hook, value, CTA, shot list), which Motion Studio does not
+// do, so the two are different tools rather than two versions of one.
 //
 // Turns a goal into a shootable reel script: hook, value, call-to-action,
 // then a scene-by-scene breakdown with on-screen captions, filming directions

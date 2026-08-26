@@ -5,7 +5,7 @@ import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import { Business } from '../types';
-import VideoStudio from '../components/studio/VideoStudio';
+import MotionGraphicsStudio from '../components/admin/MotionGraphicsStudio';
 import DesignStudioHub from '../components/studio/DesignStudioHub';
 import CampaignManager from '../components/studio/CampaignManager';
 import BrandKitStudio from '../components/studio/BrandKitStudio';
@@ -42,7 +42,9 @@ const META: Record<ModuleKey, ModuleMeta> = {
   challenges: { key: 'challenges', label: 'Growth Challenges', icon: Trophy, desc: 'Gamified sprints that turn advice into finished actions — earn points as you grow.' },
 
   design: { key: 'design', label: 'Creative Studio', icon: LayoutPanelTop, desc: 'Flyers, posters, banners, stories and social graphics — one studio, every size. Quick Create, AI copy, live previews and a full campaign pack.' },
-  video: { key: 'video', label: 'Video Studio', icon: Clapperboard, desc: 'Turn a goal into a shootable reel — storyboard, voiceover and shot list — then render a video you can post.' },
+  // The module key stays 'video' on purpose: it is in saved hub layouts and in
+  // links that have already been emailed out. Only what it opens has changed.
+  video: { key: 'video', label: 'Motion Studio', icon: Clapperboard, desc: 'Design a motion graphic and render a real video — templates, storyboard, timeline, backgrounds and voiceover, in every aspect ratio.' },
   'brand-kit': { key: 'brand-kit', label: 'Brand OS', icon: Palette, desc: 'Your identity, voice, colours, stationery and brand health — how your entire brand works.' },
   card: { key: 'card', label: 'Digital Business Card', icon: CreditCard, desc: 'A professional business card with a live QR that always points to your profile.' },
   landing: { key: 'landing', label: 'Landing Pages', icon: LayoutTemplate, desc: 'A one-page site for launches, events and offers.' },
@@ -154,7 +156,7 @@ export default function Studio() {
       case 'card': return <BrandCardStudio business={business} />;
       case 'social': return <SocialStudioHub key={`${business.id}-social`} business={business} onNavigate={go} />;
       case 'design': return <DesignStudioHub business={business} />;
-      case 'video': return <VideoStudio key={`${business.id}-video`} business={business} />;
+      case 'video': return <MotionGraphicsStudio key={`${business.id}-video`} businessName={business.name} />;
       case 'promotions': return <DesignStudioHub key={`${business.id}-promo`} business={business} initialTab="promo" />;
       case 'copywriter': return <SocialStudioHub key={`${business.id}-social-factory`} business={business} onNavigate={go} initialTab="factory" />;
       case 'assistant': return <SocialStudioHub key={`${business.id}-social-director`} business={business} onNavigate={go} initialTab="director" />;

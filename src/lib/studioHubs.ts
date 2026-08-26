@@ -104,7 +104,7 @@ export interface Intent {
 
 export const INTENTS: Intent[] = [
   { id: 'design', label: 'Design', outcome: 'A flyer, poster or social post', target: 'design' },
-  { id: 'video', label: 'Video', outcome: 'A reel script and a video to post', target: 'video' },
+  { id: 'video', label: 'Motion', outcome: 'A motion graphic you can post', target: 'video' },
   { id: 'promo', label: 'Offer', outcome: 'A promotion with a countdown', target: 'live-promo' },
   { id: 'social', label: 'Social', outcome: 'Captions and a week of posts', target: 'social' },
   { id: 'campaign', label: 'Campaign', outcome: 'Email, SMS and WhatsApp together', target: 'campaigns' },

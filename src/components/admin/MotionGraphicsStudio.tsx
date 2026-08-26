@@ -797,9 +797,27 @@ function ElementInspector({
   );
 }
 
-export default function MotionGraphicsStudio() {
+/**
+ * @param businessName Seeds the brand lockup on projects created from here.
+ *   Optional because Admin Creator runs this tool without a business in
+ *   context; NowOpen Studio always has one, and an owner should not have to
+ *   retype their own name onto every new project.
+ */
+export default function MotionGraphicsStudio({ businessName }: { businessName?: string } = {}) {
   const [mode, setMode] = useState<Mode>('quick');
-  const [project, setProject] = useState<MotionProject>(() => loadMotionProjects()[0] ?? blankMotionProject());
+  // Applied on creation only. An existing project keeps whatever brand it was
+  // saved with — silently rewriting saved work would be worse than a stale name.
+  const brandNew = useCallback(
+    (p: MotionProject): MotionProject =>
+      businessName?.trim()
+        ? { ...p, brief: { ...p.brief, business: businessName.trim() } }
+        : p,
+    [businessName],
+  );
+
+  const [project, setProject] = useState<MotionProject>(
+    () => loadMotionProjects()[0] ?? blankMotionProject(),
+  );
   const [projects, setProjects] = useState<MotionProject[]>(() => loadMotionProjects());
   const [quickAspect, setQuickAspect] = useState<RenderAspect>('Vertical');
   const [prompt, setPrompt] = useState('');
@@ -1194,19 +1212,19 @@ export default function MotionGraphicsStudio() {
   };
 
   const startFromTemplate = (t: MotionTemplate) => {
-    openProject(motionProjectFromTemplate(t, quickAspect));
+    openProject(brandNew(motionProjectFromTemplate(t, quickAspect)));
     toast.success(`${t.name} project created — fine-tune it in Studio.`);
   };
 
   const startBlank = (aspect: RenderAspect = 'Vertical') => {
-    openProject(blankMotionProject(aspect));
+    openProject(brandNew(blankMotionProject(aspect)));
     toast.success('Blank project created — now in Studio.');
   };
 
   const buildFromPrompt = () => {
     const trimmed = prompt.trim();
     if (!trimmed) { setAiError('Tell the director what you want first.'); return; }
-    openProject(motionProjectFromPrompt(trimmed));
+    openProject(brandNew(motionProjectFromPrompt(trimmed)));
     setPrompt('');
     toast.success('Designed locally — a full editable project is now in Studio.');
   };
@@ -1219,7 +1237,7 @@ export default function MotionGraphicsStudio() {
   const remove = () => {
     const next = deleteMotionProject(project.id);
     setProjects(next);
-    openProject(next[0] ?? blankMotionProject('Vertical'));
+    openProject(next[0] ?? brandNew(blankMotionProject('Vertical')));
     toast.success('Project deleted.');
   };
 
