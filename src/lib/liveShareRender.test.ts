@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { renderLiveSharePage, type LiveSharePage } from './liveShareRender';
+import { renderLiveSharePage, videoTypeForUrl, type LiveSharePage } from './liveShareRender';
 
 const page = (over: Partial<LiveSharePage> = {}): LiveSharePage => ({
   status: 'live',
@@ -81,5 +81,32 @@ describe('renderLiveSharePage', () => {
   it('shows a crowd only once there is one', () => {
     expect(renderLiveSharePage(page({ viewers: 12 }))).toContain('12 watching');
     expect(renderLiveSharePage(page({ viewers: 1 }))).not.toContain('watching</span>');
+  });
+});
+
+describe('videoTypeForUrl', () => {
+  it('names the container the replay is actually in', () => {
+    // A platform that trusts og:video:type hands the bytes to the demuxer this
+    // names — get it wrong and the viewer sees an error, not the video.
+    expect(videoTypeForUrl('https://x/live/a.mp4')).toBe('video/mp4');
+    expect(videoTypeForUrl('https://x/live/a.webm')).toBe('video/webm');
+    expect(videoTypeForUrl('https://x/live/a.mov')).toBe('video/quicktime');
+  });
+
+  it('ignores a query string or fragment on the way to the extension', () => {
+    expect(videoTypeForUrl('https://x/live/a.mp4?token=abc#t=10')).toBe('video/mp4');
+  });
+
+  it('falls back to WebM for anything it cannot read', () => {
+    expect(videoTypeForUrl('')).toBe('video/webm');
+    expect(videoTypeForUrl('https://x/live/a')).toBe('video/webm');
+  });
+
+  it('is used by the page, so an mp4 replay is not announced as webm', () => {
+    const html = renderLiveSharePage(page({
+      status: 'ended',
+      recordingUrl: 'https://xyz.supabase.co/storage/v1/object/public/business-images/live/s1.mp4',
+    }));
+    expect(html).toContain('<meta property="og:video:type" content="video/mp4">');
   });
 });

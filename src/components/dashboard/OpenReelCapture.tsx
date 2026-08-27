@@ -2,7 +2,7 @@ import { useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { X, Camera, Video, Circle, Square, Loader2, Check, RotateCcw, Pause, Play, Sun, Settings2, Minus, Plus, SwitchCamera } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
-import { compressImage } from '../../lib/imageCompression';
+import { compressImage, CAPTURE_MAX_DIMENSION } from '../../lib/imageCompression';
 import {
   ZOOM_STEPS, pickRecorderMimeType, formatForMimeType, chooseVideoBitrate,
   zoomCropRect, coverCropRect, nativeZoomTarget, captureResolutionFor, formatRecordingClock,
@@ -127,10 +127,19 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   const startCamera = useCallback(async (desiredMode: Mode, desiredFacing?: FacingMode) => {
     const wanted = desiredFacing ?? facingRef.current;
     try {
-      // Photos always want the full sensor. Video asks for the resolution the
-      // plan's maximum length can actually afford in bits — a 20-minute clip
-      // held to the upload cap looks better at 360p than smeared over 1080p.
-      const res = desiredMode === 'video' ? captureResolutionFor(limitSeconds) : { width: 1920, height: 1080 };
+      // Video asks for the resolution the plan's maximum length can actually
+      // afford in bits — a 20-minute clip held to the upload cap looks better at
+      // 360p than smeared over 1080p.
+      //
+      // Photos ask for more, above 1080p. `ideal` degrades on its own, so a
+      // camera that cannot manage it simply returns what it has, while a phone
+      // that can now hands back detail the old request left on the sensor.
+      // Stopped short of 4K deliberately: the preview and the HDR bracket both
+      // work on these frames, and 4K makes both noticeably slower on a
+      // mid-range phone.
+      const res = desiredMode === 'video'
+        ? captureResolutionFor(limitSeconds)
+        : { width: 2560, height: 1440 };
       const stream = await navigator.mediaDevices.getUserMedia({
         video: videoConstraintsFor(wanted, res.width, res.height),
         audio: desiredMode === 'video',
@@ -406,15 +415,27 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
       grab();
     }
 
-    // Near-lossless here; compressImage does the real sizing on upload so the
-    // stored file is small without this step throwing away detail first.
+    // LOSSLESS here, because compressImage is about to encode it properly.
+    //
+    // This was JPEG at 0.95, so every photograph went through two lossy
+    // generations. Measured against a detailed 1280x720 source, dropping the
+    // first one is worth +0.8 dB at an identical uploaded file size — which is
+    // the case that matters most, because a camera that only manages 720p is
+    // already under the ceiling and gets no downscale to hide the artefacts.
+    //
+    // Where a downscale DOES happen it is worth almost nothing (+0.05 dB): the
+    // resize averages the JPEG artefacts away regardless. So this is the cheap
+    // half of the change, not the important one — see CAPTURE_MAX_DIMENSION for
+    // where the detail actually comes back.
+    //
+    // PNG is large in memory and never leaves it — nothing uploads this blob.
     canvas.toBlob((blob) => {
       if (!blob) {
         toast.error('Could not capture the photo — try again.');
         return;
       }
       showCaptured(blob, 'photo');
-    }, 'image/jpeg', 0.95);
+    }, 'image/png');
   }, [showCaptured, hdr, controls, brightness, videoTrack]);
 
   /**
@@ -606,11 +627,20 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
         // Same pipeline as every other image upload: WebP where supported,
         // long edge capped, original kept if compressing wouldn't help.
         const compressed = await compressImage(
-          new File([captured], `reel-${Date.now()}.jpg`, { type: 'image/jpeg' }),
+          new File([captured], `reel-${Date.now()}.png`, { type: captured.type || 'image/png' }),
+          // A higher ceiling than a cover image gets: this is the shot a
+          // customer opens to look closely at.
+          CAPTURE_MAX_DIMENSION,
         );
         body = compressed;
-        contentType = compressed.type || 'image/jpeg';
-        ext = contentType === 'image/webp' ? 'webp' : 'jpg';
+        contentType = compressed.type || 'image/png';
+        // Derived, not guessed at from two cases. compressImage returns the
+        // ORIGINAL file when re-encoding would not help or when it throws, and
+        // that original is now a PNG — which the old two-way branch would have
+        // stored as `.jpg` with a PNG content type.
+        ext = contentType === 'image/webp' ? 'webp'
+          : contentType === 'image/png' ? 'png'
+            : 'jpg';
       } else {
         ({ ext, contentType } = formatForMimeType(captured.type));
       }

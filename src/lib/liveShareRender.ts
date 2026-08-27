@@ -40,6 +40,22 @@ export interface LiveSharePage {
   siteUrl: string;
 }
 
+/**
+ * The container a replay is actually in.
+ *
+ * Declaring the wrong one is not cosmetic: a platform that trusts og:video:type
+ * hands the bytes to the wrong demuxer and shows an error instead of the video.
+ * Replays used to be WebM without exception; they are now whatever the
+ * broadcaster's browser could record (see pickRecorderMimeType), so the tag has
+ * to follow the file rather than assume.
+ */
+export function videoTypeForUrl(url: string): string {
+  const path = (url || '').split(/[?#]/)[0].toLowerCase();
+  if (/\.mp4$/.test(path)) return 'video/mp4';
+  if (/\.mov$/.test(path)) return 'video/quicktime';
+  return 'video/webm';
+}
+
 const badgeColour = (status: LiveStatus): string =>
   status === 'live' ? '#dc2626' : status === 'scheduled' ? '#2563eb' : '#475569';
 
@@ -77,7 +93,7 @@ export function renderLiveSharePage(p: LiveSharePage): string {
     ? `<meta property="og:type" content="video.other">
 <meta property="og:video" content="${replay}">
 <meta property="og:video:secure_url" content="${replay}">
-<meta property="og:video:type" content="video/webm">
+<meta property="og:video:type" content="${videoTypeForUrl(p.recordingUrl || '')}">
 <meta name="twitter:card" content="player">
 <meta name="twitter:player" content="${share}">
 <meta name="twitter:player:width" content="1280">

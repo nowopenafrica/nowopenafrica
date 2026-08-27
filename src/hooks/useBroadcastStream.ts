@@ -7,7 +7,8 @@ import {
 import {
   coverCropRect, containRect, videoConstraintsFor, oppositeFacing, canFlipCamera,
   applyAutoAdapt, cameraControls, applyPointOfInterest, applyTrackValue,
-  nativeZoomTarget, clampToRange,
+  nativeZoomTarget, clampToRange, pickRecorderMimeType, formatForMimeType,
+  chooseVideoBitrate, preferredCodecOrder, hintDetail, AUDIO_BITRATE,
   type FacingMode, type CameraControls,
 } from '../lib/openReel';
 import { livePosterPath, LIVE_POSTER_BUCKET } from '../lib/liveShare';
@@ -79,7 +80,8 @@ async function createRecordingPump(
     return null;
   }
 
-  const timer = setInterval(() => {
+  let lastDraw = 0;
+  const draw = () => {
     if (!video.videoWidth) return;
     // CONTAIN, not cover. The canvas cannot be resized once MediaRecorder is
     // running, so a flip to a camera of a different shape has to fit inside the
@@ -94,7 +96,38 @@ async function createRecordingPump(
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     ctx.drawImage(video, fit.dx, fit.dy, fit.dw, fit.dh);
-  }, Math.round(1000 / REPLAY_FPS));
+    lastDraw = performance.now();
+  };
+
+  // Draw when a frame actually arrives, not on a timer.
+  //
+  // A fixed interval samples the camera on its own schedule, so at 30fps
+  // against a 30fps source it duplicates some frames and misses others — the
+  // replay judders even though nothing dropped. requestVideoFrameCallback fires
+  // once per decoded frame, which is exactly the cadence wanted.
+  //
+  // It stops when the broadcaster switches apps, though, so the interval stays
+  // on as a BACKSTOP: it draws only when nothing has for a while. Foreground,
+  // that costs one comparison a quarter second; backgrounded, it is the only
+  // thing keeping the replay moving instead of frozen.
+  type FrameCallbackVideo = HTMLVideoElement & {
+    requestVideoFrameCallback?: (cb: () => void) => number;
+    cancelVideoFrameCallback?: (handle: number) => void;
+  };
+  const fcVideo = video as FrameCallbackVideo;
+  const perFrame = typeof fcVideo.requestVideoFrameCallback === 'function';
+  let frameHandle: number | null = null;
+  const armFrameCallback = () => {
+    if (!perFrame) return;
+    frameHandle = fcVideo.requestVideoFrameCallback!(() => { draw(); armFrameCallback(); });
+  };
+  armFrameCallback();
+
+  const backstopMs = perFrame ? 250 : Math.round(1000 / REPLAY_FPS);
+  const timer = setInterval(() => {
+    if (perFrame && performance.now() - lastDraw < backstopMs) return;
+    draw();
+  }, backstopMs);
 
   const stream = canvas.captureStream(REPLAY_FPS);
   if (audio) stream.addTrack(audio);
@@ -104,9 +137,13 @@ async function createRecordingPump(
     setSource: (next: MediaStreamTrack) => {
       video.srcObject = new MediaStream([next]);
       video.play().catch(() => {});
+      // Changing the source cancels any pending frame callback, so the chain
+      // has to be started again or the pump falls back to the backstop rate.
+      armFrameCallback();
     },
     stop: () => {
       clearInterval(timer);
+      if (frameHandle !== null) fcVideo.cancelVideoFrameCallback?.(frameHandle);
       video.srcObject = null;
       stream.getVideoTracks().forEach((t) => t.stop());
     },
@@ -219,6 +256,10 @@ export function useBroadcastStream() {
   // arriving after the flip would connect to a dead camera.
   const outboundStreamRef = useRef<MediaStream | null>(null);
   const pumpRef = useRef<RecordingPump | null>(null);
+  // What the recorder actually produced. Read from the recorder rather than
+  // assumed, because a browser may hand back a different container from the one
+  // it was asked for — and the upload has to name the truth.
+  const recordFormatRef = useRef<{ ext: string; contentType: string }>({ ext: 'webm', contentType: 'video/webm' });
   const facingRef = useRef<FacingMode>('environment');
   // What is pinned right now. Kept in a ref as well as state so it can be
   // re-sent to a viewer who joins mid-broadcast — a broadcast event reaches
@@ -269,6 +310,22 @@ export function useBroadcastStream() {
     const pc = new RTCPeerConnection(RTC_CONFIG);
     peersRef.current.set(payload.viewerId, pc);
     stream.getTracks().forEach((track) => pc.addTrack(track, stream));
+
+    // Ask for a better codec than the VP8 WebRTC settles on by default. This
+    // has to happen before the answer is created, or the negotiation is already
+    // decided. See preferredCodecOrder: it reorders and never removes, so a
+    // viewer whose browser has none of the preferred codecs still connects.
+    try {
+      const capabilities = RTCRtpSender.getCapabilities?.('video');
+      const videoTransceiver = pc.getTransceivers().find((t) => t.sender.track?.kind === 'video');
+      if (capabilities?.codecs && videoTransceiver?.setCodecPreferences) {
+        videoTransceiver.setCodecPreferences(preferredCodecOrder(capabilities.codecs));
+      }
+    } catch {
+      // Firefox has shipped setCodecPreferences as a no-op in the past, and an
+      // unsupported list throws. Default negotiation is a fine outcome.
+    }
+
     rebalanceBitrates();
     pc.onicecandidate = (e) => {
       if (e.candidate) {
@@ -312,6 +369,9 @@ export function useBroadcastStream() {
       setFacing(wanted);
       setLocalStream(stream);
       outboundStreamRef.current = stream;
+      // What a business streams is a thing being shown, and detail is what the
+      // viewer came for — the default hint spends bits on smooth motion instead.
+      hintDetail(stream.getVideoTracks()[0]);
 
       // The same metering pass OpenReel runs, so a stream from a dim shop or a
       // sunlit street is watchable without the owner touching anything.
@@ -366,7 +426,23 @@ export function useBroadcastStream() {
       await channel.track({ role: 'broadcaster' });
 
       // Local recording for replay support — no external service needed.
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp8,opus') ? 'video/webm;codecs=vp8,opus' : 'video/webm';
+      // The same chooser OpenReel uses, instead of the hardcoded VP8 that was
+      // here. Two things were wrong with VP8:
+      //
+      //   - It is the oldest and least efficient codec WebRTC-era browsers
+      //     carry, so the replay looked worse than the bitrate paid for it.
+      //   - It only lives in WebM, and iOS Safari plays no WebM at all. Every
+      //     replay was unplayable on an iPhone — silently, since the page just
+      //     shows an empty player.
+      //
+      // pickRecorderMimeType prefers MP4/H.264, then VP9, then VP8, so the file
+      // now plays where it is watched and looks better where it does not have
+      // to fall back.
+      const format = pickRecorderMimeType(
+        typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported
+          ? (t) => MediaRecorder.isTypeSupported(t)
+          : undefined,
+      );
       chunksRef.current = [];
       // Recorded through the pump so a camera flip does not end the replay —
       // see createRecordingPump. Falls back to the camera stream where canvas
@@ -376,10 +452,25 @@ export function useBroadcastStream() {
       const audioTrack = stream.getAudioTracks()[0] || null;
       pumpRef.current = videoTrack ? await createRecordingPump(videoTrack, audioTrack) : null;
       const recordStream = pumpRef.current?.stream ?? stream;
-      const recorder = new MediaRecorder(recordStream, { mimeType, videoBitsPerSecond: REPLAY_VIDEO_BITRATE_BPS });
+      // Bitrate follows the resolution actually being recorded rather than a
+      // flat number, and audio is stated rather than left to the browser's
+      // default — which on some is well under half this and audible.
+      const recorded = recordStream.getVideoTracks()[0]?.getSettings();
+      const videoBitsPerSecond = Math.min(
+        REPLAY_VIDEO_BITRATE_BPS,
+        chooseVideoBitrate(recorded?.width || 1280, recorded?.height || 720),
+      );
+      const recorder = new MediaRecorder(recordStream, {
+        ...(format.mimeType ? { mimeType: format.mimeType } : {}),
+        videoBitsPerSecond,
+        audioBitsPerSecond: AUDIO_BITRATE,
+      });
       recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
       recorder.start(1000);
       recorderRef.current = recorder;
+      // recorder.mimeType is only meaningful once started, and is authoritative
+      // over what we asked for.
+      recordFormatRef.current = formatForMimeType(recorder.mimeType || format.mimeType);
 
       if (speechRecognitionSupported()) {
         const rec = getSpeechRecognition();
@@ -468,6 +559,7 @@ export function useBroadcastStream() {
         }),
       );
 
+      hintDetail(nextTrack);
       const audio = current.getAudioTracks();
       const composed = new MediaStream([nextTrack, ...audio]);
       outboundStreamRef.current = composed;
@@ -599,10 +691,13 @@ export function useBroadcastStream() {
       recordingUrl = await new Promise<string | null>((resolve) => {
         recorder.onstop = async () => {
           try {
-            const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+            const { ext, contentType } = recordFormatRef.current;
+            const blob = new Blob(chunksRef.current, { type: contentType });
             if (blob.size === 0 || !id) { resolve(null); return; }
-            const path = `live/${id}.webm`;
-            const { error: uploadError } = await supabase.storage.from('business-images').upload(path, blob, { upsert: true, contentType: 'video/webm' });
+            // The extension follows the real container. Storing an MP4 as .webm
+            // is how a replay that recorded perfectly refuses to play.
+            const path = `live/${id}.${ext}`;
+            const { error: uploadError } = await supabase.storage.from('business-images').upload(path, blob, { upsert: true, contentType });
             if (uploadError) { console.warn('Replay upload failed:', uploadError.message); resolve(null); return; }
             const { data } = supabase.storage.from('business-images').getPublicUrl(path);
             resolve(data.publicUrl);

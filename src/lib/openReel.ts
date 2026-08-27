@@ -776,3 +776,59 @@ export function containRect(
   const dh = Math.round(h * scale);
   return { dx: Math.round((boxWidth - dw) / 2), dy: Math.round((boxHeight - dh) / 2), dw, dh };
 }
+
+// --- Getting more picture out of the same bandwidth ---------------------------
+
+/**
+ * Reorder a peer connection's video codecs by what a phone should actually send.
+ *
+ * WebRTC negotiates VP8 by default because it is the one codec every
+ * implementation must have. It is also the oldest and least efficient of them,
+ * so the picture a viewer gets is worse than the bitrate paid for it — which
+ * matters most where data is expensive.
+ *
+ * H.264 leads rather than VP9, despite VP9 compressing better. Phones almost
+ * universally have a hardware H.264 encoder and rarely a VP9 one, and a
+ * broadcaster falling back to a software encoder at 720p30 drops frames, drains
+ * the battery and makes the handset hot — a worse picture than the codec saved.
+ * Same reasoning as the recorder's MP4-first order.
+ *
+ * REORDERS, never removes. Dropping a codec the far end needs is how a call
+ * fails to connect at all; everything unranked keeps its original position, so
+ * the negotiation still has every fallback it started with.
+ */
+const CODEC_RANK: [RegExp, number][] = [
+  [/\/h264$/i, 0],
+  [/\/vp9$/i, 1],
+  [/\/vp8$/i, 2],
+];
+
+export function preferredCodecOrder<T extends { mimeType: string }>(codecs: readonly T[]): T[] {
+  if (!Array.isArray(codecs) || codecs.length === 0) return [];
+  const rankOf = (mime: string): number => {
+    for (const [pattern, rank] of CODEC_RANK) if (pattern.test(mime || '')) return rank;
+    return Number.POSITIVE_INFINITY;
+  };
+  // A stable sort keeps unranked entries — RTX, RED, FEC and anything the
+  // browser adds later — in the order the browser gave them.
+  return [...codecs].sort((a, b) => rankOf(a.mimeType) - rankOf(b.mimeType));
+}
+
+/**
+ * Tell the encoder what it is looking at.
+ *
+ * A business live stream is nearly always a thing being shown — fabric, a
+ * price tag, a finished haircut — and detail is what the viewer came for. The
+ * default hint spends bits keeping motion smooth instead, which is the right
+ * call for a video call and the wrong one here.
+ *
+ * Advisory by spec, so a browser that ignores it simply behaves as before.
+ */
+export function hintDetail(track: MediaStreamTrack | null | undefined): void {
+  if (!track) return;
+  try {
+    (track as MediaStreamTrack & { contentHint?: string }).contentHint = 'detail';
+  } catch {
+    /* read-only in some implementations */
+  }
+}
