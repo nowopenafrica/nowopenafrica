@@ -8,6 +8,7 @@ import VerifiedBadge from '../components/VerifiedBadge';
 import TrustBadge from '../components/TrustBadge';
 import BusinessTrustPanel from '../components/BusinessTrustPanel';
 import BusinessLocations from '../components/BusinessLocations';
+import KeepButton from '../components/KeepButton';
 import { withDemoTrustAll } from '../data/demoTrust';
 import OpeningHoursPanel from '../components/OpeningHoursPanel';
 import { deriveTier, TIERS } from '../lib/trust';
@@ -892,6 +893,11 @@ export default function BusinessDetail() {
 
             {/* CTA row — 2-up grid on mobile so 4 actions form 2 rows instead of stacking 1-per-row; single row from sm: up */}
             <div className="grid grid-cols-2 sm:flex sm:flex-row gap-2 sm:gap-3 mt-4 sm:mt-6">
+              {/* Keep leads: Call, WhatsApp and Directions are one-off
+                  contacts, and this is the one that starts a relationship. */}
+              {!isSample && (
+                <KeepButton businessId={String(business.id)} businessName={business.name} />
+              )}
               {business.phone && (
                 <a
                   href={telHref(String(business.phone))}

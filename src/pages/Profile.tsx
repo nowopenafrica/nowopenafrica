@@ -6,6 +6,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { User, Business, MediaService } from '../types';
 import { ArrowLeft, User as UserIcon, Clock, MapPin, Phone, Mail, Globe, Star, Image } from 'lucide-react';
 import { applySeo } from '../lib/seo';
+import MyKeeps from '../components/MyKeeps';
 
 export default function Profile() {
   const { user: authUser } = useAuth();
@@ -466,7 +467,9 @@ export default function Profile() {
         {/* Businesses Section */}
         {businesses.length > 0 && (
           <div className="mt-12">
-            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6">Businesses</h2>
+            <MyKeeps />
+
+            <h2 className="text-2xl font-bold text-gray-900 dark:text-white mb-6 mt-10">Businesses</h2>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {businesses.map((business) => (
                 <Link
