@@ -3,7 +3,9 @@ import {
   resolveAudience, isSeller, canSwitchAudience,
   readAudiencePreference, writeAudiencePreference, clearAudiencePreference,
 } from '../lib/audience';
-import { PEOPLE_NAV, BUSINESS_NAV, navFor, isNavItemActive } from '../lib/navigation';
+import {
+  PRIMARY_NAV, PEOPLE_MENU, BUSINESS_MENU, menuFor, menuLabel, isNavItemActive,
+} from '../lib/navigation';
 
 beforeEach(() => localStorage.clear());
 
@@ -60,40 +62,60 @@ describe('audience preference', () => {
   });
 });
 
-describe('the two navigations stay apart', () => {
-  it('keeps every seller surface out of the people nav', () => {
-    // The specific complaint: a shopper should not be sold a business account.
-    const peoplePaths = PEOPLE_NAV.map((i) => i.to);
+describe('the primary lineup', () => {
+  it('is the platform lineup, in order', () => {
+    expect(PRIMARY_NAV.map((i) => i.label)).toEqual(['Home', 'Discover', 'Promote', 'Create']);
+  });
+
+  it('is shown to everyone, so nothing in it may require an account', () => {
+    // A primary link that vanishes when signed out leaves a gap in the bar.
+    expect(PRIMARY_NAV.every((i) => !i.authOnly)).toBe(true);
+  });
+});
+
+describe('the two menus stay apart', () => {
+  it('keeps seller surfaces out of the people menu', () => {
+    const peoplePaths = PEOPLE_MENU.map((i) => i.to);
     for (const seller of ['/pricing', '/adverts', '/platform', '/os', '/forms', '/waitlist', '/dashboard', '/studio']) {
       expect(peoplePaths).not.toContain(seller);
     }
   });
 
-  it('keeps discovery surfaces out of the business nav', () => {
-    const businessPaths = BUSINESS_NAV.map((i) => i.to);
+  it('keeps discovery surfaces out of the business menu', () => {
+    const businessPaths = BUSINESS_MENU.map((i) => i.to);
     for (const consumer of ['/discover', '/keeps', '/nearby', '/open-now']) {
       expect(businessPaths).not.toContain(consumer);
     }
   });
 
   it('shares no destination between the two', () => {
-    const overlap = PEOPLE_NAV.map((i) => i.to).filter((p) => BUSINESS_NAV.some((b) => b.to === p));
+    const overlap = PEOPLE_MENU.map((i) => i.to).filter((p) => BUSINESS_MENU.some((b) => b.to === p));
     expect(overlap).toEqual([]);
   });
 
-  it('fits a phone tab bar', () => {
-    expect(PEOPLE_NAV.length).toBeLessThanOrEqual(5);
+  it('never duplicates a primary link inside a menu', () => {
+    // The same destination in the bar and the dropdown reads as two places.
+    const primary = PRIMARY_NAV.map((i) => i.to);
+    for (const item of [...PEOPLE_MENU, ...BUSINESS_MENU]) {
+      expect(primary).not.toContain(item.to);
+    }
   });
 
-  it('returns the right set', () => {
-    expect(navFor('people')).toBe(PEOPLE_NAV);
-    expect(navFor('business')).toBe(BUSINESS_NAV);
+  it('returns the right menu and names it', () => {
+    expect(menuFor('people')).toBe(PEOPLE_MENU);
+    expect(menuFor('business')).toBe(BUSINESS_MENU);
+    expect(menuLabel('people')).toBe('For you');
+    expect(menuLabel('business')).toBe('Manage');
+  });
+
+  it('gates only Keeps on having an account', () => {
+    expect(PEOPLE_MENU.filter((i) => i.authOnly).map((i) => i.label)).toEqual(['Keeps']);
   });
 });
 
 describe('isNavItemActive', () => {
-  const overview = BUSINESS_NAV[0];
-  const customers = BUSINESS_NAV.find((i) => i.label === 'Customers')!;
+  const overview = BUSINESS_MENU[0];
+  const customers = BUSINESS_MENU.find((i) => i.label === 'Customers')!;
 
   it('marks Overview active only with no tab selected', () => {
     expect(isNavItemActive(overview, '/dashboard', '')).toBe(true);
@@ -110,6 +132,6 @@ describe('isNavItemActive', () => {
   });
 
   it('matches a plain path', () => {
-    expect(isNavItemActive(PEOPLE_NAV[1], '/discover', '')).toBe(true);
+    expect(isNavItemActive(PRIMARY_NAV[1], '/discover', '')).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
     import { useState } from 'react';
     import { Link, useLocation } from 'react-router-dom';
-    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, LayoutGrid, Store, Sparkles, BadgeDollarSign, Cpu, UserPlus } from 'lucide-react';
+    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, LayoutGrid, Store, Heart, Sparkles, BadgeDollarSign, Cpu, UserPlus } from 'lucide-react';
     import { useAuth } from '../../contexts/AuthContext';
     import { useRole } from '../../hooks/useRole';
     import AuthModal from '../auth/AuthModal';
@@ -10,7 +10,7 @@
 import LanguageSelector from '../LanguageSelector';
 import { useT } from '../../contexts/I18nContext';
 import { useAudience } from '../../hooks/useAudience';
-import { navFor, isNavItemActive } from '../../lib/navigation';
+import { PRIMARY_NAV, menuFor, menuLabel, isNavItemActive } from '../../lib/navigation';
 import AudienceSwitch from './AudienceSwitch';
 
     export default function Navigation() {
@@ -23,7 +23,7 @@ import AudienceSwitch from './AudienceSwitch';
       const isAdmin = role === 'admin';
       const location = useLocation();
       const { audience, canSwitch, setAudience } = useAudience();
-      const navItems = navFor(audience);
+      const menuItems = menuFor(audience);
       const isBusinessView = audience === 'business';
 
       const handleSignOut = async () => {
@@ -50,12 +50,11 @@ import AudienceSwitch from './AudienceSwitch';
                     <Logo />
                   </Link>
 
-                  {/* One of the two navigations — never both. The items come
-                      from lib/navigation.ts so that a seller surface cannot be
-                      dropped into the people menu without it being obvious. */}
+                  {/* The primary lineup, shown to everyone. The people and
+                      business surfaces live in the menu further along, so the
+                      two never interleave here. */}
                   <div className="hidden lg:flex items-center gap-4 xl:gap-8">
-                    {navItems.map((item) => {
-                      if (item.authOnly && !user) return null;
+                    {PRIMARY_NAV.map((item) => {
                       const active = isNavItemActive(item, location.pathname, location.search);
                       return (
                         <Link
@@ -77,19 +76,63 @@ import AudienceSwitch from './AudienceSwitch';
 
                 <div className="ml-auto flex items-center gap-2 xl:gap-4 shrink-0">
                   <div className="hidden lg:flex items-center gap-2 xl:gap-4">
-                    {/* Seller marketing — the platform pitch, pricing, the
-                        waitlist. Shown in the business view only. A person
-                        looking for somewhere to eat is not a lead, and a menu
-                        of five sales pages is how a directory reads as an
-                        advert for itself. */}
-                    {!isBusinessView ? (
-                      <Link
-                        to="/platform"
-                        className="hidden xl:flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 rounded-lg transition text-sm font-medium"
+                    {/* The people surfaces, or the business ones — one menu,
+                        never a blend of both. Which it is follows the
+                        Browse/Manage switch. */}
+                    <div className="relative group shrink-0">
+                      <button
+                        type="button"
+                        className="flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-gray-700 dark:text-gray-300 hover:text-blue-600 rounded-lg transition text-sm font-medium"
+                        aria-haspopup="true"
                       >
-                        <Store size={16} /> List your business
-                      </Link>
-                    ) : (
+                        {isBusinessView ? <Store size={15} /> : <Heart size={15} />}
+                        {menuLabel(audience)}
+                        <ChevronDown size={14} className="transition group-hover:rotate-180" />
+                      </button>
+                      <div className="absolute right-0 top-full pt-2 hidden group-hover:block group-focus-within:block">
+                        <div className="w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg py-2">
+                          {menuItems.map((item) => {
+                            if (item.authOnly && !user) return null;
+                            const Icon = item.icon;
+                            const active = isNavItemActive(item, location.pathname, location.search);
+                            return (
+                              <Link
+                                key={item.to}
+                                to={item.to}
+                                aria-current={active ? 'page' : undefined}
+                                className={`flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                                  active ? 'bg-gray-50 dark:bg-gray-700/60' : ''
+                                }`}
+                              >
+                                <Icon size={18} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
+                                <span>
+                                  <span className="block text-sm font-medium text-gray-900 dark:text-white">{item.label}</span>
+                                  {item.blurb && (
+                                    <span className="block text-xs text-gray-500 dark:text-gray-400">{item.blurb}</span>
+                                  )}
+                                </span>
+                              </Link>
+                            );
+                          })}
+                          {/* A signed-out visitor sees Nearby and Open now but
+                              not Keeps, so tell them what the missing one is
+                              for rather than simply hiding it. */}
+                          {!user && !isBusinessView && (
+                            <>
+                              <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
+                              <Link to="/register" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                <Heart size={18} className="text-rose-500 mt-0.5 flex-shrink-0" />
+                                <span>
+                                  <span className="block text-sm font-medium text-gray-900 dark:text-white">Keeps</span>
+                                  <span className="block text-xs text-gray-500 dark:text-gray-400">Sign up to follow businesses</span>
+                                </span>
+                              </Link>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="relative group shrink-0">
                       <Link
                         to="/waitlist"
@@ -139,7 +182,6 @@ import AudienceSwitch from './AudienceSwitch';
                         </div>
                       </div>
                     </div>
-                    )}
                     {canSwitch && <AudienceSwitch audience={audience} onChange={setAudience} />}
                     {user ? (
                       <>
@@ -214,8 +256,27 @@ import AudienceSwitch from './AudienceSwitch';
                     <LanguageSelector />
                     <CurrencySelector />
                   </div>
-                  {/* Same rule as the desktop bar: one navigation, not both. */}
-                  {navItems.map((item) => {
+                  {/* Primary lineup, same as the desktop bar. */}
+                  {PRIMARY_NAV.map((item) => {
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={closeMenu}
+                        className="flex items-center gap-2.5 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm"
+                      >
+                        <Icon size={16} /> {item.label}
+                      </Link>
+                    );
+                  })}
+
+                  {/* Then one audience menu — the people surfaces or the
+                      business ones, never interleaved. */}
+                  <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">
+                    {menuLabel(audience)}
+                  </p>
+                  {menuItems.map((item) => {
                     if (item.authOnly && !user) return null;
                     const Icon = item.icon;
                     return (
@@ -240,8 +301,7 @@ import AudienceSwitch from './AudienceSwitch';
                     </button>
                   )}
 
-                  {isBusinessView ? (
-                    <>
+                  <>
                       <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('nav.africaNowOpen')}</p>
                       <Link to="/platform" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
                         {t('nav.platform')}
@@ -258,14 +318,7 @@ import AudienceSwitch from './AudienceSwitch';
                       <Link to="/pricing" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
                         {t('nav.pricing')}
                       </Link>
-                    </>
-                  ) : (
-                    /* The one door into the seller side, for someone who came
-                       to browse and turns out to run a shop. */
-                    <Link to="/platform" onClick={closeMenu} className="flex items-center gap-2.5 px-4 py-2 mt-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                      <Store size={16} /> List your business
-                    </Link>
-                  )}
+                  </>
                   {user ? (
                     <>
                       <Link to="/dashboard" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">

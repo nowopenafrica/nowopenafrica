@@ -1,58 +1,84 @@
 import {
-  Home, Compass, Heart, MapPin, DoorOpen,
-  LayoutGrid, Store, Users, ShoppingBag, Sparkles, Megaphone, BarChart3,
+  Home, Compass, Megaphone, Palette,
+  Heart, MapPin, DoorOpen,
+  LayoutGrid, Store, Users, ShoppingBag, Sparkles, BarChart3,
 } from 'lucide-react';
 
 /**
- * The two navigations, kept apart on purpose.
+ * The header, in three parts.
  *
- * They are declared here as data rather than written inline in the nav so that
- * "do not mix the two systems" is something the code enforces instead of
- * something a future edit has to remember. Adding a seller link to the people
- * nav means putting it in the wrong array, which is visible in review.
+ * PRIMARY is the platform's own lineup — Home, Discover, Promote, Create — and
+ * is shown to everyone, signed in or not, alongside the "Africa is NowOpen"
+ * dropdown written inline in the nav.
+ *
+ * Beneath it sit two menus that never merge: the people surfaces and the
+ * business surfaces. Which one is offered follows the Browse/Manage switch, so
+ * a shopper is never handed Orders and an owner never hunts for Customers among
+ * discovery links.
+ *
+ * Declaring them as separate arrays is the point. Putting a seller link in
+ * PEOPLE_MENU means putting it in the wrong array, which shows up in review and
+ * trips the test asserting the two share no destination.
  */
 export interface NavItem {
   to: string;
   label: string;
   icon: typeof Home;
-  /** Signed-in only — a Keeps tab means nothing to a visitor with no keeps. */
+  /** Signed-in only — a Keeps link means nothing to a visitor with no keeps. */
   authOnly?: boolean;
+  /** Secondary line shown under the label inside a dropdown. */
+  blurb?: string;
 }
 
 /**
- * For people: discover, keep, visit.
- * Notably absent — Pricing, Adverts, Platform, OS, Forms, Waitlist. Those sell
- * a business account, and a shopper being sold to is a shopper leaving.
+ * The primary lineup, as it was.
+ *
+ * `Discover` points at the rails page rather than the raw directory: same
+ * label, same position, and that page opens onto the full directory anyway.
  */
-export const PEOPLE_NAV: NavItem[] = [
+export const PRIMARY_NAV: NavItem[] = [
   { to: '/', label: 'Home', icon: Home },
   { to: '/discover', label: 'Discover', icon: Compass },
-  { to: '/keeps', label: 'Keeps', icon: Heart, authOnly: true },
-  { to: '/nearby', label: 'Nearby', icon: MapPin },
-  // The brief asked for Offers here. There is no offers, deals or promotions
-  // table in the schema and `business_products.price` is free text, so an
-  // Offers tab would be a permanently empty page — a nav item that lies. This
-  // is the surface NowOpen is actually named after, and it is backed by real
-  // opening-hours data. Offers goes back in the moment it has something to show.
-  { to: '/open-now', label: 'Open now', icon: DoorOpen },
+  { to: '/adverts', label: 'Promote', icon: Megaphone },
+  { to: '/media', label: 'Create', icon: Palette },
+];
+
+/** For people: discover, keep, visit. */
+export const PEOPLE_MENU: NavItem[] = [
+  { to: '/keeps', label: 'Keeps', icon: Heart, authOnly: true, blurb: 'Businesses you follow' },
+  { to: '/nearby', label: 'Nearby', icon: MapPin, blurb: 'What is around you' },
+  // The brief originally asked for Offers here. There is no offers, deals or
+  // promotions table and `business_products.price` is free text, so it would be
+  // a permanently empty page. This is the surface NowOpen is named after and it
+  // is backed by real opening-hours data.
+  { to: '/open-now', label: 'Open now', icon: DoorOpen, blurb: 'Doors open this minute' },
 ];
 
 /** For businesses: get discovered, connect, grow. */
-export const BUSINESS_NAV: NavItem[] = [
-  { to: '/dashboard', label: 'Overview', icon: LayoutGrid },
-  { to: '/dashboard?tab=business', label: 'Business', icon: Store },
-  { to: '/dashboard?tab=customers', label: 'Customers', icon: Users },
-  { to: '/dashboard?tab=orders', label: 'Orders', icon: ShoppingBag },
-  { to: '/studio', label: 'Studio', icon: Sparkles },
-  { to: '/dashboard?tab=marketing', label: 'Marketing', icon: Megaphone },
-  { to: '/dashboard?tab=analytics', label: 'Analytics', icon: BarChart3 },
+export const BUSINESS_MENU: NavItem[] = [
+  { to: '/dashboard', label: 'Overview', icon: LayoutGrid, blurb: 'How the business is doing' },
+  { to: '/dashboard?tab=business', label: 'Business', icon: Store, blurb: 'Profile, hours, locations' },
+  { to: '/dashboard?tab=customers', label: 'Customers', icon: Users, blurb: 'Who has been in touch' },
+  { to: '/dashboard?tab=orders', label: 'Orders', icon: ShoppingBag, blurb: 'Bookings and enquiries' },
+  { to: '/studio', label: 'Studio', icon: Sparkles, blurb: 'Brand kit and content' },
+  { to: '/dashboard?tab=analytics', label: 'Analytics', icon: BarChart3, blurb: 'Reach and performance' },
 ];
 
-/** The bottom bar on a phone. Five is the most a thumb can aim at. */
-export const PEOPLE_TABS = PEOPLE_NAV;
+/** Older names, kept so existing imports and tests stay readable. */
+export const PEOPLE_NAV = PEOPLE_MENU;
+export const BUSINESS_NAV = BUSINESS_MENU;
+
+export function menuFor(audience: 'people' | 'business'): NavItem[] {
+  return audience === 'business' ? BUSINESS_MENU : PEOPLE_MENU;
+}
+
+/** What that menu is called on each side. */
+export function menuLabel(audience: 'people' | 'business'): string {
+  return audience === 'business' ? 'Manage' : 'For you';
+}
 
 export function navFor(audience: 'people' | 'business'): NavItem[] {
-  return audience === 'business' ? BUSINESS_NAV : PEOPLE_NAV;
+  return menuFor(audience);
 }
 
 /** Active-state matching that treats /dashboard?tab=x as its own destination. */
