@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import toast from 'react-hot-toast';
 import { Business } from '../types';
 import { profileUrl, generateQr, downloadUrl, slugForFile, exportNodeToPng, downloadNodePdf } from '../lib/studio';
+import { CARD_DESIGN_WIDTH } from '../components/studio/BrandCardNodes';
 
 // Shared card/QR export logic used by BrandCardStudio and the Export Centre.
 export function useBrandExports(business: Business) {
@@ -28,7 +29,7 @@ export function useBrandExports(business: Business) {
     if (!cardRef.current) return;
     setExporting(true);
     try {
-      const dataUrl = await exportNodeToPng(cardRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' });
+      const dataUrl = await exportNodeToPng(cardRef.current, { pixelRatio: 2, backgroundColor: '#ffffff', designWidth: CARD_DESIGN_WIDTH });
       downloadUrl(dataUrl, `${slugForFile(business.name)}-card.png`);
       toast.success('Business card downloaded');
     } catch {
@@ -77,7 +78,7 @@ export function useBrandExports(business: Business) {
     if (!smartIdRef.current) return;
     setExportingSmartId(true);
     try {
-      const dataUrl = await exportNodeToPng(smartIdRef.current, { pixelRatio: 2, backgroundColor: '#0f172a' });
+      const dataUrl = await exportNodeToPng(smartIdRef.current, { pixelRatio: 2, backgroundColor: '#0f172a', designWidth: CARD_DESIGN_WIDTH });
       downloadUrl(dataUrl, `${slugForFile(business.name)}-smart-id.png`);
       toast.success('Smart ID card downloaded');
     } catch {
@@ -91,7 +92,7 @@ export function useBrandExports(business: Business) {
     if (!smartIdRef.current) return;
     setExportingSmartIdPdf(true);
     try {
-      await downloadNodePdf(smartIdRef.current, `${slugForFile(business.name)}-smart-id.pdf`, { backgroundColor: '#0f172a' });
+      await downloadNodePdf(smartIdRef.current, `${slugForFile(business.name)}-smart-id.pdf`, { backgroundColor: '#0f172a', designWidth: CARD_DESIGN_WIDTH });
       toast.success('Smart ID card PDF downloaded');
     } catch {
       toast.error('Could not export the Smart ID PDF — try again.');
@@ -119,7 +120,7 @@ export function useBrandExports(business: Business) {
     if (!smartIdFrontRef.current) return;
     setExportingSmartIdFrontPdf(true);
     try {
-      await downloadNodePdf(smartIdFrontRef.current, `${slugForFile(business.name)}-smart-id-front.pdf`, { backgroundColor: '#ffffff' });
+      await downloadNodePdf(smartIdFrontRef.current, `${slugForFile(business.name)}-smart-id-front.pdf`, { backgroundColor: '#ffffff', designWidth: CARD_DESIGN_WIDTH });
       toast.success('Smart ID front PDF downloaded');
     } catch {
       toast.error('Could not export the Smart ID front PDF — try again.');

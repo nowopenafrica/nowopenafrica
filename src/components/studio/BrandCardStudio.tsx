@@ -1,12 +1,12 @@
 import toast from 'react-hot-toast';
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import { Download, Printer, Share2, Link as LinkIcon, QrCode, Loader2, Contact, SlidersHorizontal, RotateCcw, User, Upload, X } from 'lucide-react';
 import { Business } from '../../types';
-import { profileUrl, shareLinks } from '../../lib/studio';
+import { profileUrl, shareLinks, exportNodeToPng, printImage } from '../../lib/studio';
 import { useBrandExports } from '../../hooks/useBrandExports';
 import { useCardSettings } from '../../hooks/useCardSettings';
 import { CARD_ACCENTS, compressImageFile } from '../../lib/cardSettings';
-import { CardExportNode, QrLockupNode, SmartIdNode, SmartIdFrontNode } from './BrandCardNodes';
+import { CardExportNode, QrLockupNode, SmartIdNode, SmartIdFrontNode, CARD_DESIGN_WIDTH } from './BrandCardNodes';
 import AiGenerateToggle from './AiGenerateToggle';
 
 export default function BrandCardStudio({ business }: { business: Business }) {
@@ -31,14 +31,30 @@ export default function BrandCardStudio({ business }: { business: Business }) {
     }
   };
 
-  const printCard = () => {
-    if (!cardRef.current) return;
-    const w = window.open('', '_blank', 'width=900,height=650');
-    if (!w) { toast.error('Please allow pop-ups to print.'); return; }
-    w.document.write(`<!doctype html><html><head><title>${business.name} — Business card</title>
-      <meta charset="utf-8"><style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;font-family:system-ui,Arial,sans-serif}@media print{@page{margin:12mm}}</style>
-      </head><body>${cardRef.current.outerHTML}<script>window.onload=()=>{setTimeout(()=>{window.print();},300)}</script></body></html>`);
-    w.document.close();
+  // Rasterise, then print the image.
+  //
+  // This used to write cardRef.current.outerHTML into the new window, which has
+  // no stylesheet — so every Tailwind class was lost and the printed card came
+  // out as unstyled text with no cover photo (h-24 is a class, so the strip
+  // collapsed). Printing the PNG guarantees the sheet matches the preview.
+  const [printing, setPrinting] = useState(false);
+  const printCard = async () => {
+    if (!cardRef.current || printing) return;
+    setPrinting(true);
+    try {
+      const dataUrl = await exportNodeToPng(cardRef.current, {
+        pixelRatio: 3,
+        backgroundColor: '#ffffff',
+        designWidth: CARD_DESIGN_WIDTH,
+      });
+      if (!printImage(dataUrl, `${business.name} — Business card`)) {
+        toast.error('Please allow pop-ups to print.');
+      }
+    } catch {
+      toast.error('Could not prepare the card for printing — try again.');
+    } finally {
+      setPrinting(false);
+    }
   };
 
   const nativeShare = async () => {
@@ -66,7 +82,7 @@ export default function BrandCardStudio({ business }: { business: Business }) {
             {exporting ? <Loader2 size={15} className="animate-spin" /> : <Download size={15} />} Card PNG
           </button>
           <button onClick={printCard} className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
-            <Printer size={15} /> Print / Save as PDF
+            {printing ? <Loader2 size={15} className="animate-spin" /> : <Printer size={15} />} Print / Save as PDF
           </button>
           <button onClick={nativeShare} className="inline-flex items-center gap-2 px-4 rounded-lg text-sm font-medium border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 min-h-[44px]">
             <Share2 size={15} /> Share

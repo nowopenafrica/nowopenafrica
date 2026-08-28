@@ -9,6 +9,16 @@ import NowOpenMark from '../NowOpenMark';
 // The exportable digital business card. Shared by BrandCardStudio (live
 // preview + download) and the Export Centre so "download everything" produces
 // the exact same pixels as the Brand Kit module.
+/**
+ * The width every export node is designed at.
+ *
+ * They all carry `maxWidth: '100%'` so they fit a phone column on screen, which
+ * means the laid-out width is not the design width. Exports pass this to
+ * exportNodeToPng so a card saved on a phone is the same file as one saved on a
+ * desktop.
+ */
+export const CARD_DESIGN_WIDTH = 640;
+
 export const CardExportNode = forwardRef<HTMLDivElement, { business: Business; qr: string; settings?: CardSettings }>(
   function CardExportNode({ business, qr, settings }, ref) {
     const s = settings ?? DEFAULT_CARD_SETTINGS;

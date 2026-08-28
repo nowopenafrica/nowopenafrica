@@ -93,9 +93,59 @@ async function waitForAssets(node: HTMLElement) {
   await new Promise<void>((r) => requestAnimationFrame(() => requestAnimationFrame(() => r())));
 }
 
+/**
+ * Lay the node out at its DESIGN width for the duration of a capture.
+ *
+ * Export nodes are written as `width: 640, maxWidth: '100%'`, so on a phone the
+ * card renders at whatever the column allows — around 360px. html-to-image
+ * captures what is on screen, so the same card exported from a phone came out
+ * barely half the resolution of one exported from a desktop, and reflowed into
+ * a different layout. A business card is a fixed physical artefact; what it
+ * looks like must not depend on the window that happened to export it.
+ *
+ * Fixed-position and far off-screen while it happens, so widening it cannot
+ * make the page scroll sideways or flash at the owner.
+ *
+ * Returns the undo. A no-op when the node is already at least that wide.
+ */
+function forceDesignWidth(node: HTMLElement, width: number): () => void {
+  if (!width || node.getBoundingClientRect().width >= width) return () => {};
+  const s = node.style;
+  const prev = {
+    width: s.width, maxWidth: s.maxWidth, position: s.position,
+    left: s.left, top: s.top, zIndex: s.zIndex,
+  };
+  s.position = 'fixed';
+  s.left = '-10000px';
+  s.top = '0';
+  s.zIndex = '-1';
+  s.width = `${width}px`;
+  s.maxWidth = 'none';
+  return () => {
+    s.width = prev.width; s.maxWidth = prev.maxWidth; s.position = prev.position;
+    s.left = prev.left; s.top = prev.top; s.zIndex = prev.zIndex;
+  };
+}
+
 export async function exportNodeToPng(
   node: HTMLElement,
-  opts: { pixelRatio?: number; backgroundColor?: string; canvasWidth?: number; canvasHeight?: number } = {},
+  opts: {
+    pixelRatio?: number; backgroundColor?: string; canvasWidth?: number; canvasHeight?: number;
+    /** Capture at this CSS width whatever the screen is doing. */
+    designWidth?: number;
+  } = {},
+): Promise<string> {
+  const restoreWidth = forceDesignWidth(node, opts.designWidth ?? 0);
+  try {
+    return await captureNode(node, opts);
+  } finally {
+    restoreWidth();
+  }
+}
+
+async function captureNode(
+  node: HTMLElement,
+  opts: { pixelRatio?: number; backgroundColor?: string; canvasWidth?: number; canvasHeight?: number },
 ): Promise<string> {
   await waitForAssets(node);
   const options = {
@@ -177,12 +227,52 @@ export async function downloadRemoteUrl(url: string, filename: string) {
   }
 }
 
+/**
+ * Print a rasterised node at a true physical size.
+ *
+ * The obvious implementation — write the node's outerHTML into a blank window —
+ * is what this replaces, and it was quietly broken: these cards are styled with
+ * Tailwind classes, and the new window has no stylesheet. Everything carried by
+ * a class rather than an inline style was lost, so `h-24` collapsed the cover
+ * photo to nothing, the padding and flex layout went, and Print / Save as PDF
+ * produced a bare stack of text that looked nothing like the card on screen.
+ *
+ * A PNG has no such dependency: what prints is exactly what was previewed.
+ *
+ * `widthMm` is the real width the sheet should print at — 85.6mm for a CR80
+ * business card — so it comes out of the printer at card size on whatever paper
+ * is loaded, ready to cut, rather than blown up to fill A4.
+ */
+export function printImage(dataUrl: string, title: string, widthMm = 85.6): boolean {
+  const w = window.open('', '_blank', 'width=900,height=650');
+  if (!w) return false;
+  const safeTitle = title.replace(/[<&>]/g, '');
+  w.document.write(`<!doctype html><html><head><meta charset="utf-8"><title>${safeTitle}</title>
+<style>
+  html,body{margin:0;padding:0;background:#f1f5f9}
+  body{display:flex;align-items:center;justify-content:center;min-height:100vh}
+  img{width:${widthMm}mm;height:auto;display:block;box-shadow:0 2px 12px rgba(0,0,0,.15)}
+  @media print{ @page{margin:10mm} body{background:#fff;min-height:0;display:block} img{box-shadow:none;margin:0 auto} }
+</style></head><body>
+<img src="${dataUrl}" alt="${safeTitle}">
+<script>
+  // Print only once the image has actually decoded — printing an <img> that is
+  // still loading gives a blank sheet.
+  var i=document.images[0];
+  function go(){ setTimeout(function(){ window.focus(); window.print(); }, 250); }
+  if (i.complete) go(); else { i.onload=go; i.onerror=go; }
+</script>
+</body></html>`);
+  w.document.close();
+  return true;
+}
+
 // Rasterise a node to PNG, then immediately download it. Returns the file
 // name so callers can confirm exactly what was saved.
 export async function downloadNodePng(
   node: HTMLElement,
   filename: string,
-  opts: { pixelRatio?: number; backgroundColor?: string; canvasWidth?: number; canvasHeight?: number } = {},
+  opts: { pixelRatio?: number; backgroundColor?: string; canvasWidth?: number; canvasHeight?: number; designWidth?: number } = {},
 ): Promise<string> {
   const dataUrl = await exportNodeToPng(node, opts);
   downloadUrl(dataUrl, filename);
@@ -206,9 +296,13 @@ function imageDataSize(dataUrl: string): Promise<{ w: number; h: number }> {
 export async function downloadNodePdf(
   node: HTMLElement,
   filename: string,
-  opts: { pixelRatio?: number; backgroundColor?: string } = {},
+  opts: { pixelRatio?: number; backgroundColor?: string; designWidth?: number } = {},
 ): Promise<string> {
-  const dataUrl = await exportNodeToPng(node, { pixelRatio: opts.pixelRatio ?? 3, backgroundColor: opts.backgroundColor });
+  const dataUrl = await exportNodeToPng(node, {
+    pixelRatio: opts.pixelRatio ?? 3,
+    backgroundColor: opts.backgroundColor,
+    designWidth: opts.designWidth,
+  });
   const { w, h } = await imageDataSize(dataUrl);
   const cardW = 85.6;
   const cardH = 54;

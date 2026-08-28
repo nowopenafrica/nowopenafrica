@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { Loader2, ArrowLeft, Sparkles, Palette, CreditCard, Instagram, LayoutPanelTop, PenLine, ImagePlus, PackageOpen, CalendarDays, WalletCards, Printer, Presentation, Stamp, Camera, Home, MessageCircle, Activity, Mail, Heart, Receipt, Trophy, LayoutTemplate, Zap, TrendingUp, Store, FileText, Mic, Clapperboard, Globe, Wand2, Podcast, Bot, CalendarCheck, Users, Banknote, Radar, Search, Workflow } from 'lucide-react';
+import { Loader2, ArrowLeft, Sparkles, Palette, CreditCard, Instagram, LayoutPanelTop, PenLine, ImagePlus, PackageOpen, CalendarDays, WalletCards, Printer, Presentation, Stamp, Camera, Home, MessageCircle, Activity, Mail, Heart, Receipt, Trophy, LayoutTemplate, Zap, TrendingUp, Store, FileText, Mic, Clapperboard, Globe, Wand2, Podcast, Bot, CalendarCheck, Users, Banknote, Radar, Search, Workflow, ReceiptText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
@@ -19,6 +19,7 @@ import GrowthChallenges from '../components/studio/GrowthChallenges';
 import CustomerLoyaltyHub from '../components/studio/CustomerLoyaltyHub';
 import CampaignAnalytics from '../components/studio/CampaignAnalytics';
 import InvoicesStudio from '../components/studio/InvoicesStudio';
+import ReceiptStudio from '../components/studio/ReceiptStudio';
 import LandingPageBuilder from '../components/studio/LandingPageBuilder';
 import ProposalStudio from '../components/studio/ProposalStudio';
 import DigitalCatalogue from '../components/studio/DigitalCatalogue';
@@ -54,7 +55,8 @@ const META: Record<ModuleKey, ModuleMeta> = {
   'live-promo': { key: 'live-promo', label: 'Live Promotion Center', icon: Zap, desc: 'Create, schedule, launch and count down promotions — then share them on WhatsApp.' },
 
   quotations: { key: 'quotations', label: 'Quotes & Proposals', icon: FileText, desc: 'Professional quotes and proposals customers can approve in one tap.' },
-  invoices: { key: 'invoices', label: 'Invoices & Payments', icon: Receipt, desc: 'Invoice, receipt and payment reminders that look the part.' },
+  invoices: { key: 'invoices', label: 'Invoices & Payments', icon: Receipt, desc: 'Invoices and payment reminders that look the part.' },
+  receipts: { key: 'receipts', label: 'Receipts', icon: ReceiptText, desc: 'Branded receipts in the shape your trade’s customers expect.' },
   catalogues: { key: 'catalogues', label: 'Product Catalogue', icon: Store, desc: 'Turn your products or menu into a shareable digital catalogue.' },
   loyalty: { key: 'loyalty', label: 'Loyalty Hub', icon: Heart, desc: 'Reward regulars and bring them back with points, stamp cards and VIP perks.' },
   health: { key: 'health', label: 'Business Health', icon: Activity, desc: 'Your growth score, trust signals and coach recommendations in one dashboard.' },
@@ -166,6 +168,7 @@ export default function Studio() {
       case 'loyalty': return <CustomerLoyaltyHub business={business} onNavigate={go} />;
       case 'analytics': return <CampaignAnalytics business={business} onNavigate={go} />;
       case 'invoices': return <InvoicesStudio key={`${business.id}-invoices`} business={business} />;
+      case 'receipts': return <ReceiptStudio key={`${business.id}-receipts`} business={business} />;
       case 'quotations': return <ProposalStudio key={`${business.id}-quotations`} business={business} />;
       case 'catalogues': return <DigitalCatalogue key={`${business.id}-catalogues`} business={business} />;
       case 'landing': return <LandingPageBuilder key={`${business.id}-landing`} business={business} />;
