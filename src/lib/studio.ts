@@ -332,3 +332,57 @@ export function shareLinks(url: string, title: string) {
     { key: 'email', label: 'Email', href: `mailto:?subject=${t}&body=${u}` },
   ];
 }
+
+/**
+ * Rasterise several nodes into one multi-page PDF.
+ *
+ * A catalogue is not one sheet, and handing someone six separate PNGs is not
+ * handing them a catalogue. Each node becomes a full-bleed page at the paper
+ * size given, in order.
+ *
+ * Pages are captured one at a time rather than in parallel on purpose: every
+ * capture holds a full-size bitmap, and a twelve-page catalogue of photographs
+ * done at once is enough to be killed by the tab's memory limit on a phone.
+ * Slower and finishes beats faster and dies.
+ *
+ * `onProgress` is called before each page so a caller can say "3 of 6" instead
+ * of leaving a spinner running for half a minute.
+ */
+export async function downloadSheetsPdf(
+  nodes: HTMLElement[],
+  filename: string,
+  opts: {
+    widthMm: number;
+    heightMm: number;
+    pixelRatio?: number;
+    designWidth?: number;
+    backgroundColor?: string;
+    onProgress?: (page: number, total: number) => void;
+  },
+): Promise<string> {
+  const pages = nodes.filter(Boolean);
+  if (pages.length === 0) throw new Error('nothing to export');
+
+  const { jsPDF } = await import('jspdf');
+  const pdf = new jsPDF({
+    orientation: opts.widthMm >= opts.heightMm ? 'landscape' : 'portrait',
+    unit: 'mm',
+    format: [opts.widthMm, opts.heightMm],
+  });
+
+  for (let i = 0; i < pages.length; i++) {
+    opts.onProgress?.(i + 1, pages.length);
+    const dataUrl = await exportNodeToPng(pages[i], {
+      pixelRatio: opts.pixelRatio ?? 2,
+      backgroundColor: opts.backgroundColor ?? '#ffffff',
+      designWidth: opts.designWidth,
+    });
+    if (i > 0) pdf.addPage([opts.widthMm, opts.heightMm]);
+    // Full bleed: the sheet was drawn at the paper's own proportions, so it
+    // fills the page without a fit calculation that could letterbox it.
+    pdf.addImage(dataUrl, 'PNG', 0, 0, opts.widthMm, opts.heightMm);
+  }
+
+  pdf.save(filename);
+  return filename;
+}

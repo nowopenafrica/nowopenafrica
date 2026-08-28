@@ -10,6 +10,7 @@ import {
   loadCatalogue, saveCatalogue,
 } from '../../lib/catalogue';
 import { downloadText, slugForFile, profileUrl } from '../../lib/studio';
+import CatalogueExport from './CatalogueExport';
 
 interface Props {
   business: Business;
@@ -88,14 +89,19 @@ export default function DigitalCatalogue({ business }: Props) {
               <Copy size={14} /> Copy
             </button>
             <button onClick={download} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-gray-900 dark:bg-gray-700 text-white hover:opacity-90 transition min-h-[44px]">
-              <Download size={14} /> Download
+              <Download size={14} /> Text list
             </button>
             <button onClick={share} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-sm font-medium bg-green-600 text-white hover:bg-green-700 transition min-h-[44px]">
-              <Send size={14} /> Share on WhatsApp
+              <Send size={14} /> Send as text
             </button>
           </div>
         </div>
       </div>
+
+      {/* The designed catalogue: real products from the listing, laid out and
+          exportable. Sits above the item manager because sending the catalogue
+          is what an owner comes here to do. */}
+      <CatalogueExport business={business} manualItems={catalogue.items} />
 
       {/* Add form */}
       {showForm && (

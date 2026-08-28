@@ -13,6 +13,9 @@ import {
   ThermalReceiptNode, RetailReceiptNode, ServiceReceiptNode,
   ProfessionalReceiptNode, HospitalityReceiptNode, DeliveryReceiptNode,
 } from './ReceiptNodes';
+import { generateQr, profileUrl, downloadNodePng, exportNodeToPng, printImage, slugForFile } from '../../lib/studio';
+import { detectRegionCurrency } from '../../lib/currency';
+import { whatsappHref } from '../../lib/phone';
 
 /** Layout id → the node that draws it. Kept here rather than exported from the
  *  node file, where a non-component export would break fast refresh. */
@@ -24,9 +27,6 @@ const RECEIPT_NODES = {
   hospitality: HospitalityReceiptNode,
   delivery: DeliveryReceiptNode,
 } as const;
-import { generateQr, profileUrl, downloadNodePng, exportNodeToPng, printImage, slugForFile } from '../../lib/studio';
-import { detectRegionCurrency } from '../../lib/currency';
-import { whatsappHref } from '../../lib/phone';
 
 interface Props {
   business: Business;
