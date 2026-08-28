@@ -143,14 +143,39 @@ oldRows.forEach((was, i) => {
     // that now claims a discount nobody is offering.
     `list_price_per_day = ${now.listPrice ?? 'NULL'}` +
     (img ? `, image_url = ${q(img)}` : '') +
-    ` WHERE title = ${q(was.title)};`,
+    // Matches the row under EITHER name.
+    //
+    // This keyed only on the baseline title, which silently stopped working the
+    // moment the renames were applied: every UPDATE matched zero rows, the
+    // guarded INSERTs all skipped because the new titles existed, and the whole
+    // file became a no-op that reported success. It was run twice before anyone
+    // noticed the prices had not moved.
+    //
+    // Keying on both makes it idempotent — correct before the rename, after it,
+    // and on a re-run.
+    (was.title === now.title
+      ? ` WHERE title = ${q(now.title)};`
+      : ` WHERE title IN (${q(now.title)}, ${q(was.title)});`),
   );
 });
 
 out.push('', '-- Inventory added after the original seed.', '');
+// UPDATE then guarded INSERT, for every one of these — an upsert written the
+// long way because PostgREST's advertisements table has no unique key on title
+// to hang ON CONFLICT off.
+//
+// The INSERT alone was not enough. These rows get added by the FIRST run of
+// this file, so on every run after that the guard skips them and nothing else
+// touches them — they silently keep whatever price they were seeded with while
+// the file reports the same "39 inserts" as always. That is how 39 placements
+// missed a price rise that the other 58 got.
 newRows.slice(oldRows.length).forEach((row) => {
   const img = imageFor(row);
   out.push(
+    `UPDATE advertisements SET price_per_day = ${row.usd}, pricing = ${row.usd}, ` +
+    `description = ${q(describe(row))}, list_price_per_day = ${row.listPrice ?? 'NULL'}` +
+    (img ? `, image_url = ${q(img)}` : '') +
+    ` WHERE title = ${q(row.title)};`,
     'INSERT INTO advertisements (title, description, type, category, location, price_per_day, pricing, list_price_per_day, dimensions, image_url, status)',
     `SELECT ${q(row.title)}, ${q(describe(row))}, ${q(row.type)}, ${q(row.type)}, ${q(row.location)}, ` +
     `${row.usd}, ${row.usd}, ${row.listPrice ?? 'NULL'}, ${q(row.dimensions)}, ${img ? q(img) : 'NULL'}, 'active'`,

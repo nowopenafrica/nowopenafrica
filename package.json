@@ -7,7 +7,7 @@
     "dev": "vite",
     "build": "npm run check:csp && npm run check:migrations && npm run typecheck && vite build",
     "check:csp": "node scripts/check-csp.mjs",
-    "verify": "npm run typecheck && npm run lint && npm run check:csp && npm run check:migrations && npm run test",
+    "verify": "npm run typecheck && npm run lint && npm run check:csp && npm run check:migrations && npm run check:placements && npm run test",
     "lint": "eslint .",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit -p tsconfig.app.json",
@@ -15,7 +15,8 @@
     "test:watch": "vitest",
     "check:migrations": "node scripts/check-migrations.mjs",
     "social:check": "node scripts/social-setup.mjs check",
-    "social:deploy": "node scripts/social-setup.mjs deploy"
+    "social:deploy": "node scripts/social-setup.mjs deploy",
+    "check:placements": "node scripts/check-placement-sql.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",
