@@ -16,6 +16,7 @@ import { renderBusinessPage } from '../../src/lib/businessPageRender.js';
 import type {
   ProfileBusiness, ProfileProduct, ProfileService, ProfileReview,
 } from '../../src/lib/businessPageRender.js';
+import type { BusinessLocation } from '../../src/lib/locations.js';
 
 const SITE_URL = process.env.APP_BASE_URL || 'https://nowopenafrica.com';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
@@ -127,11 +128,12 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const id = encodeURIComponent(business.id);
   // Fetched together; each failure degrades to an empty section rather than a
   // failed page, because a profile with no products is still worth indexing.
-  const [products, services, reviews, reviewCount] = await Promise.all([
+  const [products, services, reviews, reviewCount, locations] = await Promise.all([
     rest<ProfileProduct>(`business_products?select=id,name,description,price,image_url&business_id=eq.${id}&order=created_at&limit=60`),
     rest<ProfileService>(`business_services?select=id,name,description,price&business_id=eq.${id}&order=created_at&limit=60`),
     rest<ProfileReview>(`business_reviews?select=id,author_name,rating,comment,created_at&business_id=eq.${id}&order=created_at.desc&limit=10`),
     count(`business_reviews?select=id&business_id=eq.${id}`),
+    rest<BusinessLocation>(`business_locations?select=id,name,address,phone,opening_hours,timezone,open_status,latitude,longitude,is_primary&business_id=eq.${id}&limit=50`),
   ]);
 
   const html = renderBusinessPage({
@@ -142,6 +144,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     // The TOTAL, not reviews.length — the page shows ten but the rating averages
     // all of them, and aggregateRating must agree with itself.
     reviewCount,
+    locations,
     siteUrl: SITE_URL,
   });
 

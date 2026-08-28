@@ -7,6 +7,7 @@ import { generateBusinesses, isSampleId } from '../data/populateData';
 import VerifiedBadge from '../components/VerifiedBadge';
 import TrustBadge from '../components/TrustBadge';
 import BusinessTrustPanel from '../components/BusinessTrustPanel';
+import BusinessLocations from '../components/BusinessLocations';
 import { withDemoTrustAll } from '../data/demoTrust';
 import OpeningHoursPanel from '../components/OpeningHoursPanel';
 import { deriveTier, TIERS } from '../lib/trust';
@@ -874,6 +875,8 @@ export default function BusinessDetail() {
                 productCount={content.products.length}
                 serviceCount={content.services.length}
               />
+
+              <BusinessLocations business={business} />
             </div>
 
             {/* Also serves — secondary categories set by the owner */}

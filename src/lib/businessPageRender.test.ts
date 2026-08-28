@@ -250,3 +250,41 @@ describe('embedJson', () => {
     expect(JSON.parse(out)).toEqual({ s: '\u2028\u2029' });
   });
 });
+
+describe('branches on the crawlable page', () => {
+  const withBranches = () => page({
+    locations: [
+      { id: 'l1', name: 'Yaba', address: '12 Herbert Macaulay Way', phone: '08031111111', is_primary: true },
+      { id: 'l2', name: 'Lekki', address: '5 Admiralty Way', open_status: 'closed' },
+    ],
+  });
+
+  it('lists each branch with its address as indexable text', () => {
+    const html = renderBusinessPage(withBranches());
+    expect(html).toContain('Locations');
+    expect(html).toContain('12 Herbert Macaulay Way');
+    expect(html).toContain('5 Admiralty Way');
+  });
+
+  it('shows each branch its own open state', () => {
+    const html = renderBusinessPage(withBranches());
+    // Lekki is overridden closed while Yaba follows the parent's open hours.
+    expect(html).toContain('Closed');
+    expect(html).toContain('Open now');
+  });
+
+  it('models branches as departments of one organisation, not rivals', () => {
+    const ld = profileJsonLd(withBranches()) as Record<string, unknown>;
+    const depts = ld.department as { name: string; address?: { addressLocality: string } }[];
+    expect(depts).toHaveLength(2);
+    expect(depts[0].name).toContain('Mama Put Kitchen');
+    expect(depts.map((d) => d.address?.addressLocality)).toContain('12 Herbert Macaulay Way');
+  });
+
+  it('says nothing at all about locations for a single-site business', () => {
+    // The overwhelming majority. An empty "Locations" heading is worse than none.
+    const html = renderBusinessPage(page());
+    expect(html).not.toContain('<h2>Locations</h2>');
+    expect((profileJsonLd(page()) as Record<string, unknown>).department).toBeUndefined();
+  });
+})

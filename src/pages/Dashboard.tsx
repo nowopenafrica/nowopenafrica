@@ -687,6 +687,10 @@ export default function Dashboard() {
                     businessName={contentBusiness.name}
                     category={contentBusiness.category}
                     enabledModules={(contentBusiness as any).enabled_modules ?? null}
+                    location={contentBusiness.location}
+                    phone={contentBusiness.phone}
+                    openingHours={contentBusiness.opening_hours ?? contentBusiness.hours}
+                    timezone={contentBusiness.timezone}
                     onClose={() => setContentBusiness(null)}
                   />
                 )}

@@ -2,10 +2,11 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
   X, Plus, Trash2, Loader2, Upload, Tag, Package, Image as ImageIcon, Star, Inbox, Mail, Phone,
-  Check, Ban, CalendarClock, ShoppingCart, Camera, Play, Share2,
+  Check, Ban, CalendarClock, ShoppingCart, Camera, Play, Share2, Building2,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
+import LocationsManager from './LocationsManager';
 import { getActiveFeatures } from '../../data/categoryFeatures';
 import { getTabLabel } from '../../data/categoryTabLabels';
 import { compressImage } from '../../lib/imageCompression';
@@ -25,13 +26,18 @@ interface BusinessContentManagerProps {
   businessId: string;
   businessName: string;
   category: string;
+  /** What a branch inherits when it leaves a field blank. */
+  location?: string | null;
+  phone?: string | null;
+  openingHours?: string | null;
+  timezone?: string | null;
   enabledModules?: string[] | null;
   onClose: () => void;
 }
 
 // Base tab ids are fixed; module tab ids are dynamic (a module's `key`, e.g.
 // 'reservations' / 'orders' / 'rooms') — a category can have more than one.
-type ContentTab = 'enquiries' | 'services' | 'products' | 'gallery' | 'reviews' | (string & {});
+type ContentTab = 'enquiries' | 'services' | 'products' | 'gallery' | 'reviews' | 'locations' | (string & {});
 
 const BASE_TAB_DEFS = [
   { id: 'enquiries' as const, defaultLabel: 'Enquiries', icon: Inbox, labelKey: 'enquiries' as const },
@@ -39,6 +45,7 @@ const BASE_TAB_DEFS = [
   { id: 'products' as const, defaultLabel: 'Products', icon: Package, labelKey: 'products' as const },
   { id: 'gallery' as const, defaultLabel: 'Gallery', icon: ImageIcon, labelKey: 'gallery' as const },
   { id: 'reviews' as const, defaultLabel: 'Reviews', icon: Star, labelKey: undefined },
+  { id: 'locations' as const, defaultLabel: 'Branches', icon: Building2, labelKey: undefined },
 ];
 
 const STATUS_STYLES: Record<string, string> = {
@@ -48,7 +55,10 @@ const STATUS_STYLES: Record<string, string> = {
   cancelled: 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400',
 };
 
-export default function BusinessContentManager({ businessId, businessName, category, enabledModules, onClose }: BusinessContentManagerProps) {
+export default function BusinessContentManager({
+  businessId, businessName, category, enabledModules, onClose,
+  location, phone, openingHours, timezone,
+}: BusinessContentManagerProps) {
   const { user } = useAuth();
   const features = getActiveFeatures(category, enabledModules);
 
@@ -138,6 +148,9 @@ export default function BusinessContentManager({ businessId, businessName, categ
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, enabledModules]);
   const [tab, setTab] = useState<ContentTab>('enquiries');
+  // Only the count, so the tab can show it without this component owning the
+  // branch list — LocationsManager loads and manages its own.
+  const [locationCount, setLocationCount] = useState(0);
   const activeModule = features.find(f => f.key === tab);
   const [services, setServices] = useState<any[]>([]);
   const [products, setProducts] = useState<any[]>([]);
@@ -650,6 +663,7 @@ export default function BusinessContentManager({ businessId, businessName, categ
                 : t.id === 'products' ? products.length
                 : t.id === 'gallery' ? gallery.length
                 : t.id === 'reviews' ? reviews.length
+                : t.id === 'locations' ? locationCount
                 : bookings.filter(b => b.module_key === t.id).length})
             </span>
           </button>
@@ -769,6 +783,18 @@ export default function BusinessContentManager({ businessId, businessName, categ
                     ))}
                   </ul>;
             })()}
+
+            {tab === 'locations' && (
+              <LocationsManager
+                business={{
+                  id: businessId,
+                  location, phone,
+                  opening_hours: openingHours,
+                  timezone,
+                }}
+                onCountChange={setLocationCount}
+              />
+            )}
 
             {tab === 'services' && (
               services.length === 0

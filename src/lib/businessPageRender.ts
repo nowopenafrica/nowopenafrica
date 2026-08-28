@@ -27,6 +27,10 @@ import {
   parseOpeningHours, formatClock, publicOpenState, WEEKDAY_FULL,
   CLOSING_SOON_MINUTES, type OpenState,
 } from './openingHours.js';
+import {
+  sortLocations, locationOpenState, locationAddress, locationPhone,
+  type BusinessLocation,
+} from './locations.js';
 
 // Re-exported so the page's tests and callers keep one import, while the state
 // machine itself lives with the rest of the time logic.
@@ -81,6 +85,8 @@ export interface ProfilePage {
   services: ProfileService[];
   reviews: ProfileReview[];
   reviewCount: number;
+  /** Branches, when the business has any. */
+  locations?: BusinessLocation[];
   siteUrl: string;
   /** Injected so the rendered status is testable at a fixed moment. */
   now?: Date;
@@ -165,6 +171,24 @@ export function profileJsonLd(p: ProfilePage): unknown {
 
   const spec = openingHoursSpecification(b.opening_hours || b.hours);
   if (spec.length) business.openingHoursSpecification = spec;
+
+  // Branches as departments of the same organisation, which is how schema.org
+  // models a chain — each keeps its own address and phone, all under one
+  // brand, rather than competing as separate businesses.
+  const branches = p.locations || [];
+  if (branches.length) {
+    business.department = branches.map((loc) => ({
+      '@type': 'LocalBusiness',
+      name: `${b.name} — ${loc.name}`,
+      ...(locationAddress(loc, b) ? {
+        address: { '@type': 'PostalAddress', addressLocality: locationAddress(loc, b) },
+      } : {}),
+      ...(locationPhone(loc, b) ? { telephone: locationPhone(loc, b) } : {}),
+      ...(typeof loc.latitude === 'number' && typeof loc.longitude === 'number' ? {
+        geo: { '@type': 'GeoCoordinates', latitude: loc.latitude, longitude: loc.longitude },
+      } : {}),
+    }));
+  }
 
   // Products as offers, so a listing can surface with prices. The price is free
   // text in this schema ("From ₦200/day", "Contact us"), so it goes in
@@ -331,6 +355,24 @@ export function renderBusinessPage(p: ProfilePage): string {
     </ul>
   </section>` : '';
 
+  const branchList = (p.locations || []).length ? `
+  <section>
+    <h2>Locations</h2>
+    <ul class="items">
+      ${sortLocations(p.locations || [], b, now).map((loc) => {
+        const branchState = locationOpenState(loc, b, now);
+        const address = locationAddress(loc, b);
+        const phone = locationPhone(loc, b);
+        return `<li>
+          <strong>${escapeHtml(loc.name)}</strong>
+          <span class="price">${escapeHtml(branchState.label)}</span>
+          ${address ? `<p>${escapeHtml(address)}</p>` : ''}
+          ${phone ? `<p><a href="tel:${escapeHtml(phone)}">${escapeHtml(phone)}</a></p>` : ''}
+        </li>`;
+      }).join('')}
+    </ul>
+  </section>` : '';
+
   const reviewList = p.reviews.length ? `
   <section>
     <h2>Reviews</h2>
@@ -413,6 +455,7 @@ export function renderBusinessPage(p: ProfilePage): string {
   <a class="cta" href="${safeUrl}">Open ${name} on NowOpen Africa</a>
 
   ${hoursTable(b.opening_hours || b.hours)}
+  ${branchList}
   ${productList}
   ${serviceList}
   ${reviewList}
