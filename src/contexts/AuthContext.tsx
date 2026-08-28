@@ -3,13 +3,14 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { setTelemetryUser, track } from '../lib/telemetry';
 import { sendWelcomePack } from '../lib/onboarding';
+import { SignupRole } from '../lib/accountRoles';
 
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   // `identifier` may be an email address OR a phone number — see isEmail below.
-  signUp: (identifier: string, password: string, role?: 'business' | 'media_service', phone?: string) => Promise<void>;
+  signUp: (identifier: string, password: string, role?: SignupRole, phone?: string) => Promise<void>;
   signIn: (identifier: string, password: string) => Promise<void>;
   // Phone signup confirmation: enter the SMS code, then re-send if needed.
   verifyPhoneOtp: (phone: string, token: string) => Promise<void>;
@@ -84,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
-  const signUp = async (identifier: string, password: string, role: 'business' | 'media_service' = 'business', phone?: string) => {
+  const signUp = async (identifier: string, password: string, role: SignupRole = 'personal', phone?: string) => {
     const id = identifier.trim();
 
     // Phone-first signup: create a phone account (Supabase Phone provider must

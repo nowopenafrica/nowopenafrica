@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AtSign, Lock, User } from 'lucide-react';
+import { AtSign, Lock } from 'lucide-react';
 import PasswordToggle from '../components/PasswordToggle';
 import { useAuth, isEmail, normalizePhone } from '../contexts/AuthContext';
 import PhoneOtpForm from '../components/auth/PhoneOtpForm';
 import toast from 'react-hot-toast';
 import { applySeo } from '../lib/seo';
+import { ACCOUNT_KINDS, DEFAULT_SIGNUP_ROLE, SignupRole } from '../lib/accountRoles';
 
 export default function Register() {
   const [identifier, setIdentifier] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
-  const [role, setRole] = useState<'business' | 'media_service'>('business');
+  const [role, setRole] = useState<SignupRole>(DEFAULT_SIGNUP_ROLE);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,7 @@ export default function Register() {
   useEffect(() => {
     return applySeo({
       title: 'Create an Account — NowOpen Africa',
-      description: 'Create your NowOpen Africa account to list a business, publish creative services or book advertising.',
+      description: 'Create your NowOpen Africa account to discover businesses, keep the ones you like, or list a business of your own.',
       path: '/register',
       robots: 'noindex, nofollow',
     });
@@ -242,24 +243,44 @@ export default function Register() {
               )}
             </div>
 
-            <div>
-              <label htmlFor="role" className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Account Type
-              </label>
-              <div className="mt-1 relative">
-                <select
-                  id="role"
-                  name="role"
-                  value={role}
-                  onChange={(e) => setRole(e.target.value as 'business' | 'media_service')}
-                  className="appearance-none block w-full px-3 min-h-[44px] pl-10 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value="business">Business</option>
-                  <option value="media_service">Media Service</option>
-                </select>
-                <User className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-gray-400" />
+            {/* Cards rather than a dropdown, because this is the first thing
+                that tells someone whether the product is for them. The old
+                form offered only Business and Media Service, so a person who
+                came to find a restaurant had to declare themselves a company. */}
+            <fieldset>
+              <legend className="block text-sm font-medium text-gray-700 dark:text-gray-300">
+                What brings you here?
+              </legend>
+              <div className="mt-2 space-y-2">
+                {ACCOUNT_KINDS.map((kind) => (
+                  <label
+                    key={kind.value}
+                    className={`flex gap-3 items-start p-3 rounded-lg border cursor-pointer transition ${
+                      role === kind.value
+                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20 ring-1 ring-blue-500'
+                        : 'border-gray-300 dark:border-gray-600 hover:border-gray-400 dark:hover:border-gray-500'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={kind.value}
+                      checked={role === kind.value}
+                      onChange={() => setRole(kind.value)}
+                      className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold text-gray-900 dark:text-white">{kind.label}</span>
+                      <span className="block text-xs text-gray-500 dark:text-gray-400">{kind.blurb}</span>
+                    </span>
+                  </label>
+                ))}
               </div>
-            </div>
+              {/* Said here so choosing Personal never feels like a dead end. */}
+              <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                You can add a business to a personal account at any time — one account does both.
+              </p>
+            </fieldset>
           </div>
 
           <div>

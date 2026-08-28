@@ -20,6 +20,10 @@ import './index.css';
 // Route-level code splitting: only Home ships in the main bundle so the
 // landing page paints fast on slow connections; everything else loads on demand.
 const Businesses = lazy(() => import('./pages/Businesses'));
+const Discover = lazy(() => import('./pages/Discover'));
+const Keeps = lazy(() => import('./pages/Keeps'));
+const Nearby = lazy(() => import('./pages/Nearby'));
+const OpenNow = lazy(() => import('./pages/OpenNow'));
 const BusinessDetail = lazy(() => import('./pages/BusinessDetail'));
 const Adverts = lazy(() => import('./pages/Adverts'));
 const AdvertDetail = lazy(() => import('./pages/AdvertDetail'));
@@ -109,6 +113,14 @@ function App() {
             <Routes>
               <Route path="/" element={<Home />} />
               <Route path="/businesses" element={<Businesses />} />
+              {/* The people side. Declared before /:username for readability;
+                  the router ranks static segments above the dynamic one anyway,
+                  and middleware.ts reserves these slugs so a crawler asking for
+                  /keeps is not handed the business-profile renderer. */}
+              <Route path="/discover" element={<Discover />} />
+              <Route path="/keeps" element={<Keeps />} />
+              <Route path="/nearby" element={<Nearby />} />
+              <Route path="/open-now" element={<OpenNow />} />
               {/* Discovery pages before /businesses/:id — otherwise "in"
                   is parsed as a business id and the page 404s. */}
               <Route path="/businesses/in/:place" element={<DiscoveryPage />} />

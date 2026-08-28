@@ -1,0 +1,128 @@
+import { describe, it, expect } from 'vitest';
+import {
+  openNow, newest, topRated, hiddenGems, near,
+  affinityCategories, recommended, businessHref,
+  type DiscoverBusiness,
+} from '../lib/discover';
+
+const now = new Date('2026-08-29T12:00:00+01:00');
+const ago = (days: number) => new Date(now.getTime() - days * 864e5).toISOString();
+
+const b = (over: Partial<DiscoverBusiness> & { id: string }): DiscoverBusiness => ({
+  name: over.id, ...over,
+} as DiscoverBusiness);
+
+describe('openNow', () => {
+  it('keeps a shop that is closing soon', () => {
+    // Closing in twenty minutes is open. Excluding it sends someone away from
+    // a place they could still reach.
+    const list = [
+      b({ id: 'open', opening_hours: 'Mon-Sun 09:00-23:00' }),
+      b({ id: 'shut', opening_hours: 'Mon-Sun 01:00-02:00' }),
+    ];
+    const ids = openNow(list, now).map((x) => x.id);
+    expect(ids).toContain('open');
+    expect(ids).not.toContain('shut');
+  });
+});
+
+describe('newest', () => {
+  it('returns recent listings newest first', () => {
+    const list = [b({ id: 'old', created_at: ago(90) }), b({ id: 'a', created_at: ago(2) }), b({ id: 'c', created_at: ago(10) })];
+    expect(newest(list, now).map((x) => x.id)).toEqual(['a', 'c']);
+  });
+
+  it('skips rows with no or unparseable date rather than ranking them as ancient', () => {
+    const list = [b({ id: 'none' }), b({ id: 'junk', created_at: 'not-a-date' }), b({ id: 'ok', created_at: ago(1) })];
+    expect(newest(list, now).map((x) => x.id)).toEqual(['ok']);
+  });
+});
+
+describe('topRated', () => {
+  it('will not call one five-star review a top-rated business', () => {
+    const list = [
+      b({ id: 'thin', rating: 5, review_count: 1 }),
+      b({ id: 'real', rating: 4.6, review_count: 40 }),
+    ];
+    expect(topRated(list).map((x) => x.id)).toEqual(['real']);
+  });
+
+  it('excludes an unrated business rather than treating 0 as good', () => {
+    expect(topRated([b({ id: 'x', review_count: 10 })])).toEqual([]);
+  });
+});
+
+describe('hiddenGems', () => {
+  it('finds the good-but-unnoticed and leaves out the already-famous', () => {
+    const list = [
+      b({ id: 'gem', rating: 4.8, review_count: 2 }),
+      b({ id: 'famous', rating: 4.8, review_count: 900 }),
+      b({ id: 'unrated', rating: 0, review_count: 0 }),
+    ];
+    expect(hiddenGems(list).map((x) => x.id)).toEqual(['gem']);
+  });
+
+  it('does not overlap with topRated at any review count', () => {
+    // Regression: the two rails used independent thresholds that both matched
+    // at exactly 3 reviews, so one business appeared in both.
+    const list = Array.from({ length: 12 }, (_, n) =>
+      b({ id: `r${n}`, rating: 4.5, review_count: n }));
+    const gems = hiddenGems(list).map((x) => x.id);
+    const top = topRated(list).map((x) => x.id);
+    expect(gems.filter((g) => top.includes(g))).toEqual([]);
+    // And between them they cover every rated business, losing nobody.
+    const rated = list.filter((x) => (x.review_count ?? 0) > 0).map((x) => x.id);
+    expect([...gems, ...top].sort()).toEqual(rated.sort());
+  });
+});
+
+describe('near', () => {
+  it('matches a district against a city and back', () => {
+    const list = [b({ id: 'yaba', location: 'Yaba, Lagos' }), b({ id: 'abuja', location: 'Abuja' })];
+    expect(near(list, 'Lagos').map((x) => x.id)).toEqual(['yaba']);
+    expect(near(list, 'Yaba, Lagos').map((x) => x.id)).toEqual(['yaba']);
+  });
+
+  it('returns nothing for an empty place instead of everything', () => {
+    // The dangerous default: an unresolved location silently meaning "all".
+    expect(near([b({ id: 'a', location: 'Lagos' })], '  ')).toEqual([]);
+  });
+});
+
+describe('recommendations', () => {
+  it('ranks the categories someone keeps most', () => {
+    expect(affinityCategories([
+      { category: 'Restaurant' }, { category: 'Barber' }, { category: 'Restaurant' }, { category: '' },
+    ])).toEqual(['Restaurant', 'Barber']);
+  });
+
+  it('never recommends a business already kept', () => {
+    const list = [b({ id: 'kept', category: 'Restaurant', rating: 5 }), b({ id: 'new', category: 'Restaurant', rating: 4 })];
+    expect(recommended(list, ['Restaurant'], ['kept']).map((x) => x.id)).toEqual(['new']);
+  });
+
+  it('stays silent with nothing to go on', () => {
+    expect(recommended([b({ id: 'a', category: 'Restaurant' })], [], [])).toEqual([]);
+  });
+});
+
+describe('businessHref', () => {
+  it('prefers the username', () => {
+    expect(businessHref({ id: 'i', username: 'mama' })).toBe('/mama');
+    expect(businessHref({ id: 'i', username: null })).toBe('/businesses/i');
+  });
+});
+
+describe('directionsHref', () => {
+  it('includes the name and place so the pin lands on the right shop', async () => {
+    const { directionsHref } = await import('../lib/discover');
+    const url = directionsHref({ name: 'Mama Put', location: 'Yaba, Lagos' })!;
+    expect(url).toContain('Mama%20Put');
+    expect(url).toContain('Yaba');
+  });
+
+  it('offers nothing when there is no address to point at', async () => {
+    const { directionsHref } = await import('../lib/discover');
+    expect(directionsHref({ name: 'X', location: null })).toBeNull();
+  });
+});

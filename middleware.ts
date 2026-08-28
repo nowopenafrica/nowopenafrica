@@ -48,6 +48,9 @@ const RESERVED = new Set([
   'security', 'settings', 'about', 'contact', 'pricing', 'plans', 'terms',
   'privacy', 'founder', 'media', 'blog', 'help', 'support', 'search',
   'digital-forms', 'reset-password', 'forgot-password', 'live', 'r', 'sitemap.xml',
+  // Consumer surfaces. Without these a crawler asking for /keeps is rewritten
+  // to the business-profile renderer and served a 404 profile instead of a page.
+  'keeps', 'nearby', 'open-now', 'offers', 'waitlist', 'os', 'forms', 'adverts',
 ]);
 
 /**

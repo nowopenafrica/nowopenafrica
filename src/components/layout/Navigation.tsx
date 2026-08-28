@@ -1,6 +1,6 @@
     import { useState } from 'react';
-    import { Link } from 'react-router-dom';
-    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, LayoutGrid, Sparkles, BadgeDollarSign, Cpu, UserPlus } from 'lucide-react';
+    import { Link, useLocation } from 'react-router-dom';
+    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, LayoutGrid, Store, Sparkles, BadgeDollarSign, Cpu, UserPlus } from 'lucide-react';
     import { useAuth } from '../../contexts/AuthContext';
     import { useRole } from '../../hooks/useRole';
     import AuthModal from '../auth/AuthModal';
@@ -9,6 +9,9 @@
     import CurrencySelector from '../CurrencySelector';
 import LanguageSelector from '../LanguageSelector';
 import { useT } from '../../contexts/I18nContext';
+import { useAudience } from '../../hooks/useAudience';
+import { navFor, isNavItemActive } from '../../lib/navigation';
+import AudienceSwitch from './AudienceSwitch';
 
     export default function Navigation() {
       const [isOpen, setIsOpen] = useState(false);
@@ -18,6 +21,10 @@ import { useT } from '../../contexts/I18nContext';
       const t = useT();
       const { role } = useRole();
       const isAdmin = role === 'admin';
+      const location = useLocation();
+      const { audience, canSwitch, setAudience } = useAudience();
+      const navItems = navFor(audience);
+      const isBusinessView = audience === 'business';
 
       const handleSignOut = async () => {
         setIsLoading(true);
@@ -43,27 +50,46 @@ import { useT } from '../../contexts/I18nContext';
                     <Logo />
                   </Link>
 
+                  {/* One of the two navigations — never both. The items come
+                      from lib/navigation.ts so that a seller surface cannot be
+                      dropped into the people menu without it being obvious. */}
                   <div className="hidden lg:flex items-center gap-4 xl:gap-8">
-                    <Link to="/" className="whitespace-nowrap text-gray-700 dark:text-gray-300 hover:text-blue-600 transition text-sm font-medium">
-                      {t('nav.home')}
-                    </Link>
-                    <Link to="/businesses" className="whitespace-nowrap text-gray-700 dark:text-gray-300 hover:text-blue-600 transition text-sm font-medium">
-                      {t('nav.discover')}
-                    </Link>
-                    <Link to="/adverts" className="whitespace-nowrap text-gray-700 dark:text-gray-300 hover:text-blue-600 transition text-sm font-medium">
-                      {t('nav.promote')}
-                    </Link>
-                    <Link to="/media" className="whitespace-nowrap text-gray-700 dark:text-gray-300 hover:text-blue-600 transition text-sm font-medium">
-                      {t('nav.create')}
-                    </Link>
+                    {navItems.map((item) => {
+                      if (item.authOnly && !user) return null;
+                      const active = isNavItemActive(item, location.pathname, location.search);
+                      return (
+                        <Link
+                          key={item.to}
+                          to={item.to}
+                          aria-current={active ? 'page' : undefined}
+                          className={`whitespace-nowrap transition text-sm font-medium ${
+                            active
+                              ? 'text-blue-600 dark:text-blue-400'
+                              : 'text-gray-700 dark:text-gray-300 hover:text-blue-600'
+                          }`}
+                        >
+                          {item.label}
+                        </Link>
+                      );
+                    })}
                   </div>
                 </div>
 
                 <div className="ml-auto flex items-center gap-2 xl:gap-4 shrink-0">
                   <div className="hidden lg:flex items-center gap-2 xl:gap-4">
-                    {/* The "Africa is NowOpen" CTA doubles as a dropdown grouping
-                        the platform vision + waitlist (replaces the old flat
-                        "Platform" nav link). */}
+                    {/* Seller marketing — the platform pitch, pricing, the
+                        waitlist. Shown in the business view only. A person
+                        looking for somewhere to eat is not a lead, and a menu
+                        of five sales pages is how a directory reads as an
+                        advert for itself. */}
+                    {!isBusinessView ? (
+                      <Link
+                        to="/platform"
+                        className="hidden xl:flex items-center gap-1.5 whitespace-nowrap px-3 py-2 text-gray-600 dark:text-gray-300 hover:text-blue-600 rounded-lg transition text-sm font-medium"
+                      >
+                        <Store size={16} /> List your business
+                      </Link>
+                    ) : (
                     <div className="relative group shrink-0">
                       <Link
                         to="/waitlist"
@@ -113,16 +139,18 @@ import { useT } from '../../contexts/I18nContext';
                         </div>
                       </div>
                     </div>
+                    )}
+                    {canSwitch && <AudienceSwitch audience={audience} onChange={setAudience} />}
                     {user ? (
                       <>
                         <Link
-                          to="/dashboard"
+                          to={isBusinessView ? '/dashboard' : '/profile'}
                           className="flex items-center gap-2 whitespace-nowrap px-3 xl:px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded-lg transition text-sm font-medium"
-                          aria-label={t('nav.dashboard')}
-                          title={t('nav.dashboard')}
+                          aria-label={isBusinessView ? t('nav.dashboard') : 'My NowOpen'}
+                          title={isBusinessView ? t('nav.dashboard') : 'My NowOpen'}
                         >
                           <User size={18} />
-                          <span className="hidden xl:inline">{t('nav.dashboard')}</span>
+                          <span className="hidden xl:inline">{isBusinessView ? t('nav.dashboard') : 'My NowOpen'}</span>
                         </Link>
                         {isAdmin && (
                           <Link
@@ -186,34 +214,58 @@ import { useT } from '../../contexts/I18nContext';
                     <LanguageSelector />
                     <CurrencySelector />
                   </div>
-                  <Link to="/" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                    {t('nav.home')}
-                  </Link>
-                  <Link to="/businesses" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                    {t('nav.discover')}
-                  </Link>
-                  <Link to="/adverts" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                    {t('nav.promote')}
-                  </Link>
-                  <Link to="/media" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                    {t('nav.create')}
-                  </Link>
-                  <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('nav.africaNowOpen')}</p>
-                  <Link to="/platform" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                    {t('nav.platform')}
-                  </Link>
-                  <Link to="/os" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                    {t('nav.os')}
-                  </Link>
-                  <Link to="/forms" onClick={closeMenu} className="block px-4 py-2 text-purple-600 dark:text-purple-400 font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded text-sm">
-                    {t('nav.joinMobile')}
-                  </Link>
-                  <Link to="/waitlist" onClick={closeMenu} className="block px-4 py-2 text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded text-sm">
-                    {t('nav.waitlistMobile')}
-                  </Link>
-                  <Link to="/pricing" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                    {t('nav.pricing')}
-                  </Link>
+                  {/* Same rule as the desktop bar: one navigation, not both. */}
+                  {navItems.map((item) => {
+                    if (item.authOnly && !user) return null;
+                    const Icon = item.icon;
+                    return (
+                      <Link
+                        key={item.to}
+                        to={item.to}
+                        onClick={closeMenu}
+                        className="flex items-center gap-2.5 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm"
+                      >
+                        <Icon size={16} /> {item.label}
+                      </Link>
+                    );
+                  })}
+
+                  {canSwitch && (
+                    <button
+                      type="button"
+                      onClick={() => { setAudience(isBusinessView ? 'people' : 'business'); closeMenu(); }}
+                      className="w-full text-left flex items-center gap-2.5 px-4 py-2 mt-1 text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded text-sm"
+                    >
+                      <Store size={16} /> {isBusinessView ? 'Browse as a customer' : 'Manage my business'}
+                    </button>
+                  )}
+
+                  {isBusinessView ? (
+                    <>
+                      <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('nav.africaNowOpen')}</p>
+                      <Link to="/platform" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
+                        {t('nav.platform')}
+                      </Link>
+                      <Link to="/os" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
+                        {t('nav.os')}
+                      </Link>
+                      <Link to="/forms" onClick={closeMenu} className="block px-4 py-2 text-purple-600 dark:text-purple-400 font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded text-sm">
+                        {t('nav.joinMobile')}
+                      </Link>
+                      <Link to="/waitlist" onClick={closeMenu} className="block px-4 py-2 text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded text-sm">
+                        {t('nav.waitlistMobile')}
+                      </Link>
+                      <Link to="/pricing" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
+                        {t('nav.pricing')}
+                      </Link>
+                    </>
+                  ) : (
+                    /* The one door into the seller side, for someone who came
+                       to browse and turns out to run a shop. */
+                    <Link to="/platform" onClick={closeMenu} className="flex items-center gap-2.5 px-4 py-2 mt-1 text-gray-600 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
+                      <Store size={16} /> List your business
+                    </Link>
+                  )}
                   {user ? (
                     <>
                       <Link to="/dashboard" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
