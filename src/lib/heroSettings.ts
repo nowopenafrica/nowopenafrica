@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { parseHeroSlides, type HeroSlide } from './heroSlides';
 
 // Hero banner settings — the admin switches the video slider on or off, and
 // picks a background colour for when it is off.
@@ -33,9 +34,16 @@ export interface HeroSettings {
    * behaviour, where the two ran independently and regularly collided.
    */
   textSyncWithVideo: boolean;
+  /**
+   * Slides added by URL — a YouTube link, or a video file on a host the page is
+   * allowed to load from. Stored here rather than in a table of their own
+   * because site_settings.value is already JSONB and this is a handful of rows
+   * an admin edits by hand; a table would be a migration for no benefit.
+   */
+  urlSlides: HeroSlide[];
 }
 
-export const DEFAULT_HERO: HeroSettings = { videoEnabled: true, bannerColor: null, textSyncWithVideo: true };
+export const DEFAULT_HERO: HeroSettings = { videoEnabled: true, bannerColor: null, textSyncWithVideo: true, urlSlides: [] };
 
 /** Accept only what we understand; anything else falls back to the default. */
 export function parseHeroSettings(value: unknown): HeroSettings {
@@ -46,6 +54,9 @@ export function parseHeroSettings(value: unknown): HeroSettings {
     videoEnabled: v.videoEnabled !== false,
     bannerColor: color,
     textSyncWithVideo: v.textSyncWithVideo !== false,
+    // parseHeroSlides re-derives each playback URL and drops anything it cannot
+    // play, so a stale or hand-edited row can never reach an iframe src.
+    urlSlides: parseHeroSlides(v.urlSlides),
   };
 }
 

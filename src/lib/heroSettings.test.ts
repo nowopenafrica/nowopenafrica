@@ -5,7 +5,7 @@ import {
 
 describe('parseHeroSettings', () => {
   it('defaults to video on with no colour override', () => {
-    expect(DEFAULT_HERO).toEqual({ videoEnabled: true, bannerColor: null, textSyncWithVideo: true });
+    expect(DEFAULT_HERO).toEqual({ videoEnabled: true, bannerColor: null, textSyncWithVideo: true, urlSlides: [] });
   });
 
   it('treats anything unreadable as the default rather than throwing', () => {
@@ -36,20 +36,20 @@ describe('heroBackground', () => {
   });
 
   it('uses the chosen colour once video is off', () => {
-    expect(heroBackground({ videoEnabled: false, bannerColor: '#0f172a', textSyncWithVideo: true })).toBe('#0f172a');
+    expect(heroBackground({ videoEnabled: false, bannerColor: '#0f172a', textSyncWithVideo: true, urlSlides: [] })).toBe('#0f172a');
   });
 
   it('still shows the gradient when video is off but no colour was picked', () => {
-    expect(heroBackground({ videoEnabled: false, bannerColor: null, textSyncWithVideo: true })).toBe(NOWOPEN_GRADIENT);
+    expect(heroBackground({ videoEnabled: false, bannerColor: null, textSyncWithVideo: true, urlSlides: [] })).toBe(NOWOPEN_GRADIENT);
   });
 
   it('ignores a colour while the video is on, since it could never be seen', () => {
-    expect(heroBackground({ videoEnabled: true, bannerColor: '#ff0000', textSyncWithVideo: true })).toBe(NOWOPEN_GRADIENT);
+    expect(heroBackground({ videoEnabled: true, bannerColor: '#ff0000', textSyncWithVideo: true, urlSlides: [] })).toBe(NOWOPEN_GRADIENT);
   });
 
   it('never returns an empty background, whatever the input', () => {
     // A blank here would paint the hero transparent and drop white-on-white text.
-    for (const s of [DEFAULT_HERO, { videoEnabled: false, bannerColor: null, textSyncWithVideo: true }, { videoEnabled: false, bannerColor: '#000', textSyncWithVideo: true }]) {
+    for (const s of [DEFAULT_HERO, { videoEnabled: false, bannerColor: null, textSyncWithVideo: true, urlSlides: [] }, { videoEnabled: false, bannerColor: '#000', textSyncWithVideo: true, urlSlides: [] }]) {
       expect(heroBackground(s).length).toBeGreaterThan(0);
     }
   });
@@ -65,7 +65,7 @@ describe('parseHeroSettings — text sync', () => {
   it('does not affect which background is painted', () => {
     // Text timing and banner colour are independent; a regression that coupled
     // them would show as the gradient changing when sync is toggled.
-    expect(heroBackground({ videoEnabled: false, bannerColor: '#123456', textSyncWithVideo: false })).toBe('#123456');
-    expect(heroBackground({ videoEnabled: false, bannerColor: '#123456', textSyncWithVideo: true })).toBe('#123456');
+    expect(heroBackground({ videoEnabled: false, bannerColor: '#123456', textSyncWithVideo: false, urlSlides: [] })).toBe('#123456');
+    expect(heroBackground({ videoEnabled: false, bannerColor: '#123456', textSyncWithVideo: true, urlSlides: [] })).toBe('#123456');
   });
 });

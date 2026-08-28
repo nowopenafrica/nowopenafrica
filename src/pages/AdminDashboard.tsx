@@ -7,14 +7,14 @@ import {
   ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
 } from '../lib/permissions';
 import { loadHeroSettings, saveHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
+import { makeSlide } from '../lib/heroSlides';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import { Business, Advertisement, MediaService, User as UserProfile } from '../types';
 import {
   Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
   CalendarCheck, CreditCard, ListChecks, FileText, MessageSquare, Upload, Video, LayoutGrid, ShieldCheck,
-  Crown, Eye, Inbox, History, ClipboardList,
-} from 'lucide-react';
+  Crown, Eye, Inbox, History, ClipboardList, Plus } from 'lucide-react';
 import { APPLICATION_STATUS_LABELS, hubRelationshipById } from '../lib/formsEngine';
 import { NOWOPEN_ORG_ID } from '../lib/workforce';
 import TrustPanel from '../components/dashboard/TrustPanel';
@@ -105,6 +105,8 @@ export default function AdminDashboard() {
   const [heroVideos, setHeroVideos] = useState<{ name: string; url: string }[]>([]);
   const [hero, setHero] = useState<HeroSettings>(DEFAULT_HERO);
   const [heroSaving, setHeroSaving] = useState(false);
+  const [slideUrl, setSlideUrl] = useState('');
+  const [slideTitle, setSlideTitle] = useState('');
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const HERO_BUCKET = 'hero-videos';
@@ -392,6 +394,26 @@ export default function AdminDashboard() {
       setHero(previous);
       toast.error(res.error ?? 'Could not save the banner settings.');
     }
+  };
+
+  /**
+   * Add a slide from a pasted link.
+   *
+   * makeSlide refuses anything the page could not actually play — most
+   * importantly an .mp4 on a host the CSP blocks, which would look fine in a
+   * preview and be a black rectangle on the live site. Its reason is shown as
+   * written, because every one of them is something the admin can act on.
+   */
+  const addSlide = async () => {
+    const made = makeSlide(slideUrl, slideTitle);
+    if ('error' in made) { toast.error(made.error); return; }
+    if (hero.urlSlides.some((s) => s.url === made.slide.url)) {
+      toast.error('That link is already a slide.');
+      return;
+    }
+    await updateHero({ urlSlides: [...hero.urlSlides, made.slide] });
+    setSlideUrl('');
+    setSlideTitle('');
   };
 
   const fetchHeroVideos = async () => {
@@ -1572,6 +1594,67 @@ export default function AdminDashboard() {
                               <span className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition ${hero.textSyncWithVideo ? 'translate-x-6' : 'translate-x-1'}`} />
                             </span>
                           </button>
+                        </div>
+                      )}
+
+                      {/* Slides added by link. Only shown with video on, for
+                          the same reason as the colour below. */}
+                      {hero.videoEnabled && (
+                        <div className="border-t border-gray-100 dark:border-gray-700 pt-4 space-y-3">
+                          <div>
+                            <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Slides from a link</p>
+                            <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
+                              Paste a YouTube or Vimeo link, or a direct .mp4. These play after any uploaded clips.
+                            </p>
+                          </div>
+
+                          {hero.urlSlides.length > 0 && (
+                            <div className="space-y-2">
+                              {hero.urlSlides.map((slide) => (
+                                <div key={slide.id} className="flex items-center gap-3 rounded-lg border border-gray-200 dark:border-gray-700 p-2.5">
+                                  <span className="text-[10px] font-bold uppercase tracking-wide text-purple-600 dark:text-purple-400 flex-shrink-0">
+                                    {slide.kind === 'embed' ? 'Embed' : 'Video'}
+                                  </span>
+                                  <div className="min-w-0 flex-1">
+                                    {slide.title && <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">{slide.title}</p>}
+                                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">{slide.url}</p>
+                                  </div>
+                                  <button
+                                    onClick={() => updateHero({ urlSlides: hero.urlSlides.filter((s) => s.id !== slide.id) })}
+                                    disabled={heroSaving}
+                                    aria-label={`Remove ${slide.title || slide.url}`}
+                                    className="w-[44px] min-h-[44px] inline-flex items-center justify-center rounded-lg text-gray-400 hover:text-red-600 transition disabled:opacity-50"
+                                  >
+                                    <Trash2 size={15} />
+                                  </button>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+
+                          <div className="flex flex-wrap gap-2">
+                            <input
+                              value={slideUrl}
+                              onChange={(e) => setSlideUrl(e.target.value)}
+                              placeholder="YouTube, Vimeo or .mp4 link"
+                              aria-label="Video link"
+                              className="flex-1 min-w-[220px] px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white min-h-[44px]"
+                            />
+                            <input
+                              value={slideTitle}
+                              onChange={(e) => setSlideTitle(e.target.value)}
+                              placeholder="Label (optional)"
+                              aria-label="Slide label"
+                              className="w-40 px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white min-h-[44px]"
+                            />
+                            <button
+                              onClick={addSlide}
+                              disabled={heroSaving}
+                              className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-lg text-sm font-bold bg-purple-600 text-white hover:bg-purple-700 disabled:opacity-50"
+                            >
+                              <Plus size={15} /> Add slide
+                            </button>
+                          </div>
                         </div>
                       )}
 

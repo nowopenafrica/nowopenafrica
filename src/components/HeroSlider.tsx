@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { loadHeroSettings } from '../lib/heroSettings';
+import { heroPlaylist, EMBED_SLIDE_SECONDS, type HeroSlide } from '../lib/heroSlides';
 
 const FADE_DURATION = 1500;
 const BUCKET = 'hero-videos';
@@ -20,7 +22,7 @@ interface HeroSliderProps {
 }
 
 export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: HeroSliderProps) {
-  const [videos, setVideos] = useState<string[]>([]);
+  const [videos, setVideos] = useState<HeroSlide[]>([]);
   const [current, setCurrent] = useState(0);
   const [ready, setReady] = useState<Record<number, boolean>>({});
   const videoRefs = useRef<HTMLVideoElement[]>([]);
@@ -32,15 +34,21 @@ export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: Her
 
   useEffect(() => {
     const load = async () => {
-      const { data } = await supabase.storage.from(BUCKET).list('', { limit: 10, sortBy: { column: 'name', order: 'asc' } });
-      if (!data || data.length === 0) {
-        setVideos(['/hero-background.mp4']);
-        return;
-      }
-      const urls = data
+      // Uploaded clips and URL slides are loaded together: a banner made only of
+      // YouTube links is a legitimate setup, so an empty bucket must not fall
+      // back to the packaged clip and hide them.
+      const [listed, settings] = await Promise.all([
+        supabase.storage.from(BUCKET).list('', { limit: 10, sortBy: { column: 'name', order: 'asc' } }),
+        loadHeroSettings(),
+      ]);
+      const uploads = (listed.data ?? [])
         .filter(f => /\.(mp4|webm|ogg)$/i.test(f.name))
         .map(f => supabase.storage.from(BUCKET).getPublicUrl(f.name).data.publicUrl);
-      setVideos(urls.length > 0 ? urls : ['/hero-background.mp4']);
+
+      const playlist = heroPlaylist(uploads, settings.urlSlides);
+      setVideos(playlist.length > 0
+        ? playlist
+        : heroPlaylist(['/hero-background.mp4'], []));
     };
     load();
   }, []);
@@ -62,11 +70,22 @@ export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: Her
 
     // The incoming clip is under way — bring the text back once the crossfade
     // between the two videos has finished, not before.
-    if (!notify.current) return;
     fadingOut.current = false;
-    const t = setTimeout(() => notify.current?.(true), FADE_DURATION);
-    return () => clearTimeout(t);
-  }, [current]);
+    const timers: ReturnType<typeof setTimeout>[] = [];
+    if (notify.current) timers.push(setTimeout(() => notify.current?.(true), FADE_DURATION));
+
+    // An embed reports nothing — no canplay, no timeupdate, no ended. Reading
+    // playback out of a YouTube iframe needs their IFrame API, and script-src
+    // does not allow youtube.com, so that script would simply be blocked. A
+    // timer is the honest alternative: the slide gets a fixed turn.
+    const slide = videos[current];
+    if (slide?.kind === 'embed' && videos.length > 1) {
+      const ms = EMBED_SLIDE_SECONDS * 1000;
+      if (notify.current) timers.push(setTimeout(() => { fadingOut.current = true; notify.current?.(false); }, Math.max(0, ms - TEXT_FADE_MS)));
+      timers.push(setTimeout(advance, ms));
+    }
+    return () => timers.forEach(clearTimeout);
+  }, [current, videos, advance]);
 
   /**
    * Start hiding the text while the clip still has TEXT_FADE_MS left to run.
@@ -114,26 +133,65 @@ export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: Her
 
   return (
     <>
-      {videos.map((src, idx) => (
-        <video
-          key={src}
-          ref={el => { videoRefs.current[idx] = el as HTMLVideoElement; }}
-          className="absolute inset-0 w-full h-full object-cover"
-          style={{
-            opacity: idx === current && ready[idx] ? 1 : 0,
-            transition: `opacity ${FADE_DURATION}ms ease-in-out`,
-          }}
-          src={src}
-          muted
-          playsInline
-          preload="auto"
-          aria-hidden="true"
-          onCanPlay={() => onCanPlay(idx)}
-          onTimeUpdate={() => onTimeUpdate(idx)}
-          onEnded={onEnded}
-          onError={() => {}}
-        />
-      ))}
+      {videos.map((slide, idx) => {
+        const visible = idx === current;
+        const fade = { transition: `opacity ${FADE_DURATION}ms ease-in-out` } as const;
+
+        // An embed cannot report canplay, so it is treated as ready as soon as
+        // it is its turn — otherwise it would never fade in at all.
+        if (slide.kind === 'embed') {
+          return (
+            <div
+              key={slide.id}
+              className="absolute inset-0 overflow-hidden"
+              style={{ opacity: visible ? 1 : 0, ...fade }}
+              aria-hidden="true"
+            >
+              {/* Only the visible embed is mounted. An off-screen YouTube iframe
+                  still downloads and decodes, which on a phone means paying for
+                  video nobody is watching. */}
+              {visible && (
+                <iframe
+                  src={slide.playbackUrl}
+                  title={slide.title || 'Background video'}
+                  allow="autoplay; encrypted-media; picture-in-picture"
+                  referrerPolicy="strict-origin-when-cross-origin"
+                  // object-fit does not apply to an iframe, so cover is done
+                  // with aspect-ratio plus minimums: 16:9 is preserved, and the
+                  // two minimums force it to be at least as large as the banner
+                  // in both axes. Overflow is clipped by the parent, which also
+                  // takes YouTube's title bar and logo out of shot.
+                  //
+                  // Sized against the CONTAINER, not the viewport. The usual
+                  // 177.78vh/56.25vw trick assumes the box IS the viewport; for
+                  // a 70vh banner it built a 2542px-wide iframe to fill 1435px,
+                  // which is a lot of video for a phone to decode and throw away.
+                  className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 pointer-events-none border-0"
+                  style={{ width: 'auto', height: 'auto', aspectRatio: '16 / 9', minWidth: '100%', minHeight: '100%' }}
+                />
+              )}
+            </div>
+          );
+        }
+
+        return (
+          <video
+            key={slide.id}
+            ref={el => { videoRefs.current[idx] = el as HTMLVideoElement; }}
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ opacity: visible && ready[idx] ? 1 : 0, ...fade }}
+            src={slide.playbackUrl}
+            muted
+            playsInline
+            preload="auto"
+            aria-hidden="true"
+            onCanPlay={() => onCanPlay(idx)}
+            onTimeUpdate={() => onTimeUpdate(idx)}
+            onEnded={onEnded}
+            onError={() => {}}
+          />
+        );
+      })}
       {/* Gradient overlay */}
       <div
         className="absolute inset-0 transition-opacity"
