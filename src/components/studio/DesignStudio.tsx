@@ -1,5 +1,4 @@
 import { useState, useEffect, useRef, useMemo, createContext, useContext } from 'react';
-import { jsPDF } from 'jspdf';
 import toast from 'react-hot-toast';
 import { Muxer, ArrayBufferTarget } from 'mp4-muxer';
 import { Download, FileText, Video as VideoIcon, Loader2, Phone, Globe, MapPin, Upload, X, RotateCcw, Pencil, Wand2, CheckCircle2, Target, Rocket, LayoutTemplate, Type, Palette, Radio, Link2, Gauge, Move, Camera, ListChecks } from 'lucide-react';
@@ -600,6 +599,9 @@ export default function DesignStudio({
     setBusy('pdf');
     try {
       const png = await stillPng();
+      // Imported here, not at the top of the file: jsPDF is ~900 kB and this
+      // is the only thing in the module that needs it. See studio.ts.
+      const { jsPDF } = await import('jspdf');
       const pdf = new jsPDF({ orientation: w >= h ? 'landscape' : 'portrait', unit: 'px', format: [w, h] });
       pdf.addImage(png, 'PNG', 0, 0, w, h);
       pdf.save(`${slugForFile(business.name)}-${format.key}.pdf`);

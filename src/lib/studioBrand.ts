@@ -6,7 +6,6 @@
 // direction. The same DNA feeds every Studio module so a luxury hotel never
 // receives a street-sale design, and vice-versa.
 
-import { jsPDF } from 'jspdf';
 import { Business } from '../types';
 import { slugForFile } from './studio';
 import { BrandIdentity, voiceTraitLabel, writingStyleLabel } from './brandIdentity';
@@ -223,8 +222,11 @@ export function brandGuidelinesText(business: Pick<Business, 'name' | 'category'
 }
 
 // A print-ready A4 Brand Guidelines PDF with colour swatches.
-export function downloadBrandGuidelinesPdf(business: Pick<Business, 'name' | 'category' | 'description'>, dna: BrandDNA, identity?: BrandIdentity) {
+export async function downloadBrandGuidelinesPdf(business: Pick<Business, 'name' | 'category' | 'description'>, dna: BrandDNA, identity?: BrandIdentity) {
   const { palette, personality } = dna;
+  // jsPDF is ~900 kB and only these two functions touch it, so it loads on the
+  // first PDF rather than sitting in the bundle every visitor downloads.
+  const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const pageW = 210;
   const M = 18;
@@ -313,7 +315,10 @@ export function downloadBrandGuidelinesPdf(business: Pick<Business, 'name' | 'ca
 
 // A print-ready A4 letterhead — brand-colour header band, business name,
 // tagline, contact block, a body placeholder and a footer line.
-export function downloadLetterheadPdf(business: Pick<Business, 'name' | 'category' | 'description' | 'phone' | 'website' | 'email' | 'location'>, identity: BrandIdentity | undefined, palette: BrandPalette) {
+export async function downloadLetterheadPdf(business: Pick<Business, 'name' | 'category' | 'description' | 'phone' | 'website' | 'email' | 'location'>, identity: BrandIdentity | undefined, palette: BrandPalette) {
+  // jsPDF is ~900 kB and only these two functions touch it, so it loads on the
+  // first PDF rather than sitting in the bundle every visitor downloads.
+  const { jsPDF } = await import('jspdf');
   const pdf = new jsPDF({ unit: 'mm', format: 'a4' });
   const M = 20;
   const pageW = 210;
