@@ -15,6 +15,7 @@ import BookingModal from '../components/BookingModal';
 import CartModal, { CartLine } from '../components/CartModal';
 import LiveSection from '../components/live/LiveSection';
 import BusinessStatusBadge from '../components/BusinessStatusBadge';
+import OpenStateBadge from '../components/OpenStateBadge';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { resolveBusinessStatus, loadClockConfig, resolvePublicStatus } from '../lib/businessStatus';
 import { applySeo, SITE_URL } from '../lib/seo';
@@ -840,13 +841,14 @@ export default function BusinessDetail() {
             {/* Business Status & Quick Info */}
             <div className="flex items-center gap-2 sm:gap-6 text-xs sm:text-sm flex-wrap">
               <div className="flex items-center gap-2">
-                {liveStatus ? (
-                  <BusinessStatusBadge status={liveStatus} category={business.category} showSub />
+                {/* Broadcasting beats the timetable — "Live" is the more useful
+                    thing to know and is only ever true right now. Otherwise the
+                    open state, which carries its own "hours not confirmed" and
+                    so needs no fallback here. */}
+                {liveStatus === 'live' ? (
+                  <BusinessStatusBadge status="live" category={business.category} showSub />
                 ) : (
-                  <span className="inline-flex items-center gap-1.5 text-xs text-gray-500 dark:text-gray-400">
-                    <span className="w-2 h-2 rounded-full bg-gray-300 dark:bg-gray-600" aria-hidden="true" />
-                    Hours not confirmed
-                  </span>
+                  <OpenStateBadge business={business} />
                 )}
               </div>
               {business.category && (

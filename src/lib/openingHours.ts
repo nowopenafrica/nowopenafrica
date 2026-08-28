@@ -135,6 +135,81 @@ export function parseOpeningHours(text: string | null | undefined): OpeningHours
   return { days, alwaysOpen: false, source: src };
 }
 
+// --- Writing hours back out --------------------------------------------------
+//
+// The inverse of parseOpeningHours, for the owner-facing editor. Everything the
+// editor saves goes through here, so a business can no longer end up with hours
+// this module can't read back — which is what left profiles showing "hours not
+// confirmed" and the directory unable to filter them.
+
+/** Week in reading order, paired with the Date#getDay index each label means. */
+const WEEK_ORDER: readonly { index: number; label: string }[] = [
+  { index: 1, label: 'Mon' }, { index: 2, label: 'Tue' }, { index: 3, label: 'Wed' },
+  { index: 4, label: 'Thu' }, { index: 5, label: 'Fri' }, { index: 6, label: 'Sat' },
+  { index: 0, label: 'Sun' },
+];
+
+/** Minutes from midnight -> "9AM" / "9:30AM" / "12PM", the style already stored. */
+export function minutesToLabel(mins: number): string {
+  const total = ((Math.round(mins) % 1440) + 1440) % 1440;
+  const h24 = Math.floor(total / 60);
+  const m = total % 60;
+  const suffix = h24 < 12 ? 'AM' : 'PM';
+  const h12 = h24 % 12 === 0 ? 12 : h24 % 12;
+  return m === 0 ? `${h12}${suffix}` : `${h12}:${String(m).padStart(2, '0')}${suffix}`;
+}
+
+/**
+ * Render a week back to the stored text, collapsing consecutive days that share
+ * hours ("Mon–Fri: 9AM–6PM · Sat: 10AM–4PM"). Closed days are simply left out.
+ * Returns '' when nothing is open, which callers store as "not set" rather than
+ * as "closed all week".
+ */
+export function formatOpeningHours(days: DayHours[], alwaysOpen = false): string {
+  if (alwaysOpen) return 'Open 24/7';
+
+  type Run = { from: string; to: string; open: number; close: number; endPos: number };
+  const runs: Run[] = [];
+  WEEK_ORDER.forEach(({ index, label }, pos) => {
+    const d = days[index];
+    if (!d || d.open === null || d.close === null) return;
+    const last = runs[runs.length - 1];
+    // Merge only into an unbroken run — a closed day in between must split it.
+    if (last && last.open === d.open && last.close === d.close && last.endPos === pos - 1) {
+      last.to = label;
+      last.endPos = pos;
+      return;
+    }
+    runs.push({ from: label, to: label, open: d.open, close: d.close, endPos: pos });
+  });
+
+  return runs
+    .map((r) => {
+      const dayPart = r.from === r.to ? r.from : `${r.from}–${r.to}`;
+      return `${dayPart}: ${minutesToLabel(r.open)}–${minutesToLabel(r.close)}`;
+    })
+    .join(' · ');
+}
+
+/** "HH:MM" (what <input type="time"> gives) -> minutes from midnight. */
+export function timeInputToMinutes(value: string): number | null {
+  const m = /^(\d{1,2}):(\d{2})$/.exec(value.trim());
+  if (!m) return null;
+  const h = Number(m[1]);
+  const min = Number(m[2]);
+  if (h > 23 || min > 59) return null;
+  return h * 60 + min;
+}
+
+/** Minutes from midnight -> "HH:MM" for <input type="time">. */
+export function minutesToTimeInput(mins: number): string {
+  const total = ((Math.round(mins) % 1440) + 1440) % 1440;
+  return `${String(Math.floor(total / 60)).padStart(2, '0')}:${String(total % 60).padStart(2, '0')}`;
+}
+
+/** A blank week, for an owner who hasn't set hours yet. */
+export const emptyWeek = (): DayHours[] => closedWeek();
+
 /** True when `close` is at or before `open`, i.e. the shift crosses midnight. */
 const isOvernight = (d: DayHours): boolean =>
   d.open !== null && d.close !== null && d.close <= d.open;
@@ -317,3 +392,111 @@ export function formatClock(minutes: number): string {
 }
 
 export const WEEKDAY_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+
+// --- Public open / closed ------------------------------------------------------
+//
+// One implementation, shared by the app and by the server-rendered profile.
+// It deliberately takes a minimal shape rather than the Business type: this
+// module has no dependencies, and a Vercel function must be able to import it
+// without dragging in the app.
+
+/** The only fields the state depends on. */
+export interface OpenStateInput {
+  opening_hours?: string | null;
+  hours?: string | null;
+  timezone?: string | null;
+  open_status?: 'open' | 'closed' | null;
+}
+
+export interface OpenState {
+  /** 'open' | 'closing-soon' | 'closed' | 'unknown' */
+  kind: 'open' | 'closing-soon' | 'closed' | 'unknown';
+  label: string;
+  /** The second line: "Open until 8:00 PM", "Opens Monday 9:00 AM". */
+  detail: string;
+}
+
+/** Under this many minutes to closing counts as closing soon. */
+export const CLOSING_SOON_MINUTES = 60;
+
+/**
+ * The state to print, in the business's OWN timezone.
+ *
+ * "Closing soon" is a distinct state rather than a shade of open because it is
+ * the one that changes a customer's behaviour — it is the difference between
+ * setting off now and going tomorrow.
+ *
+ * An owner's manual override wins over the schedule, since a business that has
+ * shut early knows something the timetable does not. But it cannot invent a
+ * time, so the detail line falls back to the schedule's wording.
+ */
+export function publicOpenState(b: OpenStateInput, now: Date = new Date()): OpenState {
+  const text = b.opening_hours || b.hours || '';
+  const hours: OpeningHours | null = parseOpeningHours(text);
+  const zone = b.timezone || DEFAULT_BUSINESS_TIMEZONE;
+
+  if (b.open_status === 'closed') {
+    return { kind: 'closed', label: 'Closed', detail: nextOpenDetail(hours, zone, now) };
+  }
+
+  if (!hours) {
+    if (b.open_status === 'open') return { kind: 'open', label: 'Open now', detail: '' };
+    return { kind: 'unknown', label: 'Hours not confirmed', detail: '' };
+  }
+
+  if (hours.alwaysOpen) return { kind: 'open', label: 'Open now', detail: 'Open 24 hours' };
+
+  const open = b.open_status === 'open' || isOpenAtInZone(hours, now, zone);
+  if (!open) return { kind: 'closed', label: 'Closed', detail: nextOpenDetail(hours, zone, now) };
+
+  const change = nextChangeInZone(hours, now, zone);
+  if (change?.kind === 'closes' && change.dayOffset === 0) {
+    const mins = minutesUntil(change.minutes, now, zone);
+    if (mins !== null && mins <= CLOSING_SOON_MINUTES) {
+      return {
+        kind: 'closing-soon',
+        label: 'Closing soon',
+        detail: `Closes in ${mins} minute${mins === 1 ? '' : 's'}`,
+      };
+    }
+    return { kind: 'open', label: 'Open now', detail: `Open until ${formatClock(change.minutes)}` };
+  }
+  return { kind: 'open', label: 'Open now', detail: '' };
+}
+
+function nextOpenDetail(hours: OpeningHours | null, zone: string, now: Date): string {
+  if (!hours) return '';
+  const change = nextChangeInZone(hours, now, zone);
+  if (!change || change.kind !== 'opens') return '';
+  if (change.dayOffset === 0) return `Opens at ${formatClock(change.minutes)}`;
+  if (change.dayOffset === 1) return `Opens tomorrow at ${formatClock(change.minutes)}`;
+  const day = WEEKDAY_FULL[(nowDayInZone(now, zone) + change.dayOffset) % 7];
+  return `Opens ${day} at ${formatClock(change.minutes)}`;
+}
+
+function nowDayInZone(now: Date, zone: string): number {
+  try {
+    const label = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: zone }).format(now);
+    const i = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(label);
+    return i >= 0 ? i : now.getDay();
+  } catch {
+    return now.getDay();
+  }
+}
+
+/** Minutes from now until a time-of-day, in the business's zone. */
+function minutesUntil(targetMinutes: number, now: Date, zone: string): number | null {
+  try {
+    const parts = new Intl.DateTimeFormat('en-GB', {
+      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone,
+    }).formatToParts(now);
+    const h = Number(parts.find((p) => p.type === 'hour')?.value);
+    const m = Number(parts.find((p) => p.type === 'minute')?.value);
+    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
+    const diff = targetMinutes - (h * 60 + m);
+    return diff >= 0 ? diff : null;
+  } catch {
+    return null;
+  }
+}
+

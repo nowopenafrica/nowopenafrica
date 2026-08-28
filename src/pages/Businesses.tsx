@@ -9,13 +9,23 @@ import {
 } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 import LocationAutocomplete from '../components/LocationAutocomplete';
-import BusinessStatusBadge from '../components/BusinessStatusBadge';
+import OpenStateBadge from '../components/OpenStateBadge';
 import { normalize } from '../lib/search';
 import { BUSINESS_CATEGORY_GROUPS, businessCategories, matchesCategory } from '../data/categories';
 import {
-  resolvePublicStatus, isOrderingCategory, buildBusinessPulse, statusSortRank,
+  isOrderingCategory, buildBusinessPulse, statusSortRank,
 } from '../lib/businessStatus';
-import { parseOpeningHours } from '../lib/openingHours';
+import { parseOpeningHours, publicOpenState, type OpenState } from '../lib/openingHours';
+
+/**
+ * Collapse the four-state open model onto the two the sort ranks by.
+ *
+ * Closing soon still sorts as open — it is open — and an unknown state sorts
+ * as closed so unconfirmed listings do not outrank businesses that took the
+ * trouble to publish their hours.
+ */
+const openRank = (state: OpenState | undefined): 'open' | 'closed' =>
+  state?.kind === 'open' || state?.kind === 'closing-soon' ? 'open' : 'closed';
 import { applySeo } from '../lib/seo';
 
 // Icon + accent + one-liner per business category group (keyed by group label).
@@ -47,6 +57,7 @@ const ACCENT: Record<string, { grad: string; text: string }> = {
 // not offered here — a chip that could never match is a lie wearing a filter.
 const STATUS_CHIPS: { key: string; label: string }[] = [
   { key: 'open', label: 'Open Now' },
+  { key: 'closing', label: 'Closing Soon' },
   { key: 'open24', label: 'Open 24 Hours' },
   { key: 'orders', label: 'Taking Orders' },
   { key: 'book', label: 'Book Now' },
@@ -130,8 +141,8 @@ export default function Businesses() {
   // Honest public status per card: each business's OWN stored hours in its OWN
   // timezone. null means "hours not confirmed" — never a category guess.
   const statusMap = useMemo(() => {
-    const m = new Map<string, 'open' | 'closed' | null>();
-    for (const b of businesses) m.set(b.id, resolvePublicStatus(b, now));
+    const m = new Map<string, OpenState>();
+    for (const b of businesses) m.set(b.id, publicOpenState(b, now));
     return m;
   }, [businesses, now]);
 
@@ -151,12 +162,16 @@ export default function Businesses() {
 
   const matchStatus = (b: any): boolean => {
     if (statusFilter.length === 0) return true;
-    const st = statusMap.get(b.id) ?? null;
-    const open = st === 'open';
+    const st = statusMap.get(b.id);
+    // A shop closing in twenty minutes is open. "Open now" that excluded it
+    // would hide exactly the businesses someone searching right now can still
+    // reach.
+    const open = st?.kind === 'open' || st?.kind === 'closing-soon';
     const orderCapable = isOrderingCategory(b.category);
     return statusFilter.every((k) => {
       switch (k) {
         case 'open': return open;
+        case 'closing': return st?.kind === 'closing-soon';
         case 'open24': return isOpen24(b);
         case 'orders': return open && orderCapable;
         case 'book': return isBookingCategory(b);
@@ -191,8 +206,10 @@ export default function Businesses() {
   // Live-first ranking: open/available/responding/live businesses surface above
   // closed ones, then by rating, then by response speed.
   const rankedBusinesses = [...filteredBusinesses].sort((a, b) => {
-    const sa = statusSortRank(statusMap.get(a.id) ?? 'closed');
-    const sb = statusSortRank(statusMap.get(b.id) ?? 'closed');
+    // Open first, then closing soon, then everything else — someone browsing
+    // now wants what they can still get to.
+    const sa = statusSortRank(openRank(statusMap.get(a.id)));
+    const sb = statusSortRank(openRank(statusMap.get(b.id)));
     if (sa !== sb) return sa - sb;
     const ratingDiff = (b.rating ?? 0) - (a.rating ?? 0);
     if (ratingDiff !== 0) return ratingDiff;
@@ -365,7 +382,7 @@ export default function Businesses() {
                   <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">{business.description}</p>
 
                   <div className="mb-3">
-                    <BusinessStatusBadge status={statusMap.get(business.id) ?? null} category={business.category} compact />
+                    <OpenStateBadge business={business} now={now} compact />
                   </div>
 
                   <div className="space-y-1.5 text-xs text-gray-600 dark:text-gray-400">

@@ -24,10 +24,13 @@
 
 import { escapeHtml } from './shareRender.js';
 import {
-  parseOpeningHours, isOpenAtInZone, nextChangeInZone, formatClock,
-  DEFAULT_BUSINESS_TIMEZONE, WEEKDAY_FULL,
-  type OpeningHours,
+  parseOpeningHours, formatClock, publicOpenState, WEEKDAY_FULL,
+  CLOSING_SOON_MINUTES, type OpenState,
 } from './openingHours.js';
+
+// Re-exported so the page's tests and callers keep one import, while the state
+// machine itself lives with the rest of the time logic.
+export { publicOpenState as openState, CLOSING_SOON_MINUTES, type OpenState };
 
 export interface ProfileBusiness {
   id: string;
@@ -86,100 +89,6 @@ export interface ProfilePage {
 /** Where this profile lives. The username form is the one people share. */
 export const profilePath = (b: Pick<ProfileBusiness, 'id' | 'username'>): string =>
   b.username ? `/${b.username}` : `/businesses/${b.id}`;
-
-// --- Open / closed ------------------------------------------------------------
-
-export interface OpenState {
-  /** 'open' | 'closing-soon' | 'closed' | 'unknown' */
-  kind: 'open' | 'closing-soon' | 'closed' | 'unknown';
-  label: string;
-  /** The second line: "Open until 8:00 PM", "Opens Monday 9:00 AM". */
-  detail: string;
-}
-
-/** Under this many minutes to closing counts as closing soon. */
-export const CLOSING_SOON_MINUTES = 60;
-
-/**
- * The state to print, in the business's OWN timezone.
- *
- * "Closing soon" is a distinct state rather than a shade of open because it is
- * the one that changes a customer's behaviour — it is the difference between
- * setting off now and going tomorrow.
- *
- * An owner's manual override wins over the schedule, since a business that has
- * shut early knows something the timetable does not. But it cannot invent a
- * time, so the detail line falls back to the schedule's wording.
- */
-export function openState(b: ProfileBusiness, now: Date = new Date()): OpenState {
-  const text = b.opening_hours || b.hours || '';
-  const hours: OpeningHours | null = parseOpeningHours(text);
-  const zone = b.timezone || DEFAULT_BUSINESS_TIMEZONE;
-
-  if (b.open_status === 'closed') {
-    return { kind: 'closed', label: 'Closed', detail: nextOpenDetail(hours, zone, now) };
-  }
-
-  if (!hours) {
-    if (b.open_status === 'open') return { kind: 'open', label: 'Open now', detail: '' };
-    return { kind: 'unknown', label: 'Hours not confirmed', detail: '' };
-  }
-
-  if (hours.alwaysOpen) return { kind: 'open', label: 'Open now', detail: 'Open 24 hours' };
-
-  const open = b.open_status === 'open' || isOpenAtInZone(hours, now, zone);
-  if (!open) return { kind: 'closed', label: 'Closed', detail: nextOpenDetail(hours, zone, now) };
-
-  const change = nextChangeInZone(hours, now, zone);
-  if (change?.kind === 'closes' && change.dayOffset === 0) {
-    const mins = minutesUntil(change.minutes, now, zone);
-    if (mins !== null && mins <= CLOSING_SOON_MINUTES) {
-      return {
-        kind: 'closing-soon',
-        label: 'Closing soon',
-        detail: `Closes in ${mins} minute${mins === 1 ? '' : 's'}`,
-      };
-    }
-    return { kind: 'open', label: 'Open now', detail: `Open until ${formatClock(change.minutes)}` };
-  }
-  return { kind: 'open', label: 'Open now', detail: '' };
-}
-
-function nextOpenDetail(hours: OpeningHours | null, zone: string, now: Date): string {
-  if (!hours) return '';
-  const change = nextChangeInZone(hours, now, zone);
-  if (!change || change.kind !== 'opens') return '';
-  if (change.dayOffset === 0) return `Opens at ${formatClock(change.minutes)}`;
-  if (change.dayOffset === 1) return `Opens tomorrow at ${formatClock(change.minutes)}`;
-  const day = WEEKDAY_FULL[(nowDayInZone(now, zone) + change.dayOffset) % 7];
-  return `Opens ${day} at ${formatClock(change.minutes)}`;
-}
-
-function nowDayInZone(now: Date, zone: string): number {
-  try {
-    const label = new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: zone }).format(now);
-    const i = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(label);
-    return i >= 0 ? i : now.getDay();
-  } catch {
-    return now.getDay();
-  }
-}
-
-/** Minutes from now until a time-of-day, in the business's zone. */
-function minutesUntil(targetMinutes: number, now: Date, zone: string): number | null {
-  try {
-    const parts = new Intl.DateTimeFormat('en-GB', {
-      hour: '2-digit', minute: '2-digit', hour12: false, timeZone: zone,
-    }).formatToParts(now);
-    const h = Number(parts.find((p) => p.type === 'hour')?.value);
-    const m = Number(parts.find((p) => p.type === 'minute')?.value);
-    if (!Number.isFinite(h) || !Number.isFinite(m)) return null;
-    const diff = targetMinutes - (h * 60 + m);
-    return diff >= 0 ? diff : null;
-  } catch {
-    return null;
-  }
-}
 
 // --- Structured data ----------------------------------------------------------
 
@@ -381,7 +290,7 @@ function hoursTable(text: string | null | undefined): string {
 export function renderBusinessPage(p: ProfilePage): string {
   const b = p.business;
   const now = p.now ?? new Date();
-  const state = openState(b, now);
+  const state = publicOpenState(b, now);
   const url = `${p.siteUrl}${profilePath(b)}`;
   const image = b.image_url || b.logo_url || `${p.siteUrl}/og-image.png`;
 
