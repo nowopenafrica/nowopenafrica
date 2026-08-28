@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   stripWakePhrase, parseVoiceCommand, matchCategory, searchUrlFor, replyFor,
-  WAKE_PHRASES,
+  openNowUrl, spokenOpenState, WAKE_PHRASES,
 } from './voiceCommands';
 
 describe('stripWakePhrase', () => {
@@ -143,6 +143,117 @@ describe('replyFor', () => {
   });
 
   it('offers an example when it did not understand', () => {
-    expect(replyFor({ kind: 'unknown', spoken: 'mumble' })).toMatch(/barber near me/);
+    // The example leads with the open-now question now, because that is the one
+    // the product is named after and the one the assistant answers best.
+    expect(replyFor({ kind: 'unknown', spoken: 'mumble' })).toMatch(/open near me/);
+  });
+});
+
+describe('asking whether somewhere is open', () => {
+  it('recognises the product\u2019s own question', () => {
+    for (const said of ['is mama put open', 'is mama put still open', 'are golden gem open now', 'is lens and light open?']) {
+      const intent = parseVoiceCommand(said);
+      expect(intent.kind, said).toBe('business');
+      if (intent.kind === 'business') expect(intent.action).toBe('status');
+    }
+  });
+
+  it('keeps the business name clean of the question around it', () => {
+    const intent = parseVoiceCommand('is the mama put kitchen still open today');
+    expect(intent.kind).toBe('business');
+    if (intent.kind === 'business') expect(intent.name).toBe('mama put kitchen');
+  });
+
+  it('does not treat "is anywhere open" as a business called anywhere', () => {
+    const intent = parseVoiceCommand('is anywhere open near me');
+    expect(intent.kind).toBe('open-now');
+  });
+});
+
+describe('what is open now', () => {
+  it('recognises the phrasings people actually use', () => {
+    for (const said of ["what's open near me", 'who is open right now', 'what is open now', "who's open"]) {
+      expect(parseVoiceCommand(said).kind, said).toBe('open-now');
+    }
+  });
+
+  it('keeps a category when one was named', () => {
+    const intent = parseVoiceCommand("what's open near me for food");
+    expect(intent.kind).toBe('open-now');
+    if (intent.kind === 'open-now') {
+      expect(intent.nearMe).toBe(true);
+      expect(intent.query).toContain('food');
+    }
+  });
+
+  it('has no query when none was named', () => {
+    const intent = parseVoiceCommand("what's open right now");
+    if (intent.kind === 'open-now') expect(intent.query).toBeNull();
+  });
+
+  it('matches the longest phrasing first', () => {
+    // "who is open right now" must not be eaten by the shorter "open now" and
+    // left with a stray "who is".
+    const intent = parseVoiceCommand('who is open right now');
+    if (intent.kind === 'open-now') expect(intent.query).toBeNull();
+  });
+
+  it('filters the directory to open, not just search it', () => {
+    expect(openNowUrl(null)).toContain('status=open');
+    expect(openNowUrl('barber', 'Yaba')).toContain('search=barber');
+    expect(openNowUrl('barber', 'Yaba')).toContain('location=Yaba');
+  });
+});
+
+describe('acting on a business', () => {
+  it('recognises a call', () => {
+    const intent = parseVoiceCommand('call mama put kitchen');
+    expect(intent.kind).toBe('business');
+    if (intent.kind === 'business') {
+      expect(intent.action).toBe('call');
+      expect(intent.name).toBe('mama put kitchen');
+    }
+  });
+
+  it('recognises directions', () => {
+    const intent = parseVoiceCommand('directions to golden gem jewellers');
+    if (intent.kind === 'business') expect(intent.action).toBe('directions');
+  });
+
+  it('does not hijack navigation phrased as a place', () => {
+    // "where is the dashboard" is a route, not a business.
+    expect(parseVoiceCommand('where is dashboard').kind).toBe('navigate');
+    expect(parseVoiceCommand('take me to pricing').kind).toBe('navigate');
+  });
+});
+
+describe('spokenOpenState', () => {
+  it('leads with the answer, because speech cannot be skimmed', () => {
+    expect(spokenOpenState('Mama Put', { kind: 'open', detail: 'Open until 8:00 PM' }))
+      .toMatch(/^Yes, Mama Put is open/);
+    expect(spokenOpenState('Mama Put', { kind: 'closed', detail: 'Opens tomorrow at 9:00 AM' }))
+      .toMatch(/^No, Mama Put is closed/);
+  });
+
+  it('warns when they are about to shut', () => {
+    expect(spokenOpenState('X', { kind: 'closing-soon', detail: 'Closes in 20 minutes' }))
+      .toContain('closing soon');
+  });
+
+  it('refuses to claim open when the hours could not be read', () => {
+    // On a directory, guessing is how someone ends up outside a shut shop.
+    const said = spokenOpenState('X', { kind: 'unknown', detail: '' });
+    expect(said).toMatch(/can't say for sure/);
+    expect(said).not.toMatch(/\bis open\b/);
+  });
+});
+
+describe('help', () => {
+  it('answers "what can you do" with things that actually work', () => {
+    const intent = parseVoiceCommand('what can you do');
+    expect(intent.kind).toBe('help');
+    const said = replyFor(intent);
+    expect(said).toContain('open near me');
+    expect(said).toContain('call');
   });
 });

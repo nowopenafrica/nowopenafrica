@@ -4,8 +4,12 @@ import toast from 'react-hot-toast';
 import { Mic, MicOff, Loader2, X, Ear } from 'lucide-react';
 import {
   stripWakePhrase, parseVoiceCommand, matchCategory, searchUrlFor, replyFor,
+  openNowUrl, spokenOpenState, notFoundReply,
 } from '../lib/voiceCommands';
 import { detectLocation, isGeolocationSupported } from '../lib/geolocation';
+import { supabase } from '../lib/supabase';
+import { telHref } from '../lib/phone';
+import { publicOpenState } from '../lib/openingHours';
 import {
   loadAlwaysListen, saveAlwaysListen, micPermissionState, shouldListen,
   type MicPermission,
@@ -66,6 +70,40 @@ const say = (text: string) => {
   } catch { /* silence is fine */ }
 };
 
+/**
+ * Find a business by the name someone said.
+ *
+ * Recognisers drop punctuation and hear brand names loosely, so the match is
+ * deliberately fuzzy: an exact name first, then a prefix, then a contains.
+ * Ordered by rating so "call the barber" reaches the one people actually rate
+ * when several match.
+ *
+ * Returns null rather than the first row of a bad match — acting on the wrong
+ * business is worse than admitting the miss, because the next thing the
+ * assistant does is dial a phone number.
+ */
+async function findBusinessByName(spokenName: string) {
+  const name = spokenName.trim();
+  if (name.length < 2) return null;
+  // PostgREST treats these as wildcards/separators inside a filter value.
+  const safe = name.replace(/[%,()]/g, ' ').trim();
+  if (!safe) return null;
+
+  const { data } = await supabase
+    .from('businesses')
+    .select('id,name,username,location,phone,opening_hours,hours,timezone,open_status')
+    .ilike('name', `%${safe}%`)
+    .order('rating', { ascending: false })
+    .limit(5);
+
+  const rows = data || [];
+  if (rows.length === 0) return null;
+  const lower = safe.toLowerCase();
+  return rows.find((r) => (r.name || '').toLowerCase() === lower)
+    || rows.find((r) => (r.name || '').toLowerCase().startsWith(lower))
+    || rows[0];
+}
+
 export default function VoiceAssistant() {
   const navigate = useNavigate();
   const recognitionRef = useRef<SpeechRecognitionLike | null>(null);
@@ -116,6 +154,17 @@ export default function VoiceAssistant() {
     return () => document.removeEventListener('visibilitychange', onVisibility);
   }, []);
 
+  /** The caller's area, only when they actually asked for "near me". */
+  const resolveArea = useCallback(async (): Promise<string | null> => {
+    if (!isGeolocationSupported()) return null;
+    try {
+      return (await detectLocation()).label;
+    } catch {
+      toast("Couldn't get your location - searching everywhere instead.");
+      return null;
+    }
+  }, []);
+
   const runIntent = useCallback(async (command: string) => {
     const intent = parseVoiceCommand(command);
 
@@ -127,23 +176,69 @@ export default function VoiceAssistant() {
       return;
     }
 
-    if (intent.kind === 'unknown') {
+    if (intent.kind === 'unknown' || intent.kind === 'help') {
       const message = replyFor(intent);
       setReply(message);
       say(message);
       return;
     }
 
-    // A search. Resolve the caller's area only when they actually asked for it.
-    setState('working');
-    let location: string | null = null;
-    if (intent.nearMe && isGeolocationSupported()) {
-      try {
-        location = (await detectLocation()).label;
-      } catch {
-        toast('Couldn\'t get your location — searching everywhere instead.');
-      }
+    // "What's open near me" — the question the product is named after, so it
+    // lands on the directory already filtered rather than on a plain search.
+    if (intent.kind === 'open-now') {
+      setState('working');
+      const where = intent.nearMe ? await resolveArea() : null;
+      const message = replyFor(intent, where);
+      setReply(message);
+      say(message);
+      const openQuery = intent.query ? matchCategory(intent.query) || intent.query : null;
+      navigate(openNowUrl(openQuery, where));
+      setOpen(false);
+      return;
     }
+
+    // Something about ONE named business. This is the part that makes it an
+    // assistant rather than a search box: a yes-or-no question gets answered
+    // out loud instead of handed back as a results page.
+    if (intent.kind === 'business') {
+      setState('working');
+      setReply(replyFor(intent));
+      if (intent.action !== 'status') say(replyFor(intent));
+
+      const match = await findBusinessByName(intent.name);
+      if (!match) {
+        const message = notFoundReply(intent.name);
+        setReply(message);
+        say(message);
+        navigate(searchUrlFor(intent.name));
+        setOpen(false);
+        return;
+      }
+
+      if (intent.action === 'call' && match.phone) {
+        window.location.href = telHref(match.phone);
+        setOpen(false);
+        return;
+      }
+      if (intent.action === 'directions') {
+        const where = match.location || match.name;
+        window.open(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(where)}`, '_blank', 'noopener');
+        setOpen(false);
+        return;
+      }
+
+      // Status — or a call to a business with no number on file, where the
+      // useful thing is still whether they are open.
+      const answer = spokenOpenState(match.name, publicOpenState(match, new Date()));
+      setReply(answer);
+      say(answer);
+      setState('off');
+      return;
+    }
+
+    // A search.
+    setState('working');
+    const location = intent.nearMe ? await resolveArea() : null;
     // Prefer a real platform category so the directory filters properly, and
     // fall back to the spoken words when nothing matches.
     const query = matchCategory(intent.query) || intent.query;
@@ -152,7 +247,7 @@ export default function VoiceAssistant() {
     say(message);
     navigate(searchUrlFor(query, location));
     setOpen(false);
-  }, [navigate]);
+  }, [navigate, resolveArea]);
 
   const handleTranscript = useCallback((transcript: string) => {
     setHeard(transcript);
