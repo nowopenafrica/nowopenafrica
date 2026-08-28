@@ -832,3 +832,59 @@ export function hintDetail(track: MediaStreamTrack | null | undefined): void {
     /* read-only in some implementations */
   }
 }
+
+// --- Drawing once per camera frame, and no more --------------------------------
+
+/** A video element, plus the frame callback the DOM typings do not carry. */
+export interface FrameSourceVideo {
+  requestVideoFrameCallback?: (cb: () => void) => number;
+  cancelVideoFrameCallback?: (handle: number) => void;
+}
+
+/**
+ * Call `draw` once per decoded camera frame.
+ *
+ * A `requestAnimationFrame` loop runs at the DISPLAY's refresh rate, which on a
+ * modern phone is 90 or 120 Hz. The camera produces 30 frames a second, so
+ * three quarters of those draws copy a frame that has not changed — pure waste,
+ * and it is competing with the video encoder for the same phone. That is enough
+ * to make a preview visibly drop frames while recording.
+ *
+ * `requestVideoFrameCallback` fires exactly when a new frame is ready, which is
+ * both the correct cadence and a quarter of the work.
+ *
+ * It stops when the app is backgrounded, though — as does rAF — so an interval
+ * stays on as a BACKSTOP that draws only when nothing else has for a while.
+ * Foreground that costs one comparison every quarter second; backgrounded it is
+ * the only thing keeping a recording moving instead of frozen.
+ *
+ * Returns the teardown.
+ */
+export function driveVideoFrames(
+  video: FrameSourceVideo,
+  draw: () => void,
+  fallbackFps = 30,
+): () => void {
+  let lastDraw = 0;
+  const now = () => (typeof performance !== 'undefined' ? performance.now() : 0);
+  const run = () => { draw(); lastDraw = now(); };
+
+  const perFrame = typeof video.requestVideoFrameCallback === 'function';
+  let handle: number | null = null;
+  const arm = () => {
+    if (!perFrame) return;
+    handle = video.requestVideoFrameCallback!(() => { run(); arm(); });
+  };
+  arm();
+
+  const backstopMs = perFrame ? 250 : Math.max(1, Math.round(1000 / Math.max(1, fallbackFps)));
+  const timer = setInterval(() => {
+    if (perFrame && now() - lastDraw < backstopMs) return;
+    run();
+  }, backstopMs);
+
+  return () => {
+    clearInterval(timer);
+    if (handle !== null) video.cancelVideoFrameCallback?.(handle);
+  };
+}

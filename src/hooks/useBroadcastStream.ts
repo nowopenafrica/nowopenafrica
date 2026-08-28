@@ -8,6 +8,7 @@ import {
   coverCropRect, containRect, videoConstraintsFor, oppositeFacing, canFlipCamera,
   applyAutoAdapt, cameraControls, applyPointOfInterest, applyTrackValue,
   nativeZoomTarget, clampToRange, pickRecorderMimeType, formatForMimeType,
+  driveVideoFrames, type FrameSourceVideo,
   chooseVideoBitrate, preferredCodecOrder, hintDetail, AUDIO_BITRATE,
   type FacingMode, type CameraControls,
 } from '../lib/openReel';
@@ -80,7 +81,6 @@ async function createRecordingPump(
     return null;
   }
 
-  let lastDraw = 0;
   const draw = () => {
     if (!video.videoWidth) return;
     // CONTAIN, not cover. The canvas cannot be resized once MediaRecorder is
@@ -96,38 +96,12 @@ async function createRecordingPump(
       ctx.fillRect(0, 0, canvas.width, canvas.height);
     }
     ctx.drawImage(video, fit.dx, fit.dy, fit.dw, fit.dh);
-    lastDraw = performance.now();
   };
 
-  // Draw when a frame actually arrives, not on a timer.
-  //
-  // A fixed interval samples the camera on its own schedule, so at 30fps
-  // against a 30fps source it duplicates some frames and misses others — the
-  // replay judders even though nothing dropped. requestVideoFrameCallback fires
-  // once per decoded frame, which is exactly the cadence wanted.
-  //
-  // It stops when the broadcaster switches apps, though, so the interval stays
-  // on as a BACKSTOP: it draws only when nothing has for a while. Foreground,
-  // that costs one comparison a quarter second; backgrounded, it is the only
-  // thing keeping the replay moving instead of frozen.
-  type FrameCallbackVideo = HTMLVideoElement & {
-    requestVideoFrameCallback?: (cb: () => void) => number;
-    cancelVideoFrameCallback?: (handle: number) => void;
-  };
-  const fcVideo = video as FrameCallbackVideo;
-  const perFrame = typeof fcVideo.requestVideoFrameCallback === 'function';
-  let frameHandle: number | null = null;
-  const armFrameCallback = () => {
-    if (!perFrame) return;
-    frameHandle = fcVideo.requestVideoFrameCallback!(() => { draw(); armFrameCallback(); });
-  };
-  armFrameCallback();
-
-  const backstopMs = perFrame ? 250 : Math.round(1000 / REPLAY_FPS);
-  const timer = setInterval(() => {
-    if (perFrame && performance.now() - lastDraw < backstopMs) return;
-    draw();
-  }, backstopMs);
+  // One draw per decoded camera frame, with a timer backstop for when the
+  // broadcaster switches apps. Shared with OpenReel's zoom pump — see
+  // driveVideoFrames for why a plain animation-frame loop is the wrong shape.
+  let stopDriver = driveVideoFrames(video as unknown as FrameSourceVideo, draw, REPLAY_FPS);
 
   const stream = canvas.captureStream(REPLAY_FPS);
   if (audio) stream.addTrack(audio);
@@ -137,13 +111,13 @@ async function createRecordingPump(
     setSource: (next: MediaStreamTrack) => {
       video.srcObject = new MediaStream([next]);
       video.play().catch(() => {});
-      // Changing the source cancels any pending frame callback, so the chain
-      // has to be started again or the pump falls back to the backstop rate.
-      armFrameCallback();
+      // Changing the source cancels any pending frame callback, so the driver
+      // has to be rebuilt or the pump falls back to the backstop rate.
+      stopDriver();
+      stopDriver = driveVideoFrames(video as unknown as FrameSourceVideo, draw, REPLAY_FPS);
     },
     stop: () => {
-      clearInterval(timer);
-      if (frameHandle !== null) fcVideo.cancelVideoFrameCallback?.(frameHandle);
+      stopDriver();
       video.srcObject = null;
       stream.getVideoTracks().forEach((t) => t.stop());
     },
@@ -455,7 +429,7 @@ export function useBroadcastStream() {
       // Bitrate follows the resolution actually being recorded rather than a
       // flat number, and audio is stated rather than left to the browser's
       // default — which on some is well under half this and audible.
-      const recorded = recordStream.getVideoTracks()[0]?.getSettings();
+      const recorded = recordStream.getVideoTracks()[0]?.getSettings?.();
       const videoBitsPerSecond = Math.min(
         REPLAY_VIDEO_BITRATE_BPS,
         chooseVideoBitrate(recorded?.width || 1280, recorded?.height || 720),

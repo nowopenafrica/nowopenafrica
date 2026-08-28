@@ -15,15 +15,19 @@ export const MAX_DIMENSION = 1600; // long edge, in px — plenty for full-bleed
  * image scaled into a card. 1600px was throwing away a third of the linear
  * resolution of every capture.
  *
- * Measured on a detailed 2560x1440 source: 1600 -> 2048 is worth +1.4 dB of
- * retained detail for +25% on the uploaded file (60 KB -> 75 KB in that test).
- * That is where essentially all of the quality gain in an OpenReel photo comes
- * from — far more than the lossless capture intermediate.
+ * The point is that a 1080p capture is now UNDER the ceiling, so it is stored
+ * at its full native resolution with no resize at all — against 1600 before,
+ * which threw away a fifth of the linear resolution of every photograph and
+ * resampled the rest.
+ *
+ * Raising the camera to match 2048 was tried and reverted: the preview is a
+ * live decode of every frame, so the extra pixels cost frames continuously
+ * while buying detail once. This ceiling is deliberately a little above what
+ * the camera is asked for, so the capture passes through untouched.
  *
  * Not raised for every upload: those extra bytes are paid for by every visitor
  * on mobile data, on every gallery view, and a logo or a page background does
- * not reward the pixels. 2048 rather than 4K for the same reason — a real gain
- * in detail without multiplying what a viewer downloads.
+ * not reward the pixels.
  */
 export const CAPTURE_MAX_DIMENSION = 2048;
 const QUALITY = 0.82; // high quality, meaningfully smaller than source

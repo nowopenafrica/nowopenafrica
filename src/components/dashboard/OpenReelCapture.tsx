@@ -11,6 +11,7 @@ import {
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
   applyPointOfInterest, bracketStops, fuseExposures,
   videoConstraintsFor, canFlipCamera, previewTransform, oppositeFacing, facingLabel,
+  driveVideoFrames,
   type ZoomStep, type CameraControls, type RgbaFrame, type FacingMode,
 } from '../../lib/openReel';
 import { POSTER_SUFFIX } from '../../lib/reelShare';
@@ -131,17 +132,25 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
       // afford in bits — a 20-minute clip held to the upload cap looks better at
       // 360p than smeared over 1080p.
       //
-      // Photos ask for more, above 1080p. `ideal` degrades on its own, so a
-      // camera that cannot manage it simply returns what it has, while a phone
-      // that can now hands back detail the old request left on the sensor.
-      // Stopped short of 4K deliberately: the preview and the HDR bracket both
-      // work on these frames, and 4K makes both noticeably slower on a
-      // mid-range phone.
+      // Photos ask for 1080p and NOT MORE. This was briefly 2560x1440, and the
+      // cost landed where it always does: the preview is a live decode of every
+      // frame the camera sends, so 1440p is 2.8x the pixels to decode, composite
+      // and scale, continuously, on a phone. It made the preview drop frames.
+      //
+      // Almost none of the photo quality depended on it. The gain came from
+      // raising the UPLOAD ceiling to 2048 (see CAPTURE_MAX_DIMENSION), and at
+      // 1920 the capture is now under that ceiling — so it is stored at its full
+      // native resolution with no resize at all, against 1600 with two lossy
+      // passes before. A sharper photo AND a preview that keeps up.
+      //
+      // The frame rate is stated rather than left open. Cameras drop to 15 fps
+      // in dim light to buy exposure time, which reads as lag; `ideal` cannot
+      // forbid that, but it does say which way to lean when there is a choice.
       const res = desiredMode === 'video'
         ? captureResolutionFor(limitSeconds)
-        : { width: 2560, height: 1440 };
+        : { width: 1920, height: 1080 };
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: videoConstraintsFor(wanted, res.width, res.height),
+        video: videoConstraintsFor(wanted, res.width, res.height, 30),
         audio: desiredMode === 'video',
       });
       // Whatever was open has to be released, or the second camera opens onto a
@@ -478,25 +487,36 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
     const needsCrop = !nativeZoomRef.current && zoomRef.current !== 1;
     if (!needsCrop || !video?.videoWidth) return stream;
 
+    // Sized to the CROP, not to the full frame.
+    //
+    // It used to be the full frame, which meant every drawn frame was a crop
+    // stretched back up to 1080p before the encoder ever saw it. That is soft by
+    // construction — the extra pixels are interpolated, carry no detail, and
+    // then cost real bits to encode. Recording the crop at its own size keeps
+    // every pixel a pixel the sensor actually produced.
+    const crop = zoomCropRect(video.videoWidth, video.videoHeight, zoomRef.current);
     const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    canvas.width = crop.sw;
+    canvas.height = crop.sh;
     const ctx = canvas.getContext('2d');
     if (!ctx || typeof canvas.captureStream !== 'function') return stream;
 
-    let raf = 0;
-    const draw = () => {
+    // Once per camera frame. This was an unthrottled requestAnimationFrame
+    // loop, so on a 90 or 120 Hz phone it redrew a 30 fps camera three or four
+    // times per frame — work that changes nothing, done while the encoder is
+    // trying to run on the same handset. See driveVideoFrames.
+    const stopDriver = driveVideoFrames(video as unknown as Parameters<typeof driveVideoFrames>[0], () => {
+      // Re-read the crop each frame: the zoom step can change between takes,
+      // and the canvas keeps the size the recording started at.
       const c = zoomCropRect(video.videoWidth, video.videoHeight, zoomRef.current);
       if (c.sw > 0 && c.sh > 0) {
         ctx.drawImage(video, c.sx, c.sy, c.sw, c.sh, 0, 0, canvas.width, canvas.height);
       }
-      raf = requestAnimationFrame(draw);
-    };
-    draw();
+    });
 
     const canvasStream = canvas.captureStream(30);
     pumpStopRef.current = () => {
-      cancelAnimationFrame(raf);
+      stopDriver();
       canvasStream.getTracks().forEach((t) => t.stop());
       pumpStopRef.current = null;
     };
@@ -546,9 +566,21 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
         : undefined,
     );
     const recordStream = buildRecordingStream();
+    // Measured on the stream being RECORDED, which is not the preview once the
+    // zoom pump is in the way — it now hands over the crop at its own size, and
+    // billing that for 1080p worth of bits would overshoot the size budget the
+    // gallery limit depends on.
+    // getSettings is optional on the track interface in practice — some
+    // synthesised tracks omit it — so it is called defensively and the
+    // preview's dimensions stand in.
+    const recorded = recordStream.getVideoTracks()[0]?.getSettings?.();
     const options: MediaRecorderOptions = {
       // Capped so the plan's longest take still fits the gallery upload limit.
-      videoBitsPerSecond: chooseVideoBitrate(video?.videoWidth ?? 0, video?.videoHeight ?? 0, limitSeconds),
+      videoBitsPerSecond: chooseVideoBitrate(
+        recorded?.width ?? video?.videoWidth ?? 0,
+        recorded?.height ?? video?.videoHeight ?? 0,
+        limitSeconds,
+      ),
       audioBitsPerSecond: AUDIO_BITRATE,
     };
     if (format.mimeType) options.mimeType = format.mimeType;
