@@ -97,73 +97,73 @@ const OPERATOR_IMAGES = {
 type PlacementSeed = [string, string, string, number, string, string, string?, number?];
 const AD_PLACEMENTS: PlacementSeed[] = [
   // Nigeria
-  ['3-Face Gantry Billboard, Third Mainland Bridge, Lagos', 'Billboard', 'Lagos, Nigeria', 56, '18m x 9m', 'high'],
-  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 102, '12m x 6m', 'high', OPERATOR_IMAGES.lekkiFirstRoundabout, 111],
-  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 289, '10m x 6m', 'high', OPERATOR_IMAGES.akinAdesolaScreen, 333],
-  ['Double-Sided Freestanding Screens, Ikeja City Mall, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '4m x 3m', 'high'],
-  ['Arrivals Wall Lightbox, Murtala Muhammed Airport, Lagos', 'Airport', 'Lagos, Nigeria', 78, '8m x 3m', 'high'],
-  ['Full Vehicle Wrap, Danfo Fleet of 10, Lagos', 'Transit', 'Lagos, Nigeria', 27, 'Full vehicle', 'high'],
-  ['2-Face Digital Board, Oshodi Interchange, Lagos', 'Digital Screen', 'Lagos, Nigeria', 80, '8m x 4m', 'high'],
-  ['2-Face Unipole Billboard, Wuse Market Entrance, Abuja', 'Billboard', 'Abuja, Nigeria', 27, '10m x 5m', 'high'],
-  ['Baggage Hall Lightbox, Nnamdi Azikiwe Airport, Abuja', 'Airport', 'Abuja, Nigeria', 49, '6m x 3m', 'medium'],
-  ['Lamp Post Network (20 units), Maitama District, Abuja', 'Street Furniture', 'Abuja, Nigeria', 20, '1.2m x 1.8m each', 'medium'],
-  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 11, '12m x 6m', 'high', OPERATOR_IMAGES.portHarcourtUnipole, 13],
-  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 11, '10m x 5m', 'medium', OPERATOR_IMAGES.ibadanEyecatcher, 14],
-  ['2-Face Unipole Billboard, Kofar Mata Roundabout, Kano', 'Billboard', 'Kano, Nigeria', 13, '8m x 4m', 'medium'],
-  ['Drive-Time Radio Slot (60s), Wazobia FM, Lagos', 'Radio', 'Lagos, Nigeria', 33, '60 seconds', 'high'],
+  ['3-Face Gantry Billboard, Third Mainland Bridge, Lagos', 'Billboard', 'Lagos, Nigeria', 73, '18m x 9m', 'high'],
+  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 133, '12m x 6m', 'high', OPERATOR_IMAGES.lekkiFirstRoundabout, 144],
+  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 376, '10m x 6m', 'high', OPERATOR_IMAGES.akinAdesolaScreen, 433],
+  ['Double-Sided Freestanding Screens, Ikeja City Mall, Lagos', 'Mall Media', 'Lagos, Nigeria', 43, '4m x 3m', 'high'],
+  ['Arrivals Wall Lightbox, Murtala Muhammed Airport, Lagos', 'Airport', 'Lagos, Nigeria', 101, '8m x 3m', 'high'],
+  ['Full Vehicle Wrap, Danfo Fleet of 10, Lagos', 'Transit', 'Lagos, Nigeria', 35, 'Full vehicle', 'high'],
+  ['2-Face Digital Board, Oshodi Interchange, Lagos', 'Digital Screen', 'Lagos, Nigeria', 104, '8m x 4m', 'high'],
+  ['2-Face Unipole Billboard, Wuse Market Entrance, Abuja', 'Billboard', 'Abuja, Nigeria', 35, '10m x 5m', 'high'],
+  ['Baggage Hall Lightbox, Nnamdi Azikiwe Airport, Abuja', 'Airport', 'Abuja, Nigeria', 64, '6m x 3m', 'medium'],
+  ['Lamp Post Network (20 units), Maitama District, Abuja', 'Street Furniture', 'Abuja, Nigeria', 26, '1.2m x 1.8m each', 'medium'],
+  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 14, '12m x 6m', 'high', OPERATOR_IMAGES.portHarcourtUnipole, 17],
+  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 14, '10m x 5m', 'medium', OPERATOR_IMAGES.ibadanEyecatcher, 18],
+  ['2-Face Unipole Billboard, Kofar Mata Roundabout, Kano', 'Billboard', 'Kano, Nigeria', 17, '8m x 4m', 'medium'],
+  ['Drive-Time Radio Slot (60s), Wazobia FM, Lagos', 'Radio', 'Lagos, Nigeria', 43, '60 seconds', 'high'],
   // Ghana
-  ['2-Face Gantry Billboard, Kwame Nkrumah Circle, Accra', 'Billboard', 'Accra, Ghana', 40, '14m x 7m', 'high'],
-  ['Food Court Screen Network, Accra Mall, Accra', 'Mall Media', 'Accra, Ghana', 22, 'Network of 8', 'high'],
-  ['Departure Lounge Lightboxes, Kotoka Airport, Accra', 'Airport', 'Accra, Ghana', 52, '5m x 2.5m', 'medium'],
-  ['2-Face Unipole Billboard, Tema Motorway, Tema', 'Billboard', 'Tema, Ghana', 18, '12m x 6m', 'high'],
-  ['Wall Panel Billboard, Kejetia Market, Kumasi', 'Billboard', 'Kumasi, Ghana', 12, '15m x 4m', 'high'],
-  ['Rear Window Network (50 vehicles), Trotro Fleet, Accra', 'Transit', 'Accra, Ghana', 16, '1m x 0.6m each', 'high'],
+  ['2-Face Gantry Billboard, Kwame Nkrumah Circle, Accra', 'Billboard', 'Accra, Ghana', 52, '14m x 7m', 'high'],
+  ['Food Court Screen Network, Accra Mall, Accra', 'Mall Media', 'Accra, Ghana', 29, 'Network of 8', 'high'],
+  ['Departure Lounge Lightboxes, Kotoka Airport, Accra', 'Airport', 'Accra, Ghana', 68, '5m x 2.5m', 'medium'],
+  ['2-Face Unipole Billboard, Tema Motorway, Tema', 'Billboard', 'Tema, Ghana', 23, '12m x 6m', 'high'],
+  ['Wall Panel Billboard, Kejetia Market, Kumasi', 'Billboard', 'Kumasi, Ghana', 16, '15m x 4m', 'high'],
+  ['Rear Window Network (50 vehicles), Trotro Fleet, Accra', 'Transit', 'Accra, Ghana', 21, '1m x 0.6m each', 'high'],
   // Kenya
-  ['2-Sided Digital Gantry, Mombasa Road, Nairobi', 'Digital Screen', 'Nairobi, Kenya', 120, '12m x 5m', 'high'],
-  ['2-Face Static Billboard, Kenyatta Avenue CBD, Nairobi', 'Billboard', 'Nairobi, Kenya', 45, '10m x 5m', 'high'],
-  ['Escalator Wrap Series, Two Rivers Mall, Nairobi', 'Mall Media', 'Nairobi, Kenya', 24, '6 escalators', 'medium'],
-  ['International Arrivals Corridor, JKIA, Nairobi', 'Airport', 'Nairobi, Kenya', 95, '10 lightboxes', 'high'],
-  ['Full Vehicle Branding, Matatu Route 111, Nairobi', 'Transit', 'Nairobi, Kenya', 14, 'Full vehicle', 'high'],
-  ['2-Face Static Billboard, Moi Avenue, Mombasa', 'Billboard', 'Mombasa, Kenya', 18, '8m x 4m', 'medium'],
+  ['2-Sided Digital Gantry, Mombasa Road, Nairobi', 'Digital Screen', 'Nairobi, Kenya', 156, '12m x 5m', 'high'],
+  ['2-Face Static Billboard, Kenyatta Avenue CBD, Nairobi', 'Billboard', 'Nairobi, Kenya', 58, '10m x 5m', 'high'],
+  ['Escalator Wrap Series, Two Rivers Mall, Nairobi', 'Mall Media', 'Nairobi, Kenya', 31, '6 escalators', 'medium'],
+  ['International Arrivals Corridor, JKIA, Nairobi', 'Airport', 'Nairobi, Kenya', 124, '10 lightboxes', 'high'],
+  ['Full Vehicle Branding, Matatu Route 111, Nairobi', 'Transit', 'Nairobi, Kenya', 18, 'Full vehicle', 'high'],
+  ['2-Face Static Billboard, Moi Avenue, Mombasa', 'Billboard', 'Mombasa, Kenya', 23, '8m x 4m', 'medium'],
   // South Africa
-  ['Digital Spectacular, N1 Highway, Johannesburg', 'Digital Screen', 'Johannesburg, South Africa', 320, '15m x 7m', 'high'],
-  ['Rooftop Sign, Sandton City, Johannesburg', 'Billboard', 'Johannesburg, South Africa', 180, '20m x 8m', 'high'],
-  ['Platform Screen Network, Gautrain Stations, Johannesburg', 'Transit', 'Johannesburg, South Africa', 70, 'Network of 12', 'high'],
-  ['Entrance Tower Screens, V&A Waterfront, Cape Town', 'Mall Media', 'Cape Town, South Africa', 110, '2 towers, 6m x 3m', 'high'],
-  ['Baggage Carousel Panels, Cape Town International', 'Airport', 'Cape Town, South Africa', 85, '4 carousels', 'high'],
-  ['2-Face Beachfront Billboard, Golden Mile, Durban', 'Billboard', 'Durban, South Africa', 48, '9m x 4.5m', 'high'],
-  ['LED Perimeter Boards, Moses Mabhida Stadium, Durban', 'Stadium', 'Durban, South Africa', 140, 'Pitch-side LED ring', 'high'],
-  ['Street Pole Network (30 units), Church Square, Pretoria', 'Street Furniture', 'Pretoria, South Africa', 26, '1m x 1.5m each', 'medium'],
+  ['Digital Spectacular, N1 Highway, Johannesburg', 'Digital Screen', 'Johannesburg, South Africa', 416, '15m x 7m', 'high'],
+  ['Rooftop Sign, Sandton City, Johannesburg', 'Billboard', 'Johannesburg, South Africa', 234, '20m x 8m', 'high'],
+  ['Platform Screen Network, Gautrain Stations, Johannesburg', 'Transit', 'Johannesburg, South Africa', 91, 'Network of 12', 'high'],
+  ['Entrance Tower Screens, V&A Waterfront, Cape Town', 'Mall Media', 'Cape Town, South Africa', 143, '2 towers, 6m x 3m', 'high'],
+  ['Baggage Carousel Panels, Cape Town International', 'Airport', 'Cape Town, South Africa', 110, '4 carousels', 'high'],
+  ['2-Face Beachfront Billboard, Golden Mile, Durban', 'Billboard', 'Durban, South Africa', 62, '9m x 4.5m', 'high'],
+  ['LED Perimeter Boards, Moses Mabhida Stadium, Durban', 'Stadium', 'Durban, South Africa', 182, 'Pitch-side LED ring', 'high'],
+  ['Street Pole Network (30 units), Church Square, Pretoria', 'Street Furniture', 'Pretoria, South Africa', 34, '1m x 1.5m each', 'medium'],
   // Egypt
-  ['Mega Board, 6th October Bridge, Cairo', 'Billboard', 'Cairo, Egypt', 95, '20m x 8m', 'high'],
-  ['2-Sided Digital Unipole, Ring Road, Cairo', 'Digital Screen', 'Cairo, Egypt', 110, '14m x 7m', 'high'],
-  ['Terminal 3 Lightbox Series, Cairo International', 'Airport', 'Cairo, Egypt', 60, '12 lightboxes', 'high'],
-  ['Seafront Billboard, Corniche, Alexandria', 'Billboard', 'Alexandria, Egypt', 30, '10m x 5m', 'high'],
+  ['Mega Board, 6th October Bridge, Cairo', 'Billboard', 'Cairo, Egypt', 124, '20m x 8m', 'high'],
+  ['2-Sided Digital Unipole, Ring Road, Cairo', 'Digital Screen', 'Cairo, Egypt', 143, '14m x 7m', 'high'],
+  ['Terminal 3 Lightbox Series, Cairo International', 'Airport', 'Cairo, Egypt', 78, '12 lightboxes', 'high'],
+  ['Seafront Billboard, Corniche, Alexandria', 'Billboard', 'Alexandria, Egypt', 39, '10m x 5m', 'high'],
   // Ethiopia
-  ['2-Face Digital Screen, Bole Road, Addis Ababa', 'Digital Screen', 'Addis Ababa, Ethiopia', 40, '8m x 4m', 'high'],
-  ['Jet Bridge Panels, Bole Airport, Addis Ababa', 'Airport', 'Addis Ababa, Ethiopia', 55, '6 bridge wraps', 'high'],
+  ['2-Face Digital Screen, Bole Road, Addis Ababa', 'Digital Screen', 'Addis Ababa, Ethiopia', 52, '8m x 4m', 'high'],
+  ['Jet Bridge Panels, Bole Airport, Addis Ababa', 'Airport', 'Addis Ababa, Ethiopia', 72, '6 bridge wraps', 'high'],
   // East & Central Africa
-  ['2-Face Static Billboard, Samora Avenue, Dar es Salaam', 'Billboard', 'Dar es Salaam, Tanzania', 20, '9m x 4.5m', 'high'],
-  ['2-Face Unipole Billboard, Northern Bypass, Kampala', 'Billboard', 'Kampala, Uganda', 16, '12m x 6m', 'medium'],
-  ['Approach Billboard, Kigali Convention Centre, Kigali', 'Billboard', 'Kigali, Rwanda', 22, '8m x 4m', 'medium'],
-  ['Bus Shelter Network (25 shelters), Kigali', 'Street Furniture', 'Kigali, Rwanda', 13, '25 backlit panels', 'medium'],
-  ['2-Face Billboard, Boulevard du 30 Juin, Kinshasa', 'Billboard', 'Kinshasa, DR Congo', 24, '12m x 6m', 'high'],
+  ['2-Face Static Billboard, Samora Avenue, Dar es Salaam', 'Billboard', 'Dar es Salaam, Tanzania', 26, '9m x 4.5m', 'high'],
+  ['2-Face Unipole Billboard, Northern Bypass, Kampala', 'Billboard', 'Kampala, Uganda', 21, '12m x 6m', 'medium'],
+  ['Approach Billboard, Kigali Convention Centre, Kigali', 'Billboard', 'Kigali, Rwanda', 29, '8m x 4m', 'medium'],
+  ['Bus Shelter Network (25 shelters), Kigali', 'Street Furniture', 'Kigali, Rwanda', 17, '25 backlit panels', 'medium'],
+  ['2-Face Billboard, Boulevard du 30 Juin, Kinshasa', 'Billboard', 'Kinshasa, DR Congo', 31, '12m x 6m', 'high'],
   // West & North Africa
-  ['2-Face Gantry Billboard, Autoroute Péage, Dakar', 'Billboard', 'Dakar, Senegal', 28, '12m x 6m', 'high'],
-  ['2-Face Billboard, Akwa Boulevard, Douala', 'Digital Screen', "Abidjan, Côte d'Ivoire", 19, '7m x 4m', 'high'],
-  ['Digital Wall, Corniche, Casablanca', 'Airport', "Abidjan, Côte d'Ivoire", 85, '8 lightboxes', 'medium'],
-  ['Arrivals Hall Panels, Menara Airport, Marrakech', 'Billboard', 'Douala, Cameroon', 45, '10m x 5m', 'high'],
-  ['2-Face Billboard, Habib Bourguiba Avenue, Tunis', 'Digital Screen', 'Casablanca, Morocco', 26, '11m x 6m', 'high'],
-  ['Street Pole Network (40 units), Didouche Mourad, Algiers', 'Airport', 'Marrakech, Morocco', 22, '6 lightboxes', 'high'],
+  ['2-Face Gantry Billboard, Autoroute Péage, Dakar', 'Billboard', 'Dakar, Senegal', 36, '12m x 6m', 'high'],
+  ['2-Face Billboard, Akwa Boulevard, Douala', 'Digital Screen', "Abidjan, Côte d'Ivoire", 25, '7m x 4m', 'high'],
+  ['Digital Wall, Corniche, Casablanca', 'Airport', "Abidjan, Côte d'Ivoire", 110, '8 lightboxes', 'medium'],
+  ['Arrivals Hall Panels, Menara Airport, Marrakech', 'Billboard', 'Douala, Cameroon', 58, '10m x 5m', 'high'],
+  ['2-Face Billboard, Habib Bourguiba Avenue, Tunis', 'Digital Screen', 'Casablanca, Morocco', 34, '11m x 6m', 'high'],
+  ['Street Pole Network (40 units), Didouche Mourad, Algiers', 'Airport', 'Marrakech, Morocco', 29, '6 lightboxes', 'high'],
   // Southern Africa
-  ['2-Face Unipole Billboard, Great East Road, Lusaka', 'Billboard', 'Tunis, Tunisia', 14, '9m x 4.5m', 'high'],
-  ['2-Face Billboard, Samora Machel Avenue, Harare', 'Street Furniture', 'Algiers, Algeria', 12, '1m x 1.5m each', 'medium'],
-  ['Mall Screen Network, Game City, Gaborone', 'Billboard', 'Lusaka, Zambia', 15, '12m x 6m', 'medium'],
-  ['2-Face Billboard, Independence Avenue, Windhoek', 'Billboard', 'Harare, Zimbabwe', 11, '9m x 4.5m', 'medium'],
-  ['2-Face Billboard, Julius Nyerere Avenue, Maputo', 'Mall Media', 'Gaborone, Botswana', 13, 'Network of 6', 'medium'],
+  ['2-Face Unipole Billboard, Great East Road, Lusaka', 'Billboard', 'Tunis, Tunisia', 18, '9m x 4.5m', 'high'],
+  ['2-Face Billboard, Samora Machel Avenue, Harare', 'Street Furniture', 'Algiers, Algeria', 16, '1m x 1.5m each', 'medium'],
+  ['Mall Screen Network, Game City, Gaborone', 'Billboard', 'Lusaka, Zambia', 20, '12m x 6m', 'medium'],
+  ['2-Face Billboard, Independence Avenue, Windhoek', 'Billboard', 'Harare, Zimbabwe', 14, '9m x 4.5m', 'medium'],
+  ['2-Face Billboard, Julius Nyerere Avenue, Maputo', 'Mall Media', 'Gaborone, Botswana', 17, 'Network of 6', 'medium'],
   // Côte d'Ivoire
-  ['2-Sided Digital Corner Screen, Plateau, Abidjan', 'Billboard', 'Windhoek, Namibia', 62, '8m x 4m', 'medium'],
-  ['Terminal Lightbox Series, Félix-Houphouët-Boigny Airport, Abidjan', 'Billboard', 'Maputo, Mozambique', 44, '9m x 4.5m', 'medium'],
+  ['2-Sided Digital Corner Screen, Plateau, Abidjan', 'Billboard', 'Windhoek, Namibia', 81, '8m x 4m', 'medium'],
+  ['Terminal Lightbox Series, Félix-Houphouët-Boigny Airport, Abidjan', 'Billboard', 'Maputo, Mozambique', 57, '9m x 4.5m', 'medium'],
 
   // --- Affordable Nigerian inventory ----------------------------------------
   //
@@ -176,13 +176,13 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // These also widen the map. Inventory was confined to Lagos, Abuja, Port
   // Harcourt, Ibadan and Kano; real listings run through Ondo, Abia, Edo,
   // Enugu, Anambra, Akwa Ibom and Delta.
-  ['48-Sheet Billboard, Ijakpo Road, Akure', 'Billboard', 'Akure, Nigeria', 2, '6m x 3m', 'medium'],
-  ['48-Sheet Billboard, Ugwuachara Road, Umuahia', 'Billboard', 'Umuahia, Nigeria', 3, '6m x 3m', 'medium'],
-  ['48-Sheet Billboard, Ihama Road, Benin City', 'Billboard', 'Benin City, Nigeria', 4, '6m x 3m', 'medium'],
-  ['Portrait Billboard, Nwaniba Road, Uyo', 'Billboard', 'Uyo, Nigeria', 12, '4m x 8m', 'medium'],
-  ['Portrait Billboard, Nsugbe Road, Onitsha', 'Billboard', 'Onitsha, Nigeria', 13, '4m x 8m', 'high'],
-  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 14, '4m x 8m', 'medium', OPERATOR_IMAGES.asabaUnipole, 18],
-  ['Gantry Billboard, Abakiliki Road, Enugu', 'Billboard', 'Enugu, Nigeria', 56, '15m x 4m', 'high'],
+  ['48-Sheet Billboard, Ijakpo Road, Akure', 'Billboard', 'Akure, Nigeria', 3, '6m x 3m', 'medium'],
+  ['48-Sheet Billboard, Ugwuachara Road, Umuahia', 'Billboard', 'Umuahia, Nigeria', 4, '6m x 3m', 'medium'],
+  ['48-Sheet Billboard, Ihama Road, Benin City', 'Billboard', 'Benin City, Nigeria', 5, '6m x 3m', 'medium'],
+  ['Portrait Billboard, Nwaniba Road, Uyo', 'Billboard', 'Uyo, Nigeria', 16, '4m x 8m', 'medium'],
+  ['Portrait Billboard, Nsugbe Road, Onitsha', 'Billboard', 'Onitsha, Nigeria', 17, '4m x 8m', 'high'],
+  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 18, '4m x 8m', 'medium', OPERATOR_IMAGES.asabaUnipole, 23],
+  ['Gantry Billboard, Abakiliki Road, Enugu', 'Billboard', 'Enugu, Nigeria', 73, '15m x 4m', 'high'],
 
   // --- Media the browse page offers but had nothing behind -------------------
   //
@@ -193,11 +193,11 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // cards. Cinema, press and online are NOT — no comparable public card was
   // checked for those three, so their day rates are informed estimates and are
   // marked here rather than presented as sourced.
-  ['Pre-Roll Slot, Filmhouse Cinemas Lekki, Lagos', 'Cinema', 'Lagos, Nigeria', 18, '30 seconds', 'medium'],
-  ['Keke Napep Fleet Wrap (25 units), Aba', 'Vehicle Wrap', 'Aba, Nigeria', 9, 'Full vehicle', 'high'],
-  ['Channels TV Prime Belt Spot (30s), Lagos', 'Television', 'Lagos, Nigeria', 90, '30s spot, one a day', 'high'],
-  ['Full-Page Colour, National Daily, Lagos', 'Print', 'Lagos, Nigeria', 56, 'Full page', 'high'],
-  ['Display Network, Nigerian Publisher Sites', 'Online', 'Lagos, Nigeria', 20, '300x250 & 728x90', 'high'],
+  ['Pre-Roll Slot, Filmhouse Cinemas Lekki, Lagos', 'Cinema', 'Lagos, Nigeria', 23, '30 seconds', 'medium'],
+  ['Keke Napep Fleet Wrap (25 units), Aba', 'Vehicle Wrap', 'Aba, Nigeria', 12, 'Full vehicle', 'high'],
+  ['Channels TV Prime Belt Spot (30s), Lagos', 'Television', 'Lagos, Nigeria', 117, '30s spot, one a day', 'high'],
+  ['Full-Page Colour, National Daily, Lagos', 'Print', 'Lagos, Nigeria', 73, 'Full page', 'high'],
+  ['Display Network, Nigerian Publisher Sites', 'Online', 'Lagos, Nigeria', 26, '300x250 & 728x90', 'high'],
 
   // --- BRT bus branding, Lagos ----------------------------------------------
   //
@@ -205,34 +205,34 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // runs N60-400k a month against N500k+ for the cheapest static board. Rates
   // are per bus per month from the published card; the fleet count is what the
   // buyer chooses, so each row is priced for one vehicle.
-  ['BRT Interior TV Network Slot, Lagos', 'Transit', 'Lagos, Nigeria', 2, 'Onboard screen loop', 'high'],
-  ['BRT Interior Panel Branding (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 4, 'Interior panels', 'high'],
-  ['BRT Bus Branding — Benz (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 6, 'Full exterior', 'high'],
-  ['BRT Bus Branding — TATA (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 7, 'Full exterior', 'high', undefined, 8],
-  ['BRT Bus Branding — Marcopolo (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high'],
-  ['BRT Bus Branding — CNG Fleet (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high', undefined, 9],
+  ['BRT Interior TV Network Slot, Lagos', 'Transit', 'Lagos, Nigeria', 3, 'Onboard screen loop', 'high'],
+  ['BRT Interior Panel Branding (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 5, 'Interior panels', 'high'],
+  ['BRT Bus Branding — Benz (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 8, 'Full exterior', 'high'],
+  ['BRT Bus Branding — TATA (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 9, 'Full exterior', 'high', undefined, 10],
+  ['BRT Bus Branding — Marcopolo (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 10, 'Full exterior', 'high'],
+  ['BRT Bus Branding — CNG Fleet (per bus), Lagos', 'Transit', 'Lagos, Nigeria', 10, 'Full exterior', 'high', undefined, 12],
 
   // --- Mobile truck & roadshow ----------------------------------------------
   //
   // Advertising that drives to the audience rather than waiting for it. Spans
   // the widest range on the platform: N75k for a truck board in Kano up to
   // N7m for a pan-Nigeria tour.
-  ['Mobile Truck Billboard, Kano', 'Vehicle Wrap', 'Kano, Nigeria', 2, 'Both flanks', 'medium'],
-  ['Mobile Roadshow Stage, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 7, 'Stage truck + PA', 'high', undefined, 11],
-  ['Mobile Roadshow Stage, South-West Circuit', 'Vehicle Wrap', 'Ibadan, Nigeria', 11, 'Stage truck + PA', 'high', undefined, 13],
-  ['Digital LED Truck, Port Harcourt', 'Vehicle Wrap', 'Port Harcourt, Nigeria', 20, 'LED both flanks', 'high', undefined, 22],
-  ['Double-Sided LED Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 20, 'LED both flanks', 'high', undefined, 22],
-  ['Mobile Billboard Truck, Abuja', 'Vehicle Wrap', 'Abuja, Nigeria', 25, 'Both flanks + rear', 'high', undefined, 29],
-  ['Mobile Billboard Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 40, 'Both flanks + rear', 'high', undefined, 44],
-  ['Mobile Truck Tour, Pan-Nigeria Circuit', 'Vehicle Wrap', 'Lagos, Nigeria', 156, 'Multi-city route', 'high', undefined, 167],
+  ['Mobile Truck Billboard, Kano', 'Vehicle Wrap', 'Kano, Nigeria', 3, 'Both flanks', 'medium'],
+  ['Mobile Roadshow Stage, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 9, 'Stage truck + PA', 'high', undefined, 14],
+  ['Mobile Roadshow Stage, South-West Circuit', 'Vehicle Wrap', 'Ibadan, Nigeria', 14, 'Stage truck + PA', 'high', undefined, 17],
+  ['Digital LED Truck, Port Harcourt', 'Vehicle Wrap', 'Port Harcourt, Nigeria', 26, 'LED both flanks', 'high', undefined, 29],
+  ['Double-Sided LED Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 26, 'LED both flanks', 'high', undefined, 29],
+  ['Mobile Billboard Truck, Abuja', 'Vehicle Wrap', 'Abuja, Nigeria', 32, 'Both flanks + rear', 'high', undefined, 38],
+  ['Mobile Billboard Truck, Lagos', 'Vehicle Wrap', 'Lagos, Nigeria', 52, 'Both flanks + rear', 'high', undefined, 57],
+  ['Mobile Truck Tour, Pan-Nigeria Circuit', 'Vehicle Wrap', 'Lagos, Nigeria', 203, 'Multi-city route', 'high', undefined, 217],
 
   // --- Television -------------------------------------------------------------
   //
   // Priced per spot on the published card, so the day rate here is one spot a
   // day: a month of daily prime-belt spots works out at roughly N4m, which is
   // what a buyer would actually be quoted.
-  ['Channels TV Sunrise Breakfast Spot (30s), Lagos', 'Television', 'Lagos, Nigeria', 126, '30s spot, one a day', 'high'],
-  ['Channels TV Programme Sponsorship, Lagos', 'Television', 'Lagos, Nigeria', 50, 'Programme billing', 'high'],
+  ['Channels TV Sunrise Breakfast Spot (30s), Lagos', 'Television', 'Lagos, Nigeria', 164, '30s spot, one a day', 'high'],
+  ['Channels TV Programme Sponsorship, Lagos', 'Television', 'Lagos, Nigeria', 65, 'Programme billing', 'high'],
 
   // --- Operator inventory, with the operator's own photography ---------------
   //
@@ -240,17 +240,17 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // as they actually stand. Five placements above already corresponded to
   // listings here and have been given their photographs too; these eleven had
   // no counterpart.
-  ['LED Portrait Billboard, 5th Roundabout Lekki FTF Ajah, Lagos', 'Digital Screen', 'Lagos, Nigeria', 89, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedAjah, 100],
-  ['LED Portrait Billboard, 5th Roundabout Jakande, Lekki, Lagos', 'Digital Screen', 'Lagos, Nigeria', 80, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedPortrait, 89],
-  ['16 Digital Screens, Railway Ticketing & Waiting Area, Lagos', 'Digital Screen', 'Lagos, Nigeria', 208, '16 screens', 'high', OPERATOR_IMAGES.railwayScreens, 222],
-  ['2 Double-Sided Freestanding Screens, The Palms, Lekki, Lagos', 'Mall Media', 'Lagos, Nigeria', 33, '2 double-sided', 'high', OPERATOR_IMAGES.palmsFreestanding, 38],
-  ['2-Face Static Unipole, Berger, Lagos-Ibadan Expressway', 'Billboard', 'Lagos, Nigeria', 40, '2 faces', 'high', OPERATOR_IMAGES.bergerUnipole, 44],
-  ['2-Face Wall Panel Billboard, Muson Centre, Onikan, Lagos', 'Billboard', 'Lagos, Nigeria', 56, 'Wall panel, 2 faces', 'high', OPERATOR_IMAGES.musonWallPanel, 67],
-  ['2-Sided LED Billboard, Eko Bridge, Lagos Island', 'Digital Screen', 'Lagos, Nigeria', 73, 'LED, 2 sided', 'high', OPERATOR_IMAGES.ekoBridgeLed, 78],
-  ['2-Sided Unipole Billboard, Warri Shopping Mall, Delta', 'Billboard', 'Warri, Nigeria', 19, '2 faces', 'medium', OPERATOR_IMAGES.warriMallUnipole, 21],
-  ['3-Face LED Billboard, Law School Falomo Bridge, Victoria Island', 'Digital Screen', 'Lagos, Nigeria', 289, 'LED, 3 faces', 'high', OPERATOR_IMAGES.lawSchoolLed, 333],
-  ['3-Face Portrait Billboard, Ariaria Junction, Aba', 'Billboard', 'Aba, Nigeria', 17, 'Portrait, 3 faces', 'high', OPERATOR_IMAGES.ariariaPortrait, 19],
-  ['3-Face Unipole Billboard, Effurun Roundabout, Warri', 'Billboard', 'Warri, Nigeria', 18, 'Unipole, 3 faces', 'high', OPERATOR_IMAGES.effurunUnipole, 20]
+  ['LED Portrait Billboard, 5th Roundabout Lekki FTF Ajah, Lagos', 'Digital Screen', 'Lagos, Nigeria', 116, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedAjah, 130],
+  ['LED Portrait Billboard, 5th Roundabout Jakande, Lekki, Lagos', 'Digital Screen', 'Lagos, Nigeria', 104, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedPortrait, 116],
+  ['16 Digital Screens, Railway Ticketing & Waiting Area, Lagos', 'Digital Screen', 'Lagos, Nigeria', 270, '16 screens', 'high', OPERATOR_IMAGES.railwayScreens, 289],
+  ['2 Double-Sided Freestanding Screens, The Palms, Lekki, Lagos', 'Mall Media', 'Lagos, Nigeria', 43, '2 double-sided', 'high', OPERATOR_IMAGES.palmsFreestanding, 49],
+  ['2-Face Static Unipole, Berger, Lagos-Ibadan Expressway', 'Billboard', 'Lagos, Nigeria', 52, '2 faces', 'high', OPERATOR_IMAGES.bergerUnipole, 57],
+  ['2-Face Wall Panel Billboard, Muson Centre, Onikan, Lagos', 'Billboard', 'Lagos, Nigeria', 73, 'Wall panel, 2 faces', 'high', OPERATOR_IMAGES.musonWallPanel, 87],
+  ['2-Sided LED Billboard, Eko Bridge, Lagos Island', 'Digital Screen', 'Lagos, Nigeria', 95, 'LED, 2 sided', 'high', OPERATOR_IMAGES.ekoBridgeLed, 101],
+  ['2-Sided Unipole Billboard, Warri Shopping Mall, Delta', 'Billboard', 'Warri, Nigeria', 25, '2 faces', 'medium', OPERATOR_IMAGES.warriMallUnipole, 27],
+  ['3-Face LED Billboard, Law School Falomo Bridge, Victoria Island', 'Digital Screen', 'Lagos, Nigeria', 376, 'LED, 3 faces', 'high', OPERATOR_IMAGES.lawSchoolLed, 433],
+  ['3-Face Portrait Billboard, Ariaria Junction, Aba', 'Billboard', 'Aba, Nigeria', 22, 'Portrait, 3 faces', 'high', OPERATOR_IMAGES.ariariaPortrait, 25],
+  ['3-Face Unipole Billboard, Effurun Roundabout, Warri', 'Billboard', 'Warri, Nigeria', 23, 'Unipole, 3 faces', 'high', OPERATOR_IMAGES.effurunUnipole, 26]
 ];
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show

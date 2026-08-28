@@ -29,6 +29,18 @@ describe('ad placement sample data', () => {
     expect(adverts.length).toBeGreaterThan(0);
   });
 
+  /**
+   * The platform prices ABOVE the published cards, by owner decision.
+   *
+   * The band below is still the real one, read off alternativeadverts.com — it
+   * is kept as the sourced fact and multiplied here, rather than being replaced
+   * with a bigger number that would erase where it came from. The guard still
+   * catches what it was written to catch: a fat-fingered zero.
+   *
+   * Change this if the margin changes; do not change the card figures.
+   */
+  const UPLIFT = 1.3;
+
   it('keeps every placement inside the published market band', () => {
     // Floor is N85k, not the N400k assumed when this was first written: the
     // published card lists a 48-sheet in Akure at N100k and one in Umuahia at
@@ -37,7 +49,7 @@ describe('ad placement sample data', () => {
     for (const a of adverts) {
       const naira = monthlyNaira(a.price_per_day);
       expect(naira, `${a.title} is below any real rate card`).toBeGreaterThanOrEqual(85_000);
-      expect(naira, `${a.title} is above any real rate card`).toBeLessThanOrEqual(15_000_000);
+      expect(naira, `${a.title} is far above any real rate card`).toBeLessThanOrEqual(15_000_000 * UPLIFT);
     }
   });
 
@@ -48,7 +60,7 @@ describe('ad placement sample data', () => {
     // Cheapest Nigerian placement is a tier-3 city board; dearest is the
     // Victoria Island LED. Both were checked against listed inventory.
     expect(Math.min(...naira)).toBeLessThanOrEqual(700_000);
-    expect(Math.max(...naira)).toBeLessThanOrEqual(13_500_000);
+    expect(Math.max(...naira)).toBeLessThanOrEqual(13_500_000 * UPLIFT);
   });
 
   it('spreads prices rather than clustering on a few round numbers', () => {
