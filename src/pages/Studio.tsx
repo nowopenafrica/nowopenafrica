@@ -20,6 +20,7 @@ import CustomerLoyaltyHub from '../components/studio/CustomerLoyaltyHub';
 import CampaignAnalytics from '../components/studio/CampaignAnalytics';
 import InvoicesStudio from '../components/studio/InvoicesStudio';
 import ReceiptStudio from '../components/studio/ReceiptStudio';
+import CustomersPanel from '../components/studio/CustomersPanel';
 import LandingPageBuilder from '../components/studio/LandingPageBuilder';
 import ProposalStudio from '../components/studio/ProposalStudio';
 import DigitalCatalogue from '../components/studio/DigitalCatalogue';
@@ -57,6 +58,7 @@ const META: Record<ModuleKey, ModuleMeta> = {
   quotations: { key: 'quotations', label: 'Quotes & Proposals', icon: FileText, desc: 'Professional quotes and proposals customers can approve in one tap.' },
   invoices: { key: 'invoices', label: 'Invoices & Payments', icon: Receipt, desc: 'Invoices and payment reminders that look the part.' },
   receipts: { key: 'receipts', label: 'Receipts', icon: ReceiptText, desc: 'Branded receipts in the shape your trade’s customers expect.' },
+  customers: { key: 'customers', label: 'Customers', icon: Users, desc: 'Everyone who booked, enquired or reviewed — and how to reach them.' },
   catalogues: { key: 'catalogues', label: 'Product Catalogue', icon: Store, desc: 'Turn your products or menu into a shareable digital catalogue.' },
   loyalty: { key: 'loyalty', label: 'Loyalty Hub', icon: Heart, desc: 'Reward regulars and bring them back with points, stamp cards and VIP perks.' },
   health: { key: 'health', label: 'Business Health', icon: Activity, desc: 'Your growth score, trust signals and coach recommendations in one dashboard.' },
@@ -169,6 +171,7 @@ export default function Studio() {
       case 'analytics': return <CampaignAnalytics business={business} onNavigate={go} />;
       case 'invoices': return <InvoicesStudio key={`${business.id}-invoices`} business={business} />;
       case 'receipts': return <ReceiptStudio key={`${business.id}-receipts`} business={business} />;
+      case 'customers': return <CustomersPanel key={`${business.id}-customers`} business={business} />;
       case 'quotations': return <ProposalStudio key={`${business.id}-quotations`} business={business} />;
       case 'catalogues': return <DigitalCatalogue key={`${business.id}-catalogues`} business={business} />;
       case 'landing': return <LandingPageBuilder key={`${business.id}-landing`} business={business} />;
