@@ -126,3 +126,37 @@ describe('directionsHref', () => {
     expect(directionsHref({ name: 'X', location: null })).toBeNull();
   });
 });
+
+describe('card details', () => {
+  it('drops blanks and nulls from the secondary categories', async () => {
+    const { secondaryCategories } = await import('../lib/discover');
+    // The column really does hold nulls; an unfiltered join renders "+ · ".
+    expect(secondaryCategories({ secondary_categories: ['Bar', '', null as unknown as string, ' '] }))
+      .toEqual(['Bar']);
+  });
+
+  it('treats a null column as no extra categories, not a crash', async () => {
+    const { secondaryCategories } = await import('../lib/discover');
+    expect(secondaryCategories({ secondary_categories: null })).toEqual([]);
+    expect(secondaryCategories({})).toEqual([]);
+  });
+
+  it('strips the scheme and trailing slash from a website', async () => {
+    const { displayWebsite } = await import('../lib/discover');
+    expect(displayWebsite('https://goldensandshotel.ng/')).toBe('goldensandshotel.ng');
+    expect(displayWebsite('http://Example.com')).toBe('Example.com');
+    expect(displayWebsite(null)).toBeNull();
+    expect(displayWebsite('https://')).toBeNull();
+  });
+
+  it('asks for every column the card renders', async () => {
+    const { DISCOVER_SELECT } = await import('../lib/discover');
+    // Regression: the first version selected businesses.review_count, which
+    // does not exist on that table, and PostgREST rejects the whole query —
+    // which shows up as an empty page rather than an error.
+    for (const col of ['description', 'phone', 'website', 'verified', 'secondary_categories', 'rating']) {
+      expect(DISCOVER_SELECT.split(',')).toContain(col);
+    }
+    expect(DISCOVER_SELECT.split(',')).not.toContain('review_count');
+  });
+});

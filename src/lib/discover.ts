@@ -30,14 +30,21 @@ import { normalize } from './search';
  * for it makes PostgREST reject the whole query with a 42703 — which surfaces
  * as an empty page, not an error.
  */
-export const DISCOVER_SELECT =
-  'id,name,category,location,rating,image_url,logo_url,username,created_at,opening_hours,hours,timezone,open_status';
+/* One literal, not a concatenation. The Supabase client infers the row type
+   from the string itself, so splitting it across a `+` turns every result into
+   GenericStringError. */
+export const DISCOVER_SELECT = 'id,name,category,secondary_categories,description,location,phone,website,verified,rating,image_url,logo_url,username,created_at,opening_hours,hours,timezone,open_status';
 
 export interface DiscoverBusiness extends OpenStateInput {
   id: string;
   name: string;
   category?: string | null;
+  secondary_categories?: string[] | null;
+  description?: string | null;
   location?: string | null;
+  phone?: string | null;
+  website?: string | null;
+  verified?: boolean | null;
   rating?: number | null;
   review_count?: number | null;
   image_url?: string | null;
@@ -197,4 +204,22 @@ export function directionsHref(b: Pick<DiscoverBusiness, 'name' | 'location'>): 
   if (!b.location) return null;
   const q = encodeURIComponent(`${b.name} ${b.location}`);
   return `https://www.google.com/maps/search/?api=1&query=${q}`;
+}
+
+/**
+ * The extra categories a business also trades under, cleaned up.
+ *
+ * Stored as an array that in practice holds nulls and blanks, so this filters
+ * before deciding whether there is anything to show — otherwise a card renders
+ * a lonely "+" with nothing after it.
+ */
+export function secondaryCategories(b: Pick<DiscoverBusiness, 'secondary_categories'>): string[] {
+  const raw = b.secondary_categories;
+  return Array.isArray(raw) ? raw.filter((c): c is string => typeof c === 'string' && c.trim() !== '') : [];
+}
+
+/** A website without the scheme, which is noise on a small card. */
+export function displayWebsite(url?: string | null): string | null {
+  if (!url) return null;
+  return url.replace(/^https?:\/\//i, '').replace(/\/+$/, '') || null;
 }

@@ -1,20 +1,32 @@
 import { Link } from 'react-router-dom';
-import { Star, MapPin, Navigation } from 'lucide-react';
+import { Star, MapPin, Navigation, Phone, Globe } from 'lucide-react';
 
 import OpenStateBadge from '../OpenStateBadge';
+import VerifiedBadge from '../VerifiedBadge';
 import KeepButton from '../KeepButton';
-import { businessHref, directionsHref, type DiscoverBusiness } from '../../lib/discover';
+import {
+  businessHref, directionsHref, secondaryCategories, displayWebsite,
+  type DiscoverBusiness,
+} from '../../lib/discover';
 
 /**
  * A business as a person sees it.
  *
- * The card leads with whether the place is open, because that is the question
- * this product exists to answer. Keep sits on the card itself rather than only
- * on the profile, so a relationship can start at the moment of interest instead
- * of requiring a visit first.
+ * Carries the same details as the directory card — category, the other
+ * categories it trades under, the verified mark, the description, location,
+ * phone, website, rating — and adds the two things a discovery card needs that
+ * a directory row did not: whether it is open, and a way to start a
+ * relationship without visiting the profile first.
  *
- * There is no distance in kilometres. `businesses` has no coordinates, and a
- * made-up "1.2km" on a card is worse than an honest place name.
+ * Keep and Directions are deliberately small, and share the rating's row so
+ * they cost the card one line rather than a block of its height. They are the
+ * actions, but they are not what the card is FOR: someone is reading to decide
+ * whether this place is worth their evening, and buttons that dominate the card
+ * crowd out the details that answer that question. 36px, not smaller — below
+ * that they stop being comfortably tappable on a phone.
+ *
+ * There is no distance in kilometres. `businesses` has no coordinates, so an
+ * invented "1.2km" would be worse than an honest place name.
  */
 export default function BusinessCard({
   business,
@@ -27,69 +39,107 @@ export default function BusinessCard({
   const rating = business.rating ?? 0;
   const reviews = business.review_count ?? 0;
   const image = business.image_url || business.logo_url;
-
   const directions = directionsHref(business);
+  const alsoIn = secondaryCategories(business);
+  const site = displayWebsite(business.website);
 
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden hover:border-gray-300 dark:hover:border-gray-600 transition flex flex-col">
-      <Link to={href} className="block">
+    <div className="group rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-500/50 transition flex flex-col">
+      <Link to={href} className="block h-24 overflow-hidden shrink-0">
         {image ? (
           <img
             src={image}
-            alt=""
+            alt={business.name}
             loading="lazy"
             decoding="async"
-            className="w-full h-32 object-cover"
+            className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
           />
         ) : (
-          <div className="w-full h-32 bg-gradient-to-br from-blue-50 to-rose-50 dark:from-gray-700 dark:to-gray-700 flex items-center justify-center">
-            <span className="text-2xl font-bold text-gray-400 dark:text-gray-500">
-              {business.name.slice(0, 1).toUpperCase()}
-            </span>
-          </div>
+          <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600" />
         )}
       </Link>
 
-      <div className="p-3 flex flex-col gap-2 flex-1">
-        <div className="flex items-start justify-between gap-2">
-          <Link to={href} className="min-w-0 flex-1">
-            <p className="text-sm font-bold text-gray-900 dark:text-white truncate">{business.name}</p>
-            <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-              {business.category || 'Business'}
+      <div className="p-3 flex flex-col flex-1 min-w-0">
+        <Link to={href} className="block min-w-0">
+          <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium truncate">
+            {business.category || 'Business'}
+          </p>
+          {alsoIn.length > 0 && (
+            <p className="text-[10px] text-gray-500 dark:text-gray-400 line-clamp-1">
+              + {alsoIn.join(' · ')}
             </p>
-          </Link>
-          {reviews > 0 && (
-            <span className="flex items-center gap-0.5 text-[11px] font-semibold text-gray-700 dark:text-gray-200 shrink-0">
-              <Star size={11} className="fill-amber-400 text-amber-400" />
-              {rating.toFixed(1)}
-              <span className="text-gray-400 font-normal">({reviews})</span>
-            </span>
           )}
-        </div>
+          <h3 className="font-bold text-gray-900 dark:text-white text-sm line-clamp-2 mt-0.5">
+            {business.name}
+            {business.verified && (
+              <VerifiedBadge compact size={13} className="inline-block align-text-bottom ml-1" />
+            )}
+          </h3>
+          {business.description && (
+            <p className="text-[11px] text-gray-600 dark:text-gray-400 line-clamp-2 mt-1">
+              {business.description}
+            </p>
+          )}
+        </Link>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="mt-2">
           <OpenStateBadge business={business} now={now} compact />
+        </div>
+
+        <div className="mt-2 space-y-1 text-[11px] text-gray-600 dark:text-gray-400 min-w-0">
           {business.location && (
-            <span className="inline-flex items-center gap-1 text-[11px] text-gray-500 dark:text-gray-400 min-w-0">
-              <MapPin size={10} className="shrink-0" />
-              <span className="truncate">{business.location}</span>
-            </span>
+            <div className="flex items-center gap-1.5 min-w-0">
+              <MapPin size={12} className="shrink-0 text-gray-500 dark:text-gray-400" />
+              <span className="line-clamp-1">{business.location}</span>
+            </div>
+          )}
+          {business.phone && (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Phone size={12} className="shrink-0 text-gray-500 dark:text-gray-400" />
+              <span className="truncate">{business.phone}</span>
+            </div>
+          )}
+          {site && (
+            <div className="flex items-center gap-1.5 min-w-0">
+              <Globe size={12} className="shrink-0 text-gray-500 dark:text-gray-400" />
+              <span className="truncate">{site}</span>
+            </div>
           )}
         </div>
 
-        <div className="flex items-center gap-2 mt-auto pt-1">
-          <KeepButton businessId={business.id} businessName={business.name} compact className="flex-1" />
-          {directions && (
-            <a
-              href={directions}
-              target="_blank"
-              rel="noopener noreferrer"
-              aria-label={`Directions to ${business.name}`}
-              className="inline-flex items-center justify-center gap-1 px-2.5 min-h-[36px] rounded-lg border border-gray-300 dark:border-gray-600 text-[11px] font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 shrink-0"
-            >
-              <Navigation size={12} /> Directions
-            </a>
-          )}
+        {/* Rating and the two actions share one row, so the buttons cost the
+            card a single line rather than a block of its height. */}
+        <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex items-center gap-2">
+          <span className="flex items-center gap-1 shrink-0">
+            <Star size={13} className="fill-yellow-400 text-yellow-400" />
+            <span className="text-[11px] font-medium text-gray-900 dark:text-white">
+              {rating ? rating.toFixed(1) : '0.0'}
+            </span>
+            {reviews > 0 && (
+              <span className="text-[10px] text-gray-400">({reviews})</span>
+            )}
+          </span>
+
+          <div className="flex items-center gap-1.5 ml-auto shrink-0">
+            <KeepButton
+              businessId={business.id}
+              businessName={business.name}
+              compact
+              size="sm"
+            />
+            {directions && (
+              <a
+                href={directions}
+                target="_blank"
+                rel="noopener noreferrer"
+                aria-label={`Directions to ${business.name}`}
+                title="Directions"
+                className="inline-flex items-center justify-center min-h-[36px] min-w-[36px] rounded-lg border border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+              >
+                <Navigation size={13} />
+              </a>
+            )}
+          </div>
         </div>
       </div>
     </div>

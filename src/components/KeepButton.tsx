@@ -34,10 +34,16 @@ interface KeepButtonProps {
   businessName: string;
   /** Compact form for a card; the full one carries the topic panel. */
   compact?: boolean;
+  /**
+   * 'sm' shrinks the control for dense card layouts, where the details are what
+   * the reader came for and the button should not crowd them out. Still 36px
+   * tall — below that it stops being comfortably tappable on a phone.
+   */
+  size?: 'sm' | 'md';
   className?: string;
 }
 
-export default function KeepButton({ businessId, businessName, compact, className = '' }: KeepButtonProps) {
+export default function KeepButton({ businessId, businessName, compact, size = 'md', className = '' }: KeepButtonProps) {
   const { user } = useAuth();
   const [keeping, setKeeping] = useState(false);
   const [topics, setTopics] = useState<KeepTopic[]>(DEFAULT_TOPICS);
@@ -154,17 +160,21 @@ export default function KeepButton({ businessId, businessName, compact, classNam
         aria-pressed={keeping}
         aria-label={keeping ? `Keeping ${businessName} — change what you hear about` : `Keep ${businessName}`}
         title={keeping ? 'Change what you hear about' : 'Keep this business on your radar'}
-        className={`inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] rounded-lg text-xs sm:text-sm font-medium transition disabled:opacity-60 ${
+        className={`inline-flex items-center justify-center rounded-lg font-medium transition disabled:opacity-60 ${
+          size === 'sm'
+            ? 'gap-1 px-2.5 min-h-[36px] text-[11px]'
+            : 'gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] text-xs sm:text-sm'
+        } ${
           keeping
             ? 'bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-300 border border-rose-200 dark:border-rose-800'
             : 'bg-rose-600 text-white hover:bg-rose-700'
         } ${className}`}
       >
         {saving
-          ? <Loader2 size={15} className="animate-spin" />
-          : <Heart size={15} className={keeping ? 'fill-current' : ''} />}
+          ? <Loader2 size={size === 'sm' ? 13 : 15} className="animate-spin" />
+          : <Heart size={size === 'sm' ? 13 : 15} className={keeping ? 'fill-current' : ''} />}
         {keepLabel(keeping)}
-        {keeping && topics.length > 0 && <Bell size={13} aria-hidden="true" />}
+        {keeping && topics.length > 0 && <Bell size={size === 'sm' ? 11 : 13} aria-hidden="true" />}
       </button>
 
       {/* The consent panel. Shown right after keeping, because that is the
