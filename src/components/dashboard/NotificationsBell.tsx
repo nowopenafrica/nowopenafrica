@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Bell, Check, CheckCheck, Loader2, Sparkles, CreditCard, CalendarClock, AlertTriangle, Info } from 'lucide-react';
+import { Bell, Check, CheckCheck, Loader2, Sparkles, CreditCard, CalendarClock, AlertTriangle, Info, Heart } from 'lucide-react';
 import {
   AppNotification, fetchNotifications, markNotificationRead, markAllNotificationsRead,
 } from '../../lib/notifications';
@@ -12,6 +12,8 @@ const ICON_FOR: Record<string, typeof Bell> = {
   booking: CalendarClock,
   welcome: Sparkles,
   info: Info,
+  // An update from a business this person chose to keep.
+  keep: Heart,
 };
 
 function timeAgo(iso: string): string {
