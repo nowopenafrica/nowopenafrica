@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Compass, DoorOpen, Sparkles, Star, Gem, Search, Loader2, Heart, Tag, X } from 'lucide-react';
+import { Compass, DoorOpen, Sparkles, Star, Gem, Search, Loader2, Heart, Tag, X, BadgeCheck } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,11 +8,14 @@ import { applySeo } from '../lib/seo';
 import BusinessCard from '../components/discover/BusinessCard';
 import SearchSuggest from '../components/discover/SearchSuggest';
 import LocationAutocomplete from '../components/LocationAutocomplete';
+import CategoryCarousel from '../components/discover/CategoryCarousel';
+import { BUSINESS_CATEGORY_GROUPS, matchesCategory } from '../data/categories';
 import {
   openNow, newest, topRated, hiddenGems,
   affinityCategories, recommended,
   DISCOVER_SELECT, tallyReviews, withReviewCounts,
-  searchBusinesses, availableCategories,
+  searchBusinesses, availableCategories, availableGroups,
+  STATUS_FILTERS, type StatusKey,
   type DiscoverBusiness,
 } from '../lib/discover';
 
@@ -47,6 +50,8 @@ export default function Discover() {
   const query = params.get('q') ?? '';
   const place = params.get('place') ?? '';
   const category = params.get('category') ?? '';
+  const group = params.get('group') ?? '';
+  const status = (params.get('status') ?? '') as StatusKey | '';
 
   /**
    * Update filters in the URL.
@@ -79,7 +84,7 @@ export default function Discover() {
   };
   const setFilter = (key: string, value: string) => setFilters({ [key]: value });
 
-  const filtering = Boolean(query || place || category);
+  const filtering = Boolean(query || place || category || group || status);
 
   useEffect(() => applySeo({
     title: 'Discover businesses — NowOpen Africa',
@@ -124,16 +129,27 @@ export default function Discover() {
 
   const now = useMemo(() => new Date(), []);
 
-  const categories = useMemo(() => availableCategories(all), [all]);
+  // How many businesses sit under each category, so the dropdown can say which
+  // ones lead somewhere.
+  const counts = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const c of availableCategories(all)) {
+      map.set(c, all.filter((b) => matchesCategory(
+        { category: b.category ?? undefined, secondary_categories: b.secondary_categories }, c,
+      )).length);
+    }
+    return map;
+  }, [all]);
   // Locations that really exist in the data, merged on top of the curated list
   // so a town nobody curated is still offered once a business is there.
   const placeOptions = useMemo(
     () => [...new Set(all.map((b) => (b.location ?? '').trim()).filter(Boolean))].sort(),
     [all],
   );
+  const groups = useMemo(() => availableGroups(all), [all]);
   const matches = useMemo(
-    () => searchBusinesses(all, { query, place, category }),
-    [all, query, place, category],
+    () => searchBusinesses(all, { query, place, category, group, status, now }),
+    [all, query, place, category, group, status, now],
   );
 
   const rails = useMemo<Rail[]>(() => {
@@ -235,10 +251,51 @@ export default function Discover() {
               className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white appearance-none"
             >
               <option value="">All categories</option>
-              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+              {/* Every category, grouped as they are elsewhere, with a count
+                  beside the ones that would return something. Showing only the
+                  categories currently present kept the list honest but made it
+                  useless for a directory still filling up — somebody looking
+                  for a cobbler could not tell whether NowOpen has no cobbler or
+                  no such category. The count is what keeps it honest now. */}
+              {BUSINESS_CATEGORY_GROUPS.map((g) => (
+                <optgroup key={g.group} label={g.group}>
+                  {g.items.map((c) => {
+                    const n = counts.get(c) ?? 0;
+                    return <option key={c} value={c}>{n > 0 ? `${c} (${n})` : c}</option>;
+                  })}
+                </optgroup>
+              ))}
             </select>
           </div>
         </div>
+
+        {/* Status, directly under the search — the answer to "is it open" is
+            why most people are here, so it sits above the browse rail. */}
+        <div className="flex gap-2 flex-wrap">
+          {STATUS_FILTERS.map((f) => {
+            const on = status === f.key;
+            return (
+              <button
+                key={f.key}
+                type="button"
+                onClick={() => setFilters({ status: on ? '' : f.key })}
+                aria-pressed={on}
+                className={`inline-flex items-center gap-1.5 px-3 min-h-[36px] rounded-full text-xs font-semibold border transition ${
+                  on
+                    ? 'bg-emerald-600 text-white border-transparent'
+                    : 'bg-white dark:bg-gray-800 text-gray-700 dark:text-gray-300 border-gray-200 dark:border-gray-700 hover:border-gray-300 dark:hover:border-gray-600'
+                }`}
+              >
+                {f.key === 'verified' ? <BadgeCheck size={13} /> : <DoorOpen size={13} />}
+                {f.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Browse by category — the twelve groups, not the hundred-odd
+            categories underneath them. */}
+        <CategoryCarousel groups={groups} active={group} onPick={(g) => setFilters({ group: g })} />
 
         {filtering && (
           <div className="flex items-center gap-3 flex-wrap">

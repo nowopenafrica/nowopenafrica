@@ -341,3 +341,104 @@ describe('suggestion ordering against real place data', () => {
     expect(labels.indexOf('Ikeja')).toBeLessThan(labels.indexOf('Blantyre'));
   });
 });
+
+describe('status filters', () => {
+  const at = new Date('2026-08-29T12:00:00+01:00');
+
+  it('counts a shop closing soon as open', async () => {
+    // Twenty minutes left is still open; excluding it sends somebody away from
+    // a place they could still reach.
+    const { matchesStatus } = await import('../lib/discover');
+    const soon = b({ id: 's', opening_hours: 'Mon-Sun 09:00-12:30' });
+    expect(matchesStatus(soon, 'open', at)).toBe(true);
+    expect(matchesStatus(soon, 'closing', at)).toBe(true);
+  });
+
+  it('does not count an ordinary open shop as closing soon', async () => {
+    const { matchesStatus } = await import('../lib/discover');
+    const allDay = b({ id: 'a', opening_hours: 'Mon-Sun 09:00-23:00' });
+    expect(matchesStatus(allDay, 'open', at)).toBe(true);
+    expect(matchesStatus(allDay, 'closing', at)).toBe(false);
+  });
+
+  it('reads 24 hours from the hours, never from a missing value', async () => {
+    // 30 of 32 live businesses have no hours at all. Treating that as
+    // always-open would put them all under a chip they never claimed.
+    const { matchesStatus } = await import('../lib/discover');
+    expect(matchesStatus(b({ id: '1', opening_hours: 'Open 24/7' }), 'open24', at)).toBe(true);
+    expect(matchesStatus(b({ id: '2' }), 'open24', at)).toBe(false);
+    expect(matchesStatus(b({ id: '3', opening_hours: 'Mon-Fri 09:00-17:00' }), 'open24', at)).toBe(false);
+  });
+
+  it('filters on the verified flag exactly', async () => {
+    const { matchesStatus } = await import('../lib/discover');
+    expect(matchesStatus(b({ id: 'v', verified: true }), 'verified', at)).toBe(true);
+    expect(matchesStatus(b({ id: 'n', verified: false }), 'verified', at)).toBe(false);
+    expect(matchesStatus(b({ id: 'u' }), 'verified', at)).toBe(false);
+  });
+
+  it('offers only chips that are backed by real data', async () => {
+    const { STATUS_FILTERS } = await import('../lib/discover');
+    const keys = STATUS_FILTERS.map((s) => s.key);
+    // The directory offers Trending / Responds Fast / Near Me with nothing
+    // behind them. None of those belong here.
+    expect(keys).toEqual(['open', 'closing', 'open24', 'verified']);
+  });
+
+  it('combines status with the other filters', async () => {
+    const { searchBusinesses } = await import('../lib/discover');
+    const list = [
+      b({ id: 'open-lagos', name: 'A', location: 'Lagos', opening_hours: 'Mon-Sun 09:00-23:00' }),
+      b({ id: 'shut-lagos', name: 'B', location: 'Lagos', opening_hours: 'Mon-Sun 01:00-02:00' }),
+    ];
+    expect(searchBusinesses(list, { place: 'Lagos', status: 'open', now: at }).map((x) => x.id))
+      .toEqual(['open-lagos']);
+  });
+});
+
+describe('category groups', () => {
+  it('matches a business through its group', async () => {
+    const { matchesGroup } = await import('../lib/discover');
+    expect(matchesGroup(b({ id: '1', category: 'Restaurant' }), 'Food & Hospitality')).toBe(true);
+    expect(matchesGroup(b({ id: '2', category: 'Restaurant' }), 'Technology & Media')).toBe(false);
+  });
+
+  it('matches on a secondary category too', async () => {
+    const { matchesGroup } = await import('../lib/discover');
+    const tailor = b({ id: 't', category: 'Fashion & Apparel', secondary_categories: ['Restaurant'] });
+    expect(matchesGroup(tailor, 'Food & Hospitality')).toBe(true);
+  });
+
+  it('ignores a group that does not exist rather than matching everything', async () => {
+    const { matchesGroup } = await import('../lib/discover');
+    expect(matchesGroup(b({ id: '1', category: 'Restaurant' }), 'Nonsense')).toBe(false);
+  });
+
+  it('offers only groups with something in them', async () => {
+    // A carousel of twelve tiles over four businesses is mostly dead ends.
+    const { availableGroups } = await import('../lib/discover');
+    const groups = availableGroups([b({ id: '1', category: 'Restaurant' })]);
+    expect(groups.map((g) => g.group)).toEqual(['Food & Hospitality']);
+    expect(groups[0].n).toBe(1);
+  });
+
+  it('filters the list by group', async () => {
+    const { searchBusinesses } = await import('../lib/discover');
+    const list = [b({ id: 'food', category: 'Restaurant' }), b({ id: 'tech', category: 'Software & IT' })];
+    expect(searchBusinesses(list, { group: 'Food & Hospitality' }).map((x) => x.id)).toEqual(['food']);
+  });
+});
+
+describe('category carousel', () => {
+  it('has an icon and a short label for every group', async () => {
+    // A renamed group would otherwise fall back to a generic tile and a
+    // three-line label, which is only visible if somebody looks.
+    const { CATEGORY_GROUPS } = await import('../lib/discover');
+    const { GROUP_ICONS, GROUP_SHORT } = await import('../lib/categoryIcons');
+    for (const group of CATEGORY_GROUPS) {
+      expect(GROUP_ICONS[group], `no icon for ${group}`).toBeTruthy();
+      expect(GROUP_SHORT[group], `no short label for ${group}`).toBeTruthy();
+    }
+    expect(CATEGORY_GROUPS.length).toBe(12);
+  });
+});

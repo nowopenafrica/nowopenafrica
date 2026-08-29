@@ -1,6 +1,6 @@
-import { publicOpenState, type OpenStateInput } from './openingHours';
+import { publicOpenState, parseOpeningHours, type OpenStateInput } from './openingHours';
 import { normalize, matchScore } from './search';
-import { businessCategories, matchesCategory } from '../data/categories';
+import { businessCategories, matchesCategory, BUSINESS_CATEGORY_GROUPS } from '../data/categories';
 
 /**
  * The rails on the Discover page.
@@ -242,6 +242,12 @@ export interface DiscoverFilters {
   place?: string;
   /** An exact category, primary or secondary. */
   category?: string;
+  /** A top-level category group, from the browse carousel. */
+  group?: string;
+  /** One status chip. */
+  status?: StatusKey | '';
+  /** Needed by the status filters, which are time-dependent. */
+  now?: Date;
 }
 
 /**
@@ -266,10 +272,17 @@ export function searchBusinesses(
   const q = normalize(filters.query ?? '').trim();
   const place = (filters.place ?? '').trim();
   const category = (filters.category ?? '').trim();
+  const group = (filters.group ?? '').trim();
+  const status = filters.status;
 
   let out = list;
 
   if (category) out = out.filter((b) => matchesCategory(categorised(b), category));
+  if (group) out = out.filter((b) => matchesGroup(b, group));
+  if (status) {
+    const at = filters.now ?? new Date();
+    out = out.filter((b) => matchesStatus(b, status, at));
+  }
   if (place) out = near(out, place);
   if (q) {
     out = out.filter((b) =>
@@ -394,4 +407,59 @@ export function searchSuggestions(
     })
     .slice(0, limit)
     .map(({ s }) => s);
+}
+
+/* --- Status --------------------------------------------------------------- */
+
+export type StatusKey = 'open' | 'closing' | 'open24' | 'verified';
+
+/**
+ * The status chips.
+ *
+ * Only four, and every one is computed from data the business itself supplies.
+ * The directory offers eleven, but its own comment concedes that several —
+ * Trending, Responds Fast, Near Me — have nothing behind them. A chip that can
+ * never match, or that matches on a guess, teaches people the filters are
+ * decorative.
+ */
+export const STATUS_FILTERS: { key: StatusKey; label: string }[] = [
+  { key: 'open', label: 'Open now' },
+  { key: 'closing', label: 'Closing soon' },
+  { key: 'open24', label: 'Open 24 hours' },
+  { key: 'verified', label: 'Verified' },
+];
+
+export function matchesStatus(b: DiscoverBusiness, status: StatusKey, now: Date): boolean {
+  if (status === 'verified') return b.verified === true;
+  if (status === 'open24') {
+    // Only from the hours themselves. A shop that never set any is unknown,
+    // not open around the clock.
+    const parsed = parseOpeningHours(b.opening_hours ?? b.hours ?? null);
+    return parsed?.alwaysOpen === true;
+  }
+  const kind = publicOpenState(b, now).kind;
+  // "Open now" includes closing-soon: a shop shutting in twenty minutes is
+  // open, and hiding it sends somebody away from a place they could reach.
+  if (status === 'open') return kind === 'open' || kind === 'closing-soon';
+  return kind === 'closing-soon';
+}
+
+/* --- Category groups ------------------------------------------------------- */
+
+/** The twelve top-level groups, for browsing rather than filtering precisely. */
+export const CATEGORY_GROUPS: string[] = BUSINESS_CATEGORY_GROUPS.map((g) => g.group);
+
+/** True when any category this business trades under sits in `group`. */
+export function matchesGroup(b: DiscoverBusiness, group: string): boolean {
+  const entry = BUSINESS_CATEGORY_GROUPS.find((g) => g.group === group);
+  if (!entry) return false;
+  const mine = businessCategories(categorised(b));
+  return mine.some((c) => entry.items.includes(c));
+}
+
+/** Groups that would actually return something, with their counts. */
+export function availableGroups(list: DiscoverBusiness[]): { group: string; n: number }[] {
+  return CATEGORY_GROUPS
+    .map((group) => ({ group, n: list.filter((b) => matchesGroup(b, group)).length }))
+    .filter((g) => g.n > 0);
 }
