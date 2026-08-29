@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { Mic, MicOff, Loader2, X, Ear } from 'lucide-react';
+import { Mic, MicOff, Loader2, X, Ear, Send, Keyboard } from 'lucide-react';
 import {
   stripWakePhrase, parseVoiceCommand, matchCategory, searchUrlFor, replyFor,
   openNowUrl, spokenOpenState, notFoundReply,
@@ -14,6 +14,10 @@ import {
   loadAlwaysListen, saveAlwaysListen, micPermissionState, shouldListen,
   type MicPermission,
 } from '../lib/voiceWake';
+import {
+  detectCapability, capabilityFrom, languageChain, classifyRecognitionError,
+  restartDelay, shouldFallBackToTyping, type VoiceCapability,
+} from '../lib/voiceRuntime';
 
 // Voice control for the platform: "NowOpen AI — I need a barber in my area".
 //
@@ -114,7 +118,19 @@ export default function VoiceAssistant() {
   // a stale value — this is what keeps the hands-free loop alive.
   const keepListeningRef = useRef(false);
 
-  const [supported, setSupported] = useState(false);
+  // What this device can actually do. Never null-renders the assistant: when
+  // recognition is missing the same answer engine takes typed questions.
+  const [capability, setCapability] = useState<VoiceCapability>(
+    () => capabilityFrom({ hasRecognition: false, hasSynthesis: false, isIOS: false }),
+  );
+  const [typed, setTyped] = useState('');
+  // Set when speech has failed for real, so the panel leads with the text box.
+  const [fallbackToTyping, setFallbackToTyping] = useState(false);
+  // Restart bookkeeping for the hands-free loop, read inside recogniser
+  // callbacks that are registered once.
+  const attemptRef = useRef(0);
+  const langIndexRef = useRef(0);
+  const restartTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<Listening>('off');
   const [heard, setHeard] = useState('');
@@ -129,7 +145,8 @@ export default function VoiceAssistant() {
 
   useEffect(() => { openRef.current = open; }, [open]);
   useEffect(() => { requireWakeRef.current = requireWake; }, [requireWake]);
-  useEffect(() => { setSupported(!!getRecogniser()); }, []);
+  useEffect(() => { setCapability(detectCapability()); }, []);
+  const supported = capability.recognition;
 
   // Read the permission once, then follow it: revoking the mic in browser
   // settings has to stop the assistant without a reload.
@@ -275,33 +292,66 @@ export default function VoiceAssistant() {
     const Recogniser = getRecogniser();
     if (!Recogniser) return;
     try { recognitionRef.current?.abort(); } catch { /* nothing running */ }
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
 
+    const langs = languageChain(
+      typeof navigator === 'undefined' ? undefined : navigator.language,
+    );
     const recognition = new Recogniser();
-    recognition.lang = 'en-NG';
+    // Not every engine ships en-NG, and an unsupported tag can yield silence
+    // rather than an error, so the chain steps down on 'language-not-supported'.
+    recognition.lang = langs[Math.min(langIndexRef.current, langs.length - 1)];
     recognition.continuous = false; // ends on silence; restarted below
     recognition.interimResults = false;
     recognition.maxAlternatives = 1;
 
     recognition.onresult = (e) => {
       const transcript = e.results?.[0]?.[0]?.transcript || '';
-      if (transcript) handleTranscript(transcript);
-    };
-    recognition.onerror = (e) => {
-      if (e?.error === 'not-allowed' || e?.error === 'service-not-allowed') {
-        setState('off');
-        setOpen(false);
-        toast.error('Microphone access is blocked. Allow it in your browser settings to use voice.');
+      if (transcript) {
+        // A result means the microphone and the engine are both fine.
+        attemptRef.current = 0;
+        handleTranscript(transcript);
       }
     };
+
+    recognition.onerror = (e) => {
+      const verdict = classifyRecognitionError(e?.error);
+      if (verdict.action === 'next-language') {
+        langIndexRef.current = Math.min(langIndexRef.current + 1, langs.length - 1);
+        return;
+      }
+      if (verdict.action === 'fatal') {
+        keepListeningRef.current = false;
+        setState('off');
+        // Not closed: the panel stays open so the typed box is right there.
+        setFallbackToTyping(true);
+        if (verdict.message) toast.error(verdict.message);
+        return;
+      }
+      if (verdict.action === 'retry') attemptRef.current += 1;
+      // 'ignore' — a pause in speech. Not an error, and not counted.
+    };
+
     recognition.onend = () => {
       // Recognition stops itself after every utterance and after silence. As
       // long as it should still be listening, restart it — that loop is what
       // makes hands-free work without the user touching anything.
-      if (keepListeningRef.current) {
-        try { recognition.start(); } catch { /* already restarting */ }
-      } else {
+      if (!keepListeningRef.current) { setState('off'); return; }
+
+      if (shouldFallBackToTyping(attemptRef.current)) {
+        // Six failures in a row is a broken microphone or a dead network, not a
+        // blip. Stop burning battery on it and offer the box instead.
+        keepListeningRef.current = false;
         setState('off');
+        setFallbackToTyping(true);
+        setReply('Could not hear you. Type your question instead.');
+        return;
       }
+
+      const wait = restartDelay(attemptRef.current);
+      restartTimerRef.current = setTimeout(() => {
+        try { recognition.start(); } catch { /* already restarting */ }
+      }, wait);
     };
 
     recognitionRef.current = recognition;
@@ -313,7 +363,10 @@ export default function VoiceAssistant() {
     }
   }, [handleTranscript]);
 
-  useEffect(() => () => { try { recognitionRef.current?.abort(); } catch { /* gone */ } }, []);
+  useEffect(() => () => {
+    if (restartTimerRef.current) clearTimeout(restartTimerRef.current);
+    try { recognitionRef.current?.abort(); } catch { /* gone */ }
+  }, []);
 
   // The single source of truth for whether the microphone should be running.
   const wantListening = shouldListen({ alwaysListen, permission, tabVisible, panelOpen: open });
@@ -358,22 +411,28 @@ export default function VoiceAssistant() {
     }
   };
 
-  if (!supported) return null;
+  // Deliberately no `if (!supported) return null`. The answer engine takes a
+  // string, so a browser that cannot listen still gets the assistant — it just
+  // reads the question instead of hearing it.
 
   return (
     <>
       {!open && (
         <button
           onClick={() => openPanel(false)}
-          aria-label={wantListening ? 'NowOpen AI is listening' : 'Voice search'}
-          title={wantListening
-            ? 'Listening for “NowOpen AI” — tap to open'
-            : 'Voice search — or say “NowOpen AI”'}
+          aria-label={!supported ? 'Ask NowOpen AI' : wantListening ? 'NowOpen AI is listening' : 'Voice search'}
+          title={!supported
+            ? 'Ask NowOpen AI'
+            : wantListening
+              ? 'Listening for “NowOpen AI” — tap to open'
+              : 'Voice search — or say “NowOpen AI”'}
           className={`fixed bottom-24 right-5 z-40 w-[46px] h-[46px] rounded-full shadow-lg flex items-center justify-center hover:scale-105 active:scale-95 transition ${
             wantListening ? 'bg-red-600 text-white' : 'bg-gray-900 dark:bg-white text-white dark:text-gray-900'
           }`}
         >
-          <Mic size={20} />
+          {/* A microphone on a device that cannot listen is a promise the page
+              will not keep; show the keyboard it will actually use. */}
+          {supported ? <Mic size={20} /> : <Keyboard size={20} />}
           {/* Standing indication that the mic is live — never listen silently. */}
           {wantListening && (
             <span className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping" aria-hidden />
@@ -396,7 +455,9 @@ export default function VoiceAssistant() {
                 }`}>
                   {state === 'working'
                     ? <Loader2 size={18} className="text-white dark:text-gray-900 animate-spin" />
-                    : <Mic size={18} className="text-white dark:text-gray-900" />}
+                    : supported
+                      ? <Mic size={18} className="text-white dark:text-gray-900" />
+                      : <Keyboard size={18} className="text-white dark:text-gray-900" />}
                   {state === 'listening' && (
                     <span className="absolute inset-0 rounded-full border-2 border-red-400 animate-ping" />
                   )}
@@ -404,7 +465,11 @@ export default function VoiceAssistant() {
                 <div>
                   <p className="text-sm font-bold text-gray-900 dark:text-white">NowOpen AI</p>
                   <p className="text-[11px] text-gray-500 dark:text-gray-400">
-                    {state === 'listening' ? 'Listening…' : state === 'working' ? 'Working…' : 'Paused'}
+                    {state === 'working'
+                      ? 'Working…'
+                      : state === 'listening'
+                        ? 'Listening…'
+                        : supported ? 'Paused' : 'Type to ask'}
                   </p>
                 </div>
               </div>
@@ -421,9 +486,50 @@ export default function VoiceAssistant() {
               <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{reply}</p>
             )}
 
+            {/* Typing is always available, not just a fallback: it is faster in
+                a noisy market, and it is the only input on a browser without
+                recognition. Same engine either way. */}
+            <form
+              className="mt-3 flex gap-2"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const q = typed.trim();
+                if (!q) return;
+                setTyped('');
+                setHeard(q);
+                // Typing IS the activation, so no wake phrase is required.
+                requireWakeRef.current = false;
+                setRequireWake(false);
+                void runIntent(q);
+              }}
+            >
+              <input
+                value={typed}
+                onChange={(e) => setTyped(e.target.value)}
+                placeholder={supported ? 'Or type your question' : 'Type your question'}
+                aria-label="Ask NowOpen AI"
+                autoFocus={!supported || fallbackToTyping}
+                className="flex-1 min-w-0 px-3 min-h-[40px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
+              />
+              <button
+                type="submit"
+                aria-label="Ask"
+                className="inline-flex items-center justify-center min-h-[40px] min-w-[40px] rounded-lg bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:opacity-90"
+              >
+                <Send size={15} />
+              </button>
+            </form>
+
+            {/* What this particular device can do, said plainly rather than
+                leaving somebody tapping a microphone that will never work. */}
+            {capability.reason && (
+              <p className="mt-2 text-[11px] text-gray-500 dark:text-gray-400">{capability.reason}</p>
+            )}
+
             {/* Hands-free opt-in. The click both saves the preference and (on
                 first use) grants the microphone, which is the one gesture the
                 browser insists on — every later visit starts on its own. */}
+            {capability.handsFree && (
             <label className="mt-4 flex items-start gap-2.5 rounded-xl border border-gray-200 dark:border-gray-700 p-3 cursor-pointer">
               <input
                 type="checkbox"
@@ -456,7 +562,10 @@ export default function VoiceAssistant() {
                 )}
               </span>
             </label>
+            )}
 
+            {/* Speech controls only exist where speech does. */}
+            {supported && (
             <div className="mt-3 flex flex-wrap items-center gap-2">
               <button
                 onClick={() => { const next = !requireWake; setRequireWake(next); requireWakeRef.current = next; }}
@@ -481,6 +590,7 @@ export default function VoiceAssistant() {
                 </button>
               )}
             </div>
+            )}
 
             <p className="mt-3 text-[11px] text-gray-400 dark:text-gray-500">
               Try “I need a barber in my area”, “find a wedding photographer”, or “open my dashboard”.
