@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { Business } from '../../types';
-import { Edit2, Trash2, LayoutGrid, Radio, ShieldCheck, Users } from 'lucide-react';
+import { Edit2, Trash2, LayoutGrid, Radio, ShieldCheck, Users , Ticket} from 'lucide-react';
 import TrustBadge from '../TrustBadge';
 import ConfirmDialog from '../ConfirmDialog';
 import { roleLabel } from '../../data/roles';
@@ -18,9 +18,11 @@ interface BusinessListProps {
   onManageTrust?: (business: Business) => void;
   /** Open the Team (members) manager for a business */
   onManageTeam?: (business: Business) => void;
+  /** Open the Offers manager for a business */
+  onManageOffers?: (business: Business) => void;
 }
 
-export default function BusinessList({ onEdit, onManageContent, onGoLive, onManageTrust, onManageTeam }: BusinessListProps) {
+export default function BusinessList({ onEdit, onManageContent, onGoLive, onManageTrust, onManageTeam, onManageOffers }: BusinessListProps) {
   const { user } = useAuth();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [shared, setShared] = useState<{ business: Business; role: string }[]>([]);
@@ -202,6 +204,16 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                       className="inline-flex items-center justify-center w-[44px] h-[44px] text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
                     >
                       <ShieldCheck size={16} />
+                    </button>
+                  )}
+                  {onManageOffers && (
+                    <button
+                      onClick={() => onManageOffers(business)}
+                      aria-label={`Manage offers for ${business.name}`}
+                      title="Offers"
+                      className="inline-flex items-center justify-center w-[44px] h-[44px] text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-900/30 rounded transition"
+                    >
+                      <Ticket size={16} />
                     </button>
                   )}
                   {onManageTeam && (

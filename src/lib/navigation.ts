@@ -1,6 +1,6 @@
 import {
   Home, Compass, Megaphone, Palette,
-  Heart, MapPin, DoorOpen,
+  Heart, MapPin, DoorOpen, Ticket,
   LayoutGrid, Store, Users, ShoppingBag, Sparkles, BarChart3,
 } from 'lucide-react';
 
@@ -47,11 +47,10 @@ export const PRIMARY_NAV: NavItem[] = [
 export const PEOPLE_MENU: NavItem[] = [
   { to: '/keeps', label: 'Keeps', icon: Heart, authOnly: true, blurb: 'Businesses you follow' },
   { to: '/nearby', label: 'Nearby', icon: MapPin, blurb: 'What is around you' },
-  // The brief originally asked for Offers here. There is no offers, deals or
-  // promotions table and `business_products.price` is free text, so it would be
-  // a permanently empty page. This is the surface NowOpen is named after and it
-  // is backed by real opening-hours data.
   { to: '/open-now', label: 'Open now', icon: DoorOpen, blurb: 'Doors open this minute' },
+  // Withheld when Discover shipped, because there was no offers table and the
+  // tab would have pointed at a page that could never fill. There is one now.
+  { to: '/offers', label: 'Offers', icon: Ticket, blurb: 'Deals running right now' },
 ];
 
 /** For businesses: get discovered, connect, grow. */

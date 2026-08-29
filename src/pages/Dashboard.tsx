@@ -9,6 +9,7 @@ import { User, ShoppingBag, Award, Film, LogOut, Plus, Shield, LayoutGrid, Calen
 import { getBusinessTier, getCreativeTier, nextBusinessTier } from '../data/pricingPlans';
 import ProfileCompleteness from '../components/dashboard/ProfileCompleteness';
 import BusinessStoryEditor from '../components/dashboard/BusinessStoryEditor';
+import OffersManager from '../components/dashboard/OffersManager';
 import BusinessForm from '../components/dashboard/BusinessForm';
 import BusinessList from '../components/dashboard/BusinessList';
 import BusinessContentManager from '../components/dashboard/BusinessContentManager';
@@ -110,6 +111,7 @@ export default function Dashboard() {
   const [trustBusiness, setTrustBusiness] = useState<Business | null>(null);
   // Business whose Team (members) manager is open
   const [teamBusiness, setTeamBusiness] = useState<Business | null>(null);
+  const [offersBusiness, setOffersBusiness] = useState<Business | null>(null);
   // Bumping this remounts the list components so they refetch after a save
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -712,6 +714,7 @@ export default function Dashboard() {
                   onGoLive={(business) => setGoLiveBusiness(business)}
                   onManageTrust={(business) => setTrustBusiness(business)}
                   onManageTeam={(business) => setTeamBusiness(business)}
+                  onManageOffers={(business) => setOffersBusiness(business)}
                 />
                 {goLiveBusiness && (
                   <GoLiveModal
@@ -794,6 +797,14 @@ export default function Dashboard() {
           Mounted at the root rather than inside a tab so closing it does not
           depend on which tab is showing. Bumping refreshKey is what makes the
           percentage move without a reload. */}
+      {offersBusiness && (
+        <OffersManager
+          businessId={String(offersBusiness.id)}
+          businessName={offersBusiness.name}
+          onClose={() => setOffersBusiness(null)}
+        />
+      )}
+
       {storyFor && (
         <BusinessStoryEditor
           business={storyFor}
