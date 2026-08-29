@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Compass, DoorOpen, Sparkles, Star, Gem, MapPin, Search, Loader2, Heart, Tag, X } from 'lucide-react';
+import { Compass, DoorOpen, Sparkles, Star, Gem, Search, Loader2, Heart, Tag, X } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import BusinessCard from '../components/discover/BusinessCard';
+import SearchSuggest from '../components/discover/SearchSuggest';
+import LocationAutocomplete from '../components/LocationAutocomplete';
 import {
   openNow, newest, topRated, hiddenGems,
   affinityCategories, recommended,
@@ -46,12 +48,26 @@ export default function Discover() {
   const place = params.get('place') ?? '';
   const category = params.get('category') ?? '';
 
-  const setFilter = (key: string, value: string) => {
-    const next = new URLSearchParams(params);
-    if (value.trim()) next.set(key, value);
-    else next.delete(key);
-    setParams(next, { replace: true });
+  /**
+   * Update filters in the URL.
+   *
+   * Takes a patch rather than one key, and applies it through the functional
+   * form of setParams. Two separate calls in the same handler both read the
+   * same `params` snapshot, so the second silently discards the first — which
+   * is how picking a place suggestion left the typed query behind and produced
+   * ?q=la&place=Lagos instead of just the place.
+   */
+  const setFilters = (patch: Record<string, string>) => {
+    setParams((prev) => {
+      const next = new URLSearchParams(prev);
+      for (const [key, value] of Object.entries(patch)) {
+        if (value.trim()) next.set(key, value);
+        else next.delete(key);
+      }
+      return next;
+    }, { replace: true });
   };
+  const setFilter = (key: string, value: string) => setFilters({ [key]: value });
 
   const filtering = Boolean(query || place || category);
 
@@ -99,6 +115,12 @@ export default function Discover() {
   const now = useMemo(() => new Date(), []);
 
   const categories = useMemo(() => availableCategories(all), [all]);
+  // Locations that really exist in the data, merged on top of the curated list
+  // so a town nobody curated is still offered once a business is there.
+  const placeOptions = useMemo(
+    () => [...new Set(all.map((b) => (b.location ?? '').trim()).filter(Boolean))].sort(),
+    [all],
+  );
   const matches = useMemo(
     () => searchBusinesses(all, { query, place, category }),
     [all, query, place, category],
@@ -163,25 +185,22 @@ export default function Discover() {
           you type, so the answer arrives while the question is being asked. */}
       <div className="mb-8 space-y-2">
         <div className="flex flex-col sm:flex-row gap-2">
-          <div className="relative flex-1">
-            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
-              value={query}
-              onChange={(e) => setFilter('q', e.target.value)}
-              placeholder="Search businesses, services or products"
-              aria-label="Search businesses"
-              className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
-            />
-          </div>
+          <SearchSuggest
+            value={query}
+            onChange={(v) => setFilter('q', v)}
+            onPickPlace={(p) => setFilters({ q: '', place: p })}
+            onPickCategory={(c) => setFilters({ q: '', category: c })}
+            businesses={all}
+          />
 
-          <div className="relative sm:w-56">
-            <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-            <input
+          {/* The same autocomplete the directory uses, so a place typed here
+              behaves the way it does everywhere else on the site. */}
+          <div className="sm:w-56">
+            <LocationAutocomplete
               value={place}
-              onChange={(e) => setFilter('place', e.target.value)}
+              onChange={(v) => setFilter('place', v)}
+              extraOptions={placeOptions}
               placeholder="Anywhere"
-              aria-label="Filter by place"
-              className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
             />
           </div>
 

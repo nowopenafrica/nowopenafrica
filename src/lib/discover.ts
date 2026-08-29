@@ -1,5 +1,5 @@
 import { publicOpenState, type OpenStateInput } from './openingHours';
-import { normalize } from './search';
+import { normalize, matchScore } from './search';
 import { businessCategories, matchesCategory } from '../data/categories';
 
 /**
@@ -293,4 +293,105 @@ export function availableCategories(list: DiscoverBusiness[]): string[] {
   const set = new Set<string>();
   for (const b of list) for (const c of businessCategories(categorised(b))) set.add(c);
   return [...set].sort((a, b) => a.localeCompare(b));
+}
+
+/* --- Suggestions ---------------------------------------------------------- */
+
+export type SuggestionKind = 'business' | 'category' | 'place';
+
+export interface Suggestion {
+  kind: SuggestionKind;
+  /** What to show. */
+  label: string;
+  /** Second line: a category for a business, a region for a place. */
+  detail?: string;
+  /** Where selecting it goes, for a business. */
+  href?: string;
+  /** What to put in the filter, for a category or a place. */
+  value: string;
+}
+
+/**
+ * What to offer while somebody is typing.
+ *
+ * Three kinds, deliberately mixed in one list rather than split into tabs: a
+ * person typing "la" does not yet know whether they want a place, a category or
+ * a shop, and making them choose a tab first is asking them to answer the
+ * question they came to ask.
+ *
+ * Ordered by match quality, then by kind. Places rank above categories at equal
+ * score because a bare "la" is far more often the start of a place name than of
+ * a trade, and businesses rank first when they match strongly since an exact
+ * name is the least ambiguous thing anyone can type.
+ */
+export function searchSuggestions(
+  list: DiscoverBusiness[],
+  places: { name: string; region: string }[],
+  query: string,
+  limit = 8,
+): Suggestion[] {
+  const q = query.trim();
+  if (normalize(q).length < 2) return [];
+
+  const scored: { s: Suggestion; score: number; rank: number }[] = [];
+
+  for (const b of list) {
+    const score = matchScore(b.name ?? '', q);
+    if (score > 0) {
+      scored.push({
+        score,
+        rank: 0,
+        s: {
+          kind: 'business',
+          label: b.name,
+          detail: [b.category, b.location].filter(Boolean).join(' · ') || undefined,
+          href: businessHref(b),
+          value: b.name,
+        },
+      });
+    }
+  }
+
+  for (const place of places) {
+    // A place whose NAME matches is what was typed. A place that matches only
+    // because its region says "Lagos" is a related suggestion, and is capped so
+    // it cannot outrank a real name match.
+    //
+    // The cap sits at 50: above a mid-word substring (40), below a word-start
+    // hit (60). Both edges were chosen against real output. Capping lower put
+    // Blantyre and Casablanca — which contain "la" in the middle of the word —
+    // above every district of Lagos, which is not what somebody in Nigeria
+    // typing "la" is looking for. Not capping at all filled the whole list with
+    // Lagos districts and buried the categories.
+    const REGION_ONLY_CAP = 50;
+    const byName = matchScore(place.name, q);
+    const byRegion = matchScore(`${place.name}, ${place.region}`, q);
+    const score = byName > 0 ? byName : Math.min(byRegion, REGION_ONLY_CAP);
+    if (score > 0) {
+      scored.push({
+        score,
+        rank: 1,
+        s: { kind: 'place', label: place.name, detail: place.region, value: place.name },
+      });
+    }
+  }
+
+  for (const category of availableCategories(list)) {
+    const score = matchScore(category, q);
+    if (score > 0) {
+      scored.push({ score, rank: 2, s: { kind: 'category', label: category, value: category } });
+    }
+  }
+
+  const seen = new Set<string>();
+  return scored
+    .sort((a, b) => (b.score - a.score) || (a.rank - b.rank) || a.s.label.localeCompare(b.s.label))
+    .filter(({ s }) => {
+      const key = `${s.kind}:${normalize(s.label)}`;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    })
+    .slice(0, limit)
+    .map(({ s }) => s);
 }

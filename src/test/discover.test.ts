@@ -214,3 +214,130 @@ describe('searchBusinesses', () => {
     expect(availableCategories(list)).toEqual(['Barber', 'Fashion', 'Restaurant']);
   });
 });
+
+describe('searchSuggestions', () => {
+  const places = [
+    { name: 'Lagos', region: 'Nigeria' },
+    { name: 'Lagos Island', region: 'Lagos, Nigeria' },
+    { name: 'Lekki', region: 'Lagos, Nigeria' },
+    { name: 'Nairobi', region: 'Kenya' },
+  ];
+  const biz = [
+    b({ id: '1', name: 'Lagoon Restaurant', category: 'Restaurant', location: 'Yaba, Lagos', username: 'lagoon' }),
+    b({ id: '2', name: 'Mama Put Kitchen', category: 'Restaurant', location: 'Lagos' }),
+  ];
+
+  it('suggests the places somebody is part-way through typing', async () => {
+    // The example asked for: "la" should offer Lagos and Lagos Island.
+    const { searchSuggestions } = await import('../lib/discover');
+    const labels = searchSuggestions(biz, places, 'la').filter((s) => s.kind === 'place').map((s) => s.label);
+    expect(labels).toContain('Lagos');
+    expect(labels).toContain('Lagos Island');
+    expect(labels).not.toContain('Nairobi');
+  });
+
+  it('carries the region so two similar places can be told apart', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    const island = searchSuggestions(biz, places, 'lagos island').find((s) => s.label === 'Lagos Island');
+    expect(island?.detail).toBe('Lagos, Nigeria');
+  });
+
+  it('mixes businesses, places and categories in one list', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    const kinds = new Set(searchSuggestions(biz, places, 'la').map((s) => s.kind));
+    expect(kinds.has('place')).toBe(true);
+    expect(kinds.has('business')).toBe(true);
+  });
+
+  it('ranks an exact business name at the top', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    expect(searchSuggestions(biz, places, 'Mama Put Kitchen')[0]).toMatchObject({
+      kind: 'business', label: 'Mama Put Kitchen',
+    });
+  });
+
+  it('gives a business suggestion somewhere to go', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    const s = searchSuggestions(biz, places, 'lagoon').find((x) => x.kind === 'business');
+    expect(s?.href).toBe('/lagoon');
+    expect(s?.detail).toContain('Restaurant');
+  });
+
+  it('suggests a category by name', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    const s = searchSuggestions(biz, places, 'restau').find((x) => x.kind === 'category');
+    expect(s?.value).toBe('Restaurant');
+  });
+
+  it('stays quiet until there is enough to go on', async () => {
+    // One letter matches almost everything; a list of eight guesses after one
+    // keystroke is noise that hides the box being typed into.
+    const { searchSuggestions } = await import('../lib/discover');
+    expect(searchSuggestions(biz, places, 'l')).toEqual([]);
+    expect(searchSuggestions(biz, places, ' ')).toEqual([]);
+  });
+
+  it('does not repeat the same suggestion twice', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    const dupes = [...places, ...places];
+    const out = searchSuggestions(biz, dupes, 'lagos');
+    const keys = out.map((s) => `${s.kind}:${s.label}`);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('respects the limit so the list cannot swallow the page', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    expect(searchSuggestions(biz, places, 'la', 2)).toHaveLength(2);
+  });
+
+  it('returns nothing for a query that matches nothing', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    expect(searchSuggestions(biz, places, 'zzzz')).toEqual([]);
+  });
+});
+
+describe('suggestion relevance', () => {
+  it('ranks a place matched by name above one matched only by its region', async () => {
+    // Typing "la" should lead with Lagos, not with every district that happens
+    // to sit inside Lagos.
+    const { searchSuggestions } = await import('../lib/discover');
+    const out = searchSuggestions([], [
+      { name: 'Agege', region: 'Lagos, Nigeria' },
+      { name: 'Lagos', region: 'Nigeria' },
+    ], 'la');
+    expect(out[0].label).toBe('Lagos');
+  });
+
+  it('still offers the related district rather than hiding it', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    const labels = searchSuggestions([], [
+      { name: 'Agege', region: 'Lagos, Nigeria' },
+      { name: 'Lagos', region: 'Nigeria' },
+    ], 'la').map((s) => s.label);
+    expect(labels).toContain('Agege');
+  });
+
+  it('does not let region matches bury a category', async () => {
+    const { searchSuggestions } = await import('../lib/discover');
+    const biz = [b({ id: 'x', name: 'Zeta', category: 'Laundry', location: 'Abuja' })];
+    const districts = Array.from({ length: 10 }, (_, i) => ({ name: `D${i}`, region: 'Lagos, Nigeria' }));
+    const kinds = searchSuggestions(biz, districts, 'la').map((s) => s.kind);
+    expect(kinds).toContain('category');
+  });
+});
+
+describe('suggestion ordering against real place data', () => {
+  it('puts Lagos districts above cities that merely contain the letters', async () => {
+    // Regression seen on screen: "la" offered Blantyre and Casablanca — which
+    // match mid-word — above Ikeja and Agege, which are actually in Lagos.
+    const { searchSuggestions } = await import('../lib/discover');
+    const labels = searchSuggestions([], [
+      { name: 'Blantyre', region: 'Malawi' },
+      { name: 'Casablanca', region: 'Morocco' },
+      { name: 'Ikeja', region: 'Lagos, Nigeria' },
+      { name: 'Lagos', region: 'Nigeria' },
+    ], 'la').map((s) => s.label);
+    expect(labels[0]).toBe('Lagos');
+    expect(labels.indexOf('Ikeja')).toBeLessThan(labels.indexOf('Blantyre'));
+  });
+});
