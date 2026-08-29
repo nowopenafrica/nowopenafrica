@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { loadHeroSettings } from '../lib/heroSettings';
 import { heroPlaylist, EMBED_SLIDE_SECONDS, type HeroSlide } from '../lib/heroSlides';
@@ -55,6 +56,21 @@ export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: Her
 
   const advance = useCallback(() => {
     setCurrent(prev => (prev + 1) % videos.length);
+  }, [videos.length]);
+
+  /**
+   * Manual navigation.
+   *
+   * Wraps in both directions, so Previous on the first slide goes to the last
+   * rather than doing nothing — a dead arrow reads as broken.
+   *
+   * No separate timer handling is needed: the auto-advance timers live in an
+   * effect keyed on `current`, so moving by hand tears them down and starts the
+   * new slide's turn from the beginning. Without that, somebody who pressed
+   * Next could be moved on again a moment later by the outgoing slide's timer.
+   */
+  const goBy = useCallback((step: -1 | 1) => {
+    setCurrent(prev => (prev + step + videos.length) % videos.length);
   }, [videos.length]);
 
   useEffect(() => {
@@ -201,6 +217,33 @@ export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: Her
         }}
         aria-hidden="true"
       />
+      {/* Previous / next.
+          Only with more than one slide, and sized as real 44px targets rather
+          than the decorative arrows a hero usually gets — these are the control
+          somebody reaches for when a banner moved on before they finished
+          reading it. Sized in px, not w-11: this app's root font is 15px, so
+          the rem-based utility renders 41px and quietly misses the target. */}
+      {videos.length > 1 && (
+        <>
+          <button
+            type="button"
+            onClick={() => goBy(-1)}
+            aria-label="Previous banner"
+            className="absolute left-3 sm:left-5 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-[44px] h-[44px] rounded-full bg-black/35 hover:bg-black/55 text-white backdrop-blur-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ChevronLeft size={22} />
+          </button>
+          <button
+            type="button"
+            onClick={() => goBy(1)}
+            aria-label="Next banner"
+            className="absolute right-3 sm:right-5 top-1/2 -translate-y-1/2 z-10 flex items-center justify-center w-[44px] h-[44px] rounded-full bg-black/35 hover:bg-black/55 text-white backdrop-blur-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-white"
+          >
+            <ChevronRight size={22} />
+          </button>
+        </>
+      )}
+
       {/* Dots indicator */}
       {videos.length > 1 && (
         <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-2">
@@ -208,10 +251,11 @@ export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: Her
             <button
               key={idx}
               onClick={() => setCurrent(idx)}
+              aria-label={`Banner ${idx + 1} of ${videos.length}`}
+              aria-current={idx === current ? 'true' : undefined}
               className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
                 idx === current ? 'bg-white scale-110' : 'bg-white/40 hover:bg-white/60'
               }`}
-              aria-label={`Slide ${idx + 1}`}
             />
           ))}
         </div>
