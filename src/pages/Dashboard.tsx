@@ -7,6 +7,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { Business, Advert, MediaService } from '../types';
 import { User, ShoppingBag, Award, Film, LogOut, Plus, Shield, LayoutGrid, CalendarCheck, MessageSquare, Inbox, Crown, Check, ArrowUpRight, Sparkles, Activity } from 'lucide-react';
 import { getBusinessTier, getCreativeTier, nextBusinessTier } from '../data/pricingPlans';
+import ProfileCompleteness from '../components/dashboard/ProfileCompleteness';
 import BusinessForm from '../components/dashboard/BusinessForm';
 import BusinessList from '../components/dashboard/BusinessList';
 import BusinessContentManager from '../components/dashboard/BusinessContentManager';
@@ -401,6 +402,13 @@ export default function Dashboard() {
             {/* Overview */}
             {activeTab === 'overview' && (
               <div className="space-y-6">
+              {/* Page completeness, above the plan card: what an owner can act
+                  on today, before what they might pay for. Shown per business,
+                  capped at three so a long tail does not read as a wall. */}
+              {businesses.slice(0, 3).map((b) => (
+                <ProfileCompleteness key={String(b.id)} business={b} />
+              ))}
+
               {/* Your plan / subscription */}
               <div className="rounded-xl border border-gray-100 dark:border-gray-800 bg-gradient-to-br from-gray-50 to-white dark:from-gray-900 dark:to-gray-800 p-5">
                 <div className="flex items-start justify-between gap-4 flex-wrap">

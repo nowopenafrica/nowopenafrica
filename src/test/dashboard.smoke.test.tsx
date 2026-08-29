@@ -69,6 +69,9 @@ describe('Dashboard smoke', () => {
       </MemoryRouter>
     );
     expect(screen.getByText(/Welcome back/i)).toBeInTheDocument();
-    expect(await screen.findByText(/Test Cafe/i)).toBeInTheDocument();
+    // The name now appears more than once — the completeness panel labels
+    // itself with the business it is scoring. The assertion is that the
+    // overview rendered it at all, not that it rendered it exactly once.
+    expect((await screen.findAllByText(/Test Cafe/i)).length).toBeGreaterThan(0);
   });
 });

@@ -18,6 +18,8 @@ import CartModal, { CartLine } from '../components/CartModal';
 import LiveSection from '../components/live/LiveSection';
 import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import OpenStateBadge from '../components/OpenStateBadge';
+import BusinessStory from '../components/business/BusinessStory';
+import type { ProfileStory } from '../lib/businessProfile';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { resolveBusinessStatus, loadClockConfig, resolvePublicStatus } from '../lib/businessStatus';
 import { applySeo, SITE_URL } from '../lib/seo';
@@ -1027,6 +1029,14 @@ export default function BusinessDetail() {
 
                 <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 mb-6">
                   <BusinessTimeline business={business} config={clockConfig} />
+                </div>
+
+                {/* Why us, the story, credentials, team, FAQs, business
+                    information and policies — each rendering only if it has
+                    something in it, so a sparse profile stays short rather than
+                    becoming a column of empty headings. */}
+                <div className="mb-6">
+                  <BusinessStory business={business as unknown as ProfileStory & { description?: string | null }} />
                 </div>
                 
                 {/* Identity facts only.
