@@ -1,7 +1,9 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
+import BusinessCard from '../discover/BusinessCard';
+import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
 
@@ -53,6 +55,16 @@ interface Row {
   reach?: number;
   created_at?: string;
   type: 'business' | 'advert' | 'media';
+  /**
+   * The untouched business row, kept alongside the flattened card fields.
+   *
+   * The homepage used to show open/closed from the stored `status` column,
+   * which is a snapshot and goes stale — a shop that closed an hour ago still
+   * read as Open on the busiest page on the site. Carrying the original row
+   * lets the same card the directory and Discover use compute the state from
+   * the actual opening hours.
+   */
+  source?: DiscoverBusiness;
 }
 
 const FALLBACK_IMG = {
@@ -125,6 +137,7 @@ export default function ListingExplorer({
       location: b.location,
       created_at: (b as { created_at?: string }).created_at,
       type: 'business' as const,
+      source: b as unknown as DiscoverBusiness,
     }));
   }, [type, businesses, adverts, mediaServices]);
 
@@ -145,6 +158,15 @@ export default function ListingExplorer({
       .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
       .map(([label, n]) => ({ label, n }));
   }, [rows]);
+
+  // One clock for the whole grid, refreshed each minute: a homepage that says
+  // "open" is making a claim about right now, and it goes stale while somebody
+  // reads it.
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000);
+    return () => clearInterval(id);
+  }, []);
 
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -337,7 +359,20 @@ export default function ListingExplorer({
         {/* Row 3 — the grid. Same cards as everywhere else. */}
         <div id="explorer-grid" role="tabpanel" aria-labelledby={`explorer-tab-${type}`} className="mt-5">
           {visible.length > 0 ? (
-            <InfiniteSlider cards={visible} linkBase={type === 'businesses' ? 'businesses' : type} layout="grid" />
+            type === 'businesses' ? (
+              /* Businesses get the full card — real open state from opening
+                 hours, the details people read to choose, and Keep, so the
+                 relationship can start on the page most visitors land on. */
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+                {visible.map((r) => (
+                  r.source
+                    ? <BusinessCard key={r.id} business={r.source} now={now} />
+                    : null
+                ))}
+              </div>
+            ) : (
+              <InfiniteSlider cards={visible} linkBase={type} layout="grid" />
+            )
           ) : (
             // Say which filter emptied it, and offer the way back. A bare "no
             // results" leaves the visitor guessing which of four controls to undo.
