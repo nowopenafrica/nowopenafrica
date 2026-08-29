@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { Compass, DoorOpen, Sparkles, Star, Gem, Search, Loader2, Heart, Tag, X } from 'lucide-react';
 
@@ -57,15 +57,25 @@ export default function Discover() {
    * is how picking a place suggestion left the typed query behind and produced
    * ?q=la&place=Lagos instead of just the place.
    */
+  // The URL as of the last write, not as of the last render.
+  //
+  // setParams' functional form does NOT compose within a tick: React Router
+  // hands it the committed search params, so two calls in the same handler both
+  // start from the same value and the second silently discards the first.
+  // Measured: setting the query and the category together produced
+  // ?category=Restaurant with the query dropped. Threading the writes through a
+  // ref makes them accumulate.
+  const pendingRef = useRef(params);
+  useEffect(() => { pendingRef.current = params; }, [params]);
+
   const setFilters = (patch: Record<string, string>) => {
-    setParams((prev) => {
-      const next = new URLSearchParams(prev);
-      for (const [key, value] of Object.entries(patch)) {
-        if (value.trim()) next.set(key, value);
-        else next.delete(key);
-      }
-      return next;
-    }, { replace: true });
+    const next = new URLSearchParams(pendingRef.current);
+    for (const [key, value] of Object.entries(patch)) {
+      if (value.trim()) next.set(key, value);
+      else next.delete(key);
+    }
+    pendingRef.current = next;
+    setParams(next, { replace: true });
   };
   const setFilter = (key: string, value: string) => setFilters({ [key]: value });
 
@@ -195,12 +205,18 @@ export default function Discover() {
 
           {/* The same autocomplete the directory uses, so a place typed here
               behaves the way it does everywhere else on the site. */}
+          {/* LocationAutocomplete brings no vertical padding, height or
+              background of its own — its callers supply them. Without these the
+              input rendered 21px tall inside a 44px row, two pixels low and on
+              the wrong grey, which is what made this box look out of place next
+              to the other two. */}
           <div className="sm:w-56">
             <LocationAutocomplete
               value={place}
               onChange={(v) => setFilter('place', v)}
               extraOptions={placeOptions}
               placeholder="Anywhere"
+              className="min-h-[44px] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             />
           </div>
 
@@ -210,7 +226,13 @@ export default function Discover() {
               value={category}
               onChange={(e) => setFilter('category', e.target.value)}
               aria-label="Filter by category"
-              className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white appearance-none"
+              /* dark:bg-gray-900, not 800, so this matches the two inputs
+                 beside it. A global rule paints dark inputs gray-900 and
+                 outranks the utility class — its :not() arguments each add
+                 specificity — while the same rule loses to the utility on a
+                 <select>. Left at 800 the select was visibly a different
+                 shade from its neighbours. */
+              className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white appearance-none"
             >
               <option value="">All categories</option>
               {categories.map((c) => <option key={c} value={c}>{c}</option>)}
