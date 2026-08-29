@@ -1,5 +1,6 @@
 import { publicOpenState, type OpenStateInput } from './openingHours';
 import { normalize } from './search';
+import { businessCategories, matchesCategory } from '../data/categories';
 
 /**
  * The rails on the Discover page.
@@ -222,4 +223,74 @@ export function secondaryCategories(b: Pick<DiscoverBusiness, 'secondary_categor
 export function displayWebsite(url?: string | null): string | null {
   if (!url) return null;
   return url.replace(/^https?:\/\//i, '').replace(/\/+$/, '') || null;
+}
+
+/**
+ * `Categorised` takes `category?: string`, but the column is nullable and the
+ * client hands back `null`. Coercing here keeps the shared category helpers
+ * usable without widening their type or casting the difference away.
+ */
+function categorised(b: DiscoverBusiness) {
+  return { category: b.category ?? undefined, secondary_categories: b.secondary_categories };
+}
+
+/** What the Discover search is currently narrowed to. */
+export interface DiscoverFilters {
+  /** Free text: name, description, or any category it trades under. */
+  query?: string;
+  /** Town or city, matched against the business's own location text. */
+  place?: string;
+  /** An exact category, primary or secondary. */
+  category?: string;
+}
+
+/**
+ * Narrow the list by whatever the person has typed or chosen.
+ *
+ * The three filters are independent and combine with AND, which is what people
+ * expect from a search box beside two selects: "restaurants" + "Lagos" means
+ * both, not either.
+ *
+ * Matching mirrors the directory's — name, description and every category the
+ * business trades under — so the same words find the same places on both
+ * screens. Location is matched separately, and in both directions, because a
+ * business may record "Yaba, Lagos" while somebody types "Lagos".
+ *
+ * An empty filter is not a filter: blank strings pass everything through rather
+ * than matching nothing, so a cleared box restores the full list.
+ */
+export function searchBusinesses(
+  list: DiscoverBusiness[],
+  filters: DiscoverFilters,
+): DiscoverBusiness[] {
+  const q = normalize(filters.query ?? '').trim();
+  const place = (filters.place ?? '').trim();
+  const category = (filters.category ?? '').trim();
+
+  let out = list;
+
+  if (category) out = out.filter((b) => matchesCategory(categorised(b), category));
+  if (place) out = near(out, place);
+  if (q) {
+    out = out.filter((b) =>
+      normalize(b.name ?? '').includes(q)
+      || normalize(b.description ?? '').includes(q)
+      || normalize(b.location ?? '').includes(q)
+      || businessCategories(categorised(b)).some((c) => normalize(c).includes(q)));
+  }
+
+  return out;
+}
+
+/**
+ * Every category present in the list, for the filter dropdown.
+ *
+ * Built from the data rather than the master category list so the menu can only
+ * offer choices that will actually return something — a dropdown of 31
+ * industries over a directory of 32 businesses is mostly dead ends.
+ */
+export function availableCategories(list: DiscoverBusiness[]): string[] {
+  const set = new Set<string>();
+  for (const b of list) for (const c of businessCategories(categorised(b))) set.add(c);
+  return [...set].sort((a, b) => a.localeCompare(b));
 }

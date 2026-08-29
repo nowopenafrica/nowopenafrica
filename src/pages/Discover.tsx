@@ -1,15 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Compass, DoorOpen, Sparkles, Star, Gem, MapPin, Search, Loader2, Heart } from 'lucide-react';
+import { Compass, DoorOpen, Sparkles, Star, Gem, MapPin, Search, Loader2, Heart, Tag, X } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import BusinessCard from '../components/discover/BusinessCard';
 import {
-  openNow, newest, topRated, hiddenGems, near,
+  openNow, newest, topRated, hiddenGems,
   affinityCategories, recommended,
   DISCOVER_SELECT, tallyReviews, withReviewCounts,
+  searchBusinesses, availableCategories,
   type DiscoverBusiness,
 } from '../lib/discover';
 
@@ -37,8 +38,22 @@ export default function Discover() {
   const [all, setAll] = useState<DiscoverBusiness[]>([]);
   const [kept, setKept] = useState<{ business_id: string; category: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
+  // Filters live in the URL so a search can be shared, bookmarked and
+  // returned to by the back button. They update as you type — with 32
+  // businesses already in memory, filtering is instant and a Search button
+  // would only add a step between the question and the answer.
+  const query = params.get('q') ?? '';
   const place = params.get('place') ?? '';
-  const [placeInput, setPlaceInput] = useState(place);
+  const category = params.get('category') ?? '';
+
+  const setFilter = (key: string, value: string) => {
+    const next = new URLSearchParams(params);
+    if (value.trim()) next.set(key, value);
+    else next.delete(key);
+    setParams(next, { replace: true });
+  };
+
+  const filtering = Boolean(query || place || category);
 
   useEffect(() => applySeo({
     title: 'Discover businesses — NowOpen Africa',
@@ -83,16 +98,26 @@ export default function Discover() {
 
   const now = useMemo(() => new Date(), []);
 
+  const categories = useMemo(() => availableCategories(all), [all]);
+  const matches = useMemo(
+    () => searchBusinesses(all, { query, place, category }),
+    [all, query, place, category],
+  );
+
   const rails = useMemo<Rail[]>(() => {
     const keptIds = kept.map((k) => k.business_id);
     const cats = affinityCategories(kept);
-    const scope = place ? near(all, place) : all;
+    const scope = matches;
     const list: Rail[] = [];
 
-    if (place) {
+    // While a filter is active the results themselves are the answer; the
+    // themed rails below still apply, but this is what was asked for.
+    if (filtering) {
       list.push({
-        key: 'near', title: `In ${place}`, blurb: 'Businesses recorded in this area.',
-        icon: MapPin, items: scope.slice(0, 8),
+        key: 'results',
+        title: 'Matches',
+        blurb: `${scope.length} ${scope.length === 1 ? 'business' : 'businesses'}`,
+        icon: Search, items: scope.slice(0, 12),
       });
     }
     list.push({
@@ -121,7 +146,7 @@ export default function Discover() {
     });
 
     return list.filter((r) => r.items.length > 0);
-  }, [all, kept, place, now]);
+  }, [matches, kept, filtering, now]);
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
@@ -134,33 +159,61 @@ export default function Discover() {
         </p>
       </header>
 
-      <form
-        className="flex gap-2 mb-8"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const next = new URLSearchParams(params);
-          if (placeInput.trim()) next.set('place', placeInput.trim());
-          else next.delete('place');
-          setParams(next, { replace: true });
-        }}
-      >
-        <div className="relative flex-1">
-          <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
-          <input
-            value={placeInput}
-            onChange={(e) => setPlaceInput(e.target.value)}
-            placeholder="Where are you? e.g. Yaba, Lagos"
-            aria-label="Filter by place"
-            className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
-          />
+      {/* Search, place and category. No submit button: the list narrows as
+          you type, so the answer arrives while the question is being asked. */}
+      <div className="mb-8 space-y-2">
+        <div className="flex flex-col sm:flex-row gap-2">
+          <div className="relative flex-1">
+            <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={query}
+              onChange={(e) => setFilter('q', e.target.value)}
+              placeholder="Search businesses, services or products"
+              aria-label="Search businesses"
+              className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div className="relative sm:w-56">
+            <MapPin size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+            <input
+              value={place}
+              onChange={(e) => setFilter('place', e.target.value)}
+              placeholder="Anywhere"
+              aria-label="Filter by place"
+              className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white"
+            />
+          </div>
+
+          <div className="relative sm:w-56">
+            <Tag size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
+            <select
+              value={category}
+              onChange={(e) => setFilter('category', e.target.value)}
+              aria-label="Filter by category"
+              className="w-full pl-9 pr-3 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 text-sm text-gray-900 dark:text-white appearance-none"
+            >
+              <option value="">All categories</option>
+              {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+            </select>
+          </div>
         </div>
-        <button
-          type="submit"
-          className="inline-flex items-center gap-2 px-4 min-h-[44px] rounded-lg bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700"
-        >
-          <Search size={15} /> Show
-        </button>
-      </form>
+
+        {filtering && (
+          <div className="flex items-center gap-3 flex-wrap">
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              {matches.length} {matches.length === 1 ? 'match' : 'matches'}
+            </p>
+            <button
+              type="button"
+              onClick={() => setParams(new URLSearchParams(), { replace: true })}
+              className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 dark:text-blue-400 hover:underline"
+            >
+              <X size={12} /> Clear filters
+            </button>
+          </div>
+        )}
+      </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-10">
@@ -169,7 +222,9 @@ export default function Discover() {
       ) : rails.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
           <p className="text-sm text-gray-600 dark:text-gray-300">
-            {place ? `Nothing listed in ${place} yet.` : 'Nothing to show yet.'}
+            {filtering
+              ? 'Nothing matches that yet. Try a different word, or clear the filters.'
+              : 'Nothing to show yet.'}
           </p>
           <Link to="/businesses" className="inline-block mt-3 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">
             Browse the full directory →

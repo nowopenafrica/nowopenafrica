@@ -160,3 +160,57 @@ describe('card details', () => {
     expect(DISCOVER_SELECT.split(',')).not.toContain('review_count');
   });
 });
+
+describe('searchBusinesses', () => {
+  const list = [
+    b({ id: 'mama', name: 'Mama Put Kitchen', category: 'Restaurant', location: 'Yaba, Lagos', description: 'Home cooking' }),
+    b({ id: 'cuts', name: 'Sharp Cuts', category: 'Barber', location: 'Lekki, Lagos', description: 'Fades and shaves' }),
+    b({ id: 'sew', name: 'Ada Tailoring', category: 'Fashion', secondary_categories: ['Restaurant'], location: 'Abuja', description: 'Bespoke' }),
+  ];
+
+  it('finds a business by name', async () => {
+    const { searchBusinesses } = await import('../lib/discover');
+    expect(searchBusinesses(list, { query: 'mama' }).map((x) => x.id)).toEqual(['mama']);
+  });
+
+  it('finds by category, including a secondary one', async () => {
+    // A tailor who also does food should turn up under Restaurant.
+    const { searchBusinesses } = await import('../lib/discover');
+    expect(searchBusinesses(list, { query: 'restaurant' }).map((x) => x.id).sort()).toEqual(['mama', 'sew']);
+  });
+
+  it('finds by description and by location text', async () => {
+    const { searchBusinesses } = await import('../lib/discover');
+    expect(searchBusinesses(list, { query: 'fades' }).map((x) => x.id)).toEqual(['cuts']);
+    expect(searchBusinesses(list, { query: 'lekki' }).map((x) => x.id)).toEqual(['cuts']);
+  });
+
+  it('combines the filters with AND, not OR', async () => {
+    // "restaurants in Lagos" must mean both; OR would return the Abuja tailor.
+    const { searchBusinesses } = await import('../lib/discover');
+    expect(searchBusinesses(list, { query: 'restaurant', place: 'Lagos' }).map((x) => x.id)).toEqual(['mama']);
+  });
+
+  it('filters on an exact category separately from the text box', async () => {
+    const { searchBusinesses } = await import('../lib/discover');
+    expect(searchBusinesses(list, { category: 'Barber' }).map((x) => x.id)).toEqual(['cuts']);
+    expect(searchBusinesses(list, { category: 'Restaurant' }).map((x) => x.id).sort()).toEqual(['mama', 'sew']);
+  });
+
+  it('treats empty filters as no filter, so clearing the box restores everything', async () => {
+    const { searchBusinesses } = await import('../lib/discover');
+    expect(searchBusinesses(list, {})).toHaveLength(3);
+    expect(searchBusinesses(list, { query: '   ', place: '', category: '' })).toHaveLength(3);
+  });
+
+  it('returns nothing when nothing matches, rather than everything', async () => {
+    const { searchBusinesses } = await import('../lib/discover');
+    expect(searchBusinesses(list, { query: 'helicopter' })).toEqual([]);
+  });
+
+  it('offers only categories the data actually contains', async () => {
+    // A dropdown of 31 industries over 32 businesses is mostly dead ends.
+    const { availableCategories } = await import('../lib/discover');
+    expect(availableCategories(list)).toEqual(['Barber', 'Fashion', 'Restaurant']);
+  });
+});
