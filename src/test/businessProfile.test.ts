@@ -137,3 +137,13 @@ describe('visibleSections', () => {
     expect(visibleSections({ name: 'x', core_values: ['Trust'] })).toContain('about');
   });
 });
+
+describe('About does not duplicate the header', () => {
+  it('still counts a description as covering About for completeness', async () => {
+    // The two are different jobs: completeness asks "have you said what you
+    // do?", the section asks "is there more to say than the header?".
+    const { profileCompleteness } = await import('../lib/businessProfile');
+    const withDesc = profileCompleteness({ name: 'x', category: 'Retail Store', description: 'We sell things' }, now);
+    expect(withDesc.missing.map((f) => f.key)).not.toContain('about');
+  });
+});

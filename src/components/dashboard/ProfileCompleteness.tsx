@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
 import { Check, ArrowRight, Gauge } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
@@ -19,7 +18,7 @@ import type { Business } from '../../types';
  * a product" shown to a business with forty products is the fastest way to
  * teach an owner that this panel is noise.
  */
-export default function ProfileCompleteness({ business }: { business: Business }) {
+export default function ProfileCompleteness({ business, onEdit }: { business: Business; onEdit: () => void }) {
   const [counts, setCounts] = useState({ products: 0, services: 0, gallery: 0 });
 
   useEffect(() => {
@@ -57,12 +56,15 @@ export default function ProfileCompleteness({ business }: { business: Business }
           </h3>
           <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">{business.name}</p>
         </div>
-        <Link
-          to="/dashboard?tab=businesses"
+        {/* Straight into the editor. Sending an owner to a tab to hunt for
+            the right form is where the intent to finish gets lost. */}
+        <button
+          type="button"
+          onClick={onEdit}
           className="inline-flex items-center gap-1.5 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline"
         >
-          Complete your page <ArrowRight size={14} />
-        </Link>
+          {done ? 'Edit your story' : 'Complete your page'} <ArrowRight size={14} />
+        </button>
       </div>
 
       <div

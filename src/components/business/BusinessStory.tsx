@@ -42,7 +42,11 @@ const POLICY_LABEL: Record<string, string> = {
 };
 
 export default function BusinessStory({ business: b, now = new Date() }: Props) {
-  const about = (b.about ?? b.description ?? '').trim();
+  // `about` only — deliberately NOT falling back to `description`. The header
+  // already prints the description under the business name, and repeating it
+  // verbatim a screen later reads as a page padded to look fuller. An owner who
+  // writes a longer `about` gets both: the summary up top, the detail here.
+  const about = (b.about ?? '').trim();
   const values = stringList(b.core_values);
   const whyUs = stringList(b.why_us);
   const faqs = faqList(b.faqs);

@@ -8,6 +8,7 @@ import { Business, Advert, MediaService } from '../types';
 import { User, ShoppingBag, Award, Film, LogOut, Plus, Shield, LayoutGrid, CalendarCheck, MessageSquare, Inbox, Crown, Check, ArrowUpRight, Sparkles, Activity } from 'lucide-react';
 import { getBusinessTier, getCreativeTier, nextBusinessTier } from '../data/pricingPlans';
 import ProfileCompleteness from '../components/dashboard/ProfileCompleteness';
+import BusinessStoryEditor from '../components/dashboard/BusinessStoryEditor';
 import BusinessForm from '../components/dashboard/BusinessForm';
 import BusinessList from '../components/dashboard/BusinessList';
 import BusinessContentManager from '../components/dashboard/BusinessContentManager';
@@ -63,6 +64,8 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const { format } = useCurrency();
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  // Which business's story is open for editing, if any.
+  const [storyFor, setStoryFor] = useState<Business | null>(null);
 
   useEffect(() => {
     return applySeo({
@@ -406,7 +409,7 @@ export default function Dashboard() {
                   on today, before what they might pay for. Shown per business,
                   capped at three so a long tail does not read as a wall. */}
               {businesses.slice(0, 3).map((b) => (
-                <ProfileCompleteness key={String(b.id)} business={b} />
+                <ProfileCompleteness key={String(b.id)} business={b} onEdit={() => setStoryFor(b)} />
               ))}
 
               {/* Your plan / subscription */}
@@ -786,6 +789,18 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+
+      {/* The story editor, opened from the completeness panel on Overview.
+          Mounted at the root rather than inside a tab so closing it does not
+          depend on which tab is showing. Bumping refreshKey is what makes the
+          percentage move without a reload. */}
+      {storyFor && (
+        <BusinessStoryEditor
+          business={storyFor}
+          onClose={() => setStoryFor(null)}
+          onSaved={() => setRefreshKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }
