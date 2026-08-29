@@ -1,9 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Search, MapPin, TrendingUp, DollarSign, Eye, X, Megaphone, Award, ArrowRight } from 'lucide-react';
+import { MapPin, TrendingUp, DollarSign, Eye, X, Megaphone, Award, ArrowRight } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import { normalize } from '../lib/search';
+import { buildSuggestions } from '../lib/suggest';
+import { AFRICAN_PLACES } from '../data/locations';
+import SuggestInput from '../components/SuggestInput';
 import { supabase } from '../lib/supabase';
 import { generateAdverts } from '../data/populateData';
 import { ADVERT_CATEGORY_GROUPS, groupForAdvertCategory } from '../data/advertCategories';
@@ -137,6 +140,15 @@ export default function Adverts() {
   }, [adverts]);
 
   const activeGroupObj = ADVERT_CATEGORY_GROUPS.find((g) => g.key === activeGroup) ?? null;
+  // Placements, the places they sit in, and the media categories — one list.
+  const suggestions = useMemo(() => buildSuggestions({
+    items: adverts,
+    name: (a: Advertisement) => a.title ?? '',
+    detail: (a: Advertisement) => [a.category, a.location].filter(Boolean).join(' · ') || undefined,
+    categories: [...new Set(adverts.map((a) => a.category).filter(Boolean) as string[])].sort(),
+    places: AFRICAN_PLACES,
+  }, searchQuery), [adverts, searchQuery]);
+
   const hasFilters = !!searchQuery.trim() || !!locationFilter.trim() || !!activeGroup || !!categoryFilter;
 
   let filteredAdverts = adverts;
@@ -181,20 +193,37 @@ export default function Adverts() {
         {/* Search criteria — Search · Location · Category, 3-in-1 full width */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="text" placeholder="Search placements…" value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              />
-            </div>
-            <LocationAutocomplete value={locationFilter} onChange={setLocationFilter} extraOptions={adverts.map((a) => a.location ?? '')} placeholder="Filter by location…" className="py-2.5" />
+            {/* Same box as Discover and Create: placements, places and media
+                categories suggested together as you type. */}
+            <SuggestInput
+              value={searchQuery}
+              onChange={setSearchQuery}
+              suggestions={suggestions}
+              onPick={(s) => {
+                if (s.kind === 'place') { setSearchQuery(''); setLocationFilter(s.value); return; }
+                if (s.kind === 'category') { setSearchQuery(''); setActiveGroup(null); setCategoryFilter(s.value); return; }
+                setSearchQuery(s.value);
+              }}
+              placeholder="Search placements…"
+              ariaLabel="Search placements"
+              itemNoun="Placement"
+              listId="advert-suggestions"
+            />
+            <LocationAutocomplete
+              value={locationFilter}
+              onChange={setLocationFilter}
+              extraOptions={adverts.map((a) => a.location ?? '')}
+              placeholder="Filter by location…"
+              className="min-h-[44px] bg-white dark:bg-gray-900 text-gray-900 dark:text-white"
+            />
             <select
               aria-label="Filter by category"
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setActiveGroup(null); }}
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
+              /* gray-900 to match the two inputs: a global rule paints dark
+                 inputs gray-900 and outranks the utility class, while the same
+                 rule loses to it on a <select>. */
+              className="w-full px-3 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
             >
               <option value="">All categories</option>
               {ADVERT_CATEGORY_GROUPS.map((g) => (

@@ -3,7 +3,9 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabase';
 import { generateMediaServices } from '../data/populateData';
 import { MediaService } from '../types';
-import { Star, DollarSign, Search, Palette, X, ArrowRight } from 'lucide-react';
+import { Star, DollarSign, Palette, X, ArrowRight } from 'lucide-react';
+import { buildSuggestions } from '../lib/suggest';
+import SuggestInput from '../components/SuggestInput';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { normalize } from '../lib/search';
 import { MEDIA_CATEGORY_GROUPS, groupForMediaType, DEFAULT_MEDIA_ICON } from '../data/mediaCategories';
@@ -91,6 +93,13 @@ export default function Media() {
   }, [services]);
 
   const activeGroupObj = MEDIA_CATEGORY_GROUPS.find((g) => g.key === activeGroup) ?? null;
+  const suggestions = useMemo(() => buildSuggestions({
+    items: services,
+    name: (m: MediaService) => m.title ?? '',
+    detail: (m: MediaService) => m.service_type ?? undefined,
+    categories: [...new Set(services.map((m) => m.service_type).filter(Boolean) as string[])].sort(),
+  }, search), [services, search]);
+
   const hasFilters = !!search.trim() || !!activeGroup || !!categoryFilter;
 
   let filteredServices = services;
@@ -120,19 +129,30 @@ export default function Media() {
         {/* Search criteria — Search · Category, full width */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <div className="relative">
-              <Search className="absolute left-3 top-3 text-gray-400" size={20} />
-              <input
-                type="text" placeholder="Search services…" value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"
-              />
-            </div>
+            {/* Same box as Discover and Promote. No place suggestions here:
+                media_services has no location column, so a place would be a
+                suggestion that could not filter anything. */}
+            <SuggestInput
+              value={search}
+              onChange={setSearch}
+              suggestions={suggestions}
+              onPick={(s) => {
+                if (s.kind === 'category') { setSearch(''); setActiveGroup(null); setCategoryFilter(s.value); return; }
+                setSearch(s.value);
+              }}
+              placeholder="Search services…"
+              ariaLabel="Search services"
+              itemNoun="Service"
+              listId="media-suggestions"
+            />
             <select
               aria-label="Filter by category"
               value={categoryFilter}
               onChange={(e) => { setCategoryFilter(e.target.value); setActiveGroup(null); }}
-              className="w-full px-3 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"
+              /* gray-900 to match the search box: a global rule paints dark
+                 inputs gray-900 and outranks the utility class, while the same
+                 rule loses to it on a <select>. */
+              className="w-full px-3 min-h-[44px] border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-pink-500 focus:border-transparent text-sm"
             >
               <option value="">All categories</option>
               {MEDIA_CATEGORY_GROUPS.map((g) => (
