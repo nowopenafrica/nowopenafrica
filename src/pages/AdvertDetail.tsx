@@ -10,6 +10,7 @@ import { generateAdverts, isSampleId } from '../data/populateData';
 import { Advertisement } from '../types';
 import { telHref, whatsappHref } from '../lib/phone';
 import { applySeo } from '../lib/seo';
+import { localDateISO } from '../lib/dates';
 
 const DURATION_PRESETS = [7, 14, 30, 60, 90];
 
@@ -25,7 +26,7 @@ export default function AdvertDetail() {
   const [similar, setSimilar] = useState<Advertisement[]>([]);
   const [days, setDays] = useState(30);
   const [customDays, setCustomDays] = useState('');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => localDateISO());
 
   useEffect(() => {
     if (!advert) return undefined;
@@ -156,7 +157,7 @@ export default function AdvertDetail() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Breadcrumb */}
       <div className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+        <div className="site-container py-4">
           <nav className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Link to="/adverts" className="hover:text-blue-600 flex items-center gap-1">
               <ChevronLeft size={16} />
@@ -168,7 +169,7 @@ export default function AdvertDetail() {
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="site-container py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
@@ -357,7 +358,7 @@ export default function AdvertDetail() {
                     <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Start date</label>
                     <input
                       type="date"
-                      min={new Date().toISOString().slice(0, 10)}
+                      min={localDateISO()}
                       value={startDate}
                       onChange={(e) => setStartDate(e.target.value)}
                       className="w-full px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 dark:bg-gray-900 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"

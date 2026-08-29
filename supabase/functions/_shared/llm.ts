@@ -35,9 +35,24 @@ export interface ProviderConfig {
   label: string;
 }
 
-/** Overridable per deployment, so a model can be changed without a code edit. */
+/*
+  Overridable per deployment, so a model can be changed without a code edit.
+
+  These get retired. On 2026-08-29 Groq's probe returned 404 model_not_found
+  for llama-3.3-70b-versatile, which had been the default here — and because the
+  health endpoint reports which model is CONFIGURED rather than which one
+  answers, the assistant read as healthy while every actual call fell through to
+  the degraded search-only reply. Web chat, Live and mobile were all silently
+  affected.
+
+  If that happens again, GET the chatbot function with ?probe=1: it lists what
+  each provider will actually serve, and the fix is a model id here or the
+  ASSISTANT_MODEL env var, not a code change elsewhere.
+*/
 const DEFAULTS: Record<Exclude<ProviderName, "none">, string> = {
-  groq: "llama-3.3-70b-versatile",
+  // Groq's current open-weight workhorse, and the largest it serves with tool
+  // calling — the capability the assistant depends on.
+  groq: "openai/gpt-oss-120b",
   openrouter: "meta-llama/llama-3.3-70b-instruct:free",
   anthropic: "claude-opus-4-8",
 };
@@ -60,7 +75,7 @@ export function resolveProviders(): ProviderConfig[] {
   const out: ProviderConfig[] = [];
 
   if (env("GROQ_API_KEY")) {
-    out.push({ name: "groq", model: DEFAULTS.groq, label: "Groq · Llama 3.3 70B" });
+    out.push({ name: "groq", model: DEFAULTS.groq, label: "Groq · GPT-OSS 120B" });
   }
   if (env("OPENROUTER_API_KEY")) {
     out.push({ name: "openrouter", model: DEFAULTS.openrouter, label: "OpenRouter · Llama 3.3 70B (free)" });

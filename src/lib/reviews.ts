@@ -5,6 +5,7 @@
 // localStorage; sample reviews are provided so the module is never empty.
 
 import { Business } from '../types';
+import { localDateISO } from './dates';
 
 export interface Review {
   id: string;
@@ -73,7 +74,7 @@ export function makeReview(data: Omit<Review, 'id' | 'date'>): Review {
   return {
     ...data,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
-    date: new Date().toISOString().slice(0, 10),
+    date: localDateISO(),
   };
 }
 

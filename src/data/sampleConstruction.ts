@@ -26,7 +26,7 @@ export const CONSTRUCTION_PROJECTS = [
   { src: px(280229), label: 'Office Complex · Ikeja' },
   { src: px(323705), label: 'Estate Development · Ajah' },
   { src: px(2219024), label: 'Warehouse · Agbara' },
-  { src: px(159306), label: 'Renovation · Ikoyi' },
+  { src: px(2138126), label: 'Renovation · Ikoyi' },
   { src: px(1109541), label: 'Civil Works · Epe' },
 ];
 

@@ -207,7 +207,7 @@ export default function ListingExplorer({
 
   return (
     <section aria-labelledby="explorer-heading" className="py-8 bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="site-container">
 
         <h2 id="explorer-heading" className="sr-only">Browse businesses, ad placements and creative services</h2>
 
@@ -363,7 +363,7 @@ export default function ListingExplorer({
               /* Businesses get the full card — real open state from opening
                  hours, the details people read to choose, and Keep, so the
                  relationship can start on the page most visitors land on. */
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 3xl:grid-cols-7">
                 {visible.map((r) => (
                   r.source
                     ? <BusinessCard key={r.id} business={r.source} now={now} />

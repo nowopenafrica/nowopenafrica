@@ -220,7 +220,7 @@ export default function Businesses() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Hero */}
       <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #0c4a6e 0%, #1e3a8a 55%, #3730a3 100%)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="site-container py-12 sm:py-16">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-xs font-semibold">
             <Store size={14} className="text-cyan-300" /> Discover African businesses
           </span>
@@ -245,7 +245,7 @@ export default function Businesses() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="site-container py-10">
         {/* Search criteria — Search · Location · Category, 3-in-1 full width */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
@@ -354,7 +354,7 @@ export default function Businesses() {
             <p className="text-gray-600 dark:text-gray-400">No businesses match your filters.</p>
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-6">
+          <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-3 md:gap-6">
             {rankedBusinesses.map((business) => (
               <Link
                 key={business.id}

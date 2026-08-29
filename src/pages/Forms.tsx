@@ -493,7 +493,7 @@ export default function Forms() {
       {/* Hero */}
       <section className="relative overflow-hidden bg-gray-900 text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(76,29,149,0.45),transparent_60%)]" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-14 sm:py-20 text-center">
+        <div className="relative site-container py-14 sm:py-20 text-center">
           <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
             <Globe size={16} className="text-purple-300" />
             One link · every journey

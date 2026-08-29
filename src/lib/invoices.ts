@@ -6,6 +6,7 @@
 // on-device data.
 
 import { Business } from '../types';
+import { localDateISO } from './dates';
 
 export interface InvoiceItem {
   id: string;
@@ -110,7 +111,7 @@ export function suggestDates(paymentDays = 7): { issueDate: string; dueDate: str
   const issue = new Date();
   const due = new Date();
   due.setDate(due.getDate() + paymentDays);
-  return { issueDate: issue.toISOString().slice(0, 10), dueDate: due.toISOString().slice(0, 10) };
+  return { issueDate: localDateISO(issue), dueDate: localDateISO(due) };
 }
 
 export function dateLabel(iso: string): string {

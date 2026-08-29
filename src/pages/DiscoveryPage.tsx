@@ -111,7 +111,7 @@ export default function DiscoveryPage() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="site-container py-10">
         <nav aria-label="Breadcrumb" className="mb-4 text-sm text-gray-500 dark:text-gray-400">
           <Link to="/businesses" className="hover:text-blue-600 dark:hover:text-blue-400">
             Businesses

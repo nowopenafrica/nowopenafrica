@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseOpeningHours, isOpenAt, nextChange, formatClock, dayAndMinutesInZone, isOpenAtInZone, nextChangeInZone } from './openingHours';
+import { parseOpeningHours, isOpenAt, nextChange, formatClock, dayAndMinutesInZone, isOpenAtInZone, nextChangeInZone,
+  formatOpeningHours, timeInputToMinutes, minutesToTimeInput, type DayHours } from './openingHours';
 
 // Sunday = 0. These are real local times; the parser has no timezone concept.
 const at = (day: number, hhmm: string) => {
@@ -211,5 +212,82 @@ describe('timezone-aware evaluation', () => {
     expect(isOpenAtInZone(bar, new Date('2026-08-10T00:00:00Z'), 'Africa/Lagos')).toBe(true);
     // Honolulu Sunday 13:00 (23:00 UTC Saturday) — before Sunday's 4PM opening. Closed.
     expect(isOpenAtInZone(bar, new Date('2026-08-09T23:00:00Z'), 'Pacific/Honolulu')).toBe(false);
+  });
+});
+
+describe('formatOpeningHours — round-trips through the parser', () => {
+  const week = (spec: Record<number, [number, number]>): DayHours[] =>
+    Array.from({ length: 7 }, (_, i) => (spec[i]
+      ? { open: spec[i][0], close: spec[i][1] }
+      : { open: null, close: null }));
+
+  const H = (h: number, m = 0) => h * 60 + m;
+
+  it('collapses consecutive days that share hours', () => {
+    const days = week({ 1: [H(9), H(18)], 2: [H(9), H(18)], 3: [H(9), H(18)], 4: [H(9), H(18)], 5: [H(9), H(18)] });
+    expect(formatOpeningHours(days)).toBe('Mon–Fri: 9AM–6PM');
+  });
+
+  it('splits a run when a closed day interrupts it', () => {
+    // Open Mon and Wed only — must NOT render as "Mon–Wed".
+    const days = week({ 1: [H(9), H(17)], 3: [H(9), H(17)] });
+    expect(formatOpeningHours(days)).toBe('Mon: 9AM–5PM · Wed: 9AM–5PM');
+  });
+
+  it('keeps a differing day as its own clause', () => {
+    const days = week({ 1: [H(9), H(18)], 2: [H(9), H(18)], 3: [H(9), H(18)], 4: [H(9), H(18)], 5: [H(9), H(18)], 6: [H(10), H(16)] });
+    expect(formatOpeningHours(days)).toBe('Mon–Fri: 9AM–6PM · Sat: 10AM–4PM');
+  });
+
+  it('renders a full week as Mon–Sun and parses back to all seven days', () => {
+    const days = week({ 0: [H(8), H(22)], 1: [H(8), H(22)], 2: [H(8), H(22)], 3: [H(8), H(22)], 4: [H(8), H(22)], 5: [H(8), H(22)], 6: [H(8), H(22)] });
+    const text = formatOpeningHours(days);
+    expect(text).toBe('Mon–Sun: 8AM–10PM');
+    const parsed = parseOpeningHours(text)!;
+    expect(parsed.days.every((d) => d.open === H(8) && d.close === H(22))).toBe(true);
+  });
+
+  it('formats 24/7 so the parser flags alwaysOpen', () => {
+    const parsed = parseOpeningHours(formatOpeningHours([], true))!;
+    expect(parsed.alwaysOpen).toBe(true);
+  });
+
+  it('returns empty text when nothing is open, so hours read as unset', () => {
+    expect(formatOpeningHours(week({}))).toBe('');
+    expect(parseOpeningHours('')).toBeNull();
+  });
+
+  it('round-trips half-hours, midnight and noon exactly', () => {
+    const days = week({ 1: [H(0), H(12)], 2: [H(12), H(23, 30)] });
+    const text = formatOpeningHours(days);
+    expect(text).toBe('Mon: 12AM–12PM · Tue: 12PM–11:30PM');
+    const parsed = parseOpeningHours(text)!;
+    expect(parsed.days[1]).toEqual({ open: H(0), close: H(12) });
+    expect(parsed.days[2]).toEqual({ open: H(12), close: H(23, 30) });
+  });
+
+  it('round-trips an overnight shift and stays open after midnight', () => {
+    const days = week({ 2: [H(16), H(2)], 3: [H(16), H(2)], 4: [H(16), H(2)], 5: [H(16), H(2)], 6: [H(16), H(2)], 0: [H(16), H(2)] });
+    const parsed = parseOpeningHours(formatOpeningHours(days))!;
+    expect(parsed.days[3]).toEqual({ open: H(16), close: H(2) });
+    // Thursday 1AM — still open on Wednesday's overnight shift.
+    expect(isOpenAt(parsed, at(4, '01:00'))).toBe(true);
+  });
+});
+
+describe('time input conversion', () => {
+  it('converts to and from the <input type="time"> format', () => {
+    expect(timeInputToMinutes('09:30')).toBe(570);
+    expect(timeInputToMinutes('00:00')).toBe(0);
+    expect(timeInputToMinutes('23:59')).toBe(1439);
+    expect(minutesToTimeInput(570)).toBe('09:30');
+    expect(minutesToTimeInput(0)).toBe('00:00');
+  });
+
+  it('rejects values that are not a real time', () => {
+    expect(timeInputToMinutes('')).toBeNull();
+    expect(timeInputToMinutes('9')).toBeNull();
+    expect(timeInputToMinutes('25:00')).toBeNull();
+    expect(timeInputToMinutes('10:75')).toBeNull();
   });
 });

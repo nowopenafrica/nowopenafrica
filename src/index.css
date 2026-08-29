@@ -113,6 +113,26 @@
 }
 
 @layer components {
+  /*
+    The page container.
+
+    Every page repeated `max-w-7xl mx-auto px-4 sm:px-6 lg:px-8`, capping
+    content at 1280px — which on a 1440 monitor is a band down the middle and
+    on a 1920 one is roughly a third of the screen given over to margin.
+
+    It scales to 1800px rather than going edge to edge. Unlimited width is not
+    the goal and would be worse: a line of text 2500px wide is unreadable, and
+    a header whose logo and account menu are a metre apart is harder to use,
+    not easier. The gutters grow with the viewport so the content never touches
+    the edge.
+
+    Prose blocks keep their own narrower max-widths (max-w-2xl/3xl) — reading
+    measure is a separate constraint from page width, and widening those would
+    make the site harder to read, not fuller.
+  */
+  .site-container {
+    @apply w-full mx-auto max-w-[1800px] px-4 sm:px-6 lg:px-8 2xl:px-12 3xl:px-16;
+  }
   .btn-primary {
     @apply bg-blue-600 text-white px-4 py-2 rounded-lg font-medium hover:bg-blue-700 transition;
   }

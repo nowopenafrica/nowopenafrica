@@ -3,8 +3,11 @@
   "configurations": [
     {
       "name": "nowopen-dev2",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": [
+        "/c",
+        ".claude\\start-dev.cmd"
+      ],
       "port": 5180,
       "autoPort": true
     }

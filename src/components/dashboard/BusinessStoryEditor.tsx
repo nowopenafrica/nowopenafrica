@@ -134,6 +134,13 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
   const [payments, setPayments] = useState<string[]>(stringList(b.payment_methods));
   const [saving, setSaving] = useState(false);
 
+  // The AI draft panel. `drafted` is what makes the review step visible: the
+  // owner should be able to see that these words were suggested, not typed by
+  // them, right up until they save.
+  const [aiPrompt, setAiPrompt] = useState('');
+  const [drafting, setDrafting] = useState(false);
+  const [drafted, setDrafted] = useState(false);
+
   // Live score as they type, so the effort has visible payoff before saving.
   const live = useMemo(() => profileCompleteness({
     ...(b as Record<string, unknown>),
@@ -148,6 +155,56 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
     window.addEventListener('keydown', onEsc);
     return () => window.removeEventListener('keydown', onEsc);
   }, [onClose]);
+
+  /**
+   * Draft the whole story from a sentence or two.
+   *
+   * Fills the form and stops. Nothing is written until the owner presses Save,
+   * because this is the business's own voice on its own page — a generator that
+   * wrote straight to a live profile would eventually put words in somebody's
+   * mouth they would not have chosen.
+   */
+  const draftWithAi = async () => {
+    if (aiPrompt.trim().length < 20) {
+      toast.error('Tell it a bit more — a sentence or two about what you do.');
+      return;
+    }
+    setDrafting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-profile', {
+        body: {
+          prompt: aiPrompt.trim(),
+          businessId: String(business.id),
+          name: business.name,
+          category: business.category,
+          location: business.location,
+        },
+      });
+      if (error) throw error;
+      const d = (data as { draft?: Record<string, unknown> })?.draft;
+      if (!d) throw new Error('No draft came back');
+
+      // Only fill what is still empty, so a second run never overwrites
+      // something the owner has already written or edited.
+      const fill = (current: string, next: unknown) =>
+        current.trim() ? current : (typeof next === 'string' ? next : current);
+      setTagline((v) => fill(v, d.tagline));
+      setAbout((v) => fill(v, d.about));
+      setStory((v) => fill(v, d.story));
+      setVision((v) => fill(v, d.vision));
+      setMission((v) => fill(v, d.mission));
+      if (values.length === 0) setValues(stringList(d.core_values));
+      if (whyUs.length === 0) setWhyUs(stringList(d.why_us));
+      if (faqs.length === 0) setFaqs(faqList(d.faqs));
+      setDrafted(true);
+      toast.success('Draft ready — read it through, change anything, then save');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : 'Could not draft that just now.';
+      toast.error(/not switched on/i.test(msg) ? 'Profile writing is not available on this deployment.' : msg);
+    } finally {
+      setDrafting(false);
+    }
+  };
 
   const save = async () => {
     const year = foundedYear.trim() ? Number(foundedYear) : null;
@@ -211,6 +268,39 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
         </div>
 
         <div className="p-5 space-y-6">
+          {/* The fastest way to a filled page: describe the business once and
+              edit what comes back, rather than face twelve empty boxes. */}
+          <div className="rounded-xl border border-blue-200 dark:border-blue-800 bg-blue-50/60 dark:bg-blue-900/20 p-4">
+            <label htmlFor="ai-prompt" className="block text-sm font-bold text-gray-900 dark:text-white flex items-center gap-2">
+              <Sparkles size={15} className="text-blue-600 dark:text-blue-400" /> Write it for me
+            </label>
+            <p className="text-[11px] text-gray-600 dark:text-gray-300 mt-0.5 mb-2">
+              Describe the business in your own words. Nothing is saved until you press Save.
+            </p>
+            <textarea
+              id="ai-prompt"
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              rows={3}
+              placeholder="We sell fresh chicken and beef in Yaba and deliver around Lagos. We have been going 7 years and we supply restaurants too."
+              className={field}
+            />
+            <div className="flex items-center gap-3 mt-2 flex-wrap">
+              <button
+                type="button" onClick={draftWithAi} disabled={drafting}
+                className="inline-flex items-center gap-2 px-4 min-h-[40px] rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-50"
+              >
+                {drafting ? <Loader2 size={15} className="animate-spin" /> : <Sparkles size={15} />}
+                {drafted ? 'Draft again' : 'Draft my profile'}
+              </button>
+              {drafted && (
+                <span className="text-[11px] text-blue-700 dark:text-blue-300">
+                  Drafted below — edit anything, then save. Boxes you had already filled were left alone.
+                </span>
+              )}
+            </div>
+          </div>
+
           {/* Why us first, mirroring the public page: it is the section a
               visitor reads first and the one owners most often skip. */}
           <ChipList

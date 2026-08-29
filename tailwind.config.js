@@ -4,6 +4,16 @@ export default {
   content: ['./index.html', './src/**/*.{js,ts,jsx,tsx}'],
   theme: {
     extend: {
+      /*
+        Tailwind stops at 2xl (1536px), which on a 1920 or 2560 monitor means
+        every grid freezes at its 2xl column count and the extra width becomes
+        wider cards or empty margin. These let a layout keep answering the
+        question "how many fit?" past that point.
+      */
+      screens: {
+        '3xl': '1800px',
+        '4xl': '2200px',
+      },
       // Fluid heading scale: clamp(mobile-min, fluid, desktop-max). The max
       // is the reduced "web" size from before; the min is noticeably
       // smaller so titles look cute/compact on phones instead of just

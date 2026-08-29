@@ -20,8 +20,16 @@
     - Digital screens: ₦500,000 - ₦2,500,000 monthly
 */
 
--- Clear existing data
-DELETE FROM advertisements;
+-- Clear previously seeded placements only.
+--
+-- This used to be a bare `DELETE FROM advertisements`, which is fine on a fresh
+-- database and destructive on a live one: running the migration history against
+-- a populated project would have wiped every real placement an owner had
+-- created before re-seeding. Seed rows are identifiable — they carry the
+-- placeholder ids this file inserts below ('user_1' / 'business_1'), which no
+-- real account can produce because a real user_id is a uuid. Scoping the delete
+-- keeps the migration idempotent for seeding without touching anyone's data.
+DELETE FROM advertisements WHERE user_id ~ '^user_[0-9]+$';
 
 -- Insert updated advertising placements with realistic pricing
 INSERT INTO advertisements (

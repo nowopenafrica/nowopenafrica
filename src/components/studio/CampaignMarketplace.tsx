@@ -4,6 +4,7 @@ import { Crown, Rocket, Tags } from 'lucide-react';
 import { Business } from '../../types';
 import { packsForIndustry, launchPack } from '../../lib/campaignMarketplace';
 import { VIDEO_INDUSTRIES, industryKeyForCategory } from '../../lib/videoCreator';
+import { localDateISO } from '../../lib/dates';
 
 interface Props {
   business: Business;
@@ -16,7 +17,7 @@ export default function CampaignMarketplace({ business }: Props) {
   const launch = (packId: string) => {
     const pack = packs.find((p) => p.id === packId);
     if (!pack) return;
-    const plan = launchPack(business, pack, new Date().toISOString().slice(0, 10));
+    const plan = launchPack(business, pack, localDateISO());
     toast.success(`Campaign launched: ${plan.headline} — ${plan.steps.length} posts ready`);
   };
 

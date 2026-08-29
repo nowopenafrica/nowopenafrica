@@ -47,7 +47,7 @@ export default function Platform() {
     <div className="bg-gray-50 dark:bg-gray-900">
       {/* ------------------------------------------------------------ HERO -- */}
       <section className="relative text-white overflow-hidden" style={{ background: AFRICA_GRADIENT }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-center">
+        <div className="site-container py-16 sm:py-24 text-center">
           <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
             <Layers size={16} className="text-yellow-300" />
             Not a directory. An operating system.
@@ -83,7 +83,7 @@ export default function Platform() {
 
       {/* --------------------------------------------------------- PILLARS -- */}
       <section className="py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading
             eyebrow="The NowOpen Advantage"
             title="Ten capabilities, one platform"
@@ -148,7 +148,7 @@ export default function Platform() {
 
       {/* ------------------------------------------------------ INDUSTRIES -- */}
       <section id="industries" className="scroll-mt-20 py-16 sm:py-20 bg-white dark:bg-gray-800/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading
             eyebrow="Industry Operating Systems"
             title="Pick an industry"
@@ -223,7 +223,7 @@ export default function Platform() {
 
       {/* ---------------------------------------------------- LIVE EXAMPLES -- */}
       <section id="live-examples" className="scroll-mt-20 py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading
             eyebrow="See it live"
             title="A real profile for every industry"
@@ -268,7 +268,7 @@ export default function Platform() {
 
       {/* ------------------------------------------------------- UNIVERSAL -- */}
       <section className="py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading
             eyebrow="Universal Foundation"
             title="Every business, fully equipped"
@@ -289,7 +289,7 @@ export default function Platform() {
 
       {/* ------------------------------------------------------------- CTA -- */}
       <section className="pb-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <div className="rounded-3xl overflow-hidden text-white text-center px-8 py-14 sm:py-16" style={{ background: AFRICA_GRADIENT }}>
             <Sparkles size={28} className="mx-auto text-yellow-300" />
             <h2 className="mt-4 text-3xl sm:text-4xl font-bold max-w-2xl mx-auto">

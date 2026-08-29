@@ -9,6 +9,7 @@ import {
   goalLabel, dateLabel, shiftDate, loadCampaigns, saveCampaigns,
 } from '../../lib/campaigns';
 import { downloadText, slugForFile } from '../../lib/studio';
+import { localDateISO } from '../../lib/dates';
 
 interface Props {
   business: Business;
@@ -16,9 +17,9 @@ interface Props {
 
 export default function OneClickCampaigns({ business }: Props) {
   const [goal, setGoal] = useState<CopyGoal>('weekend-promo');
-  const [startDate, setStartDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [startDate, setStartDate] = useState(() => localDateISO());
   const [days, setDays] = useState<number>(5);
-  const [plan, setPlan] = useState<CampaignPlan | null>(() => buildCampaign(business, 'weekend-promo', new Date().toISOString().slice(0, 10), 5));
+  const [plan, setPlan] = useState<CampaignPlan | null>(() => buildCampaign(business, 'weekend-promo', localDateISO(), 5));
   const [saved, setSaved] = useState<CampaignPlan[]>(() => loadCampaigns(business.id));
   const [copiedId, setCopiedId] = useState<string | null>(null);
 

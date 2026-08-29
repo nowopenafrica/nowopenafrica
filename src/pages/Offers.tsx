@@ -70,7 +70,7 @@ export default function Offers() {
   }, [rows, now, place]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="site-container py-8">
       <header className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <Ticket size={26} className="text-rose-600 dark:text-rose-400" /> Offers
@@ -110,7 +110,7 @@ export default function Offers() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
             {visible.length} {visible.length === 1 ? 'offer' : 'offers'} running
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 3xl:grid-cols-5 gap-4">
             {visible.map((o) => {
               const b = o.businesses!;
               const ends = endsLabel(o, now);

@@ -78,7 +78,7 @@ export default function Nearby() {
   }, [all, place, openOnly, now]);
 
   return (
-    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+    <div className="site-container py-8">
       <header className="mb-6">
         <h1 className="text-3xl font-bold text-gray-900 dark:text-white flex items-center gap-2">
           <MapPin size={26} className="text-blue-600 dark:text-blue-400" /> Nearby
@@ -164,7 +164,7 @@ export default function Nearby() {
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
             {results.length} {results.length === 1 ? 'business' : 'businesses'} in {place}
           </p>
-          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-3">
             {results.map((b) => <BusinessCard key={b.id} business={b} now={now} />)}
           </div>
         </>

@@ -65,7 +65,7 @@ export default function Footer() {
 
   return (
     <footer className="bg-gray-900 text-gray-300 mt-12">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="site-container py-8">
         <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-8 mb-6">
           <div className="col-span-2 md:col-span-1">
             <h3 className="text-white font-bold text-sm mb-2">NowOpen Africa</h3>

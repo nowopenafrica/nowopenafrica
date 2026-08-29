@@ -189,9 +189,16 @@ export function publicTrustSummary(
 ): PublicTrustSummary {
   const derived = computeTrustScore(b, now);
   const stored = typeof b.trust_score === 'number' && b.trust_score > 0 ? b.trust_score : null;
-  const tierKey = (b.verification_tier && b.verification_tier in TIERS
+  // A stored tier is an admin override, but 'none' is the column's default —
+  // it means "nobody has set this", not "an admin decided unverified". Treating
+  // it as an override pinned every row to Unverified and short-circuited
+  // deriveTier, so confirming a business's email and phone would have changed
+  // nothing on its profile. Falling through is always safe: deriveTier returns
+  // 'none' itself when no signals are confirmed.
+  const storedTier = b.verification_tier && b.verification_tier !== 'none' && b.verification_tier in TIERS
     ? b.verification_tier
-    : deriveTier(b)) as Tier;
+    : null;
+  const tierKey = (storedTier ?? deriveTier(b)) as Tier;
 
   const items: PublicTrustItem[] = VERIFICATION_STEPS.map((s) => ({
     label: s.label,

@@ -114,7 +114,7 @@ export default function Media() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Hero */}
       <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #831843 0%, #9d174d 45%, #be185d 100%)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="site-container py-12 sm:py-16">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-xs font-semibold">
             <Palette size={14} className="text-yellow-300" /> Hire African creatives
           </span>
@@ -125,7 +125,7 @@ export default function Media() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="site-container py-10">
         {/* Search criteria — Search · Category, full width */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">

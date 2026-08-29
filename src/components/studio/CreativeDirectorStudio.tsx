@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import toast from 'react-hot-toast';
 import {
   FileText, Clapperboard, ScrollText, Mic, Image as ImageIcon, Spline, Zap,
@@ -40,7 +40,7 @@ import {
   aiSeedFor, fetchAiImage,
   type AiImageModel, type AiVideoModel,
 } from '../../lib/pollinations';
-import { resolveAiVideoClips } from '../../lib/videoGen';
+import { resolveAiVideoClips, releaseAiVideoClips } from '../../lib/videoGen';
 import { downloadText, downloadUrl, slugForFile } from '../../lib/studio';
 
 const selectClass = 'w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500';
@@ -173,6 +173,19 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
   const [aiClips, setAiClips] = useState<Record<number, StockClip> | null>(null);
   const [aiVideoStatus, setAiVideoStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
   const [aiVideoProgress, setAiVideoProgress] = useState(0);
+
+  // The rendered reel and the AI clips are object URLs this component owns.
+  // Mirrored in refs so the unmount cleanup can revoke whatever is current
+  // without re-subscribing on every state change — leaving the studio used to
+  // strand a whole reel plus one video per scene in memory.
+  const renderBlobUrlRef = useRef(renderBlobUrl);
+  renderBlobUrlRef.current = renderBlobUrl;
+  const aiClipsRef = useRef(aiClips);
+  aiClipsRef.current = aiClips;
+  useEffect(() => () => {
+    if (renderBlobUrlRef.current) URL.revokeObjectURL(renderBlobUrlRef.current);
+    if (aiClipsRef.current) releaseAiVideoClips(aiClipsRef.current);
+  }, []);
 
   const [publishChannels, setPublishChannels] = useState<string[]>(['instagram', 'facebook', 'x']);
   const [publishCaption, setPublishCaption] = useState('');
@@ -371,6 +384,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
     setAiImageModel((record.settings.aiImageModel as AiImageModel) ?? 'flux');
     setAiVideoModel((record.settings.aiVideoModel as AiVideoModel) ?? 'wan');
     setRendered(null);
+    if (renderBlobUrlRef.current) URL.revokeObjectURL(renderBlobUrlRef.current);
     setRenderBlobUrl(null);
     setPublishOutcome(null);
     setTab('brief');
@@ -392,6 +406,8 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
       aspect,
       onProgress: (done) => setAiVideoProgress(done),
     });
+    // Regenerating replaces the clips; the old object URLs go with them.
+    if (aiClipsRef.current) releaseAiVideoClips(aiClipsRef.current);
     setAiClips(clips);
     setAiVideoStatus('ready');
     const got = Object.keys(clips).length;
@@ -495,6 +511,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
     setMedia((m) => (m.length ? m : []));
     setReplaced(new Set());
     setRendered(null);
+    if (renderBlobUrlRef.current) URL.revokeObjectURL(renderBlobUrlRef.current);
     setRenderBlobUrl(null);
     setPublishOutcome(null);
     return b;
@@ -773,9 +790,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
           <div className="flex flex-wrap gap-1 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-800 p-1.5">
             {TABS.map((t) => (
               <button key={t.key} onClick={() => setTab(t.key)}
-                className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition ${tab === t.key
-                  ? 'bg-white dark:bg-gray-900 text-purple-600 dark:text-purple-400 shadow-sm'
-                  : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'}`}>
+                className={`inline-flex items-center gap-1.5 px-3 rounded-xl text-xs font-bold transition ${tab === t.key ? 'bg-white dark:bg-gray-900 text-purple-600 dark:text-purple-400 shadow-sm' : 'text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white'} min-h-[44px]`}>
                 <t.icon size={13} /> {t.label}
               </button>
             ))}
@@ -1187,9 +1202,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                     <Sparkles size={11} /> AI Art Direction — real images, video & motion
                   </p>
                   <button onClick={() => setAiArt(!aiArt)}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${aiArt
-                      ? 'border-purple-500 bg-purple-600 text-white'
-                      : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                    className={`inline-flex items-center rounded-lg border px-3 text-xs font-bold transition ${aiArt ? 'border-purple-500 bg-purple-600 text-white' : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
                     <span className="inline-flex items-center gap-1.5">
                       <Sparkles size={12} /> {aiArt ? 'AI media on' : 'AI media off'}
                     </span>
@@ -1270,9 +1283,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                     <Video size={11} /> Real film footage — free stock clips
                   </p>
                   <button onClick={() => setStockFootage(!stockFootage)}
-                    className={`rounded-lg border px-3 py-1.5 text-xs font-bold transition ${stockFootage
-                      ? 'border-blue-500 bg-blue-600 text-white'
-                      : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'}`}>
+                    className={`inline-flex items-center rounded-lg border px-3 text-xs font-bold transition ${stockFootage ? 'border-blue-500 bg-blue-600 text-white' : 'border-gray-200 dark:border-gray-700 bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'} min-h-[44px]`}>
                     <span className="inline-flex items-center gap-1.5">
                       <Film size={12} /> {stockFootage ? 'Footage on' : 'Footage off'}
                     </span>
@@ -1487,9 +1498,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                     const on = publishChannels.includes(c.key);
                     return (
                       <button key={c.key} onClick={() => setPublishChannels(on ? publishChannels.filter((k) => k !== c.key) : [...publishChannels, c.key])}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition ${on
-                          ? 'bg-purple-600 text-white'
-                          : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'}`}>
+                        className={`inline-flex items-center px-3 rounded-lg text-xs font-bold transition ${on ? 'bg-purple-600 text-white' : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-600'} min-h-[44px]`}>
                         {c.label}
                       </button>
                     );

@@ -9,7 +9,7 @@ import {
   onboardingRelationshipFor, onboardingProfileFromApplication,
   FORM_APPLICATIONS_SEED, isAllowedUpload, formatFileSize, MAX_UPLOAD_MB,
   type FormApplication, type HubRelationshipType,
-} from './formsEngine';
+ toNewApplicationRow} from './formsEngine';
 
 describe('formsEngine — one universal hub, nine journeys', () => {
   it('serves every relationship type through the same engine', () => {
@@ -295,5 +295,34 @@ describe('formsEngine — rows, rollups, uploads', () => {
   it('seed stays a valid employee application type', () => {
     const first: FormApplication = FORM_APPLICATIONS_SEED[0];
     expect(schemaFor(first.relationship).sections.length).toBeGreaterThan(0);
+  });
+});
+
+describe('toNewApplicationRow — what a public submission may write', () => {
+  const app = FORM_APPLICATIONS_SEED[0];
+
+  it('omits the reviewer-only columns', () => {
+    // These are added by a later migration and are always empty at submit time.
+    // Sending them made the whole insert fail with "column does not exist" on a
+    // database that had the base table but not the review migration.
+    const row = toNewApplicationRow(app) as unknown as Record<string, unknown>;
+    expect('rejected' in row).toBe(false);
+    expect('decision_note' in row).toBe(false);
+  });
+
+  it('still carries everything the application actually needs', () => {
+    const row = toNewApplicationRow(app) as unknown as Record<string, unknown>;
+    for (const key of [
+      'id', 'org_id', 'reference', 'relationship', 'applicant_name',
+      'email', 'country', 'status', 'consent', 'submitted_at',
+    ]) {
+      expect(row[key], key).toBeDefined();
+    }
+  });
+
+  it('leaves the full row builder alone — reviewers still write decisions', () => {
+    const row = toApplicationRow({ ...app, rejected: true, decision_note: 'no' });
+    expect(row.rejected).toBe(true);
+    expect(row.decision_note).toBe('no');
   });
 });

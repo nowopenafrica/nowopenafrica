@@ -5,6 +5,7 @@ import { Business } from '../../types';
 import { GrowthPlanModule } from '../../lib/growth';
 import { Promo, PromoStatus, promoStatus, daysLeft, dateLabel, promoBlurb, suggestDates, loadPromos, savePromos, createPromo, promoCounts } from '../../lib/promotions';
 import { PROMO_TEMPLATES } from '../../data/studioPresets';
+import { localDateISO } from '../../lib/dates';
 
 interface Props {
   business: Business;
@@ -61,13 +62,13 @@ export default function LivePromoCenter({ business, onNavigate }: Props) {
   };
 
   const setLive = (id: string) => {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDateISO();
     persist(promos.map((p) => p.id === id ? { ...p, startsAt: p.startsAt > today ? today : p.startsAt, endsAt: p.endsAt < today ? today : p.endsAt } : p));
     toast.success('Promotion is now live');
   };
 
   const end = (id: string) => {
-    const yesterday = new Date(Date.now() - 86400000).toISOString().slice(0, 10);
+    const yesterday = localDateISO(new Date(Date.now() - 86400000));
     persist(promos.map((p) => p.id === id ? { ...p, endsAt: yesterday } : p));
     toast.success('Promotion ended');
   };

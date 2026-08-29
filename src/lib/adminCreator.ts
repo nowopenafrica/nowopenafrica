@@ -13,6 +13,7 @@ export type AdminSectionStatus = 'live' | 'soon';
  *  department. Modules without a natural admin-section home fall back to the
  *  business Studio. Pure so the mapping stays unit-testable. */
 import type { GrowthPlanModule } from './growth';
+import { isSameLocalDay } from './dates';
 
 export function growthModuleToSection(module: GrowthPlanModule): string | null {
   const map: Record<string, string> = {
@@ -177,14 +178,7 @@ export interface CommandRaw {
   uptime: number | null;
 }
 
-const isToday = (iso: string | undefined, now = new Date()): boolean => {
-  if (!iso) return false;
-  const d = new Date(iso);
-  return !Number.isNaN(d.getTime())
-    && d.getUTCFullYear() === now.getUTCFullYear()
-    && d.getUTCMonth() === now.getUTCMonth()
-    && d.getUTCDate() === now.getUTCDate();
-};
+const isToday = isSameLocalDay;
 
 export function commandCenterStats(raw: CommandRaw): CommandStats {
   const pending =

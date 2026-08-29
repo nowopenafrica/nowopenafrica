@@ -97,6 +97,14 @@ describe('publicTrustSummary', () => {
     expect(publicTrustSummary(fullyVerified, NOW).tier.key).toBe('platinum');
   });
 
+  it("treats a stored 'none' as unset, not as an admin override", () => {
+    // 'none' is the column default, so it must not mask real signals: every
+    // live row carried it, which pinned fully verified profiles to Unverified.
+    expect(publicTrustSummary({ ...fullyVerified, verification_tier: 'none' }, NOW).tier.key).toBe('platinum');
+    // With nothing confirmed the answer is still 'none' — just derived, not pinned.
+    expect(publicTrustSummary({ ...bare, verification_tier: 'none' }, NOW).tier.key).toBe('none');
+  });
+
   it('ignores a nonsense stored tier instead of rendering a blank badge', () => {
     const s = publicTrustSummary({ ...fullyVerified, verification_tier: 'diamond' }, NOW);
     expect(s.tier.key).toBe('platinum');

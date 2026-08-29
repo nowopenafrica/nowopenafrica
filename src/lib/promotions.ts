@@ -6,6 +6,7 @@
 // rest of the Studio's on-device data.
 
 import { Business } from '../types';
+import { localDateISO } from './dates';
 
 export type PromoStatus = 'live' | 'scheduled' | 'ended';
 
@@ -36,7 +37,10 @@ export function suggestDates(durationDays = 3, from = new Date()): { startsAt: s
   const start = new Date(from);
   const end = new Date(from);
   end.setDate(end.getDate() + durationDays);
-  return { startsAt: start.toISOString().slice(0, 10), endsAt: end.toISOString().slice(0, 10) };
+  // Local days, to match promoStatus/dateLabel, which parse `${iso}T00:00:00`
+  // as local time. Serialising through UTC here made "starts today" render as
+  // yesterday for every user east of Greenwich just after midnight.
+  return { startsAt: localDateISO(start), endsAt: localDateISO(end) };
 }
 
 export function dateLabel(iso: string): string {

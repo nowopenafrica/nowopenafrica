@@ -15,5 +15,8 @@
 */
 
 DROP POLICY IF EXISTS "Anyone can update a push token" ON device_push_tokens;
+-- The new name has to be dropped too, or re-running this aborts with
+-- `42710: policy … already exists` and every later statement is skipped.
+DROP POLICY IF EXISTS "Users update their own push token" ON device_push_tokens;
 CREATE POLICY "Users update their own push token" ON device_push_tokens
   FOR UPDATE TO authenticated USING (user_id = auth.uid()) WITH CHECK (user_id = auth.uid());

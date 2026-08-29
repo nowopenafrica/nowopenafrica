@@ -9,6 +9,7 @@
 
 import { NOWOPEN_ORG_ID } from './workforce';
 import { RELATIONSHIP_TYPES, type RelationshipType } from './relationships';
+import { localDateISO } from './dates';
 
 export const DOCUMENT_KINDS = ['nda', 'agreement', 'policy', 'letter'] as const;
 export type DocumentKind = (typeof DOCUMENT_KINDS)[number];
@@ -256,7 +257,7 @@ export function buildDocument(input: {
   const template = templateById(input.templateId);
   if (!template) return null;
   const now = new Date();
-  const effectiveDate = input.effectiveDate ?? now.toISOString().slice(0, 10);
+  const effectiveDate = input.effectiveDate ?? localDateISO(now);
   const id = `doc-${now.getTime()}-${Math.floor(Math.random() * 10000)}`;
   return {
     id,

@@ -214,7 +214,7 @@ export function InfiniteSlider({ cards, onCardClick, linkBase, layout = 'marquee
 
   if (layout === 'grid') {
     return (
-      <div className="w-full grid gap-2 sm:gap-3 lg:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
+      <div className="w-full grid gap-2 sm:gap-3 lg:gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 2xl:grid-cols-7 3xl:grid-cols-8">
         {cards.map((card, index) => renderCard(card, index))}
       </div>
     );

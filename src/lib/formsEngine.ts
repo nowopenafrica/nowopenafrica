@@ -1020,6 +1020,24 @@ export function toApplicationRow(app: FormApplication): ApplicationRow {
   };
 }
 
+/** Columns a reviewer owns, never written by the applicant. */
+const REVIEWER_ONLY_COLUMNS = ['rejected', 'decision_note'] as const;
+
+/**
+ * The row for a NEW submission.
+ *
+ * Deliberately narrower than `toApplicationRow`: `rejected` and `decision_note`
+ * are reviewer decisions, always empty at submit time, and were added by a later
+ * migration. Sending them meant a database with the base table but not the review
+ * migration rejected the whole insert with "column does not exist" — so a real
+ * application was lost to satisfy two columns that had nothing in them.
+ */
+export function toNewApplicationRow(app: FormApplication): ApplicationRow {
+  const row = toApplicationRow(app);
+  for (const column of REVIEWER_ONLY_COLUMNS) delete row[column];
+  return row;
+}
+
 export interface ApplicationsSummary {
   total: number;
   today: number;

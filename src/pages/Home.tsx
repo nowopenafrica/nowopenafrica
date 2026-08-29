@@ -175,7 +175,7 @@ export default function Home() {
           />
         )}
         <div
-          className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-full flex flex-col items-center justify-center gap-6"
+          className="relative z-10 site-container h-full flex flex-col items-center justify-center gap-6"
           style={{
             opacity: textVisible ? 1 : 0,
             // The CTAs fade with the copy, and unlike the copy they are
@@ -241,7 +241,7 @@ export default function Home() {
 
       {/* Industry Operating Systems */}
       <section className="pt-16 pb-10 bg-white dark:bg-gray-800/40 border-t border-gray-100 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">
               <Layers size={14} /> Not a directory. An operating system.
@@ -319,7 +319,7 @@ export default function Home() {
 
       {/* Features Section */}
       <section className="py-16 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">Why businesses choose NowOpen</h2>
             <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Everything you need to get discovered, book, sell and grow — in one trusted platform.</p>
@@ -384,7 +384,7 @@ export default function Home() {
 
       {/* Brands using NowOpen */}
       <section aria-label="Brands using NowOpen" className="py-14 bg-gray-50 dark:bg-gray-900">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <p className="text-center text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-8">
             Some of the amazing businesses and brands using NowOpen Africa
           </p>

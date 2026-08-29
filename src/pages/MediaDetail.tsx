@@ -267,7 +267,7 @@ export default function MediaDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="site-container py-8">
         <Link
           to="/media"
           className="inline-flex items-center gap-2 text-pink-600 dark:text-pink-400 hover:text-pink-700 font-medium text-sm mb-8"

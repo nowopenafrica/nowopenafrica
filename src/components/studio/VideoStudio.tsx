@@ -4,10 +4,11 @@ import { Business } from '../../types';
 import { REEL_FORMATS, generateReel, totalDuration, type ReelFormat, type ReelScript } from '../../lib/video';
 import { directorScenesFromReel, voiceoverScript, shotList } from '../../lib/reelRender';
 import { renderVideo, RENDER_DIMENSIONS, type RenderAspect } from '../../lib/renderVideo';
+import { downloadBlob } from '../../lib/studio';
 import { generateKeyArt, keyArtMessage } from '../../lib/aiKeyArt';
 import { industryByKey, industryKeyForCategory } from '../../lib/videoCreator';
 import { resolveFootage } from '../../lib/stockFootage';
-import { resolveAiVideoClips, videoGenModelByKey, videoGenModelsForTier, type VideoGenTier } from '../../lib/videoGen';
+import { resolveAiVideoClips, releaseAiVideoClips, videoGenModelByKey, videoGenModelsForTier, type VideoGenTier } from '../../lib/videoGen';
 import type { AiVideoModel } from '../../lib/pollinations';
 import AiVideoGenPicker from './AiVideoGenPicker';
 
@@ -80,11 +81,13 @@ export default function VideoStudio({ business }: { business: Business }) {
     setError(null);
     setNotice(null);
     setProgress(0);
+    // Declared out here so the finally block can release the object URLs the
+    // AI-clip path minted, whichever way the render ends.
+    let footage: Awaited<ReturnType<typeof resolveFootage>> | undefined;
     try {
       const scenes = directorScenesFromReel(script);
       const industry = industryByKey(industryKeyForCategory(business.category || ''));
       let aiImages: (string | null)[] | undefined;
-      let footage: Awaited<ReturnType<typeof resolveFootage>> | undefined;
 
       if (visuals === 'footage') {
         setStage('footage');
@@ -160,18 +163,20 @@ export default function VideoStudio({ business }: { business: Business }) {
         (p) => setProgress(p),
       );
 
-      const url = URL.createObjectURL(result.blob);
-      const a = document.createElement('a');
-      a.href = url;
       // mp4 when the browser gave us one, webm otherwise — the recorder picks
       // whichever codec it actually supports, so the extension follows it
-      // rather than being assumed.
-      a.download = `${business.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${format.replace(/\s+/g, '-').toLowerCase()}.${result.mimeType.includes('mp4') ? 'mp4' : 'webm'}`;
-      a.click();
-      URL.revokeObjectURL(url);
+      // rather than being assumed. downloadBlob keeps the object URL alive long
+      // enough for the browser to finish writing a multi-megabyte file.
+      downloadBlob(
+        result.blob,
+        `${business.name.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${format.replace(/\s+/g, '-').toLowerCase()}.${result.mimeType.includes('mp4') ? 'mp4' : 'webm'}`,
+      );
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not render the video.');
     } finally {
+      // The AI clips were minted as object URLs for this render only; without
+      // this each export pinned a whole video per scene for the session.
+      if (visuals === 'aivideo' && footage) releaseAiVideoClips(footage);
       setRendering(false);
       setStage('idle');
       setProgress(0);

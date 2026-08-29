@@ -132,7 +132,7 @@ export default function Waitlist() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <section className="text-white" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="site-container py-16 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           {/* Pitch — centered on mobile/tablet where it stacks above the form
               as its own block; reverts to the original left-aligned look
               once it sits beside the form at lg: (2-column layout). */}

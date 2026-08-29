@@ -3,6 +3,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Plus, Sparkles, Trash2 } from 
 import toast from 'react-hot-toast';
 import { Business } from '../../types';
 import { PlanItem, loadPlannerItems, savePlannerItems } from '../../lib/planner';
+import { localDateISO } from '../../lib/dates';
 
 interface Props {
   business: Business;
@@ -31,7 +32,7 @@ export default function ContentPlanner({ business }: Props) {
   const [showForm, setShowForm] = useState(false);
   const [title, setTitle] = useState('');
   const [platform, setPlatform] = useState(PLATFORMS[0]);
-  const [date, setDate] = useState(now.toISOString().slice(0, 10));
+  const [date, setDate] = useState(localDateISO(now));
   const [status, setStatus] = useState<'planned' | 'published'>('planned');
 
   useEffect(() => {
@@ -68,7 +69,7 @@ export default function ContentPlanner({ business }: Props) {
 
   const first = new Date(year, month, 1).getDay();
   const daysInMonth = new Date(year, month + 1, 0).getDate();
-  const todayStr = now.toISOString().slice(0, 10);
+  const todayStr = localDateISO(now);
   const monthLabel = new Date(year, month, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
   const planned = items.filter((i) => i.status === 'planned').length;
   const published = items.filter((i) => i.status === 'published').length;
@@ -117,8 +118,8 @@ export default function ContentPlanner({ business }: Props) {
             className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-sm font-medium border border-purple-200 dark:border-purple-700 text-purple-700 dark:text-purple-300 hover:bg-purple-50 dark:hover:bg-purple-900/30 transition min-h-[44px]">
             <Sparkles size={15} /> Auto-plan month
           </button>
-          <button onClick={() => { setShowForm((v) => !v); setDate(new Date(year, month, 1).toISOString().slice(0, 10)); }}
-            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition">
+          <button onClick={() => { setShowForm((v) => !v); setDate(localDateISO(new Date(year, month, 1))); }}
+            className="inline-flex items-center gap-1.5 px-3.5 rounded-lg text-sm font-medium bg-purple-600 text-white hover:bg-purple-700 transition min-h-[44px]">
             <Plus size={15} /> Add post
           </button>
         </div>
@@ -183,9 +184,7 @@ export default function ContentPlanner({ business }: Props) {
                   {dayItems.slice(0, 3).map((item) => (
                     <div key={item.id} className="group relative">
                       <button onClick={() => toggleStatus(item.id)} title="Click to mark published/planned"
-                        className={`w-full text-left px-1.5 py-1 rounded-md text-[10px] font-medium leading-tight transition ${item.status === 'published'
-                          ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 line-through'
-                          : 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200'}`}>
+                        className={`flex items-center w-full text-left px-1.5 rounded-md text-[10px] font-medium leading-tight transition ${item.status === 'published' ? 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200 line-through' : 'bg-amber-100 dark:bg-amber-900/40 text-amber-900 dark:text-amber-200'} min-h-[44px]`}>
                         {item.title}
                       </button>
                       <button onClick={() => removeItem(item.id)}

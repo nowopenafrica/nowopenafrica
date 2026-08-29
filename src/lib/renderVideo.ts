@@ -199,6 +199,7 @@ const PALETTES: [string, string, string][] = [
  *  when no explicit palette is given. */
 export const RENDER_PALETTES: [string, string, string][] = PALETTES;
 
+
 export function sceneRenderPlan(opts: RenderOptions, scene: DirectorScene, index: number): SceneRenderPlan {
   const fps = opts.fps ?? RENDER_FPS;
   const treatment = opts.treatment ?? 'default';
@@ -1617,13 +1618,22 @@ async function preloadAiImages(urls: (string | null)[]): Promise<(HTMLImageEleme
  *
  * Returns null (a silent, video-only export) when there is no audio support,
  * no clips to route, or the capture fails for any reason — never throws.
+ *
+ * The context comes back with the track because the caller MUST close it once
+ * recording stops. Browsers cap the number of live AudioContexts per document
+ * (six in Chrome), so a context left open per export made the seventh export of
+ * a session fall into the catch below and come out silent, with nothing on
+ * screen to explain why.
  */
-function attachFootageAudio(videos: (HTMLVideoElement | null)[]): MediaStreamTrack | null {
+function attachFootageAudio(
+  videos: (HTMLVideoElement | null)[],
+): { track: MediaStreamTrack; context: AudioContext } | null {
   const used = videos.filter((v): v is HTMLVideoElement => !!v);
   if (!used.length) return null;
   if (typeof AudioContext === 'undefined') return null;
+  let ctx: AudioContext | null = null;
   try {
-    const ctx = new AudioContext();
+    ctx = new AudioContext();
     const dest = ctx.createMediaStreamDestination();
     for (const v of used) {
       try {
@@ -1634,9 +1644,15 @@ function attachFootageAudio(videos: (HTMLVideoElement | null)[]): MediaStreamTra
         // A clip that refuses a source just stays silent — the others still count.
       }
     }
-    return dest.stream.getAudioTracks()[0] ?? null;
+    const track = dest.stream.getAudioTracks()[0] ?? null;
+    if (!track) {
+      void ctx.close().catch(() => { /* nothing to release */ });
+      return null;
+    }
+    return { track, context: ctx };
   } catch (e) {
     console.error('Audio capture failed — exporting without sound.', e);
+    if (ctx) void ctx.close().catch(() => { /* nothing to release */ });
     return null;
   }
 }
@@ -1707,8 +1723,26 @@ export async function renderVideo(
   const stream = canvas.captureStream(fps);
   // Film the footage audio too: a silent export of real clips is exactly the
   // "looks like it failed" failure this pipeline is meant to avoid.
-  const audioTrack = footageOn ? attachFootageAudio(videos) : null;
+  const audio = footageOn ? attachFootageAudio(videos) : null;
+  const audioTrack = audio?.track ?? null;
   if (audioTrack) stream.addTrack(audioTrack);
+
+  // Everything this render owns — the capture stream, the video elements it
+  // created and the audio graph — is handed back once the file exists. Without
+  // this each export left a decoding <video> per clip and a live AudioContext
+  // behind, so a long editing session slowly starved the next export.
+  const releaseRenderResources = () => {
+    stream.getTracks().forEach((t) => { try { t.stop(); } catch { /* already stopped */ } });
+    [...videos, ...exportLayerVideos].forEach((v) => {
+      if (!v) return;
+      try {
+        v.pause();
+        v.removeAttribute('src');
+        v.load();
+      } catch { /* already detached */ }
+    });
+    if (audio) void audio.context.close().catch(() => { /* already closed */ });
+  };
 
   const mimeType = pickRecorderMime(audioTrack !== null);
   const track = stream.getVideoTracks()[0] as (MediaStreamTrack & { requestFrame?: () => void }) | undefined;
@@ -1750,49 +1784,56 @@ export async function renderVideo(
     recorder.start(250);
   }
 
-  await new Promise<void>((resolve, reject) => {
-    let frame = 0;
-    let activeScene = -1;
-    let cancelled = false;
-    const tick = () => {
-      if (cancelled) return;
-      if (frame >= timeline.totalFrames) {
-        recorder.stop();
-        resolve();
-        return;
-      }
-      const { scene } = timelineAt(timeline, frame);
-      if (scene.index !== activeScene) {
-        activeScene = scene.index;
-        const v = videos[scene.index];
-        if (v && isVideoReady(v)) {
-          try {
-            if (v.currentTime !== startOffsets[scene.index]) v.currentTime = startOffsets[scene.index];
-            const p = v.play();
-            if (p) p.catch(() => { /* autoplay can be interrupted; frame draws whatever is ready */ });
-          } catch { /* keep rendering */ }
+  try {
+    await new Promise<void>((resolve, reject) => {
+      let frame = 0;
+      let activeScene = -1;
+      let cancelled = false;
+      const tick = () => {
+        if (cancelled) return;
+        if (frame >= timeline.totalFrames) {
+          recorder.stop();
+          resolve();
+          return;
         }
-      }
-      drawTimelineFrame(ctx, dims.width, dims.height, exportOpts, scenes, timeline, frame, videos, images);
-      try { track?.requestFrame?.(); } catch { /* older captureStream ignores requestFrame */ }
-      onProgress?.(timeline.totalFrames > 0 ? frame / timeline.totalFrames : 0, frame, timeline.totalFrames);
-      frame += 1;
-      window.setTimeout(tick, Math.max(8, Math.round(1000 / fps)));
-    };
-    recorder.onerror = () => {
-      cancelled = true;
-      reject(new Error('The renderer stopped recording — try again or use a still poster instead.'));
-    };
-    tick();
-  });
+        const { scene } = timelineAt(timeline, frame);
+        if (scene.index !== activeScene) {
+          activeScene = scene.index;
+          const v = videos[scene.index];
+          if (v && isVideoReady(v)) {
+            try {
+              if (v.currentTime !== startOffsets[scene.index]) v.currentTime = startOffsets[scene.index];
+              const p = v.play();
+              if (p) p.catch(() => { /* autoplay can be interrupted; frame draws whatever is ready */ });
+            } catch { /* keep rendering */ }
+          }
+        }
+        drawTimelineFrame(ctx, dims.width, dims.height, exportOpts, scenes, timeline, frame, videos, images);
+        try { track?.requestFrame?.(); } catch { /* older captureStream ignores requestFrame */ }
+        onProgress?.(timeline.totalFrames > 0 ? frame / timeline.totalFrames : 0, frame, timeline.totalFrames);
+        frame += 1;
+        window.setTimeout(tick, Math.max(8, Math.round(1000 / fps)));
+      };
+      recorder.onerror = () => {
+        cancelled = true;
+        reject(new Error('The renderer stopped recording — try again or use a still poster instead.'));
+      };
+      tick();
+    });
 
-  const blob = await finished;
-  return {
-    blob,
-    mimeType: mimeType ?? blob.type ?? 'video/webm',
-    width: dims.width,
-    height: dims.height,
-    duration: timeline.totalSeconds,
-    totalFrames: timeline.totalFrames,
-  };
+    const blob = await finished;
+    return {
+      blob,
+      mimeType: mimeType ?? blob.type ?? 'video/webm',
+      width: dims.width,
+      height: dims.height,
+      duration: timeline.totalSeconds,
+      totalFrames: timeline.totalFrames,
+    };
+  } finally {
+    // A recorder abandoned mid-take keeps the stream hot; stopping it here is a
+    // no-op once the loop already did.
+    try { if (recorder.state !== 'inactive') recorder.stop(); } catch { /* already stopped */ }
+    releaseRenderResources();
+  }
 }

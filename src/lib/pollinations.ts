@@ -101,7 +101,14 @@ export interface AiImageFetchOptions {
 
 // --- Network (guarded, cached) -------------------------------------------------
 
+/**
+ * Key frames already generated this session, keyed by the deterministic
+ * request. Bounded, and the evicted entry's object URL is revoked with it —
+ * each value pins a full-resolution image in memory, so an unbounded map made
+ * a long styling session grow without limit.
+ */
 const aiImageCache = new Map<string, string>();
+const AI_IMAGE_CACHE_MAX = 24;
 
 /**
  * Generate one key-art frame through the `generate-image` edge function and
@@ -140,6 +147,16 @@ export async function fetchAiImage(opts: AiImageFetchOptions): Promise<string | 
     const blob = dataUrlToBlob(body.dataUrl);
     if (!blob.size) return null;
     const objectUrl = URL.createObjectURL(blob);
+    if (aiImageCache.size >= AI_IMAGE_CACHE_MAX) {
+      const oldest = aiImageCache.keys().next();
+      if (!oldest.done) {
+        const stale = aiImageCache.get(oldest.value);
+        aiImageCache.delete(oldest.value);
+        if (stale?.startsWith('blob:')) {
+          try { URL.revokeObjectURL(stale); } catch { /* already revoked */ }
+        }
+      }
+    }
     aiImageCache.set(cacheKey, objectUrl);
     return objectUrl;
   } catch {

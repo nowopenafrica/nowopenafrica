@@ -178,7 +178,7 @@ export default function Adverts() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Hero */}
       <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #1e3a8a 0%, #4c1d95 55%, #831843 100%)' }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12 sm:py-16">
+        <div className="site-container py-12 sm:py-16">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-xs font-semibold">
             <Megaphone size={14} className="text-amber-300" /> Advertise across Africa
           </span>
@@ -189,7 +189,7 @@ export default function Adverts() {
         </div>
       </section>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      <div className="site-container py-10">
         {/* Search criteria — Search · Location · Category, 3-in-1 full width */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">

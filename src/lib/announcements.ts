@@ -7,6 +7,7 @@
 // the Studio's on-device data.
 
 import { Business } from '../types';
+import { localDateISO } from './dates';
 
 export type AnnouncementType =
   | 'new-product'
@@ -134,7 +135,7 @@ export function createAnnouncement(
     type,
     title: overrides.title?.trim() || draft.title,
     body: overrides.body?.trim() || draft.body,
-    date: overrides.date || new Date().toISOString().slice(0, 10),
+    date: overrides.date || localDateISO(),
     pinned: overrides.pinned ?? false,
     publishedAt: null,
     createdAt: new Date().toISOString(),

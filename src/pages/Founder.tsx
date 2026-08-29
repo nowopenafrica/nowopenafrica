@@ -278,7 +278,7 @@ export default function Founder() {
     <div className="bg-gray-50 dark:bg-gray-900 scroll-smooth">
       {/* ---------------------------------------------------------- HERO ---- */}
       <section className="relative text-white overflow-hidden" style={{ background: AFRICA_GRADIENT }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+        <div className="site-container py-16 sm:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-6 text-center lg:text-left order-2 lg:order-1">
             <Pill>
               <Sparkles size={16} className="text-yellow-300" />
@@ -313,7 +313,7 @@ export default function Founder() {
 
       {/* ------------------------------------------------------- SUB-NAV ---- */}
       <nav className="sticky top-16 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <div className="flex gap-1 overflow-x-auto no-scrollbar py-2 text-sm">
             {SUBNAV.map((s) => (
               <a
@@ -330,7 +330,7 @@ export default function Founder() {
 
       {/* --------------------------------------------------------- STORY ---- */}
       <section id="story" className="scroll-mt-28 py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading eyebrow="The Story" title="From design to infrastructure" />
           <div className="grid lg:grid-cols-3 gap-10">
             <div className="lg:col-span-2 space-y-5 text-lg leading-relaxed text-gray-700 dark:text-gray-300">
@@ -372,7 +372,7 @@ export default function Founder() {
 
       {/* ------------------------------------------------------ TIMELINE ---- */}
       <section id="timeline" className="scroll-mt-28 py-16 sm:py-20 bg-white dark:bg-gray-800/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading eyebrow="The Journey" title="Milestones so far" sub="A genuine record of the road to NowOpen Africa — and where it’s heading." />
           <ol className="relative border-l-2 border-blue-100 dark:border-gray-700 ml-3 space-y-8">
             {TIMELINE.map((t, i) => (
@@ -389,7 +389,7 @@ export default function Founder() {
 
       {/* ---------------------------------------------------- PHILOSOPHY ---- */}
       <section id="philosophy" className="scroll-mt-28 py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading eyebrow="Philosophy" title="What guides the work" />
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {PHILOSOPHY.map(({ icon: Icon, title, text }) => (
@@ -407,7 +407,7 @@ export default function Founder() {
 
       {/* ---------------------------------------------------------- WORK ---- */}
       <section id="work" className="scroll-mt-28 py-16 sm:py-20 bg-white dark:bg-gray-800/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading eyebrow="Featured Work" title="Projects & ventures" />
           <div className="grid sm:grid-cols-2 gap-5">
             {PROJECTS.map(({ icon: Icon, name, tag, text, to, internal }) => {
@@ -443,7 +443,7 @@ export default function Founder() {
 
       {/* ------------------------------------------------------- WRITING ---- */}
       <section id="writing" className="scroll-mt-28 py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading eyebrow="Writing" title="Insights & essays" sub="A growing library on design, product and the future of African commerce. New pieces publish regularly." />
           <div className="grid lg:grid-cols-3 gap-6">
             {WRITING.map((col) => (
@@ -476,7 +476,7 @@ export default function Founder() {
 
       {/* ------------------------------------------------------ SPEAKING ---- */}
       <section id="speaking" className="scroll-mt-28 py-16 sm:py-20 bg-white dark:bg-gray-800/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 grid lg:grid-cols-2 gap-10 items-center">
+        <div className="site-container grid lg:grid-cols-2 gap-10 items-center">
           <div>
             <SectionHeading eyebrow="Speaking" title="Talks & topics" sub="Available for keynotes, panels, podcasts and workshops on design, product and African commerce." />
             <a href="mailto:hello@nowopenafrica.com?subject=Speaking%20invitation%20for%20Adeyemi%20Odunaike" className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition">
@@ -496,7 +496,7 @@ export default function Founder() {
 
       {/* --------------------------------------------------------- PRESS ---- */}
       <section id="press" className="scroll-mt-28 py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading eyebrow="Press" title="In the media" sub="Interviews, features and appearances — updated as coverage grows." />
           <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
             <Newspaper size={32} className="mx-auto text-gray-400 dark:text-gray-500" />
@@ -513,7 +513,7 @@ export default function Founder() {
 
       {/* ----------------------------------------------------- MEDIA KIT ---- */}
       <section id="media-kit" className="scroll-mt-28 py-16 sm:py-20 bg-white dark:bg-gray-800/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <SectionHeading eyebrow="Media Kit" title="Everything press needs" sub="Copy-ready bios, a fact sheet, brand colours and downloadable assets." />
           <div className="grid lg:grid-cols-2 gap-6">
             {/* Bios */}
@@ -576,7 +576,7 @@ export default function Founder() {
 
       {/* ------------------------------------------------------- CONNECT ---- */}
       <section id="connect" className="scroll-mt-28 py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <div className="rounded-3xl overflow-hidden text-white" style={{ background: AFRICA_GRADIENT }}>
             <div className="px-8 py-12 sm:px-12 sm:py-16 text-center max-w-2xl mx-auto">
               <h2 className="text-3xl sm:text-4xl font-bold">Follow the build</h2>

@@ -44,7 +44,7 @@ export default function NowOpenOs() {
     <div className="bg-gray-50 dark:bg-gray-900">
       <section className="relative overflow-hidden bg-gray-900 text-white">
         <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(76,29,149,0.45),transparent_60%)]" />
-        <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-16 sm:py-24 text-center">
+        <div className="relative site-container py-16 sm:py-24 text-center">
           <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
             <Cpu size={16} className="text-purple-300" />
             Inside NowOpen Africa
@@ -75,7 +75,7 @@ export default function NowOpenOs() {
       </section>
 
       <section id="ledgers" className="scroll-mt-20 py-16 sm:py-20">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <div className="max-w-2xl mb-10">
             <div className="text-sm font-semibold tracking-wide text-purple-600 dark:text-purple-400 uppercase">The eight ledgers</div>
             <h2 className="mt-2 text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">Everything the company runs on</h2>
@@ -102,7 +102,7 @@ export default function NowOpenOs() {
       </section>
 
       <section className="py-16 sm:py-20 bg-white dark:bg-gray-800/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="site-container">
           <div className="max-w-2xl mb-10">
             <div className="text-sm font-semibold tracking-wide text-purple-600 dark:text-purple-400 uppercase">Why it matters</div>
             <h2 className="mt-2 text-3xl sm:text-4xl font-bold text-gray-900 dark:text-white">Honest operations</h2>

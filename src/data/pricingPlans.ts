@@ -53,6 +53,7 @@ export const BUSINESS_TIERS: BusinessTier[] = [
       'Basic business profile',
       '1 business category',
       'Up to 10 photos',
+      '60-second OpenReel video recording',
       'Contact details, location & map',
       'Business hours',
       'Reviews & ratings',
@@ -72,6 +73,7 @@ export const BUSINESS_TIERS: BusinessTier[] = [
     features: [
       'Everything in Free Launch',
       'Unlimited photos & gallery',
+      '5-minute OpenReel video recording',
       'Up to 50 products/services',
       '1 booking/appointment module',
       'Bookings & enquiries inbox',
@@ -94,6 +96,7 @@ export const BUSINESS_TIERS: BusinessTier[] = [
     features: [
       'Everything in Growth',
       'Unlimited products & modules',
+      '10-minute OpenReel video recording',
       'Multiple business branches',
       'Staff management',
       'Multiple booking modules',
@@ -123,6 +126,7 @@ export const BUSINESS_TIERS: BusinessTier[] = [
     aiCredits: null,
     features: [
       'Unlimited everything',
+      '20-minute OpenReel video recording',
       'Dedicated account manager',
       'Custom integrations & API access',
       'White-label options',
@@ -294,6 +298,41 @@ export const MODULE_LIMITS: Record<string, number> = {
 
 export function moduleLimitForPlan(plan: string | null | undefined): number {
   return MODULE_LIMITS[plan || DEFAULT_BUSINESS_PLAN] ?? 1;
+}
+
+// How long a single OpenReel recording may run, by plan. The camera enforces
+// this, and the pricing page advertises it, from this one table.
+export const REEL_SECONDS_LIMITS: Record<string, number> = {
+  starter: 60,
+  growth: 5 * 60,
+  'business-pro': 10 * 60,
+  enterprise: 20 * 60,
+};
+
+export function reelLimitForPlan(plan: string | null | undefined): number {
+  return REEL_SECONDS_LIMITS[plan || DEFAULT_BUSINESS_PLAN] ?? REEL_SECONDS_LIMITS.starter;
+}
+
+/**
+ * "60 seconds" / "5 minutes" — how the limit reads in prose (camera hint,
+ * upgrade nudges). A single minute stays as "60 seconds": it is the free tier's
+ * headline number and reads stronger than "1 minute".
+ */
+export function formatReelLimit(seconds: number): string {
+  if (seconds >= 120 && seconds % 60 === 0) {
+    return `${seconds / 60} minutes`;
+  }
+  return `${seconds} seconds`;
+}
+
+/**
+ * The same limit as a compound adjective for a pricing bullet — "60-second",
+ * "5-minute". The pricing features are written with these, so the advertised
+ * length and the enforced one cannot drift apart.
+ */
+export function reelLimitAdjective(seconds: number): string {
+  if (seconds >= 120 && seconds % 60 === 0) return `${seconds / 60}-minute`;
+  return `${seconds}-second`;
 }
 
 export function getCreativeTier(id: string | null | undefined): CreativeTier | undefined {

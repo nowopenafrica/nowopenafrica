@@ -18,6 +18,7 @@ import { launchStatus } from './launches';
 import type { PartnerItem } from './partners';
 import type { PressItem } from './press';
 import type { CampaignItem } from './osCampaigns';
+import { isSameLocalDay } from './dates';
 
 export interface OsState {
   members: WorkforceMember[];
@@ -47,14 +48,7 @@ export interface OsBriefing {
   knowledgeTotal: number;
 }
 
-const isToday = (iso: string | null | undefined, now: Date): boolean => {
-  if (!iso) return false;
-  const d = new Date(iso);
-  return !Number.isNaN(d.getTime())
-    && d.getUTCFullYear() === now.getUTCFullYear()
-    && d.getUTCMonth() === now.getUTCMonth()
-    && d.getUTCDate() === now.getUTCDate();
-};
+const isToday = isSameLocalDay;
 
 export function summarizeOs({ members, items, approvals, docs }: OsState, now = new Date()): OsBriefing {
   const agents = members.filter((m) => m.kind === 'ai');
