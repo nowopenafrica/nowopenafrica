@@ -9,6 +9,7 @@ import BusinessCard from '../components/discover/BusinessCard';
 import SearchSuggest from '../components/discover/SearchSuggest';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import CategoryCarousel from '../components/discover/CategoryCarousel';
+import SuggestBusiness from '../components/business/SuggestBusiness';
 import { BUSINESS_CATEGORY_GROUPS, matchesCategory } from '../data/categories';
 import {
   openNow, newest, topRated, hiddenGems,
@@ -324,9 +325,16 @@ export default function Discover() {
               ? 'Nothing matches that yet. Try a different word, or clear the filters.'
               : 'Nothing to show yet.'}
           </p>
-          <Link to="/businesses" className="inline-block mt-3 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">
-            Browse the full directory →
-          </Link>
+          {/* An empty result is the best moment to ask: they were looking for
+              something specific and just learned it is not here. Every other
+              Radar source is waiting on a licence; this one needs nobody's
+              permission, because the person is choosing to tell us. */}
+          <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+            <SuggestBusiness place={place} />
+            <Link to="/businesses" className="text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+              Browse the full directory →
+            </Link>
+          </div>
         </div>
       ) : (
         <div className="space-y-10">
