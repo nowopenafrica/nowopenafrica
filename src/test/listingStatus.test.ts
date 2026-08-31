@@ -63,22 +63,30 @@ describe('claimability', () => {
 });
 
 /*
- * The rule the whole seed import rests on. These 500 businesses are invented —
- * no phone, no email, no street address — and profile pages are server-rendered
- * with LocalBusiness JSON-LD. Listing them would put fabricated Nigerian
- * companies into Google on a domain that currently ranks honestly.
+ * Prospect listings were revealed publicly on 1 Sep 2026 by founder decision.
+ * Visibility no longer depends on where a record came from — but provenance and
+ * what the page CLAIMS about itself are untouched: a prospect still shows as
+ * Unclaimed and unverified, and still stays out of the search index.
  */
-describe('synthetic records never reach the public directory', () => {
-  it('keeps a prospect out of discovery', () => {
+describe('visibility after the reveal', () => {
+  it('lists a prospect like any other business', () => {
+    expect(isListable(prospect)).toBe(true);
+  });
+
+  it('still knows it is a prospect', () => {
     expect(isProspect(prospect)).toBe(true);
-    expect(isListable(prospect)).toBe(false);
+    expect(listingBadge(prospect).kind).toBe('unclaimed');
+  });
+
+  // Being listed and being indexed are separate decisions. A listing with no
+  // phone, address or hours is a thin search result whatever its origin.
+  it('keeps prospects out of the search index', () => {
     expect(isIndexable(prospect)).toBe(false);
   });
 
-  it('lets a prospect in the moment a real owner claims it', () => {
+  it('indexes a prospect once a real owner claims it', () => {
     const claimed = { ...prospect, claim_status: 'claimed', user_id: 'u1' } as const;
     expect(isProspect(claimed)).toBe(false);
-    expect(isListable(claimed)).toBe(true);
     expect(isIndexable(claimed)).toBe(true);
   });
 
@@ -87,17 +95,15 @@ describe('synthetic records never reach the public directory', () => {
     expect(claimed.data_status).toBe('synthetic_unverified');
   });
 
-  it('drops a suspended business out of the directory entirely', () => {
+  // Suspension is a moderation control, and it still removes a listing entirely.
+  it('drops a suspended business out of the directory', () => {
     expect(isListable({ data_status: 'user_created', claim_status: 'claimed', lifecycle_status: 'suspended' })).toBe(false);
+    expect(isIndexable({ data_status: 'user_created', claim_status: 'claimed', lifecycle_status: 'suspended' })).toBe(false);
   });
 
   // Not deleted: "this shut down" is useful, and is the reason to keep the page.
   it('keeps a permanently closed business listed', () => {
     expect(isListable({ data_status: 'user_created', claim_status: 'claimed', lifecycle_status: 'permanently_closed' })).toBe(true);
-  });
-
-  it('lists an ordinary business created in the product', () => {
-    expect(isListable({ data_status: 'user_created', claim_status: 'unclaimed', lifecycle_status: 'active' })).toBe(true);
   });
 });
 

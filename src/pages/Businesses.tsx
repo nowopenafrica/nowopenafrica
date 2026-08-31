@@ -107,7 +107,12 @@ export default function Businesses() {
   useEffect(() => {
     const fetchBusinesses = async () => {
       try {
-        const { data, error } = await supabase.from('businesses').select('*').order('created_at', { ascending: false });
+        const { data, error } = await supabase.from('businesses').select('*')
+          // Completeness first, then recency. Every prospect listing was
+          // created on the same day, so sorting by date alone would put
+          // 500 empty shells ahead of every real business.
+          .order('listing_score', { ascending: false })
+          .order('created_at', { ascending: false });
         if (error) throw error;
         setBusinesses(data && data.length > 0 ? data : generateBusinesses(30));
       } catch (err) {

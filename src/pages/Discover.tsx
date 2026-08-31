@@ -97,7 +97,12 @@ export default function Discover() {
     let cancelled = false;
     (async () => {
       const [biz, reviews] = await Promise.all([
-        supabase.from('businesses').select(DISCOVER_SELECT).limit(400),
+        supabase.from('businesses').select(DISCOVER_SELECT)
+          // Ordered before the limit: with 532 listings an unordered
+          // limit(400) can drop real businesses and keep empty shells.
+          .order('listing_score', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(400),
         supabase.from('business_reviews').select('business_id').limit(5000),
       ]);
       if (!cancelled) {

@@ -110,17 +110,22 @@ export function isProspect(b: ListingRecord | null | undefined): boolean {
  */
 export function isListable(b: ListingRecord | null | undefined): boolean {
   if (!b) return false;
-  if (b.lifecycle_status === 'suspended') return false;
-  return b.data_status !== 'synthetic_unverified' || b.claim_status === 'claimed';
+  // Prospect listings were revealed on 1 Sep 2026 by founder decision, so
+  // origin no longer affects visibility. Suspension still does — that is a
+  // moderation control, not a seeding policy.
+  return b.lifecycle_status !== 'suspended';
 }
 
 /**
  * Should a crawler index this page?
  *
- * Prospects must not be indexed. They are invented businesses, and business
- * profiles are server-rendered with LocalBusiness JSON-LD — indexing them would
- * put 500 fabricated Nigerian companies into Google on a domain that currently
- * ranks honestly.
+ * Prospects are now publicly listed, but indexing is a separate question and
+ * the answer here is still no. A listing with no phone, address or hours is a
+ * thin result whatever its origin, and business profiles are server-rendered
+ * with LocalBusiness JSON-LD — telling Google about 500 unverified shells is
+ * how a domain that currently ranks honestly stops doing so.
+ *
+ * Flip this to `isListable(b)` to index them too.
  */
 export function isIndexable(b: ListingRecord | null | undefined): boolean {
   return isListable(b) && !isProspect(b);

@@ -35,11 +35,13 @@ import { businessCategories, matchesCategory, BUSINESS_CATEGORY_GROUPS } from '.
 /* One literal, not a concatenation. The Supabase client infers the row type
    from the string itself, so splitting it across a `+` turns every result into
    GenericStringError. */
-export const DISCOVER_SELECT = 'id,name,category,secondary_categories,description,location,phone,website,verified,rating,image_url,logo_url,username,created_at,opening_hours,hours,timezone,open_status';
+export const DISCOVER_SELECT = 'id,name,category,secondary_categories,description,location,phone,website,verified,rating,image_url,logo_url,username,created_at,opening_hours,hours,timezone,open_status,listing_score';
 
 export interface DiscoverBusiness extends OpenStateInput {
   id: string;
   name: string;
+  /** 0-100 completeness, generated in the database. */
+  listing_score?: number | null;
   category?: string | null;
   secondary_categories?: string[] | null;
   description?: string | null;
@@ -93,10 +95,19 @@ export function openNow(list: DiscoverBusiness[], now: Date): DiscoverBusiness[]
 }
 
 /** Listed in the last `days` days, newest first. */
+/*
+ * A listing with no phone, no address and no hours is not a recommendation,
+ * however recently it appeared. Once prospect listings became public the
+ * "New on NowOpen" rail would otherwise have been 500 identical shells,
+ * burying the businesses a reader can actually visit.
+ */
+export const MIN_USEFUL_SCORE = 40;
+
 export function newest(list: DiscoverBusiness[], now: Date, days = 30): DiscoverBusiness[] {
   const cutoff = now.getTime() - days * 24 * 60 * 60 * 1000;
   return list
     .filter((b) => {
+      if ((b.listing_score ?? 100) < MIN_USEFUL_SCORE) return false;
       if (!b.created_at) return false;
       const t = Date.parse(b.created_at);
       return Number.isFinite(t) && t >= cutoff;
