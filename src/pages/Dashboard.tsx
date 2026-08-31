@@ -8,6 +8,7 @@ import { Business, Advert, MediaService } from '../types';
 import { User, ShoppingBag, Award, Film, LogOut, Plus, Shield, LayoutGrid, CalendarCheck, MessageSquare, Inbox, Crown, Check, ArrowUpRight, Sparkles, Activity } from 'lucide-react';
 import { getBusinessTier, getCreativeTier, nextBusinessTier } from '../data/pricingPlans';
 import ProfileCompleteness from '../components/dashboard/ProfileCompleteness';
+import FoundingPanel from '../components/dashboard/FoundingPanel';
 import BusinessStoryEditor from '../components/dashboard/BusinessStoryEditor';
 import OffersManager from '../components/dashboard/OffersManager';
 import BusinessForm from '../components/dashboard/BusinessForm';
@@ -411,7 +412,13 @@ export default function Dashboard() {
                   on today, before what they might pay for. Shown per business,
                   capped at three so a long tail does not read as a wall. */}
               {businesses.slice(0, 3).map((b) => (
-                <ProfileCompleteness key={String(b.id)} business={b} onEdit={() => setStoryFor(b)} />
+                <div key={String(b.id)} className="grid gap-4 lg:grid-cols-2 items-start">
+                  <ProfileCompleteness business={b} onEdit={() => setStoryFor(b)} />
+                  {/* Beside completeness on purpose: the founding checklist is
+                      the same work with a deadline attached, and the two read
+                      as one task rather than two competing nags. */}
+                  <FoundingPanel business={b as unknown as Record<string, unknown>} />
+                </div>
               ))}
 
               {/* Your plan / subscription */}

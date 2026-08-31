@@ -20,6 +20,7 @@ import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import OpenStateBadge from '../components/OpenStateBadge';
 import BusinessStory from '../components/business/BusinessStory';
 import ClaimBusiness from '../components/business/ClaimBusiness';
+import FoundingBadge, { useFoundingNumber } from '../components/business/FoundingBadge';
 import type { ProfileStory } from '../lib/businessProfile';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { resolveBusinessStatus, loadClockConfig, resolvePublicStatus } from '../lib/businessStatus';
@@ -176,6 +177,10 @@ export default function BusinessDetail() {
   const { id, username } = useParams<{ id?: string; username?: string }>();
   const { user } = useAuth();
   const [business, setBusiness] = useState<any | null>(null);
+  // Read once the business resolves; nothing renders until the database
+  // confirms a number, so a page can never display a founding status it does
+  // not hold.
+  const foundingNumber = useFoundingNumber(business?.id ? String(business.id) : null);
   const [loading, setLoading] = useState(true);
   /**
    * Tab state lives in the URL, not in useState alone.
@@ -820,6 +825,9 @@ export default function BusinessDetail() {
                       the Trust Panel below reports nothing confirmed. */}
                   {TIERS[deriveTier(business)].rank > 0 && <VerifiedBadge size={18} />}
                   <TrustBadge tier={business.verification_tier} score={business.trust_score} size="md" />
+                  {/* Only renders when the database has actually issued a
+                      number — there is no client-side founding status. */}
+                  <FoundingBadge number={foundingNumber} />
                   {hasLiveNow && (
                     <button
                       onClick={() => setActiveTab('live')}

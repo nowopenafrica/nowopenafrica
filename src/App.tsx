@@ -25,6 +25,7 @@ const Keeps = lazy(() => import('./pages/Keeps'));
 const Nearby = lazy(() => import('./pages/Nearby'));
 const OpenNow = lazy(() => import('./pages/OpenNow'));
 const Offers = lazy(() => import('./pages/Offers'));
+const Founding = lazy(() => import('./pages/Founding'));
 const BusinessDetail = lazy(() => import('./pages/BusinessDetail'));
 const Adverts = lazy(() => import('./pages/Adverts'));
 const AdvertDetail = lazy(() => import('./pages/AdvertDetail'));
@@ -123,6 +124,7 @@ function App() {
               <Route path="/nearby" element={<Nearby />} />
               <Route path="/open-now" element={<OpenNow />} />
               <Route path="/offers" element={<Offers />} />
+              <Route path="/founding" element={<Founding />} />
               {/* Discovery pages before /businesses/:id — otherwise "in"
                   is parsed as a business id and the page 404s. */}
               <Route path="/businesses/in/:place" element={<DiscoveryPage />} />
