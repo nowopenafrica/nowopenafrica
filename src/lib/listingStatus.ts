@@ -110,22 +110,24 @@ export function isProspect(b: ListingRecord | null | undefined): boolean {
  */
 export function isListable(b: ListingRecord | null | undefined): boolean {
   if (!b) return false;
-  // Prospect listings were revealed on 1 Sep 2026 by founder decision, so
-  // origin no longer affects visibility. Suspension still does — that is a
-  // moderation control, not a seeding policy.
-  return b.lifecycle_status !== 'suspended';
+  if (b.lifecycle_status === 'suspended') return false;
+  // A prospect becomes listable the moment a real owner claims it: at that
+  // point somebody has stood behind the record and it stops being fabricated.
+  return b.data_status !== 'synthetic_unverified' || b.claim_status === 'claimed';
 }
 
 /**
  * Should a crawler index this page?
  *
- * Prospects are now publicly listed, but indexing is a separate question and
- * the answer here is still no. A listing with no phone, address or hours is a
- * thin result whatever its origin, and business profiles are server-rendered
- * with LocalBusiness JSON-LD — telling Google about 500 unverified shells is
- * how a domain that currently ranks honestly stops doing so.
+ * Prospects are hidden from the public entirely, so this is belt-and-braces
+ * rather than the boundary — the RLS policy is what actually keeps them out of
+ * the sitemap and out of a crawler's reach.
  *
- * Flip this to `isListable(b)` to index them too.
+ * Worth keeping separate from isListable all the same: listing and indexing are
+ * different decisions, and if prospects are ever revealed again this is the one
+ * switch that keeps them out of search. It is not currently called from
+ * anywhere; wiring it would mean src/lib/seo.ts (emit `noindex, follow`) and
+ * api/sitemap.xml.ts (skip those rows).
  */
 export function isIndexable(b: ListingRecord | null | undefined): boolean {
   return isListable(b) && !isProspect(b);
