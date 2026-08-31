@@ -7,6 +7,7 @@ import {
 import { aiRecommendations } from '../../lib/adminCreator';
 import { useCommandData } from '../../hooks/useCommandData';
 import { supabase } from '../../lib/supabase';
+import DailyBrief from './DailyBrief';
 import { useAuth } from '../../contexts/AuthContext';
 import { NOWOPEN_ORG_ID, seedMembers, type WorkforceMember } from '../../lib/workforce';
 import { WORK_SEED, mapSeedToMembers, type WorkItem } from '../../lib/work';
@@ -186,6 +187,10 @@ export default function FounderDashboard({ onOpenSection }: Props) {
 
   return (
     <div className="space-y-5">
+      {/* The first roster agent that actually runs. Above the rest of the
+          dashboard because it is the only part that says what to do next. */}
+      <DailyBrief />
+
       <div className="flex flex-wrap items-center gap-2">
         {sample && (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100 dark:bg-amber-900/40 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:text-amber-300">
