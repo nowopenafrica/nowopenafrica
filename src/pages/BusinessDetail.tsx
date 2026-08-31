@@ -19,6 +19,7 @@ import LiveSection from '../components/live/LiveSection';
 import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import OpenStateBadge from '../components/OpenStateBadge';
 import BusinessStory from '../components/business/BusinessStory';
+import ClaimBusiness from '../components/business/ClaimBusiness';
 import type { ProfileStory } from '../lib/businessProfile';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { resolveBusinessStatus, loadClockConfig, resolvePublicStatus } from '../lib/businessStatus';
@@ -1035,6 +1036,12 @@ export default function BusinessDetail() {
                     information and policies — each rendering only if it has
                     something in it, so a sparse profile stays short rather than
                     becoming a column of empty headings. */}
+                {/* Only renders on a page nobody owns — which is most of the
+                    catalogue, and the cheapest acquisition the platform has. */}
+                <div className="mb-6">
+                  <ClaimBusiness business={business} />
+                </div>
+
                 <div className="mb-6">
                   <BusinessStory business={business as unknown as ProfileStory & { description?: string | null }} />
                 </div>
