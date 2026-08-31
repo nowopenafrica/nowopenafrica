@@ -2,6 +2,8 @@ import { useState, useEffect, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import ImportCenter from '../components/admin/ImportCenter';
+import ReviewQueue from '../components/admin/ReviewQueue';
 import {
   canAccessTab, canDelete, canManageRoles, canManagePlans, isStaff, isEditor,
   ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
@@ -100,6 +102,20 @@ export default function AdminDashboard() {
   const [verificationDocs, setVerificationDocs] = useState<any[]>([]);
   const [deletionRequests, setDeletionRequests] = useState<any[]>([]);
   const [resolvingReq, setResolvingReq] = useState<string | null>(null);
+  // Badge on the Review Queue tab: what is actually waiting on a person.
+  const [reviewCount, setReviewCount] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { count } = await supabase
+        .from('radar_candidates')
+        .select('id', { count: 'exact', head: true })
+        .in('status', ['pending', 'review']);
+      if (!cancelled) setReviewCount(count ?? 0);
+    })().catch(() => { /* the badge is a nicety; the tab still opens */ });
+    return () => { cancelled = true; };
+  }, []);
   const [auditLog, setAuditLog] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [heroVideos, setHeroVideos] = useState<{ name: string; url: string }[]>([]);
@@ -542,6 +558,8 @@ export default function AdminDashboard() {
     { id: 'registrations', label: 'Registrations', icon: FileText, count: registrations.length },
     { id: 'applications', label: 'Applications', icon: ClipboardList, count: applications.length },
     { id: 'enquiries', label: 'Enquiries', icon: MessageSquare, count: enquiries.length },
+    { id: 'review-queue', label: 'Review Queue', icon: Inbox, count: reviewCount },
+    { id: 'imports', label: 'Import Center', icon: Upload, count: 0 },
     { id: 'audit', label: 'Audit Log', icon: History, count: auditLog.length },
     { id: 'hero-videos', label: 'Hero Videos', icon: Video, count: heroVideos.length },
   ];
@@ -999,6 +1017,9 @@ export default function AdminDashboard() {
               )}
 
               {/* Audit log */}
+              {activeTab === 'review-queue' && <ReviewQueue />}
+              {activeTab === 'imports' && <ImportCenter />}
+
               {activeTab === 'audit' && (
                 <table className="w-full">
                   <thead>

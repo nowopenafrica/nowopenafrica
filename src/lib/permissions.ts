@@ -37,7 +37,8 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
 export type AdminTabId =
   | 'overview' | 'users' | 'businesses' | 'verification' | 'subscriptions'
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
-  | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos';
+  | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
+  | 'review-queue' | 'imports';
 
 /**
  * What an editor may open.
@@ -51,6 +52,10 @@ export type AdminTabId =
  * subscriptions and bookings (money), verification and registrations
  * (identity documents), waitlist and applications (personal contact details),
  * requests (approves destructive deletions).
+ *
+ * Also excluded: imports and review-queue. Both write to the public directory
+ * in bulk — one file can create thousands of listings, and a rollback only
+ * reaches the ones nobody has claimed yet. That is an admin decision.
  */
 export const EDITOR_TABS: AdminTabId[] = [
   'overview',
