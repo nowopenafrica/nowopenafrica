@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
+
+import { type TrustClaim } from '../lib/trustClaims';
 import {
-  Landmark, Calculator, ShieldCheck, PhoneCall, CalendarCheck, MessageCircle, Percent,
+  Landmark, Calculator, BadgeCheck, PhoneCall, CalendarCheck, MessageCircle, Percent,
 } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
 
@@ -19,9 +21,11 @@ interface Props {
   onBook: (id: string) => void;
   onWhatsApp: (item: FinancialProduct) => void;
   onEnquire: (context: string) => void;
+  /** Only claims the record actually backs; see lib/trustClaims. */
+  claims?: TrustClaim[];
 }
 
-export default function FinanceCenter({ products, ctaLabel, hasPhone, onBook, onWhatsApp, onEnquire }: Props) {
+export default function FinanceCenter({ products, ctaLabel, hasPhone, claims = [], onBook, onWhatsApp, onEnquire }: Props) {
   const [type, setType] = useState('All');
 
   const types = useMemo(() => {
@@ -51,9 +55,12 @@ export default function FinanceCenter({ products, ctaLabel, hasPhone, onBook, on
         <button onClick={() => onEnquire('a call with a financial advisor')} className="inline-flex items-center gap-2 bg-blue-700 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-blue-800 transition">
           <PhoneCall size={18} /> Speak to an advisor
         </button>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-2 text-xs font-semibold">
-          <ShieldCheck size={14} /> Licensed & regulated
-        </span>
+        {claims.map((c) => (
+          <span key={c.key} title={c.detail}
+            className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-2 text-xs font-semibold">
+            <BadgeCheck size={14} /> {c.label}
+          </span>
+        ))}
       </div>
 
       {/* Loan calculator */}

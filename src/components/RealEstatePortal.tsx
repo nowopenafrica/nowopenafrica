@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
+
+import { type TrustClaim } from '../lib/trustClaims';
 import {
-  Bed, Bath, Maximize, MapPin, BadgeCheck, ShieldCheck, CalendarCheck,
+  Bed, Bath, Maximize, MapPin, BadgeCheck, CalendarCheck,
   MessageCircle, Calculator, X, ChevronLeft, ChevronRight, Home, Star,
   Building2, TrendingUp,
 } from 'lucide-react';
@@ -29,11 +31,12 @@ interface Props {
   ctaLabel: string;
   agentName: string;
   agentLocation?: string;
-  verifiedAgent?: boolean;
   hasPhone?: boolean;
   onBookViewing: (id: string) => void;
   onWhatsApp: (property: PortalProperty) => void;
   onEnquire: (context: string) => void;
+  /** Only claims the record actually backs; see lib/trustClaims. */
+  claims?: TrustClaim[];
 }
 
 const LISTING_META: Record<string, { label: string; cls: string }> = {
@@ -45,7 +48,7 @@ const LISTING_META: Record<string, { label: string; cls: string }> = {
 type Filter = 'all' | 'sale' | 'rent' | 'shortlet';
 
 export default function RealEstatePortal({
-  properties, ctaLabel, agentName, agentLocation, verifiedAgent, hasPhone,
+  properties, ctaLabel, agentName, agentLocation, claims = [], hasPhone,
   onBookViewing, onWhatsApp, onEnquire,
 }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
@@ -87,14 +90,12 @@ export default function RealEstatePortal({
     <div className="animate-fadeIn space-y-8">
       {/* Trust bar */}
       <div className="flex flex-wrap items-center gap-2">
-        {verifiedAgent && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-semibold">
-            <BadgeCheck size={14} /> Verified agent
+        {claims.map((c) => (
+          <span key={c.key} title={c.detail}
+            className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-semibold">
+            <BadgeCheck size={14} /> {c.label}
           </span>
-        )}
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 text-xs font-semibold">
-          <ShieldCheck size={14} /> Inspected & documented listings
-        </span>
+        ))}
         <span className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-1.5 text-xs font-semibold">
           <Building2 size={14} /> {properties.length} propert{properties.length === 1 ? 'y' : 'ies'}
         </span>

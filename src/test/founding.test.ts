@@ -16,7 +16,8 @@ import {
 /** A business that meets every requirement, for tests to break one at a time. */
 const complete = {
   user_id: 'u1',
-  verified: true,
+  email_verified: true,
+  phone_verified: true,
   name: 'Golden Sands Hotel',
   category: 'Hotels',
   location: 'Lagos',
@@ -93,7 +94,7 @@ describe('qualification', () => {
 
   // The single rule the whole programme rests on: registering is not enough.
   it('rejects an empty listing — the reason the reward is not for signing up', () => {
-    expect(qualifiesForFounding({ user_id: 'u1', verified: true, name: 'Shell Ltd' })).toBe(false);
+    expect(qualifiesForFounding({ user_id: 'u1', email_verified: true, phone_verified: true, name: 'Shell Ltd' })).toBe(false);
   });
 
   it('rejects an unclaimed listing even when it is complete and verified', () => {
@@ -102,7 +103,16 @@ describe('qualification', () => {
   });
 
   it('rejects a complete but unverified business', () => {
-    expect(qualifiesForFounding({ ...complete, verified: false })).toBe(false);
+    expect(qualifiesForFounding({ ...complete, phone_verified: false })).toBe(false);
+  });
+
+  // The legacy `verified` column is true on 24 seeded, unowned records with
+  // trust_score 0. Honouring it would hand founding numbers to listings nobody
+  // has ever checked — the exact failure the programme exists to prevent.
+  it('ignores the legacy verified flag entirely', () => {
+    const seeded = { ...complete, email_verified: false, phone_verified: false, verified: true };
+    expect(qualifiesForFounding(seeded)).toBe(false);
+    expect(foundingGaps(seeded).map((g) => g.key)).toEqual(['verified']);
   });
 
   it('names every outstanding step, so an owner is told what to do', () => {

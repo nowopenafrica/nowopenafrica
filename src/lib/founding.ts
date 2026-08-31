@@ -93,7 +93,13 @@ export interface FoundingRequirement {
 
 interface QualifyInput {
   user_id?: string | null;
-  verified?: boolean | null;
+  /**
+   * Real signals, not the legacy `verified` boolean — that column is true on
+   * 24 seeded records with trust_score 0 and no owner, so accepting it would
+   * hand founding numbers to listings nobody ever checked.
+   */
+  email_verified?: boolean | null;
+  phone_verified?: boolean | null;
   name?: string | null;
   category?: string | null;
   location?: string | null;
@@ -120,7 +126,7 @@ export function foundingRequirements(b: QualifyInput): FoundingRequirement[] {
     vals.some((v) => typeof v === 'string' && v.trim() !== '');
   return [
     { key: 'owned', label: 'Business claimed by you', done: !!b.user_id },
-    { key: 'verified', label: 'Verified business', done: !!b.verified },
+    { key: 'verified', label: 'Email and phone verified', done: !!b.email_verified && !!b.phone_verified },
     { key: 'name', label: 'Business name', done: has(b.name) },
     { key: 'category', label: 'Category', done: has(b.category) },
     { key: 'location', label: 'Location', done: has(b.location) },

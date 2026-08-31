@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
+
+import { type TrustClaim } from '../lib/trustClaims';
 import {
-  Pill, FileUp, Truck, BellRing, MessageCircle, Plus, Minus, ShoppingCart,
-  ShieldCheck, Search, Stethoscope,
+  Pill, FileUp, BellRing, MessageCircle, Plus, Minus, ShoppingCart,
+  BadgeCheck, Search, Stethoscope,
 } from 'lucide-react';
 
 export interface Medicine {
@@ -22,9 +24,11 @@ interface Props {
   onAddToCart: (item: Medicine, qty: number) => void;
   onWhatsApp: (item: Medicine) => void;
   onEnquire: (context: string) => void;
+  /** Only claims the record actually backs; see lib/trustClaims. */
+  claims?: TrustClaim[];
 }
 
-export default function PharmacyStorefront({ items, hasPhone, onAddToCart, onWhatsApp, onEnquire }: Props) {
+export default function PharmacyStorefront({ items, hasPhone, claims = [], onAddToCart, onWhatsApp, onEnquire }: Props) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -72,15 +76,18 @@ export default function PharmacyStorefront({ items, hasPhone, onAddToCart, onWha
         </button>
       </div>
 
-      {/* Trust bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 text-xs font-semibold">
-          <ShieldCheck size={14} /> Genuine, verified medicines
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-semibold">
-          <Truck size={14} /> Same-day delivery available
-        </span>
-      </div>
+      {/* Trust bar — only what a completed check actually proves. Empty when
+          nothing has been verified, which is the honest output. */}
+      {claims.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          {claims.map((c) => (
+            <span key={c.key} title={c.detail}
+              className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-semibold">
+              <BadgeCheck size={14} /> {c.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Search + category filter */}
       <div className="space-y-3">

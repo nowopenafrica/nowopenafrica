@@ -1,6 +1,8 @@
 import { useMemo, useState } from 'react';
+
+import { type TrustClaim } from '../lib/trustClaims';
 import {
-  Car, Gauge, Fuel, Cog, Calendar, BadgeCheck, ShieldCheck, CalendarCheck,
+  Car, Gauge, Fuel, Cog, Calendar, BadgeCheck, CalendarCheck,
   MessageCircle, X, ChevronLeft, ChevronRight, Calculator, Hash,
 } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -28,11 +30,12 @@ interface Props {
   vehicles: Vehicle[];
   ctaLabel: string;
   dealerName: string;
-  verifiedDealer?: boolean;
   hasPhone?: boolean;
   onBookTestDrive: (id: string) => void;
   onWhatsApp: (vehicle: Vehicle) => void;
   onEnquire: (context: string) => void;
+  /** Only claims the record actually backs; see lib/trustClaims. */
+  claims?: TrustClaim[];
 }
 
 const CONDITION_CLS: Record<string, string> = {
@@ -44,7 +47,7 @@ const CONDITION_CLS: Record<string, string> = {
 type Filter = 'all' | 'New' | 'Foreign Used' | 'Nigerian Used';
 
 export default function CarDealerInventory({
-  vehicles, ctaLabel, dealerName, verifiedDealer, hasPhone,
+  vehicles, ctaLabel, dealerName, claims = [], hasPhone,
   onBookTestDrive, onWhatsApp, onEnquire,
 }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
@@ -76,14 +79,12 @@ export default function CarDealerInventory({
     <div className="animate-fadeIn space-y-6">
       {/* Trust bar */}
       <div className="flex flex-wrap items-center gap-2">
-        {verifiedDealer && (
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-semibold">
-            <BadgeCheck size={14} /> Verified dealer
+        {claims.map((c) => (
+          <span key={c.key} title={c.detail}
+            className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-semibold">
+            <BadgeCheck size={14} /> {c.label}
           </span>
-        )}
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 text-xs font-semibold">
-          <ShieldCheck size={14} /> Inspected & documented
-        </span>
+        ))}
       </div>
 
       {/* Filters */}

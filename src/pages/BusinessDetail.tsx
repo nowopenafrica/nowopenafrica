@@ -20,6 +20,7 @@ import BusinessStatusBadge from '../components/BusinessStatusBadge';
 import OpenStateBadge from '../components/OpenStateBadge';
 import BusinessStory from '../components/business/BusinessStory';
 import ClaimBusiness from '../components/business/ClaimBusiness';
+import { trustClaims } from '../lib/trustClaims';
 import FoundingBadge, { useFoundingNumber } from '../components/business/FoundingBadge';
 import type { ProfileStory } from '../lib/businessProfile';
 import BusinessTimeline from '../components/BusinessTimeline';
@@ -1288,6 +1289,7 @@ export default function BusinessDetail() {
                   />
                 ) : isFinance && bookingModule ? (
                   <FinanceCenter
+                    claims={trustClaims(business, 'finance')}
                     products={services}
                     ctaLabel={bookingModule.ctaLabel}
                     hasPhone={!!business.phone}
@@ -1484,6 +1486,7 @@ export default function BusinessDetail() {
                   />
                 ) : isPharmacy ? (
                   <PharmacyStorefront
+                    claims={trustClaims(business, 'pharmacy')}
                     items={products}
                     hasPhone={!!business.phone}
                     onAddToCart={(item, q) => addToCart(item, q)}
@@ -1495,7 +1498,7 @@ export default function BusinessDetail() {
                     vehicles={products}
                     ctaLabel={productBookingModule.ctaLabel}
                     dealerName={business.name}
-                    verifiedDealer={!!business.verified}
+                    claims={trustClaims(business, 'vehicles')}
                     hasPhone={!!business.phone}
                     onBookTestDrive={(vid) => setBooking({ moduleKey: productBookingModule.key, itemId: vid })}
                     onWhatsApp={(v) => handleWhatsAppOrder(v)}
@@ -1517,7 +1520,7 @@ export default function BusinessDetail() {
                     ctaLabel={productBookingModule.ctaLabel}
                     agentName={business.name}
                     agentLocation={business.location}
-                    verifiedAgent={!!business.verified}
+                    claims={trustClaims(business, 'property')}
                     hasPhone={!!business.phone}
                     onBookViewing={(pid) => setBooking({ moduleKey: productBookingModule.key, itemId: pid })}
                     onWhatsApp={(prop) => handleWhatsAppOrder(prop)}
