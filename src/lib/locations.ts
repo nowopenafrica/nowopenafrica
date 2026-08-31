@@ -13,7 +13,11 @@
 // the profile and the crawler page use, so a branch's badge cannot disagree
 // with the business's.
 
-import { publicOpenState, type OpenState } from './openingHours';
+// .js extension required: this file is reachable from api/business/[slug].ts,
+// which runs as a Node ESM serverless function where an extensionless relative
+// specifier does not resolve. Vite rewrites it for the browser build either
+// way, so the extension costs nothing on the web side.
+import { publicOpenState, type OpenState } from './openingHours.js';
 
 export interface BusinessLocation {
   id: string;
