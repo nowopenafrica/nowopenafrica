@@ -21,6 +21,8 @@ import OpenStateBadge from '../components/OpenStateBadge';
 import BusinessStory from '../components/business/BusinessStory';
 import ClaimBusiness from '../components/business/ClaimBusiness';
 import { trustClaims } from '../lib/trustClaims';
+import ListingStatusBadge from '../components/business/ListingStatusBadge';
+import ReportListing from '../components/business/ReportListing';
 import FoundingBadge, { useFoundingNumber } from '../components/business/FoundingBadge';
 import type { ProfileStory } from '../lib/businessProfile';
 import BusinessTimeline from '../components/BusinessTimeline';
@@ -829,6 +831,8 @@ export default function BusinessDetail() {
                   {/* Only renders when the database has actually issued a
                       number — there is no client-side founding status. */}
                   <FoundingBadge number={foundingNumber} />
+                  {/* Unclaimed / claimed / verified, kept visibly distinct. */}
+                  <ListingStatusBadge business={business} />
                   {hasLiveNow && (
                     <button
                       onClick={() => setActiveTab('live')}
@@ -1049,6 +1053,11 @@ export default function BusinessDetail() {
                     catalogue, and the cheapest acquisition the platform has. */}
                 <div className="mb-6">
                   <ClaimBusiness business={business} />
+                  {/* The correction path. NowOpen states whether a business is
+                      open, so it needs a way to be told when it is wrong. */}
+                  <div className="mt-2">
+                    <ReportListing businessId={String(business.id)} businessName={business.name} />
+                  </div>
                 </div>
 
                 <div className="mb-6">
