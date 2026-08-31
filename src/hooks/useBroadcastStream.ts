@@ -1,5 +1,9 @@
-import { useCallback, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import {
+  cameraSources, constraintsForDevice, deviceIdOfTrack, nextSource,
+  type CameraSource, type DeviceLike,
+} from '../lib/cameraSources';
 import {
   RTC_CONFIG, channelName, getSpeechRecognition, speechRecognitionSupported,
   CAMERA_CONSTRAINTS, MIC_CONSTRAINTS, REPLAY_VIDEO_BITRATE_BPS, computePerViewerBitrate,
@@ -275,6 +279,41 @@ export function useBroadcastStream() {
     });
   }, []);
 
+  // Every camera the machine can see, and which one is live. Refs alongside
+  // state because the swap callbacks are registered once and must not close
+  // over a stale list — plugging in a webcam mid-stream changes it.
+  const [sources, setSources] = useState<CameraSource[]>([]);
+  const sourcesRef = useRef<CameraSource[]>([]);
+  const [activeDeviceId, setActiveDeviceId] = useState<string | null>(null);
+  const activeDeviceIdRef = useRef<string | null>(null);
+  useEffect(() => { sourcesRef.current = sources; }, [sources]);
+  useEffect(() => { activeDeviceIdRef.current = activeDeviceId; }, [activeDeviceId]);
+
+  /** Re-read the camera list. Cheap, and the only way to notice a new device. */
+  const refreshSources = useCallback(async () => {
+    try {
+      const devices = await navigator.mediaDevices?.enumerateDevices?.();
+      setSources(cameraSources(devices as DeviceLike[] | undefined));
+      setCanFlip(canFlipCamera(devices));
+    } catch {
+      setSources([]);
+      setCanFlip(false);
+    }
+  }, []);
+
+  /*
+    Cameras get plugged in and unplugged during a stream — that is the point of
+    supporting them. devicechange is how the browser says so; without it a
+    webcam attached after going live would never appear in the switcher.
+  */
+  useEffect(() => {
+    const md = navigator.mediaDevices;
+    if (!md?.addEventListener) return;
+    const onChange = () => { void refreshSources(); };
+    md.addEventListener('devicechange', onChange);
+    return () => md.removeEventListener('devicechange', onChange);
+  }, [refreshSources]);
+
   const handleViewerOffer = useCallback(async (payload: SignalPayload) => {
     const channel = channelRef.current;
     const stream = outboundStreamRef.current;
@@ -357,12 +396,11 @@ export function useBroadcastStream() {
       setTorchOn(false);
       setZoom(1);
 
-      try {
-        const devices = await navigator.mediaDevices?.enumerateDevices?.();
-        setCanFlip(canFlipCamera(devices));
-      } catch {
-        setCanFlip(false);
-      }
+      // After getUserMedia, not before: until permission is granted the browser
+      // returns every label as an empty string, so a list built earlier would
+      // read "Camera 1, Camera 2, Camera 3" with no way to tell them apart.
+      await refreshSources();
+      setActiveDeviceId(deviceIdOfTrack(camTrack as unknown as MediaStreamTrack | null));
 
       const channel = supabase.channel(channelName(id), { config: { presence: { key: 'broadcaster' } } });
       channelRef.current = channel;
@@ -487,7 +525,7 @@ export function useBroadcastStream() {
       console.error('Failed to start broadcast:', err);
       setError(err?.message || 'Could not access your camera/microphone.');
     }
-  }, [handleViewerOffer, rebalanceBitrates]);
+  }, [handleViewerOffer, rebalanceBitrates, refreshSources]);
 
   /** The camera track currently going out, cast past the DOM typings. */
   const cameraTrack = useCallback(() => (
@@ -511,16 +549,27 @@ export function useBroadcastStream() {
    * would break the recorder (its audio track must not change) and would drop a
    * word or two of whatever the owner was saying.
    */
-  const flipCamera = useCallback(async () => {
+  /**
+   * Swap the outbound video track for one from `constraints`.
+   *
+   * The shared body behind both "flip" and "pick camera 3": everything below —
+   * replaceTrack on every peer, updating outboundStreamRef, re-pointing the
+   * recorder, stopping the old track last — is identical whichever way the new
+   * camera was chosen. Only the constraints and what gets recorded as current
+   * differ, so those are the parameters.
+   */
+  const swapVideoSource = useCallback(async (
+    constraints: MediaTrackConstraints,
+    after: (track: MediaStreamTrack) => void,
+  ) => {
     const current = outboundStreamRef.current;
     if (!current || flipping) return;
     setFlipping(true);
-    const target = oppositeFacing(facingRef.current);
     const previous = current.getVideoTracks()[0];
 
     try {
       const next = await navigator.mediaDevices.getUserMedia({
-        video: { ...CAMERA_CONSTRAINTS, ...videoConstraintsFor(target, 1280, 720, 30) },
+        video: { ...CAMERA_CONSTRAINTS, ...constraints },
         audio: false,
       });
       const nextTrack = next.getVideoTracks()[0];
@@ -544,8 +593,7 @@ export function useBroadcastStream() {
       // live would blank both the preview and every viewer.
       previous?.stop();
 
-      facingRef.current = target;
-      setFacing(target);
+      after(nextTrack);
 
       const adapted = nextTrack as unknown as Parameters<typeof applyAutoAdapt>[0];
       await applyAutoAdapt(adapted);
@@ -556,12 +604,49 @@ export function useBroadcastStream() {
       setTorchOn(false);
       setZoom(1);
     } catch (err) {
-      console.warn('Camera flip failed:', err);
-      setError('Could not switch camera — the other one may be in use.');
+      console.warn('Camera switch failed:', err);
+      setError('Could not switch camera — it may be in use by another app.');
     } finally {
       setFlipping(false);
     }
   }, [flipping]);
+
+  /** Front/back, for the phone case. */
+  const flipCamera = useCallback(async () => {
+    const target = oppositeFacing(facingRef.current);
+    await swapVideoSource(videoConstraintsFor(target, 1280, 720, 30), (track) => {
+      facingRef.current = target;
+      setFacing(target);
+      setActiveDeviceId(deviceIdOfTrack(track));
+    });
+  }, [swapVideoSource]);
+
+  /**
+   * Switch to a specific camera — the built-in one, a USB webcam, a capture
+   * card, whatever the machine enumerated.
+   *
+   * Same swap, chosen by device instead of by facing. Front/back is a phone
+   * idea; a laptop with three cameras on the counter has no "back".
+   */
+  const switchToDevice = useCallback(async (deviceId: string) => {
+    if (!deviceId || deviceId === activeDeviceIdRef.current) return;
+    await swapVideoSource(constraintsForDevice(deviceId, 1280, 720, 30), (track) => {
+      setActiveDeviceId(deviceIdOfTrack(track) ?? deviceId);
+      // Facing is unknown for an external camera, and claiming one would mirror
+      // the preview of a camera pointed at the room.
+      const kindOf = sourcesRef.current.find((c) => c.deviceId === deviceId)?.kind;
+      if (kindOf === 'front' || kindOf === 'back') {
+        facingRef.current = kindOf === 'front' ? 'user' : 'environment';
+        setFacing(facingRef.current);
+      }
+    });
+  }, [swapVideoSource]);
+
+  /** One tap round the loop, for switching without opening a list. */
+  const cycleCamera = useCallback(async () => {
+    const next = nextSource(sourcesRef.current, activeDeviceIdRef.current);
+    if (next) await switchToDevice(next.deviceId);
+  }, [switchToDevice]);
 
   /**
    * Focus where the owner tapped, in coordinates normalised to the preview.
@@ -721,6 +806,7 @@ export function useBroadcastStream() {
     start, stop, toggleMic, toggleCam, toggleCaptions,
     captionsSupported: speechRecognitionSupported(),
     facing, canFlip, flipping, flipCamera,
+    sources, activeDeviceId, switchToDevice, cycleCamera, refreshSources,
     pinned, pinItem,
     controls, focusAt, torchOn, toggleTorch, zoom, applyZoom,
   };

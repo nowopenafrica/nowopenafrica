@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
+import CameraSwitcher from './CameraSwitcher';
 import { useBroadcastStream } from '../../hooks/useBroadcastStream';
 import LiveChat from './LiveChat';
 import StreamHistory from './StreamHistory';
@@ -193,6 +194,18 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
                       {broadcaster.flipping ? <Loader2 size={17} className="animate-spin" /> : <SwitchCamera size={17} />}
                     </button>
                   )}
+
+                  {/* Multi-camera. Sits bottom-left, clear of the LIVE badge
+                      and the flip button, and only appears when the machine
+                      actually reports more than one camera. */}
+                  <div className="absolute bottom-2.5 left-2.5 z-10">
+                    <CameraSwitcher
+                      sources={broadcaster.sources}
+                      activeDeviceId={broadcaster.activeDeviceId}
+                      switching={broadcaster.flipping}
+                      onPick={(id) => broadcaster.switchToDevice(id)}
+                    />
+                  </div>
 
                   <div className="absolute top-2.5 left-2.5 flex items-center gap-2">
                     <span className="inline-flex items-center gap-1 bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-md">
