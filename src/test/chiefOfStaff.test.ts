@@ -57,7 +57,17 @@ describe('what it says about today', () => {
 
   it('counts the decisions in the summary', () => {
     expect(chiefOfStaffBrief(today).summary).toMatch(/^32 public listings, 2 claimed, 1 verified\./);
-    expect(chiefOfStaffBrief(today).summary).toMatch(/need a decision/);
+    expect(chiefOfStaffBrief(today).summary).toMatch(/1 thing needs a decision/);
+  });
+
+  // It is the line the founder reads every morning; it should read like English.
+  it('agrees the verb with the count', () => {
+    expect(chiefOfStaffBrief({ ...today, reports_open: 0, claims_pending: 0, review_queue: 0, missing_hours: 0, claimed: 30 }).summary)
+      .toMatch(/Nothing needs a decision today/);
+    const one = chiefOfStaffBrief({ ...today, claimed: 30, missing_hours: 0, reports_open: 1, claims_pending: 0, review_queue: 0 });
+    expect(one.summary).toMatch(/1 thing needs a decision/);
+    const many = chiefOfStaffBrief({ ...today, claimed: 30, missing_hours: 0, reports_open: 1, claims_pending: 2, review_queue: 0 });
+    expect(many.summary).toMatch(/2 things need a decision/);
   });
 
   // A brief that speaks up only at scale is silent exactly when it is needed.

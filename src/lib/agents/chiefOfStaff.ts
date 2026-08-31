@@ -154,7 +154,7 @@ export function summarise(f: PlatformFacts, findings: Finding[]): string {
   const acts = findings.filter((x) => x.severity === 'act').length;
   const head = `${f.listings_public} public listings, ${f.claimed} claimed, ${f.verified} verified.`;
   if (acts === 0) return `${head} Nothing needs a decision today.`;
-  return `${head} ${acts} thing${acts === 1 ? '' : 's'} need a decision.`;
+  return `${head} ${acts === 1 ? '1 thing needs' : `${acts} things need`} a decision.`;
 }
 
 export function chiefOfStaffBrief(raw: PlatformFacts): AgentResult {
