@@ -29,7 +29,7 @@ const supabase = createClient(
 );
 
 // Shared secret so only the scheduler can trigger the sends. Optional in dev.
-const AUTOMATION_SECRET = Deno.env.get("AUTOMATION_SECRET");
+const AUTOMATION_SECRET = Deno.env.get("AUTOMATION_SECRET") ?? "";
 const LOW_STOCK_THRESHOLD = Number(Deno.env.get("LOW_STOCK_THRESHOLD") ?? "3");
 
 function json(body: unknown, status = 200) {
@@ -54,7 +54,17 @@ function profileLink(biz: any): string {
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
 
-  if (AUTOMATION_SECRET && req.headers.get("x-automation-key") !== AUTOMATION_SECRET) {
+  /*
+   * Fail closed. This function sends booking reminders, review requests and
+   * trial nudges by email and WhatsApp. The previous guard was skipped whenever
+   * AUTOMATION_SECRET was unset — and it was unset in production, so anybody
+   * holding the public anon key could make the platform message its customers
+   * on demand. Refusing to run is the safe failure.
+   */
+  if (!AUTOMATION_SECRET) {
+    return json({ ok: false, message: "AUTOMATION_SECRET is not set — refusing to run unauthenticated." }, 500);
+  }
+  if (req.headers.get("x-automation-key") !== AUTOMATION_SECRET) {
     return json({ ok: false, message: "Unauthorized" }, 401);
   }
   if (!Deno.env.get("SUPABASE_URL") || !Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")) {
