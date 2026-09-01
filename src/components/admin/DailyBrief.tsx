@@ -3,8 +3,8 @@ import toast from 'react-hot-toast';
 import { Loader2, Play, AlertTriangle, Eye, Info, CheckCircle2 } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
-import { chiefOfStaffBrief, type PlatformFacts } from '../../lib/agents/chiefOfStaff';
-import { verifyRun, ranked, withDeltas, type Fact, type Finding } from '../../lib/workforceRuntime';
+
+import {ranked, withDeltas, type Fact, type Finding} from '../../lib/workforceRuntime';
 
 /**
  * The Chief of Staff's daily brief — the first AI role on the roster that
@@ -57,42 +57,30 @@ export default function DailyBrief() {
 
   useEffect(() => { void load().catch(() => setLoading(false)); }, [load]);
 
+  /*
+   * Runs the agent where the agent lives.
+   *
+   * This used to compute the brief in the browser from platform_facts and
+   * record it directly — a second implementation of the chief-of-staff rules
+   * sitting beside the scheduler's, free to disagree with it the moment either
+   * changed. Now the console asks the database to trigger the same scheduled
+   * run everything else uses, and re-reads what was recorded.
+   *
+   * admin_run_workforce() is admin-gated and holds the automation key
+   * server-side, so nothing secret has to reach the browser.
+   */
   const run = async () => {
     setRunning(true);
-    const started = performance.now();
-    try {
-      const { data, error } = await supabase.rpc('platform_facts');
-      if (error) throw error;
-
-      const result = chiefOfStaffBrief(data as PlatformFacts);
-      const verdict = verifyRun(result);
-
-      /*
-       * A rejected run is still recorded, with its reason. Dropping it would
-       * leave the agent showing its last good summary while it was in fact
-       * producing something unusable — which is how an agent goes on looking
-       * healthy for a month after it broke.
-       */
-      const { error: rpcError } = await supabase.rpc('record_workforce_run', {
-        p_agent_key: 'chief-of-staff',
-        p_status: verdict.status,
-        p_summary: result.summary,
-        p_facts: result.facts,
-        p_findings: result.findings,
-        p_reason: verdict.reason ?? null,
-        p_duration_ms: Math.round(performance.now() - started),
-      });
-      if (rpcError) throw rpcError;
-
-      await load();
-      if (verdict.status === 'ok') toast.success('Brief updated');
-      else if (verdict.status === 'rejected') toast.error(`Run rejected: ${verdict.reason}`);
-      else toast('Ran — nothing to report.');
-    } catch (e) {
-      toast.error((e as { message?: string })?.message ?? 'The run failed.');
-    } finally {
+    const { error } = await supabase.rpc('admin_run_workforce');
+    if (error) {
       setRunning(false);
+      toast.error(error.message);
+      return;
     }
+    toast.success('Running…');
+    // pg_net queues the request and returns at once, so give it a moment
+    // before re-reading or the panel shows the previous run and looks stuck.
+    setTimeout(() => { void load().finally(() => setRunning(false)); }, 6000);
   };
 
   const facts = latest ? withDeltas(latest.facts ?? [], previous?.facts ?? null) : [];

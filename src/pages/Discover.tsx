@@ -98,6 +98,11 @@ export default function Discover() {
     (async () => {
       const [biz, reviews] = await Promise.all([
         supabase.from('businesses').select(DISCOVER_SELECT)
+          // Filter explicitly, do not lean on RLS alone. The policy also lets
+          // admins and owners see their own unlisted rows, so an admin browsing
+          // the public site would otherwise see 532 listings where a customer
+          // sees 32 — and have no way to tell the difference.
+          .eq('is_listable', true)
           // Ordered before the limit: with 532 listings an unordered
           // limit(400) can drop real businesses and keep empty shells.
           .order('listing_score', { ascending: false })

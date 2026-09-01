@@ -20,10 +20,14 @@ vi.mock('../lib/supabase', () => ({
   supabase: {
     from: () => ({
       select: () => ({
+        // .eq('is_listable', true) — the assistant answers with the public view,
+        // so an admin asking gets the same answer a customer would.
+        eq: () => ({
         ilike: () => ({
           order: () => ({
             limit: async () => ({ data: dbRows }),
           }),
+        }),
         }),
       }),
     }),

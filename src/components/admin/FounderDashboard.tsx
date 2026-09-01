@@ -8,6 +8,7 @@ import { aiRecommendations } from '../../lib/adminCreator';
 import { useCommandData } from '../../hooks/useCommandData';
 import { supabase } from '../../lib/supabase';
 import DailyBrief from './DailyBrief';
+import WorkforcePanel from './WorkforcePanel';
 import { useAuth } from '../../contexts/AuthContext';
 import { NOWOPEN_ORG_ID, seedMembers, type WorkforceMember } from '../../lib/workforce';
 import { WORK_SEED, mapSeedToMembers, type WorkItem } from '../../lib/work';
@@ -190,6 +191,9 @@ export default function FounderDashboard({ onOpenSection }: Props) {
       {/* The first roster agent that actually runs. Above the rest of the
           dashboard because it is the only part that says what to do next. */}
       <DailyBrief />
+
+      {/* Every agent's last recorded run, not just the founder's brief. */}
+      <WorkforcePanel />
 
       <div className="flex flex-wrap items-center gap-2">
         {sample && (

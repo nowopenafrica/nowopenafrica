@@ -96,6 +96,9 @@ async function findBusinessByName(spokenName: string) {
   const { data } = await supabase
     .from('businesses')
     .select('id,name,username,location,phone,opening_hours,hours,timezone,open_status')
+    // Public view only: RLS also shows an admin the unlisted prospects, and the
+    // assistant must answer the same way for everybody.
+    .eq('is_listable', true)
     .ilike('name', `%${safe}%`)
     .order('rating', { ascending: false })
     .limit(5);

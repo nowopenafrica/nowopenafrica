@@ -40,7 +40,8 @@ let indexPromise: Promise<SearchIndex> | null = null;
 
 async function buildIndex(): Promise<SearchIndex> {
   const [bizRes, adRes, mediaRes] = await Promise.all([
-    supabase.from('businesses').select('id, name, username, category, secondary_categories, location').limit(300),
+    // Public view only — see VoiceAssistant for why RLS alone is not enough here.
+    supabase.from('businesses').select('id, name, username, category, secondary_categories, location').eq('is_listable', true).limit(300),
     supabase.from('advertisements').select('id, title, category, location').limit(300),
     supabase.from('media_services').select('id, title, service_type').limit(300),
   ]).catch(() => [null, null, null] as const);

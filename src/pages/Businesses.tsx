@@ -108,6 +108,11 @@ export default function Businesses() {
     const fetchBusinesses = async () => {
       try {
         const { data, error } = await supabase.from('businesses').select('*')
+          // Filter explicitly, do not lean on RLS alone. The policy also lets
+          // admins and owners see their own unlisted rows, so an admin browsing
+          // the public site would otherwise see 532 listings where a customer
+          // sees 32 — and have no way to tell the difference.
+          .eq('is_listable', true)
           // Completeness first, then recency. Every prospect listing was
           // created on the same day, so sorting by date alone would put
           // 500 empty shells ahead of every real business.
