@@ -98,9 +98,54 @@ export function shouldRenderProfile(pathname: string, userAgent: string | null):
   return slug;
 }
 
+/**
+ * Should this request be answered with a rendered discovery page?
+ *
+ * The measured gap: /businesses/in/lagos and /businesses/restaurant/in/lagos
+ * are the pages built to rank for "restaurants in Lagos", and both returned the
+ * app shell with the same generic title as the home page — while the sitemap
+ * submitted them. That is volunteering near-duplicate URLs on exactly the pages
+ * meant to earn organic discovery.
+ *
+ * Returns the place and category to render, or null. Exported for the same
+ * reason shouldRenderProfile is: this is the part with the edge cases.
+ */
+export function shouldRenderDiscovery(
+  pathname: string,
+  userAgent: string | null,
+): { place: string; category: string } | null {
+  if (!isCrawler(userAgent)) return null;
+
+  const segments = pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  if (segments[0] !== 'businesses') return null;
+
+  const ok = (s: string) => /^[A-Za-z0-9-]{1,64}$/.test(s);
+
+  // /businesses/in/:place
+  if (segments.length === 3 && segments[1] === 'in' && ok(segments[2])) {
+    return { place: segments[2], category: '' };
+  }
+  // /businesses/:category/in/:place
+  if (segments.length === 4 && segments[2] === 'in' && ok(segments[1]) && ok(segments[3])) {
+    return { place: segments[3], category: segments[1] };
+  }
+  return null;
+}
+
 export default function middleware(request: Request) {
   const url = new URL(request.url);
-  const slug = shouldRenderProfile(url.pathname, request.headers.get('user-agent'));
-  if (!slug) return next();
-  return rewrite(new URL(`/api/business/${encodeURIComponent(slug)}`, request.url));
+  const ua = request.headers.get('user-agent');
+
+  const slug = shouldRenderProfile(url.pathname, ua);
+  if (slug) return rewrite(new URL(`/api/business/${encodeURIComponent(slug)}`, request.url));
+
+  const discovery = shouldRenderDiscovery(url.pathname, ua);
+  if (discovery) {
+    const target = new URL('/api/discovery', request.url);
+    target.searchParams.set('place', discovery.place);
+    if (discovery.category) target.searchParams.set('category', discovery.category);
+    return rewrite(target);
+  }
+
+  return next();
 }
