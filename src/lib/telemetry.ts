@@ -43,6 +43,12 @@ export type EventName =
   | 'booking_started'
   | 'studio_export'
   | 'plan_viewed'
+  // The Founding 1,000 campaign funnel. Kept in the same closed set as
+  // everything else, so the campaign cannot invent an event name.
+  | 'campaign_view'
+  | 'campaign_cta_click'
+  | 'campaign_share'
+  | 'campaign_referral_joined'
   | 'client_error';
 
 export type PropValue = string | number | boolean | null;
