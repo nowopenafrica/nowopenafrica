@@ -39,6 +39,14 @@ export interface DiscoveryListing {
   /** Already resolved by the caller — this file does no clock arithmetic. */
   openLabel: string | null;
   hasHours: boolean;
+  /**
+   * Is anybody accountable for this record?
+   *
+   * True when an owner has claimed it, or it came from an authorised source.
+   * False for demo and prospect data. See isIndexable for why this decides
+   * whether the page may ask to be ranked.
+   */
+  hasProvenance: boolean;
 }
 
 export interface DiscoveryPage {
@@ -73,14 +81,32 @@ export function embedJson(value: unknown): string {
 /**
  * Should this page ask to be indexed?
  *
- * Two conditions, and the second is the one that matters: enough businesses,
- * AND at least one that can answer whether it is open. A page of listings that
- * all say "hours not confirmed" is exactly the commodity content current search
- * guidance discounts — and on this platform it is also just unhelpful.
+ * Only listings with established provenance count — claimed by an owner, or
+ * imported from an authorised source. Demo and prospect records may be
+ * displayed, but they can never earn a ranking.
+ *
+ * THIS CONDITION EXISTS BECAUSE THE FIRST VERSION OF THIS FILE GOT IT WRONG.
+ * It counted every listable business, and all 32 publicly listed businesses
+ * turned out to be fabricated demo data: index-suffixed placeholder phone
+ * numbers (…0123020, …1234024), emails on invented domains, and websites that
+ * do not resolve — goldensandshotel.ng, serengetilodge.ke, comfortliving.ke,
+ * techhubng.com, goldengem.co.za, none of them registered. So
+ * /businesses/in/lagos shipped as `index, follow` with fourteen of them and
+ * LocalBusiness structured data, which is the platform telling Google that
+ * fabricated Nigerian businesses are real and dialable.
+ *
+ * Counting rows was the mistake. Requiring somebody to be accountable for the
+ * row is the fix, and it is the same rule the trust claims and the prospect
+ * seed already follow.
+ *
+ * Then, among those, at least one must be able to say whether it is open — a
+ * page where nothing answers that is thin for the query it would rank for, and
+ * this product is named after the question.
  */
 export function isIndexable(p: DiscoveryPage, min: number = MIN_INDEXABLE): boolean {
-  if (p.total < min) return false;
-  return p.listings.some((l) => l.hasHours);
+  const accountable = p.listings.filter((l) => l.hasProvenance);
+  if (accountable.length < min) return false;
+  return accountable.some((l) => l.hasHours);
 }
 
 /**

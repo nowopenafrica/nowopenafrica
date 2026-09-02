@@ -19,6 +19,9 @@ const listing = (n: number, over: Partial<DiscoveryListing> = {}): DiscoveryList
   description: 'A place to eat.',
   openLabel: null,
   hasHours: false,
+  // Accountable by default in fixtures, so each test states the condition it is
+  // actually exercising rather than inheriting it.
+  hasProvenance: true,
   ...over,
 });
 
@@ -60,6 +63,49 @@ describe('the indexing threshold', () => {
     const noHours = page({ listings: Array.from({ length: 6 }, (_, i) => listing(i)) });
     expect(noHours.total).toBeGreaterThanOrEqual(MIN_INDEXABLE);
     expect(isIndexable(noHours)).toBe(false);
+  });
+
+  /*
+   * The condition added after the first version shipped wrong.
+   *
+   * It counted every listable business, and all 32 publicly listed businesses
+   * turned out to be fabricated demo data — placeholder phone numbers, emails
+   * on invented domains, websites that do not resolve. /businesses/in/lagos
+   * went live as `index, follow` with fourteen of them and LocalBusiness
+   * markup, which is the platform vouching to Google for businesses that do
+   * not exist.
+   */
+  it('refuses to be indexed on the strength of records nobody is accountable for', () => {
+    const demoOnly = page({
+      total: 14,
+      listings: Array.from({ length: 14 }, (_, i) =>
+        listing(i, { hasProvenance: false, hasHours: true, openLabel: 'Open now' })),
+    });
+    expect(demoOnly.total).toBeGreaterThanOrEqual(MIN_INDEXABLE);
+    // Plenty of listings, plenty with hours — and still noindex, because not
+    // one of them has an owner or an authorised source behind it.
+    expect(isIndexable(demoOnly)).toBe(false);
+    expect(renderDiscoveryPage(demoOnly)).toContain('content="noindex, follow"');
+  });
+
+  it('counts only accountable listings toward the threshold', () => {
+    const mixed = page({
+      total: 20,
+      listings: [
+        ...Array.from({ length: 4 }, (_, i) => listing(i, { hasHours: true })),
+        ...Array.from({ length: 16 }, (_, i) => listing(100 + i, { hasProvenance: false, hasHours: true })),
+      ],
+    });
+    // 4 accountable is below the bar of 5, however many demo rows sit beside them.
+    expect(isIndexable(mixed)).toBe(false);
+  });
+
+  it('indexes once enough accountable listings exist', () => {
+    const real = page({
+      total: 5,
+      listings: Array.from({ length: 5 }, (_, i) => listing(i, { hasHours: true, openLabel: 'Open now' })),
+    });
+    expect(isIndexable(real)).toBe(true);
   });
 
   it('emits noindex in the HTML when not indexable, and still renders the page', () => {

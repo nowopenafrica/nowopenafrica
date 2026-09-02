@@ -47,6 +47,8 @@ interface Row {
   hours: string | null;
   timezone: string | null;
   open_status: string | null;
+  claim_status: string | null;
+  data_status: string | null;
 }
 
 async function rest<T>(path: string): Promise<T[]> {
@@ -84,6 +86,17 @@ const hasHours = (row: Row): boolean =>
   !!(row.opening_hours?.trim() || row.hours?.trim());
 
 /**
+ * Is anybody accountable for this record?
+ *
+ * An owner has claimed it, or it arrived from an authorised source. Everything
+ * else — demo data and unclaimed prospects — may be shown but must not earn a
+ * ranking. All 32 currently listed businesses fail this: fabricated phone
+ * numbers, emails on invented domains, websites that do not resolve.
+ */
+const hasProvenance = (row: Row): boolean =>
+  row.claim_status === 'claimed' || row.data_status === 'imported_authorized';
+
+/**
  * The canonical label for a category slug, taken from the rows it matched.
  *
  * The slug is lossy — "restaurant" could be "Restaurant & Food" or
@@ -115,7 +128,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (placeSlug) filters.push(`location=ilike.*${encodeURIComponent(unslugify(placeSlug))}*`);
   if (categorySlug) filters.push(`category=ilike.*${encodeURIComponent(unslugify(categorySlug))}*`);
 
-  const select = 'id,name,username,category,location,description,opening_hours,hours,timezone,open_status';
+  // claim_status and data_status decide whether a listing may earn a ranking —
+  // see isIndexable. Selected, not inferred.
+  const select = 'id,name,username,category,location,description,opening_hours,hours,timezone,open_status,claim_status,data_status';
   const rows = await rest<Row>(
     `businesses?select=${select}&${filters.join('&')}&order=listing_score.desc,created_at.desc&limit=60`,
   );
@@ -130,6 +145,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     description: r.description,
     openLabel: openLabel(r, now),
     hasHours: hasHours(r),
+    hasProvenance: hasProvenance(r),
   }));
 
   /*
