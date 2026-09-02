@@ -32,6 +32,18 @@ export const CARD_DESIGN_WIDTH = 640;
  */
 export const QR_DESIGN_SIZE = 512;
 
+/*
+ * The card's printed proportions: 85.6 x 54mm, the ISO/IEC 7810 ID-1 size every
+ * card printer and wallet expects. 640 / 1.5852 = 404.
+ *
+ * Fixing the height means content can no longer push the card taller, so two
+ * businesses with very different amounts of detail still export the same
+ * artefact. The cost is that overlong text has to give way — handled by
+ * truncating individual fields rather than clipping the block, because an
+ * ellipsis is legible and a half-cut line of text is not.
+ */
+export const CARD_DESIGN_HEIGHT = 404;
+
 export const CardExportNode = forwardRef<HTMLDivElement, { business: Business; qr: string; settings?: CardSettings }>(
   function CardExportNode({ business, qr, settings }, ref) {
     const s = settings ?? DEFAULT_CARD_SETTINGS;
@@ -41,9 +53,20 @@ export const CardExportNode = forwardRef<HTMLDivElement, { business: Business; q
       ? { backgroundImage: `url(${business.image_url})` }
       : { backgroundImage: s.accentColor ? `linear-gradient(135deg, ${s.accentColor}, #831843)` : 'linear-gradient(135deg,#4c1d95,#831843)' };
     return (
-      <div ref={ref} data-export-width={CARD_DESIGN_WIDTH} style={{ width: CARD_DESIGN_WIDTH, maxWidth: '100%' }} className="relative rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
-        <div className="h-24 bg-cover bg-center" style={coverStyle} />
-        <div className="px-6 pb-6 -mt-8">
+      <div
+        ref={ref}
+        data-export-width={CARD_DESIGN_WIDTH}
+        style={{
+          width: CARD_DESIGN_WIDTH,
+          // aspect-ratio rather than a fixed height so the preview still scales
+          // down responsively without changing what gets exported.
+          aspectRatio: `${CARD_DESIGN_WIDTH} / ${CARD_DESIGN_HEIGHT}`,
+          maxWidth: '100%',
+        }}
+        className="relative rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white flex flex-col"
+      >
+        <div className="h-24 shrink-0 bg-cover bg-center" style={coverStyle} />
+        <div className="px-6 pb-5 -mt-8 flex-1 min-h-0 overflow-hidden">
           <div className="flex items-end justify-between">
             <div className="w-16 h-16 rounded-2xl bg-white border border-gray-200 overflow-hidden flex items-center justify-center shadow">
               {business.logo_url
@@ -52,17 +75,20 @@ export const CardExportNode = forwardRef<HTMLDivElement, { business: Business; q
             </div>
             {qr && <img src={qr} alt="QR" className="w-20 h-20" />}
           </div>
-          <div className="mt-2 flex items-center gap-2 flex-wrap">
-            <h3 className="text-xl font-bold text-gray-900">{business.name}</h3>
+          <div className="mt-2 flex items-center gap-2 min-w-0">
+            <h3 className="text-xl font-bold text-gray-900 truncate min-w-0">{business.name}</h3>
             {tier !== 'none' && (
               <span className="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ background: '#eef2ff', color: '#3730a3' }}>
                 <ShieldCheck size={11} /> {TIERS[tier].label}
               </span>
             )}
           </div>
-          <p className="text-sm text-gray-500">{s.categoryLabel || business.category}</p>
-          {s.tagline && <p className="text-sm font-medium text-gray-700 mt-0.5">{s.tagline}</p>}
-          <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-xs text-gray-700">
+          <p className="text-sm text-gray-500 truncate">{s.categoryLabel || business.category}</p>
+          {s.tagline && <p className="text-sm font-medium text-gray-700 mt-0.5 truncate">{s.tagline}</p>}
+          {/* Fixed two columns, never `sm:`. Tailwind breakpoints query the
+              VIEWPORT, not this element, so a responsive class here reflows the
+              export by screen — the same bug the pinned width exists to stop. */}
+          <div className="mt-3 grid grid-cols-2 gap-x-3 gap-y-1.5 text-xs text-gray-700">
             {business.phone && s.showPhone && <span className="flex items-center gap-1.5"><Phone size={13} /> {business.phone}</span>}
             {business.phone && s.showWhatsApp && <span className="flex items-center gap-1.5"><MessageCircle size={13} /> WhatsApp: {business.phone}</span>}
             {s.showWebsite && <span className="flex items-center gap-1.5 truncate font-semibold text-gray-800"><Globe size={13} /> {url.replace(/^https?:\/\//, '')}</span>}

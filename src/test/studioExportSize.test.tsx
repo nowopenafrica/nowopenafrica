@@ -4,7 +4,7 @@ import { createRef } from 'react';
 
 import {
   CardExportNode, QrLockupNode, SmartIdNode, SmartIdFrontNode,
-  CARD_DESIGN_WIDTH, QR_DESIGN_SIZE,
+  CARD_DESIGN_WIDTH, CARD_DESIGN_HEIGHT, QR_DESIGN_SIZE,
 } from '../components/studio/BrandCardNodes';
 import type { Business } from '../types';
 
@@ -134,5 +134,118 @@ describe('exportNodeToPng pins the node while capturing', () => {
     await exportNodeToPng(node, { designWidth: 1080 });
     expect(new Set(widthsSeen)).toEqual(new Set(['1080px']));
     node.remove();
+  });
+});
+
+/**
+ * The blank-export regression, locked.
+ *
+ * Pinning the width once also set `position: fixed; left: -10000px` to hide the
+ * widening. html-to-image copies the node's computed style onto its clone, so
+ * the clone sat ten thousand pixels outside its own capture canvas and every
+ * download came back empty. Only width may be touched.
+ */
+describe('pinning must not move the node', () => {
+  it('leaves position, left, top and z-index alone during capture', async () => {
+    const seen: Array<Record<string, string>> = [];
+    vi.resetModules();
+    vi.doMock('html-to-image', () => ({
+      toPng: async (n: HTMLElement) => {
+        seen.push({
+          position: n.style.position, left: n.style.left,
+          top: n.style.top, zIndex: n.style.zIndex, width: n.style.width,
+        });
+        return 'data:image/png;base64,AA==';
+      },
+    }));
+    const { exportNodeToPng } = await import('../lib/studio');
+
+    const node = document.createElement('div');
+    node.dataset.exportWidth = '640';
+    node.style.width = '100%';
+    document.body.appendChild(node);
+
+    await exportNodeToPng(node);
+
+    expect(seen.length).toBeGreaterThan(0);
+    for (const s of seen) {
+      // The width is pinned…
+      expect(s.width).toBe('640px');
+      // …and nothing that could take the clone off its own canvas is set.
+      expect(s.position).toBe('');
+      expect(s.left).toBe('');
+      expect(s.top).toBe('');
+      expect(s.zIndex).toBe('');
+    }
+    node.remove();
+  });
+
+  it('clips the document instead, and puts that back too', async () => {
+    const overflowSeen: string[] = [];
+    vi.resetModules();
+    vi.doMock('html-to-image', () => ({
+      toPng: async () => {
+        overflowSeen.push(document.documentElement.style.overflowX);
+        return 'data:image/png;base64,AA==';
+      },
+    }));
+    const { exportNodeToPng } = await import('../lib/studio');
+
+    const node = document.createElement('div');
+    node.dataset.exportWidth = '640';
+    document.body.appendChild(node);
+    document.documentElement.style.overflowX = 'visible';
+
+    await exportNodeToPng(node);
+
+    expect(new Set(overflowSeen)).toEqual(new Set(['hidden']));
+    expect(document.documentElement.style.overflowX).toBe('visible');
+    node.remove();
+  });
+});
+
+/**
+ * The printed proportions.
+ *
+ * A business card is ISO/IEC 7810 ID-1: 85.6 x 54mm. Fixing the ratio is what
+ * stops two businesses with different amounts of detail exporting differently
+ * shaped cards. Overlong fields truncate rather than growing the card — an
+ * ellipsis is legible, a card that no longer fits a wallet is not.
+ *
+ * Measured in a real browser at the pinned width with every optional field
+ * switched on and a 48-character name: body scrollHeight 338 against
+ * clientHeight 338, so nothing is clipped.
+ */
+describe('the card keeps its printed proportions', () => {
+  it('matches ID-1 to within a rounding pixel', () => {
+    const ratio = CARD_DESIGN_WIDTH / CARD_DESIGN_HEIGHT;
+    expect(Math.abs(ratio - 85.6 / 54)).toBeLessThan(0.005);
+  });
+
+  it('pins the aspect ratio on the node so content cannot stretch it', () => {
+    const ref = createRef<HTMLDivElement>();
+    render(<CardExportNode ref={ref} business={business} qr="" />);
+    expect(ref.current?.style.aspectRatio?.replace(/\s/g, '')).toBe(`${CARD_DESIGN_WIDTH}/${CARD_DESIGN_HEIGHT}`);
+  });
+
+  /*
+   * Tailwind breakpoints query the viewport, not the element. A `sm:` class
+   * inside an export node reflows the download by screen size, which is the
+   * same bug the pinned width exists to prevent — so no export node may carry
+   * one.
+   */
+  it('uses no viewport breakpoints inside the exported markup', () => {
+    const { container } = render(
+      <>
+        <CardExportNode business={business} qr="" />
+        <QrLockupNode business={business} qr="" />
+        <SmartIdNode business={business} qr="" />
+        <SmartIdFrontNode business={business} />
+      </>,
+    );
+    const responsive = Array.from(container.querySelectorAll<HTMLElement>('*'))
+      .flatMap((el) => Array.from(el.classList))
+      .filter((c) => /^(sm|md|lg|xl|2xl):/.test(c));
+    expect(responsive).toEqual([]);
   });
 });

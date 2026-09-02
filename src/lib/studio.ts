@@ -98,40 +98,39 @@ async function waitForAssets(node: HTMLElement) {
  *
  * Export nodes are written as `width: 640, maxWidth: '100%'`, so on a phone the
  * card renders at whatever the column allows — around 360px. html-to-image
- * captures what is on screen, so the same card exported from a phone came out
- * barely half the resolution of one exported from a desktop, and reflowed into
- * a different layout. A business card is a fixed physical artefact; what it
- * looks like must not depend on the window that happened to export it.
+ * captures the layout it finds, so the same card exported from a phone came out
+ * barely half the resolution of one from a desktop, and reflowed differently. A
+ * business card is a fixed physical artefact; what it looks like must not
+ * depend on the window that happened to export it.
  *
- * Fixed-position and far off-screen while it happens, so widening it cannot
- * make the page scroll sideways or flash at the owner.
+ * IT MUST ONLY TOUCH WIDTH. An earlier version also set
+ * `position: fixed; left: -10000px; z-index: -1` to hide the widening. That is
+ * why exports came back blank: html-to-image clones the node and copies its
+ * computed style onto the clone, so the clone was positioned ten thousand
+ * pixels outside its own capture canvas and rasterised to nothing. It only
+ * showed up once the early-return was removed and this path started running on
+ * every export instead of just narrow screens.
  *
- * Returns the undo. A no-op when the node is already at least that wide.
+ * Sideways scroll is prevented by clipping the document for the moment it takes,
+ * which is cheap and does not move anything.
+ *
+ * Returns the undo.
  */
 function forceDesignWidth(node: HTMLElement, width: number): () => void {
-  /*
-   * Always pin, never only-widen.
-   *
-   * The previous version returned early when the node was already at least this
-   * wide, which is nearly always true on a desktop — so the same card exported
-   * at 641px on one screen and 640px on another produced two different files.
-   * An export is a fixed artefact; it must not record the window that made it.
-   */
   if (!width) return () => {};
   const s = node.style;
-  const prev = {
-    width: s.width, maxWidth: s.maxWidth, position: s.position,
-    left: s.left, top: s.top, zIndex: s.zIndex,
-  };
-  s.position = 'fixed';
-  s.left = '-10000px';
-  s.top = '0';
-  s.zIndex = '-1';
+  const prev = { width: s.width, maxWidth: s.maxWidth };
+  const root = document.documentElement;
+  const prevOverflow = root.style.overflowX;
+
+  root.style.overflowX = 'hidden';
   s.width = `${width}px`;
   s.maxWidth = 'none';
+
   return () => {
-    s.width = prev.width; s.maxWidth = prev.maxWidth; s.position = prev.position;
-    s.left = prev.left; s.top = prev.top; s.zIndex = prev.zIndex;
+    s.width = prev.width;
+    s.maxWidth = prev.maxWidth;
+    root.style.overflowX = prevOverflow;
   };
 }
 
