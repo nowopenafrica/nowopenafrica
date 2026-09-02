@@ -19,6 +19,19 @@ import NowOpenMark from '../NowOpenMark';
  */
 export const CARD_DESIGN_WIDTH = 640;
 
+/*
+ * The QR lockup is a square sticker — the thing that ends up taped to a
+ * counter or printed on a flyer — so it gets its own fixed size rather than
+ * the card's.
+ *
+ * It used to be `w-fit`, meaning the exported file measured whatever the
+ * contents happened to render at: a longer business name, a logo that loaded,
+ * or a narrower phone each produced a different-sized PNG. A printable asset
+ * whose dimensions depend on the browser that saved it cannot be placed in a
+ * layout, which is what "it changes size after downloading" meant.
+ */
+export const QR_DESIGN_SIZE = 512;
+
 export const CardExportNode = forwardRef<HTMLDivElement, { business: Business; qr: string; settings?: CardSettings }>(
   function CardExportNode({ business, qr, settings }, ref) {
     const s = settings ?? DEFAULT_CARD_SETTINGS;
@@ -28,7 +41,7 @@ export const CardExportNode = forwardRef<HTMLDivElement, { business: Business; q
       ? { backgroundImage: `url(${business.image_url})` }
       : { backgroundImage: s.accentColor ? `linear-gradient(135deg, ${s.accentColor}, #831843)` : 'linear-gradient(135deg,#4c1d95,#831843)' };
     return (
-      <div ref={ref} style={{ width: 640, maxWidth: '100%' }} className="relative rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
+      <div ref={ref} data-export-width={CARD_DESIGN_WIDTH} style={{ width: CARD_DESIGN_WIDTH, maxWidth: '100%' }} className="relative rounded-2xl overflow-hidden border border-gray-200 shadow-lg bg-white">
         <div className="h-24 bg-cover bg-center" style={coverStyle} />
         <div className="px-6 pb-6 -mt-8">
           <div className="flex items-end justify-between">
@@ -70,11 +83,18 @@ export const CardExportNode = forwardRef<HTMLDivElement, { business: Business; q
 export const QrLockupNode = forwardRef<HTMLDivElement, { business: Business; qr: string }>(
   function QrLockupNode({ business, qr }, ref) {
     return (
-      <div ref={ref} className="mx-auto w-fit rounded-xl bg-white p-4">
+      <div
+        ref={ref}
+        data-export-width={QR_DESIGN_SIZE}
+        // Fixed square, and centred rather than shrink-to-fit, so every export
+        // is the same size whatever the name length or screen width.
+        style={{ width: QR_DESIGN_SIZE, maxWidth: '100%', aspectRatio: '1 / 1' }}
+        className="mx-auto rounded-xl bg-white p-6 flex flex-col items-center justify-center"
+      >
         {qr
-          ? <img src={qr} alt="Business QR" className="w-40 h-40 mx-auto rounded-lg" />
-          : <div className="w-40 h-40 mx-auto bg-gray-100 rounded-lg animate-pulse" />}
-        <div className="mt-3 flex items-center justify-center gap-3">
+          ? <img src={qr} alt="Business QR" className="w-[340px] h-[340px] max-w-full rounded-lg" />
+          : <div className="w-[340px] h-[340px] max-w-full bg-gray-100 rounded-lg animate-pulse" />}
+        <div className="mt-5 flex items-center justify-center gap-3">
           <NowOpenMark size={30} />
           <span className="h-7 w-px bg-gray-200" />
           <div className="h-9 w-9 rounded-full overflow-hidden bg-white border border-gray-200 flex items-center justify-center flex-shrink-0">
@@ -111,7 +131,7 @@ export const SmartIdNode = forwardRef<HTMLDivElement, { business: Business; qr: 
     const host = url.replace(/^https?:\/\//, '');
     const shortId = String(business.id).replace(/[^a-zA-Z0-9]/g, '').slice(0, 8).toUpperCase();
     return (
-      <div ref={ref} style={{ width: 640, maxWidth: '100%' }} className="relative overflow-hidden rounded-2xl text-white shadow-xl">
+      <div ref={ref} data-export-width={CARD_DESIGN_WIDTH} style={{ width: CARD_DESIGN_WIDTH, maxWidth: '100%' }} className="relative overflow-hidden rounded-2xl text-white shadow-xl">
         {/* Layered backdrop: deep gradient + glowing accent blobs + faint grid */}
         <div className="absolute inset-0" style={{ background: 'linear-gradient(135deg,#0f172a 0%,#1e1b4b 45%,#4c1d95 100%)' }} />
         <div className="absolute -top-20 -right-16 w-72 h-72 rounded-full opacity-40" style={{ background: s.accentColor ? `radial-gradient(circle, ${s.accentColor}, #8b5cf6)` : 'radial-gradient(circle,#ec4899,#8b5cf6)', filter: 'blur(24px)' }} />
@@ -199,7 +219,7 @@ export const SmartIdFrontNode = forwardRef<HTMLDivElement, { business: Business;
     const holderId = s.holderId.trim() || `NX-${shortId}`;
     const initials = holderName.split(/\s+/).map((w) => w[0]).filter(Boolean).slice(0, 2).join('').toUpperCase();
     return (
-      <div ref={ref} style={{ width: 640, maxWidth: '100%' }} className="relative overflow-hidden rounded-2xl bg-white shadow-xl border border-gray-200">
+      <div ref={ref} data-export-width={CARD_DESIGN_WIDTH} style={{ width: CARD_DESIGN_WIDTH, maxWidth: '100%' }} className="relative overflow-hidden rounded-2xl bg-white shadow-xl border border-gray-200">
         {/* Top accent band */}
         <div className="h-16 px-6 flex items-center justify-between text-white" style={{ background: `linear-gradient(120deg, ${accent}, #1e1b4b)` }}>
           <div className="flex items-center gap-2.5">

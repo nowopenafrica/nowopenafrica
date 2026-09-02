@@ -109,7 +109,15 @@ async function waitForAssets(node: HTMLElement) {
  * Returns the undo. A no-op when the node is already at least that wide.
  */
 function forceDesignWidth(node: HTMLElement, width: number): () => void {
-  if (!width || node.getBoundingClientRect().width >= width) return () => {};
+  /*
+   * Always pin, never only-widen.
+   *
+   * The previous version returned early when the node was already at least this
+   * wide, which is nearly always true on a desktop — so the same card exported
+   * at 641px on one screen and 640px on another produced two different files.
+   * An export is a fixed artefact; it must not record the window that made it.
+   */
+  if (!width) return () => {};
   const s = node.style;
   const prev = {
     width: s.width, maxWidth: s.maxWidth, position: s.position,
@@ -135,7 +143,17 @@ export async function exportNodeToPng(
     designWidth?: number;
   } = {},
 ): Promise<string> {
-  const restoreWidth = forceDesignWidth(node, opts.designWidth ?? 0);
+  /*
+   * The design width comes from the node when the caller did not pass one.
+   *
+   * It used to be the caller's job, and five of nine call sites forgot — the QR
+   * lockup, the Smart ID front PNG (whose own PDF did pass it, so the two came
+   * out different sizes) and both halves of "Download everything". Reading it
+   * off the element makes every current and future export correct by default;
+   * an explicit option still wins.
+   */
+  const declared = Number(node.dataset.exportWidth ?? 0);
+  const restoreWidth = forceDesignWidth(node, opts.designWidth ?? declared ?? 0);
   try {
     return await captureNode(node, opts);
   } finally {
