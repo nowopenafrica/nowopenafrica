@@ -51,6 +51,11 @@ const RESERVED = new Set([
   // Consumer surfaces. Without these a crawler asking for /keeps is rewritten
   // to the business-profile renderer and served a 404 profile instead of a page.
   'keeps', 'nearby', 'open-now', 'offers', 'waitlist', 'os', 'forms', 'adverts',
+  // Campaign surfaces. /join and /founding-1000 are the short URLs meant for
+  // posters, QR codes and videos, which makes them exactly the ones that must
+  // not be mistaken for a business slug — and a 404 here also kills the
+  // WhatsApp link preview, the channel this campaign mostly lives in.
+  'campaign', 'founding', 'founding-1000', 'join',
 ]);
 
 /**

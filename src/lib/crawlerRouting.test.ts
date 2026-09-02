@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
 import { shouldRenderProfile, isCrawler, firstSegment } from '../../middleware';
@@ -62,6 +63,41 @@ describe('shouldRenderProfile', () => {
   it('is not case-sensitive about reserved routes', () => {
     expect(shouldRenderProfile('/Businesses', GOOGLE)).toBeNull();
     expect(shouldRenderProfile('/STUDIO', GOOGLE)).toBeNull();
+  });
+
+  /*
+   * The guard that stops this list going stale.
+   *
+   * A single-segment app route missing from RESERVED gets rewritten to the
+   * business-profile renderer, which 404s because no business has that
+   * username. That takes the page out of search AND kills the WhatsApp and
+   * Facebook link previews, so a URL pasted into a group chat unfurls as
+   * nothing.
+   *
+   * It happened for real: /join and /founding-1000 shipped as campaign aliases
+   * and both returned 404 to Googlebot in production. So rather than add two
+   * strings and move on, this reads the router and requires every
+   * single-segment route to be reserved — the next route added cannot repeat
+   * the mistake.
+   */
+  it('reserves every single-segment route the router declares', () => {
+    // Read from the project root — vitest runs with cwd there, and
+    // import.meta.url is not a file: URL under this environment.
+    const app = readFileSync('src/App.tsx', 'utf8');
+    const routes = [...app.matchAll(/<Route path="(\/[^"]*)"/g)]
+      .map((m) => m[1])
+      .filter((p) => p !== '/' && p !== '*' && !p.includes(':'))
+      .map((p) => p.replace(/^\/+|\/+$/g, ''))
+      .filter((p) => p && !p.includes('/'));
+
+    // If this drops, the regex has drifted and the assertion below is vacuous.
+    expect(routes.length).toBeGreaterThan(10);
+
+    const leaked = routes.filter((r) => shouldRenderProfile(`/${r}`, GOOGLE) !== null);
+    expect(leaked).toEqual([]);
+
+    // And the guard must not have been satisfied by breaking the feature.
+    expect(shouldRenderProfile('/golden-sands-hotel', GOOGLE)).toBe('golden-sands-hotel');
   });
 
   it('ignores the root', () => {
