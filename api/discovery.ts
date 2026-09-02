@@ -83,6 +83,28 @@ function openLabel(row: Row, now: Date): string | null {
 const hasHours = (row: Row): boolean =>
   !!(row.opening_hours?.trim() || row.hours?.trim());
 
+/**
+ * The canonical label for a category slug, taken from the rows it matched.
+ *
+ * The slug is lossy — "restaurant" could be "Restaurant & Food" or
+ * "Restaurants". Counting the matched rows picks the label the inventory
+ * actually uses, so the heading matches what a visitor sees on the cards
+ * beneath it.
+ */
+function resolveCategoryLabel(rows: Row[], slug: string): string {
+  const counts = new Map<string, number>();
+  for (const r of rows) {
+    const label = r.category?.trim();
+    if (!label) continue;
+    if (!slugify(label).includes(slug) && !slug.includes(slugify(label))) continue;
+    counts.set(label, (counts.get(label) ?? 0) + 1);
+  }
+  let best: string | null = null;
+  let most = 0;
+  for (const [label, n] of counts) if (n > most) { best = label; most = n; }
+  return best ?? unslugify(slug);
+}
+
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   const placeSlug = slugify(one(req.query.place));
   const categorySlug = slugify(one(req.query.category));
@@ -110,10 +132,23 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     hasHours: hasHours(r),
   }));
 
-  // Display names come from the matched rows where possible, so the heading
-  // reads "Hotel & Lodging in Lagos" rather than a de-slugged guess.
-  const place = placeSlug ? (rows[0]?.location?.split(',')[0]?.trim() || unslugify(placeSlug)) : null;
-  const category = categorySlug ? (rows[0]?.category || unslugify(categorySlug)) : null;
+  /*
+   * The place name comes from the SLUG, not from a matched row.
+   *
+   * Taking it from rows[0].location produced "Businesses in Ikotun" on
+   * /businesses/in/lagos, because the highest-scoring Lagos business sits in a
+   * sub-area and its location string leads with that. The requested place is
+   * the slug; it is correct by construction and cannot drift with the sort.
+   */
+  const place = placeSlug ? unslugify(placeSlug) : null;
+
+  /*
+   * The category, though, is worth resolving against real data — the slug
+   * "restaurant" should display as the canonical "Restaurant & Food". Picks the
+   * most common matching label among the rows, falling back to the de-slugged
+   * form when nothing matches.
+   */
+  const category = categorySlug ? resolveCategoryLabel(rows, categorySlug) : null;
 
   const path = categorySlug && placeSlug
     ? `/businesses/${categorySlug}/in/${placeSlug}`
