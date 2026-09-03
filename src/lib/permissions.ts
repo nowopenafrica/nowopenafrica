@@ -38,7 +38,7 @@ export type AdminTabId =
   | 'overview' | 'users' | 'businesses' | 'verification' | 'subscriptions'
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
   | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
-  | 'review-queue' | 'imports';
+  | 'review-queue' | 'imports' | 'switches';
 
 /**
  * What an editor may open.
@@ -56,6 +56,9 @@ export type AdminTabId =
  * Also excluded: imports and review-queue. Both write to the public directory
  * in bulk — one file can create thousands of listings, and a rollback only
  * reaches the ones nobody has claimed yet. That is an admin decision.
+ *
+ * And switches: a kill switch takes a feature away from every customer at once.
+ * Whoever holds it should be the person accountable for the platform being up.
  */
 export const EDITOR_TABS: AdminTabId[] = [
   'overview',
