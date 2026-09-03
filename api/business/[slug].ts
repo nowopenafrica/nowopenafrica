@@ -78,6 +78,8 @@ const BUSINESS_COLUMNS = [
   'id', 'username', 'name', 'description', 'category', 'location', 'phone', 'email',
   'website', 'image_url', 'logo_url', 'rating', 'verified', 'opening_hours', 'hours',
   'timezone', 'open_status',
+  // Decide indexability, not display — see isIndexableProfile.
+  'claim_status', 'data_status',
 ].join(',');
 
 const isUuid = (s: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{20,30}$/.test(s);

@@ -54,6 +54,33 @@ export interface ProfileBusiness {
   hours?: string | null;
   timezone?: string | null;
   open_status?: 'open' | 'closed' | null;
+  /** Who is accountable for this record. Decides indexability — see isIndexableProfile. */
+  claim_status?: string | null;
+  data_status?: string | null;
+}
+
+/**
+ * May this profile ask to be indexed?
+ *
+ * Only when somebody is accountable for it: an owner has claimed it, or it
+ * arrived from an authorised source.
+ *
+ * This exists because all 32 publicly listed businesses turned out to be
+ * fabricated demo data — index-suffixed placeholder phone numbers, emails on
+ * invented domains, and websites that do not resolve (goldensandshotel.ng,
+ * serengetilodge.ke, comfortliving.ke, techhubng.com, goldengem.co.za, none of
+ * them registered). Every one of those pages was being server-rendered with
+ * LocalBusiness structured data and no robots directive, so the platform was
+ * telling Google they are real, contactable businesses.
+ *
+ * Showing them is a product decision and stays one — the site would otherwise
+ * be empty. Vouching for them to the rest of the internet is not, and that is
+ * what this stops. The same rule already governs discovery pages, trust claims
+ * and the prospect seed: display freely, assert only what somebody stands
+ * behind.
+ */
+export function isIndexableProfile(b: ProfileBusiness): boolean {
+  return b.claim_status === 'claimed' || b.data_status === 'imported_authorized';
 }
 
 export interface ProfileProduct {
@@ -391,6 +418,7 @@ export function renderBusinessPage(p: ProfilePage): string {
 <title>${title}</title>
 <meta name="description" content="${description}">
 <link rel="canonical" href="${safeUrl}">
+<meta name="robots" content="${isIndexableProfile(p.business) ? 'index, follow, max-image-preview:large' : 'noindex, follow'}">
 <meta property="og:site_name" content="NowOpen Africa">
 <meta property="og:type" content="business.business">
 <meta property="og:title" content="${title}">

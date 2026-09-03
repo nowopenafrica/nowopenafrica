@@ -104,6 +104,9 @@ function urlXml(entry: UrlEntry): string {
 interface BusinessRow extends DiscoverableListing {
   id: string;
   username?: string | null;
+  /** Accountability, not display. Decides whether the URL may be submitted. */
+  claim_status?: string | null;
+  data_status?: string | null;
 }
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -112,9 +115,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [businesses, adverts, media] = await Promise.all([
+  const [allBusinesses, adverts, media] = await Promise.all([
     rest<BusinessRow>(
-      `businesses?select=id,username,category,location,updated_at,created_at&order=updated_at.desc&limit=${PER_TABLE}`,
+      `businesses?select=id,username,category,location,updated_at,created_at,claim_status,data_status&order=updated_at.desc&limit=${PER_TABLE}`,
     ),
     rest<{ id: string; updated_at?: string; created_at?: string }>(
       `advertisements?select=id,updated_at,created_at&order=created_at.desc&limit=${PER_TABLE}`,
@@ -123,6 +126,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       `media_services?select=id,updated_at,created_at&order=created_at.desc&limit=${PER_TABLE}`,
     ),
   ]);
+
+  /*
+   * A sitemap is a request to index. It must not contain pages the site itself
+   * answers with `noindex` — that asks a crawler to consider a URL and then
+   * tells it not to, which wastes crawl budget and reads as a site that does
+   * not know its own mind.
+   *
+   * The rule matches the renderers exactly (isIndexableProfile, isIndexable):
+   * somebody must be accountable for the record — an owner has claimed it, or
+   * it came from an authorised source. Today that is 2 of 32, because the rest
+   * are fabricated demo listings with placeholder phone numbers and websites
+   * that do not resolve.
+   */
+  const businesses = allBusinesses.filter(
+    (b) => b.claim_status === 'claimed' || b.data_status === 'imported_authorized',
+  );
 
   const entries: UrlEntry[] = [...STATIC_ROUTES];
 

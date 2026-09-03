@@ -31,10 +31,24 @@ export default function Login() {
     try {
       await signIn(identifier, password);
       toast.success('Welcome back!');
-      // Return to the protected page that redirected here (via ProtectedRoute),
-      // keeping any query string (e.g. /studio?module=card) intact.
-      const from = (location.state as any)?.from;
-      const target = (from?.pathname || '/') + (from?.search || '');
+      /*
+       * Two ways to arrive here, and both have to work.
+       *
+       * ProtectedRoute redirects with `state.from`. But a link — "Sign in to
+       * claim" on a business profile — cannot carry router state through a
+       * plain href, so it passes ?next=. That parameter was being ignored, so
+       * anyone signing in to claim a business was returned to the home page
+       * instead of the profile they were claiming: the highest-intent moment in
+       * the funnel, dropped silently.
+       *
+       * ?next= is only honoured for same-site paths. Accepting an absolute URL
+       * would make this an open redirect — a sign-in page that forwards to
+       * wherever an attacker's link says is a credible phishing hop.
+       */
+      const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
+      const next = new URLSearchParams(location.search).get('next');
+      const safeNext = next && /^\/(?!\/)/.test(next) ? next : null;
+      const target = safeNext ?? ((from?.pathname || '/') + (from?.search || ''));
       navigate(target, { replace: true });
     } catch (error: any) {
       console.error('Login error:', error);
