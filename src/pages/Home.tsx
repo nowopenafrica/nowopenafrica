@@ -202,14 +202,16 @@ export default function Home() {
                 the site-wide mobile font-size reduction below — the video
                 banner headline stays exactly this size on every device. */}
             <h1 className="text-[clamp(28px,4vw_+_15px,41.6px)] font-bold leading-tight">
-              <span style={{ textShadow: '0 2px 12px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.5)' }}>The Operating System for</span>
+              <span style={{ textShadow: '0 2px 12px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.5)' }}>What are you looking for?</span>
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-400">
-                Business Growth in Africa
+                Africa is NowOpen.
               </span>
             </h1>
 
-            <p className="text-base md:text-lg text-blue-100 max-w-2xl mx-auto" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>
-              Discover customers. Advertise everywhere. Create anything. Grow with AI.
+            {/* max-w-3xl, not 2xl: the fifth phrase pushes "AI." onto a line of
+                its own at common desktop widths. */}
+            <p className="text-base md:text-lg text-blue-100 max-w-3xl mx-auto" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>
+              Discover customers. Find businesses. Advertise everywhere. Create anything. Grow with AI.
             </p>
           </div>
 
