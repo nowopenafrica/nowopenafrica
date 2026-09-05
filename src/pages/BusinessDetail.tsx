@@ -215,6 +215,14 @@ export default function BusinessDetail() {
   const trackContact = (channel: 'phone' | 'email' | 'website' | 'whatsapp') => {
     track('business_contact_clicked', { channel }, business?.id);
   };
+  /**
+   * Opening directions is a visit in progress — the strongest intent signal on
+   * the page short of a booking, and it was the largest untracked connection on
+   * the platform: two links here, neither of them counted.
+   */
+  const trackDirections = (placement: 'contact' | 'find_us') => {
+    track('directions_opened', { placement }, business?.id);
+  };
   const [content, setContent] = useState<BusinessContent>(EMPTY_CONTENT);
   const [enquiry, setEnquiry] = useState<{ context?: string } | null>(null);
   const [booking, setBooking] = useState<{ moduleKey: string; itemId?: string } | null>(null);
@@ -1912,6 +1920,7 @@ export default function BusinessDetail() {
                           href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.location)}`}
                           target="_blank"
                           rel="noopener noreferrer"
+                          onClick={() => trackDirections('contact')}
                           className="flex items-start gap-3 -mx-2 px-2 py-2 min-h-[44px] rounded-lg hover:bg-gray-50 dark:hover:bg-gray-900 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                         >
                           <MapPin size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
@@ -1997,6 +2006,7 @@ export default function BusinessDetail() {
                         href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(business.location)}`}
                         target="_blank"
                         rel="noopener noreferrer"
+                        onClick={() => trackDirections('find_us')}
                         className="inline-flex items-center justify-center gap-1 min-h-[44px] px-4 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
                       >
                         <Navigation size={16} />

@@ -38,6 +38,12 @@ export type EventName =
   // A visitor acted on a listing's contact details. business_viewed alone
   // measures attention; this measures the outcome an owner is paying for.
   | 'business_contact_clicked'
+  // Opening directions is a visit in progress. It was the largest untracked
+  // connection on the platform: two links on the profile, neither counted.
+  | 'directions_opened'
+  // A Keep is the return mechanism, and the only connection that also lives as
+  // a durable row. Tracked as an event too so the weekly number is one query.
+  | 'business_kept'
   | 'search_performed'
   | 'enquiry_sent'
   | 'booking_started'

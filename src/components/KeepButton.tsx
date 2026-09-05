@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { Heart, Bell, Loader2, Check } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
+import { track } from '../lib/telemetry';
 import { useAuth } from '../contexts/AuthContext';
 import {
   KEEP_TOPICS, DEFAULT_TOPICS, normaliseTopics, toggleTopic, keepLabel,
@@ -102,6 +103,9 @@ export default function KeepButton({ businessId, businessName, compact, size = '
     setKeeping(true);
     setTopics(chosen);
     setShowTopics(true);
+    // Counted as a meaningful connection: a Keep is how a visitor comes back,
+    // and a platform whose visitors never return has no compounding at all.
+    track('business_kept', {}, businessId);
     toast.success(`Keeping ${businessName}`);
   }, [user, businessId, businessName, save]);
 

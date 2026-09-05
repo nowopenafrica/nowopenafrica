@@ -6,6 +6,7 @@ import ImportCenter from '../components/admin/ImportCenter';
 import ReviewQueue from '../components/admin/ReviewQueue';
 import FeatureFlagPanel from '../components/admin/FeatureFlagPanel';
 import PageEditor from '../components/admin/PageEditor';
+import ActivationPanel from '../components/admin/ActivationPanel';
 import {
   canAccessTab, canDelete, canManageRoles, canManagePlans, isStaff, isEditor,
   ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
@@ -18,7 +19,7 @@ import { Business, Advertisement, MediaService, User as UserProfile } from '../t
 import {
   Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
   CalendarCheck, CreditCard, ListChecks, FileText, MessageSquare, Upload, Video, LayoutGrid, ShieldCheck,
-  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare } from 'lucide-react';
+  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare, Target } from 'lucide-react';
 import { APPLICATION_STATUS_LABELS, hubRelationshipById } from '../lib/formsEngine';
 import { NOWOPEN_ORG_ID } from '../lib/workforce';
 import TrustPanel from '../components/dashboard/TrustPanel';
@@ -547,6 +548,8 @@ export default function AdminDashboard() {
 
   const allTabs: { id: AdminTab; label: string; icon: typeof Users; count: number }[] = [
     { id: 'overview', label: 'Overview', icon: LayoutGrid, count: 0 },
+    // Second, deliberately: this is the screen that says whether the rest matters.
+    { id: 'activation', label: 'Activation', icon: Target, count: 0 },
     { id: 'users', label: 'Users', icon: Users, count: users.length },
     { id: 'businesses', label: 'Businesses', icon: ShoppingBag, count: businesses.length },
     { id: 'verification', label: 'Verification', icon: ShieldCheck, count: verificationDocs.filter((d: any) => (d.status || 'pending') === 'pending').length },
@@ -1023,6 +1026,7 @@ export default function AdminDashboard() {
               {/* Audit log */}
               {activeTab === 'review-queue' && <ReviewQueue />}
               {activeTab === 'imports' && <ImportCenter />}
+              {activeTab === 'activation' && <ActivationPanel />}
               {activeTab === 'pages' && <PageEditor />}
               {activeTab === 'switches' && <FeatureFlagPanel />}
 
