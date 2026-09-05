@@ -10,6 +10,7 @@ import { applySeo } from '../lib/seo';
 import BrandMarquee from '../components/BrandMarquee';
 import HeroSlider from '../components/HeroSlider';
 import ListingExplorer from '../components/home/ListingExplorer';
+import HeroSearch from '../components/home/HeroSearch';
 import { loadHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 
 export default function Home() {
@@ -228,8 +229,11 @@ export default function Home() {
         </div>
       </section>
 
-
-
+      {/* The answer to the headline: search, and the four things people come
+          for. Outside the hero on purpose — the hero fades with the video
+          slider, and a search field that disappears mid-typing is worse than
+          no search field. */}
+      <HeroSearch />
 
 
 
