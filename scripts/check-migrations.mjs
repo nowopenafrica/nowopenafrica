@@ -29,14 +29,20 @@ const CONSOLIDATED = join(ROOT, 'scripts', 'sql', 'apply_all_migrations.sql');
 
 /**
  * Split SQL on `;`, ignoring separators inside '…' literals, $$…$$ bodies and
- * `--` comments. A naive split reports false failures, because the seed data in
- * this repo contains semicolons inside prose strings.
+ * both comment forms. A naive split reports false failures, because the seed
+ * data in this repo contains semicolons inside prose strings.
+ *
+ * Block comments matter as much as line comments: an apostrophe in a `/* … *\/`
+ * header ("the file's tables") would otherwise open a string literal that never
+ * closes, desynchronising every statement after it — which shows up as a
+ * confident, wrong complaint about a statement in the middle of a function body.
  */
 function splitStatements(sql) {
   const out = [];
   let buf = '';
   let inString = false;
   let inLineComment = false;
+  let inBlockComment = false;
   let inDollar = false;
 
   for (let i = 0; i < sql.length; i += 1) {
@@ -46,6 +52,11 @@ function splitStatements(sql) {
     if (inLineComment) {
       if (c === '\n') inLineComment = false;
       buf += c;
+      continue;
+    }
+    if (inBlockComment) {
+      buf += c;
+      if (two === '*/') { buf += '/'; inBlockComment = false; i += 1; }
       continue;
     }
     if (inString) {
@@ -62,6 +73,7 @@ function splitStatements(sql) {
       continue;
     }
     if (two === '--') { inLineComment = true; buf += two; i += 1; continue; }
+    if (two === '/*') { inBlockComment = true; buf += two; i += 1; continue; }
     if (two === '$$') { inDollar = true; buf += two; i += 1; continue; }
     if (c === "'") { inString = true; buf += c; continue; }
     if (c === ';') { out.push(buf); buf = ''; continue; }

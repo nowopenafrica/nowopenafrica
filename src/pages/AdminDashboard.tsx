@@ -5,6 +5,7 @@ import { supabase } from '../lib/supabase';
 import ImportCenter from '../components/admin/ImportCenter';
 import ReviewQueue from '../components/admin/ReviewQueue';
 import FeatureFlagPanel from '../components/admin/FeatureFlagPanel';
+import PageEditor from '../components/admin/PageEditor';
 import {
   canAccessTab, canDelete, canManageRoles, canManagePlans, isStaff, isEditor,
   ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
@@ -17,7 +18,7 @@ import { Business, Advertisement, MediaService, User as UserProfile } from '../t
 import {
   Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
   CalendarCheck, CreditCard, ListChecks, FileText, MessageSquare, Upload, Video, LayoutGrid, ShieldCheck,
-  Crown, Eye, Inbox, History, ClipboardList, Plus, Power } from 'lucide-react';
+  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare } from 'lucide-react';
 import { APPLICATION_STATUS_LABELS, hubRelationshipById } from '../lib/formsEngine';
 import { NOWOPEN_ORG_ID } from '../lib/workforce';
 import TrustPanel from '../components/dashboard/TrustPanel';
@@ -561,6 +562,7 @@ export default function AdminDashboard() {
     { id: 'enquiries', label: 'Enquiries', icon: MessageSquare, count: enquiries.length },
     { id: 'review-queue', label: 'Review Queue', icon: Inbox, count: reviewCount },
     { id: 'imports', label: 'Import Center', icon: Upload, count: 0 },
+    { id: 'pages', label: 'Page Editor', icon: PenSquare, count: 0 },
     { id: 'switches', label: 'Kill Switches', icon: Power, count: 0 },
     { id: 'audit', label: 'Audit Log', icon: History, count: auditLog.length },
     { id: 'hero-videos', label: 'Hero Videos', icon: Video, count: heroVideos.length },
@@ -1021,6 +1023,7 @@ export default function AdminDashboard() {
               {/* Audit log */}
               {activeTab === 'review-queue' && <ReviewQueue />}
               {activeTab === 'imports' && <ImportCenter />}
+              {activeTab === 'pages' && <PageEditor />}
               {activeTab === 'switches' && <FeatureFlagPanel />}
 
               {activeTab === 'audit' && (

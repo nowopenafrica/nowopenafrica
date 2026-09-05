@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import {
   canAccessTab, canDelete, canManageRoles, canManagePlans, canVerify, canManageHero,
@@ -5,11 +6,15 @@ import {
   type AdminTabId, type AppRole,
 } from './permissions';
 
-const ALL_TABS: AdminTabId[] = [
-  'overview', 'users', 'businesses', 'verification', 'subscriptions', 'requests',
-  'adverts', 'media', 'bookings', 'payments', 'waitlist', 'registrations',
-  'applications', 'enquiries', 'audit', 'hero-videos',
-];
+// Read the union from the source rather than restating it. A hand-kept copy
+// silently stops covering new tabs — this list had already fallen four behind,
+// so every one of those tabs went untested for the editor role.
+const ALL_TABS: AdminTabId[] = (() => {
+  const src = readFileSync('src/lib/permissions.ts', 'utf8');
+  const union = src.slice(src.indexOf('export type AdminTabId'));
+  return [...union.slice(0, union.indexOf(';')).matchAll(/'([a-z-]+)'/g)]
+    .map((m) => m[1] as AdminTabId);
+})();
 
 describe('staff gate', () => {
   it('admits admins and editors, nobody else', () => {
