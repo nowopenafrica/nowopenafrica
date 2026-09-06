@@ -27,12 +27,9 @@ import { INDUSTRIES } from '../../data/industrySystems';
  * keeps its own "nothing here, reset" message — telling somebody who typed
  * "barber" about 42 industries would be answering a question they did not ask.
  *
- * `showIndustries` exists because the HOMEPAGE already has an industry grid
- * ("An operating system for every industry") one section below. Rendering the
- * cards there too put two near-identical grids of INDUSTRIES within a screen of
- * each other, both linking to /platform. So on the homepage this block says
- * only what the other section cannot — how much is actually listed — and leaves
- * the industries to the section built for them.
+ * USED BY /businesses ONLY. The homepage says the same thing in its own "The
+ * directory is being built" section, which owns the industry grid there; this
+ * block rendering alongside it was two copies of one message.
  */
 
 /**
@@ -50,13 +47,9 @@ interface Props {
   limit?: number;
   /** 'empty' replaces the grid; 'thin' sits beneath it. */
   variant?: 'empty' | 'thin';
-  /** Off where the page already shows an industry grid of its own. */
-  showIndustries?: boolean;
 }
 
-export default function IndustryDirectory({
-  label = 'businesses', limit = 12, variant = 'empty', showIndustries = true,
-}: Props) {
+export default function IndustryDirectory({ label = 'businesses', limit = 12, variant = 'empty' }: Props) {
   const thin = variant === 'thin';
   return (
     <div className="py-8">
@@ -65,17 +58,14 @@ export default function IndustryDirectory({
           <Store size={14} /> The directory is being built
         </span>
         <h3 className="mt-3 text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">
-          {thin ? 'More on the way' : `No ${label} listed yet`}
-          {showIndustries && ' — here is what NowOpen is built for'}
+          {thin ? 'More on the way' : `No ${label} listed yet`} — here is what NowOpen is built for
         </h3>
         <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-          {showIndustries
-            ? 'Every industry gets a purpose-built profile rather than one generic template. Real businesses are being added one at a time, and each one is claimed by its owner.'
-            : 'Real businesses are being added one at a time, and each one is claimed by its owner. The industries NowOpen is built for are below.'}
+          Every industry gets a purpose-built profile rather than one generic template.
+          Real businesses are being added one at a time, and each one is claimed by its owner.
         </p>
       </div>
 
-      {showIndustries && (
       <div className="mt-8 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {INDUSTRIES.slice(0, limit).map((ind) => {
           const Icon = ind.icon;
@@ -94,7 +84,6 @@ export default function IndustryDirectory({
           );
         })}
       </div>
-      )}
 
       <div className="mt-8 rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/60 p-6 text-center">
         <h4 className="font-bold text-gray-900 dark:text-white">Is this your industry?</h4>
@@ -108,14 +97,12 @@ export default function IndustryDirectory({
           >
             List your business <ArrowRight size={16} />
           </Link>
-          {showIndustries && (
-            <Link
-              to="/platform"
-              className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-white dark:hover:bg-gray-700 transition"
-            >
-              See all {INDUSTRIES.length} industries
-            </Link>
-          )}
+          <Link
+            to="/platform"
+            className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 text-sm font-semibold hover:bg-white dark:hover:bg-gray-700 transition"
+          >
+            See all {INDUSTRIES.length} industries
+          </Link>
         </div>
       </div>
     </div>

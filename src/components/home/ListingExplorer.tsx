@@ -1,9 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
 import BusinessCard from '../discover/BusinessCard';
-import IndustryDirectory, { THIN_DIRECTORY } from './IndustryDirectory';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
@@ -383,7 +382,21 @@ export default function ListingExplorer({
             // filter that excluded everything, and it needs a different answer.
             // Offering "reset your filters" when there is no inventory sends
             // somebody round a loop that cannot end well.
-            <IndustryDirectory label={active.label.toLowerCase()} showIndustries={false} />
+            /* Short on purpose. The section directly below this one ("The
+               directory is being built") carries the full explanation and the
+               industry grid; repeating it here is what made the homepage read
+               as two copies of the same message. */
+            <div className="py-12 text-center">
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                No {active.label.toLowerCase()} listed yet — the directory is being built.
+              </p>
+              <Link
+                to="/waitlist"
+                className="mt-3 inline-flex items-center min-h-[44px] px-4 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+              >
+                List your business
+              </Link>
+            </div>
           ) : (
             // Say which filter emptied it, and offer the way back. A bare "no
             // results" leaves the visitor guessing which of four controls to undo.
@@ -405,11 +418,6 @@ export default function ListingExplorer({
 
         </div>
 
-        {/* Real listings first, then the honest "more coming" block. Two cards
-            in a six-across grid reads as a page that failed to load. */}
-        {rows.length > 0 && rows.length < THIN_DIRECTORY && (
-          <IndustryDirectory variant="thin" label={active.label.toLowerCase()} showIndustries={false} />
-        )}
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">

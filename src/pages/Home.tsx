@@ -128,8 +128,14 @@ export default function Home() {
   const features = [
     {
       icon: Shield,
-      title: 'Verified Listings',
-      description: 'All businesses and advertising placements are verified for authenticity and quality.',
+      title: 'Claimed by the owner',
+      // Was "Verified Listings / All businesses and advertising placements are
+      // verified for authenticity and quality." Neither half was true — nothing
+      // on the platform currently holds a verification tier — and it sat two
+      // sections below a paragraph promising no invented profiles. Verification
+      // is a tier a business earns (lib/trustClaims.ts); claiming is the thing
+      // that is actually true of every listing here.
+      description: 'A listing only goes live once the person who runs the business has claimed it.',
       iconBg: 'bg-blue-100 dark:bg-blue-900/30',
       iconText: 'text-blue-600 dark:text-blue-400',
     },
@@ -245,17 +251,35 @@ export default function Home() {
           tabbed listings section. */}
       <ListingExplorer businesses={businesses} adverts={adverts} mediaServices={mediaServices} />
 
-      {/* Industry Operating Systems */}
+      {/* The directory, honestly.
+          This section used to open with "Not a directory. An operating
+          system." — a positioning line aimed at investors, on the page where a
+          customer is deciding whether to trust the place. It now says what is
+          actually true about the directory, states the real count, and keeps
+          the industry grid as the evidence behind the claim. */}
       <section className="pt-16 pb-10 bg-white dark:bg-gray-800/40 border-t border-gray-100 dark:border-gray-800">
         <div className="site-container">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">
-              <Layers size={14} /> Not a directory. An operating system.
+              <Layers size={14} /> The directory is being built
             </span>
-            <h2 className="mt-4 text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">An operating system for every industry</h2>
+            <h2 className="mt-4 text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              Real businesses, added one at a time
+            </h2>
             <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
-              Every category gets a purpose-built profile — property portals, restaurant menus, repair queues, booking
-              engines and more — so a business feels designed specifically for its industry.
+              {/* Three states, not two. `null` means the count has not loaded —
+                  rendering "no businesses are listed" during that moment would
+                  be a false statement shown on every cold start. */}
+              {counts.businesses === null
+                ? 'Every business listed here was claimed by the person who runs it.'
+                : counts.businesses > 0
+                  ? `${counts.businesses} ${counts.businesses === 1 ? 'business is' : 'businesses are'} listed so far, and every one of them was claimed by the person who runs it.`
+                  : 'No businesses are listed yet. Every one that appears here will have been claimed by the person who runs it.'}
+              {' '}No invented profiles and no bought lists — if a name is on NowOpen, you can reach it.
+            </p>
+            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              Each industry below gets a purpose-built profile — property portals, restaurant menus, repair queues,
+              booking engines — rather than one generic template.
             </p>
           </div>
 
@@ -277,12 +301,20 @@ export default function Home() {
             })}
           </div>
 
-          <div className="mt-8 text-center">
+          <div className="mt-8 flex flex-wrap justify-center gap-3">
+            {/* Listing a business is the action this section should produce.
+                "Explore the platform" stays, but second. */}
+            <Link
+              to="/waitlist"
+              className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+            >
+              List your business <ArrowRight size={18} />
+            </Link>
             <Link
               to="/platform"
-              className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-lg hover:opacity-90 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="inline-flex items-center gap-2 px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              Explore the platform <ArrowRight size={18} />
+              Explore the platform
             </Link>
           </div>
         </div>

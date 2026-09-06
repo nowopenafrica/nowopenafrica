@@ -63,9 +63,19 @@ describe('the empty state is only used when the directory is truly empty', () =>
     const src = readFileSync('src/components/home/ListingExplorer.tsx', 'utf8');
     // rows = everything for this type before filtering; visible = after.
     expect(src).toContain('rows.length === 0 ? (');
-    expect(src).toContain('<IndustryDirectory');
+    expect(src).toMatch(/listed yet — the directory is being built/);
     // The reset affordance must survive for the case filters caused.
     expect(src).toMatch(/Nothing here/);
+  });
+
+  it('says the directory story once on the homepage, not twice', () => {
+    // The homepage owns this message in its own section; the explorer above it
+    // must not render a second copy with its own industry grid.
+    const explorer = readFileSync('src/components/home/ListingExplorer.tsx', 'utf8');
+    expect(explorer).not.toContain('IndustryDirectory');
+    const home = readFileSync('src/pages/Home.tsx', 'utf8');
+    expect(home).toContain('The directory is being built');
+    expect(home).not.toContain('Not a directory. An operating system.');
   });
 
   it('keeps the filtered-empty message separate on /businesses', () => {
