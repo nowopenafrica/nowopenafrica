@@ -7,6 +7,7 @@ import { Star, DollarSign, Palette, X, ArrowRight } from 'lucide-react';
 import { buildSuggestions } from '../lib/suggest';
 import SuggestInput from '../components/SuggestInput';
 import IndustryDirectory from '../components/home/IndustryDirectory';
+import CreateMarketplace from '../components/create/CreateMarketplace';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { normalize } from '../lib/search';
 import { MEDIA_CATEGORY_GROUPS, groupForMediaType, DEFAULT_MEDIA_ICON } from '../data/mediaCategories';
@@ -60,9 +61,11 @@ export default function Media() {
 
   useEffect(() => {
     return applySeo({
-      title: 'Creative Services in Africa — Photographers, Designers & Studios',
+      title: 'NowOpen Create — Design, Print & Promote for African Business',
       description:
-        'Hire vetted photographers, videographers, designers and creative studios across Africa. Browse portfolios and book projects directly.',
+        // Was "Hire vetted photographers..." — nothing was vetted, and the page
+        // is now the whole Create marketplace rather than a creatives directory.
+        'Design, print and promote your business in one place. Free creation from your own brand, professional design by African creators, and printing delivered across Nigeria.',
       path: '/media',
       image: '/og-image.png',
     });
@@ -117,21 +120,38 @@ export default function Media() {
       <section className="relative overflow-hidden text-white" style={{ background: 'linear-gradient(135deg, #831843 0%, #9d174d 45%, #be185d 100%)' }}>
         <div className="site-container py-12 sm:py-16">
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-xs font-semibold">
-            <Palette size={14} className="text-yellow-300" /> Hire African creatives
+            <Palette size={14} className="text-yellow-300" /> NowOpen Create
           </span>
-          <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-2xl">Photographers, designers, editors & studios booked in one place</h1>
+          {/* The whole proposition, in the order a business actually does it.
+              This page is the PUBLIC Create surface — the catalogue and the
+              prices have to be visible before somebody signs up, because
+              pricing is the first thing anybody looks for. */}
+          <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-3xl">
+            Create it. Brand it. Print it. Promote it. Grow it.
+          </h1>
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
             {/* Was "{n}+ vetted creative services". Nobody vetted them — the
                 thirty that were here were invented, with invented ratings — and
                 "0+" is what the "+" produces on an empty list. */}
-            {services.length > 0
-              ? `${services.length} creative ${services.length === 1 ? 'service' : 'services'} across photo & video, design, motion, content, audio and live streaming.`
-              : 'Creative services across photo & video, design, motion, content, audio and live streaming.'}
+            Make it free with your own logo and colours, have a NowOpen creator do it,
+            or have it printed and delivered — then put it in front of customers.
           </p>
         </div>
       </section>
 
-      <div className="site-container py-10">
+      <div className="site-container py-10 space-y-12">
+        <CreateMarketplace />
+
+        {/* Hire a creator — the marketplace half. Kept below the catalogue
+            because "what can I make and what does it cost" is the question
+            people arrive with; "who can make it for me" is the one after. */}
+        <section>
+          <h2 className="text-xl sm:text-2xl font-bold text-gray-900 dark:text-white">Hire a creator</h2>
+          <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+            Photographers, designers, editors and studios across Africa.
+          </p>
+        </section>
+
         {/* Search criteria — Search · Category, full width */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
