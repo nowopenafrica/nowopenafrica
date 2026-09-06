@@ -6,6 +6,7 @@ import BusinessCard from '../discover/BusinessCard';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
+import { byDivision, priceLabel } from '../../lib/create/catalogue';
 
 // The homepage browse section, laid out the way a creative marketplace does it:
 //
@@ -31,6 +32,27 @@ const TYPES: { key: ListingType; label: string; viewAll: string }[] = [
   { key: 'adverts', label: 'Ad Placements', viewAll: '/adverts' },
   { key: 'media', label: 'Creative Services', viewAll: '/media' },
 ];
+
+/**
+ * What to offer when a tab has nothing in it.
+ *
+ * An empty tab is not a dead end unless you make it one: each of these points
+ * at a surface that DOES have something, and only then at the way to be listed.
+ */
+const EMPTY_HELP: Record<ListingType, { help: string; cta: string; to: string; second: string }> = {
+  businesses: {
+    help: 'Every listing here is claimed by the person who runs it, which is why there are not many yet.',
+    cta: 'Browse what NowOpen is for', to: '/platform', second: 'List your business',
+  },
+  adverts: {
+    help: 'Placements across outdoor, transit, digital and broadcast are on the Promote page.',
+    cta: 'See placements', to: '/adverts', second: 'List your placement',
+  },
+  media: {
+    help: 'You can still make what you need — NowOpen Create has design, video, brand and print, with prices.',
+    cta: 'Open NowOpen Create', to: '/media', second: 'Offer your services',
+  },
+};
 
 const SORTS: { key: SortKey; label: string }[] = [
   { key: 'recommended', label: 'Recommended' },
@@ -390,12 +412,49 @@ export default function ListingExplorer({
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 No {active.label.toLowerCase()} listed yet — the directory is being built.
               </p>
-              <Link
-                to="/waitlist"
-                className="mt-3 inline-flex items-center min-h-[44px] px-4 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
-              >
-                List your business
-              </Link>
+              {/* The way out has to suit the tab. "List your business" under
+                  Creative Services sent a photographer to a business waitlist,
+                  and — worse — left the visitor with nothing to look at when
+                  NowOpen Create already answers exactly what they came for. An
+                  empty tab should hand you the surface that is not empty. */}
+              <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                {EMPTY_HELP[type].help}
+              </p>
+              {/* Creative Services is empty because the thirty invented ones
+                  were deleted — but NowOpen Create genuinely does have these,
+                  free, with prices. Showing them beats sending somebody away
+                  from a blank tab to find out. */}
+              {type === 'media' && (
+                <div className="mt-4 flex flex-wrap justify-center gap-2">
+                  {byDivision('create').filter((i) => i.free).slice(0, 5).map((i) => (
+                    <Link
+                      key={i.sku}
+                      to="/media"
+                      className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs font-semibold text-gray-800 dark:text-gray-200 hover:border-pink-400 transition"
+                    >
+                      {i.name}
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200">
+                        {priceLabel(i)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              )}
+
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                <Link
+                  to={EMPTY_HELP[type].to}
+                  className="inline-flex items-center min-h-[44px] px-4 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
+                >
+                  {EMPTY_HELP[type].cta}
+                </Link>
+                <Link
+                  to="/waitlist"
+                  className="inline-flex items-center min-h-[44px] px-4 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-semibold text-gray-800 dark:text-gray-200"
+                >
+                  {EMPTY_HELP[type].second}
+                </Link>
+              </div>
             </div>
           ) : (
             // Say which filter emptied it, and offer the way back. A bare "no
