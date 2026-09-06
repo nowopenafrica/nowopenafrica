@@ -25,14 +25,27 @@ const ACCENT: Record<string, { grad: string; soft: string; text: string }> = {
 };
 
 function AdvertCard({ advert, format }: { advert: Advertisement; format: (n: number) => string }) {
+  const [imageOk, setImageOk] = useState(true);
   return (
     <Link
       to={`/adverts/${advert.id}`}
       className="group bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-700 transition"
     >
       <div className="relative h-28 overflow-hidden">
-        {advert.image_url ? (
-          <img src={advert.image_url} alt={advert.title} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition duration-300" />
+        {/* 16 of the 97 placement photos are hotlinked from an operator's site
+            that blocks them, so they arrived as a broken-image box with the
+            title spilling out of it — much more obvious now the grid is six
+            across. A missing photograph should look like a plain card, not a
+            page that failed to load, and it must not depend on a third party's
+            URL staying alive. */}
+        {advert.image_url && imageOk ? (
+          <img
+            src={advert.image_url}
+            alt={advert.title}
+            loading="lazy"
+            onError={() => setImageOk(false)}
+            className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+          />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600" />
         )}
@@ -333,7 +346,12 @@ export default function Adverts() {
             )}
           </div>
         ) : (
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 2xl:grid-cols-6 gap-3 md:gap-5">
+            {/* Denser than it was (max 4). Placement cards are mostly image and
+                a rate, so they read fine narrow, and 97 of them at four across
+                is a lot of scrolling. Six lands at 1536px, which a normal large
+                screen reaches — /businesses waits until 1800px, so most people
+                never see it. Still two across on a phone. */}
             {filteredAdverts.map((advert) => <AdvertCard key={advert.id} advert={advert} format={format} />)}
           </div>
         )}
