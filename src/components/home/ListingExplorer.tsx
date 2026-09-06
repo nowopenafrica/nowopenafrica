@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
 import BusinessCard from '../discover/BusinessCard';
+import IndustryDirectory from './IndustryDirectory';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
@@ -377,6 +378,12 @@ export default function ListingExplorer({
             ) : (
               <InfiniteSlider cards={visible} linkBase={type} layout="grid" />
             )
+          ) : rows.length === 0 ? (
+            // Nothing exists for this type at all — a different problem from a
+            // filter that excluded everything, and it needs a different answer.
+            // Offering "reset your filters" when there is no inventory sends
+            // somebody round a loop that cannot end well.
+            <IndustryDirectory label={active.label.toLowerCase()} />
           ) : (
             // Say which filter emptied it, and offer the way back. A bare "no
             // results" leaves the visitor guessing which of four controls to undo.

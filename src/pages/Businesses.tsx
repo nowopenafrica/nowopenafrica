@@ -8,6 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
+import IndustryDirectory from '../components/home/IndustryDirectory';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import OpenStateBadge from '../components/OpenStateBadge';
 import { normalize } from '../lib/search';
@@ -235,8 +236,15 @@ export default function Businesses() {
             <Store size={14} className="text-cyan-300" /> Discover African businesses
           </span>
           <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-2xl">Find and connect with businesses across Africa</h1>
+          {/* Two claims were wrong here. "+" on a live count reads as a floor
+              somebody chose ("0+ businesses" when the directory is empty), and
+              "verified" was applied to every listing when verification is a
+              tier a business earns — see lib/trustClaims.ts. State the number,
+              and only when there is one. */}
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
-            {businesses.length}+ verified businesses across food, retail, tech, health, professional services and more.
+            {businesses.length > 0
+              ? `${businesses.length} ${businesses.length === 1 ? 'business' : 'businesses'} across food, retail, tech, health, professional services and more.`
+              : 'Businesses are being added one at a time, each one claimed by its owner.'}
           </p>
           {/* Business Pulse — honest rollup of the directory right now: open and
               closed come from each business's own stored hours. No fabricated
@@ -314,8 +322,10 @@ export default function Businesses() {
           </div>
         </div>
 
-        {/* Category browse gallery */}
-        <div className="mb-10">
+        {/* Category browse gallery. Hidden when the directory is empty: twelve
+            category cards each reading "0 businesses" is a wall of dead ends,
+            and IndustryDirectory below already covers "what is NowOpen for". */}
+        <div className={`mb-10 ${businesses.length === 0 ? 'hidden' : ''}`}>
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Browse by category</h2>
           {/* Six across, matching the Promote and Create pages — the three
               category rails read as one system rather than three layouts. */}
@@ -358,6 +368,11 @@ export default function Businesses() {
 
         {loading ? (
           <div className="text-center py-12"><p className="text-gray-600 dark:text-gray-400">Loading businesses…</p></div>
+        ) : businesses.length === 0 ? (
+          // Nothing in the directory at all, which is not the same as filters
+          // that matched nothing. "No businesses match your filters" is a lie
+          // when there are no businesses and no filters.
+          <IndustryDirectory />
         ) : rankedBusinesses.length === 0 ? (
           <div className="text-center py-16">
             <Store size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
