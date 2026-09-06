@@ -122,6 +122,12 @@ export default function WorkforcePanel() {
   }
 
   const scheduled = cron?.scheduled === true && cron?.active === true;
+  // Computed in the database (workforce_cron_status), not here: "the workforce
+  // is fine" is a definition, and it should live in one place beside the data
+  // rather than as a threshold retyped in a component.
+  const healthy = cron?.healthy === true;
+  const failures = Number(cron?.consecutive_failures ?? 0);
+  const lastError = String(cron?.last_error ?? '').trim();
   const criticalCount = rows.reduce((n, r) => n + (r.findings ?? []).filter((f) => f.severity === 'critical').length, 0);
 
   return (
@@ -144,14 +150,35 @@ export default function WorkforcePanel() {
         </button>
       </header>
 
-      {/* Whether it is actually autonomous, stated rather than assumed. */}
+      {/*
+        Whether it is actually WORKING, not merely ticking.
+        This banner used to show `last_run` alone, so it read "last tick 4
+        minutes ago" through 481 consecutive failures over five days. Cron was
+        ticking the whole time; every tick was failing. "When did it last try"
+        and "when did it last work" are different questions and only the second
+        one means anything, so the second one is what this shows.
+      */}
       <div className={`rounded-lg border px-3 py-2 text-[12px] ${
-        scheduled ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300'
-                  : 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'}`}>
-        {scheduled
-          ? <>Running on its own, {String(cron?.schedule ?? '')} · last tick {ago(cron?.last_run as string ?? null)}
-              {criticalCount > 0 && <> · <strong>{criticalCount} critical finding{criticalCount === 1 ? '' : 's'}</strong></>}</>
-          : <>Not scheduled — agents will only run when someone presses Run now.</>}
+        !scheduled
+          ? 'border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 text-amber-800 dark:text-amber-300'
+          : healthy
+            ? 'border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 text-green-800 dark:text-green-300'
+            : 'border-red-300 dark:border-red-800 bg-red-50 dark:bg-red-900/20 text-red-800 dark:text-red-300'}`}>
+        {!scheduled ? (
+          <>Not scheduled — agents will only run when someone presses Run now.</>
+        ) : healthy ? (
+          <>Running on its own, {String(cron?.schedule ?? '')} · last successful run {ago(cron?.last_success as string ?? null)}
+            {criticalCount > 0 && <> · <strong>{criticalCount} critical finding{criticalCount === 1 ? '' : 's'}</strong></>}</>
+        ) : (
+          <>
+            <strong>The workforce is not running.</strong>{' '}
+            {failures > 0 && <>{failures} failed tick{failures === 1 ? '' : 's'} since the last success. </>}
+            Last worked {ago(cron?.last_success as string ?? null)}; it is scheduled {String(cron?.schedule ?? '')} and still trying.
+            {lastError && (
+              <span className="mt-1 block font-mono text-[11px] opacity-90 break-all">{lastError}</span>
+            )}
+          </>
+        )}
       </div>
 
       {rows.length === 0 && (

@@ -128,6 +128,65 @@ function auditSql(sql) {
   return problems;
 }
 
+
+/**
+ * Accidental function overloads - the bug that killed the AI workforce.
+ *
+ * `CREATE OR REPLACE FUNCTION f(a int)` does NOT replace `f()`. A function's
+ * argument list is part of its identity in Postgres, so changing the arguments
+ * creates a SECOND function. If the new one gives its arguments defaults, a
+ * zero-argument call then matches both and Postgres refuses to choose:
+ *
+ *   ERROR: function public.tick_workforce() is not unique
+ *
+ * That is what happened on 2026-09-01. The scheduled call became ambiguous, the
+ * workforce failed every fifteen minutes for five days, and nothing said so.
+ *
+ * So: if one function name is created with two different argument lists across
+ * the migrations, there must be an explicit DROP FUNCTION for it. A deliberate
+ * overload is fine - it just has to be deliberate enough to write the DROP, or
+ * to say so with `-- overload-ok: name`.
+ */
+function auditFunctionOverloads(files) {
+  const seen = new Map();
+  const drops = new Set();
+  const allowed = new Set();
+
+  const normalise = (args) => args
+    .replace(/DEFAULT\s+[^,]+/gi, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+
+  for (const { name: file, sql } of files) {
+    for (const m of sql.matchAll(/DROP\s+FUNCTION\s+(?:IF\s+EXISTS\s+)?(?:public\.)?(\w+)/gi)) {
+      drops.add(m[1].toLowerCase());
+    }
+    for (const m of sql.matchAll(/--\s*overload-ok:\s*(\w+)/gi)) {
+      allowed.add(m[1].toLowerCase());
+    }
+    for (const m of sql.matchAll(/CREATE\s+(?:OR\s+REPLACE\s+)?FUNCTION\s+(?:public\.)?(\w+)\s*\(([^)]*)\)/gi)) {
+      const name = m[1].toLowerCase();
+      if (!seen.has(name)) seen.set(name, new Map());
+      seen.get(name).set(normalise(m[2]), file);
+    }
+  }
+
+  const problems = [];
+  for (const [name, variants] of seen) {
+    if (variants.size < 2) continue;
+    if (drops.has(name) || allowed.has(name)) continue;
+    problems.push(
+      name + '() is created with ' + variants.size + ' different argument lists ('
+      + [...variants.values()].join(', ') + ') - CREATE OR REPLACE does not replace'
+      + ' across signatures, so both exist and a call matching both fails as'
+      + ' "not unique". Add DROP FUNCTION IF EXISTS public.' + name + '(<old args>);'
+      + ' or mark it "-- overload-ok: ' + name + '".',
+    );
+  }
+  return problems;
+}
+
 const targets = [];
 if (existsSync(MIGRATIONS_DIR)) {
   for (const file of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()) {
@@ -137,13 +196,25 @@ if (existsSync(MIGRATIONS_DIR)) {
 if (existsSync(CONSOLIDATED)) targets.push(CONSOLIDATED);
 
 let failures = 0;
+const loaded = [];
 for (const path of targets) {
-  const problems = auditSql(readFileSync(path, 'utf8'));
+  const sql = readFileSync(path, 'utf8');
+  loaded.push({ name: basename(path), sql });
+  const problems = auditSql(sql);
   if (problems.length) {
     console.error(`\n${basename(path)}`);
     for (const p of problems) console.error(`  ✗ ${p}`);
     failures += problems.length;
   }
+}
+
+// Cross-file: one function defined with two argument lists is almost always
+// an accident, and a silent one.
+const overloadProblems = auditFunctionOverloads(loaded);
+if (overloadProblems.length) {
+  console.error('\naccidental function overloads');
+  for (const p of overloadProblems) console.error(`  ✗ ${p}`);
+  failures += overloadProblems.length;
 }
 
 if (failures > 0) {
