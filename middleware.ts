@@ -26,6 +26,7 @@
 // ship today without rebuilding the render pipeline.
 
 import { next, rewrite } from '@vercel/edge';
+import { marketingPageFor } from './src/lib/marketingPageRender';
 
 export const config = {
   // Only the bare one-segment paths can be usernames. Everything with a known
@@ -132,9 +133,30 @@ export function shouldRenderDiscovery(
   return null;
 }
 
+/**
+ * The static marketing pages, for a crawler.
+ *
+ * Measured on production before this existed: /, /about, /platform, /discover
+ * and /waitlist all returned the same 6460-byte JavaScript shell with no <h1>,
+ * while /yemzoarts and /businesses/in/lagos rendered properly. The pipeline
+ * worked; it had never been pointed at these paths.
+ */
+export function shouldRenderMarketing(pathname: string, userAgent: string | null): string | null {
+  if (!isCrawler(userAgent)) return null;
+  const page = marketingPageFor(pathname);
+  return page ? page.path : null;
+}
+
 export default function middleware(request: Request) {
   const url = new URL(request.url);
   const ua = request.headers.get('user-agent');
+
+  const marketing = shouldRenderMarketing(url.pathname, ua);
+  if (marketing) {
+    const target = new URL('/api/marketing', request.url);
+    target.searchParams.set('path', marketing);
+    return rewrite(target);
+  }
 
   const slug = shouldRenderProfile(url.pathname, ua);
   if (slug) return rewrite(new URL(`/api/business/${encodeURIComponent(slug)}`, request.url));

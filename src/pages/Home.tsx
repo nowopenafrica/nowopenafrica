@@ -49,7 +49,11 @@ export default function Home() {
     return applySeo({
       title: 'NowOpen Africa — The Operating System for Business Growth in Africa',
       description:
-        'Get your business discovered across Africa. Verified listings, ad placements, creative services and an AI-powered Studio — built for 20+ African markets.',
+        // "Verified listings" was untrue — nothing on the platform holds a
+        // verification tier — and this is the description Google shows, which
+        // is the most expensive place to put an unearned claim. It must also
+        // match what api/marketing serves crawlers; a test enforces that.
+        'Find businesses across Africa — what is open now, what is near you, and what they offer. Every listing is claimed by the person who runs it.',
       path: '/',
       image: '/og-image.png',
     });

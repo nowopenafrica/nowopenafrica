@@ -1,0 +1,214 @@
+/**
+ * Server-rendered HTML for the static marketing pages.
+ *
+ * Measured on production 2026-09-06, with a Googlebot user agent:
+ *
+ *   /            6460 bytes, no <h1>, "needs JavaScript enabled to run"
+ *   /about       6460 bytes, identical
+ *   /platform    6460 bytes, identical
+ *   /waitlist    6460 bytes, identical
+ *   /discover    6460 bytes, identical
+ *
+ * Byte-for-byte the same shell on every route. Meanwhile /yemzoarts and
+ * /businesses/in/lagos rendered properly — so the crawler pipeline in
+ * middleware.ts works, it had simply never been pointed at these paths.
+ *
+ * THE RULE THAT MATTERS: what a crawler is told must be what a person sees.
+ * Serving search engines text the page does not contain is cloaking, and it is
+ * also how a site ends up ranking for a promise it never makes. So every string
+ * below is copied from the page it describes, and marketingPageRender.test.ts
+ * reads the .tsx files and fails if they drift apart.
+ *
+ * This is not a rendering engine for the app. It is a plain, honest summary of
+ * each page — heading, the copy under it, and the links onward — enough for a
+ * crawler to understand and traverse the site. People still get the SPA.
+ */
+
+export interface MarketingLink {
+  href: string;
+  label: string;
+}
+
+export interface MarketingPage {
+  path: string;
+  title: string;
+  description: string;
+  h1: string;
+  /** Real paragraphs from the page, in the order they appear. */
+  paragraphs: string[];
+  /** Where a crawler should go next. Real routes only. */
+  links: MarketingLink[];
+}
+
+const EXPLORE: MarketingLink[] = [
+  { href: '/businesses', label: 'Browse businesses' },
+  { href: '/discover', label: 'Discover' },
+  { href: '/open-now', label: 'Open now' },
+  { href: '/offers', label: 'Offers' },
+  { href: '/adverts', label: 'Ad placements' },
+  { href: '/platform', label: 'Industry operating systems' },
+  { href: '/about', label: 'About NowOpen Africa' },
+  { href: '/waitlist', label: 'List your business' },
+];
+
+export const MARKETING_PAGES: MarketingPage[] = [
+  {
+    path: '/',
+    title: 'NowOpen Africa — The Operating System for Business Growth in Africa',
+    description:
+      'Find businesses across Africa — what is open now, what is near you, and what they offer. Every listing is claimed by the person who runs it.',
+    h1: 'What are you looking for? Africa is NowOpen.',
+    paragraphs: [
+      'Discover customers. Find businesses. Advertise everywhere. Create anything. Grow with AI.',
+      'The directory is being built. Real businesses, added one at a time, and every one of them claimed by the person who runs it. No invented profiles and no bought lists — if a name is on NowOpen, you can reach it.',
+      'Each industry gets a purpose-built profile — property portals, restaurant menus, repair queues, booking engines — rather than one generic template.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/about',
+    title: 'About NowOpen Africa — The Operating System for African Business',
+    description:
+      'NowOpen Africa helps African businesses get discovered, advertise effectively and hire creative talent — all in one place, built for African markets.',
+    h1: 'The operating system for business growth in Africa',
+    paragraphs: [
+      'NowOpen Africa helps businesses get discovered, advertise effectively, and hire the creative talent they need — all in one place, built for African markets.',
+      'Millions of African businesses are open for business but hard to find, hard to reach, and hard to trust online. Customers waste time; good businesses lose out. NowOpen Africa closes that gap — a single platform where a business can build a real presence, take bookings and orders, run advertising, go live, and earn verified trust, priced for the realities of the markets it serves.',
+      'Local currencies and mobile-money-friendly checkout, per-industry tools instead of one generic template, and a trust layer designed for how business really gets done across the continent.',
+    ],
+    links: [
+      { href: '/platform', label: 'Industry operating systems' },
+      { href: '/founder', label: 'Meet the founder' },
+      { href: '/contact', label: 'Contact us' },
+      { href: '/waitlist', label: 'List your business' },
+      { href: '/businesses', label: 'Browse businesses' },
+    ],
+  },
+  {
+    path: '/platform',
+    title: 'Industry Operating Systems — NowOpen Africa',
+    description:
+      'NowOpen Africa isn’t a generic directory. Every industry gets a purpose-built operating system — real estate portals, restaurant ordering, hotel booking, creative studios and more — on one platform for African business.',
+    h1: 'An operating system for every industry',
+    paragraphs: [
+      'Every category gets a purpose-built profile — property portals, restaurant menus, repair queues, booking engines and more — so a business feels designed specifically for its industry.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/discover',
+    title: 'Discover businesses — NowOpen Africa',
+    description: 'Find what is open now, what is new, and the places worth knowing about near you.',
+    h1: 'Discover',
+    paragraphs: [
+      'What is open, what is new, and what is worth knowing about.',
+    ],
+    links: [
+      { href: '/businesses', label: 'Browse businesses' },
+      { href: '/open-now', label: 'Open now' },
+      { href: '/nearby', label: 'Near me' },
+      { href: '/offers', label: 'Offers' },
+      { href: '/waitlist', label: 'List your business' },
+    ],
+  },
+  {
+    path: '/waitlist',
+    title: 'Join the Waitlist — NowOpen Africa',
+    description:
+      'Get early access to NowOpen Africa in your market. Founding members lock in launch pricing, a free verified badge and early invites.',
+    h1: 'Be first when Africa’s business growth ecosystem goes live',
+    paragraphs: [
+      'NowOpen Africa connects businesses, advertising placements and creative services in one place.',
+      'Founding members are invited first, market by market.',
+    ],
+    links: [
+      { href: '/about', label: 'About NowOpen Africa' },
+      { href: '/platform', label: 'Industry operating systems' },
+      { href: '/pricing', label: 'Pricing' },
+      { href: '/businesses', label: 'Browse businesses' },
+    ],
+  },
+];
+
+const BY_PATH = new Map(MARKETING_PAGES.map((p) => [p.path, p]));
+
+/**
+ * Which marketing page a request is for, if any.
+ *
+ * A trailing slash is the same page; anything else is not ours, and returning
+ * null is what sends the request on to the normal app.
+ */
+export function marketingPageFor(pathname: string): MarketingPage | undefined {
+  if (!pathname) return undefined;
+  const clean = pathname.length > 1 && pathname.endsWith('/')
+    ? pathname.slice(0, -1)
+    : pathname;
+  return BY_PATH.get(clean.toLowerCase());
+}
+
+/**
+ * JSON-LD that cannot break out of its own script tag.
+ *
+ * JSON.stringify does not escape "<", so a value containing "</script>"
+ * ends the block early and everything after it is parsed as HTML. Emitting
+ * the angle brackets as the two escape SEQUENCES below keeps the JSON
+ * identical to any parser and inert to the HTML tokeniser.
+ */
+const safeJsonLd = (value: unknown): string =>
+  JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e');
+
+export const escapeHtml = (s: string): string =>
+  s.replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+
+/**
+ * The page a crawler receives.
+ *
+ * Deliberately plain: no scripts, no styles, no images. A crawler needs the
+ * words and the links, and every byte of chrome is a byte it has to parse to
+ * find them.
+ */
+export function renderMarketingPage(page: MarketingPage, siteUrl: string): string {
+  const canonical = `${siteUrl.replace(/\/$/, '')}${page.path === '/' ? '' : page.path}`;
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': page.path === '/' ? 'WebSite' : 'WebPage',
+    name: page.title,
+    description: page.description,
+    url: canonical,
+    ...(page.path === '/' ? { publisher: { '@type': 'Organization', name: 'NowOpen Africa', url: siteUrl } } : {}),
+  };
+
+  return `<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${escapeHtml(page.title)}</title>
+<meta name="description" content="${escapeHtml(page.description)}">
+<link rel="canonical" href="${escapeHtml(canonical)}">
+<meta name="robots" content="index, follow, max-image-preview:large">
+<meta property="og:type" content="website">
+<meta property="og:title" content="${escapeHtml(page.title)}">
+<meta property="og:description" content="${escapeHtml(page.description)}">
+<meta property="og:url" content="${escapeHtml(canonical)}">
+<meta property="og:site_name" content="NowOpen Africa">
+<meta name="twitter:card" content="summary_large_image">
+<script type="application/ld+json">${safeJsonLd(jsonLd)}</script>
+</head>
+<body>
+<h1>${escapeHtml(page.h1)}</h1>
+${page.paragraphs.map((p) => `<p>${escapeHtml(p)}</p>`).join('\n')}
+<nav>
+<ul>
+${page.links.map((l) => `<li><a href="${escapeHtml(l.href)}">${escapeHtml(l.label)}</a></li>`).join('\n')}
+</ul>
+</nav>
+</body>
+</html>`;
+}
