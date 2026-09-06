@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, ArrowLeft, Sparkles, Palette, CreditCard, Instagram, LayoutPanelTop, PenLine, ImagePlus, PackageOpen, CalendarDays, WalletCards, Printer, Presentation, Stamp, Camera, Home, MessageCircle, Activity, Mail, Heart, Receipt, Trophy, LayoutTemplate, Zap, TrendingUp, Store, FileText, Mic, Clapperboard, Globe, Wand2, Podcast, Bot, CalendarCheck, Users, Banknote, Radar, Search, Workflow, ReceiptText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -28,6 +28,7 @@ import DigitalCatalogue from '../components/studio/DigitalCatalogue';
 import SocialStudioHub from '../components/studio/SocialStudioHub';
 import { GrowthPlanModule } from '../lib/growth';
 import { HUBS, HOME_MODULES, INTENTS, greeting, type ModuleKey } from '../lib/studioHubs';
+import { createForMe, knownFacts, type CreateSuggestion } from '../lib/createForMe';
 
 
 interface ModuleMeta {
@@ -245,7 +246,7 @@ export default function Studio() {
 
             {/* Content */}
             <section className="min-w-0">
-              {active === 'home' && <IntentLauncher name={business?.name} onPick={setActive} />}
+              {active === 'home' && <IntentLauncher business={business} onPick={setActive} />}
 
               <div className="mb-5">
                 <h2 className="text-lg font-bold text-gray-900 dark:text-white">{activeMeta?.label}</h2>
@@ -303,21 +304,87 @@ function NavItem({ meta, active, onClick }: { meta: ModuleMeta; active: ModuleKe
  * arrive with is "I need a poster for Saturday". These tiles name outcomes, not
  * tools, and route to modules that already exist.
  */
-function IntentLauncher({ name, onPick }: { name?: string; onPick: (k: ModuleKey) => void }) {
+/**
+ * "What do you want to create today?"
+ *
+ * This used to offer the same nine tiles to every business — Design, Motion,
+ * Offer, Social — which is a menu of Studio's departments rather than an answer
+ * to the question. A restaurant with no menu and a tailor with no catalogue saw
+ * identical advice.
+ *
+ * It now asks lib/createForMe, which reads the actual profile: fix what is
+ * missing first, then the things this TRADE sells, then growth. NowOpen already
+ * knows the logo, colours, category, location and contact, so each suggestion
+ * names what it will use — that being the whole difference between this and a
+ * blank canvas with a logo dropped on it.
+ *
+ * The static INTENTS remain the fallback for somebody with no business yet.
+ * They have no profile to personalise against, and nine doors is a reasonable
+ * answer to a question nobody can yet answer better.
+ */
+function IntentLauncher({ business, onPick }: { business?: Business | null; onPick: (k: ModuleKey) => void }) {
   // Read the clock once per mount. Impure calls don't belong in render or a
   // memo — the React Compiler flags them, and a greeting that flips mid-session
   // is worse than one that's a few minutes stale.
   const [hour] = useState(() => new Date().getHours());
 
+  const suggestions = useMemo(
+    () => (business ? createForMe({
+      name: business.name,
+      category: business.category,
+      logo_url: business.logo_url,
+      image_url: business.image_url,
+      description: business.description,
+      phone: business.phone,
+      whatsapp: (business as { whatsapp?: string | null }).whatsapp,
+      location: business.location,
+      opening_hours: business.opening_hours,
+      hours: business.hours,
+    }, 6) : []),
+    [business],
+  );
+  const facts = useMemo(() => (business ? knownFacts({
+    name: business.name, category: business.category, logo_url: business.logo_url,
+    location: business.location, phone: business.phone,
+    whatsapp: (business as { whatsapp?: string | null }).whatsapp,
+  }) : []), [business]);
+
+  const personalised = suggestions.length > 0;
+
   return (
     <div className="mb-6 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5">
       <h2 className="text-xl font-bold text-gray-900 dark:text-white">
-        {greeting(hour)}{name ? `, ${name}` : ''} 👋
+        {greeting(hour)}{business?.name ? `, ${business.name}` : ''} 👋
       </h2>
       <p className="mt-0.5 text-sm text-gray-500 dark:text-gray-400">What do you want to create today?</p>
+      {personalised && facts.length > 0 && (
+        <p className="mt-1 text-[12px] text-gray-500 dark:text-gray-400">
+          Everything below already uses {facts.slice(0, 4).join(', ')} — you will not be filling in a blank page.
+        </p>
+      )}
 
-      <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
-        {INTENTS.map((intent) => (
+      <div className={`mt-4 grid gap-2 ${personalised ? 'grid-cols-1 sm:grid-cols-2 lg:grid-cols-3' : 'grid-cols-2 sm:grid-cols-4'}`}>
+        {personalised ? suggestions.map((s: CreateSuggestion) => (
+          <button
+            key={s.key}
+            onClick={() => onPick(s.tab as ModuleKey)}
+            className="group text-left p-3 min-h-[44px] rounded-xl border border-gray-200 dark:border-gray-700 hover:border-purple-400 dark:hover:border-purple-500 hover:bg-purple-50/50 dark:hover:bg-purple-900/10 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+          >
+            <span className="flex items-center gap-2">
+              <span className="text-sm font-bold text-gray-900 dark:text-white group-hover:text-purple-700 dark:group-hover:text-purple-300">
+                {s.label}
+              </span>
+              {s.priority === 'foundation' && (
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200">
+                  first
+                </span>
+              )}
+            </span>
+            <span className="block mt-0.5 text-[11px] leading-snug text-gray-500 dark:text-gray-400">
+              {s.why}
+            </span>
+          </button>
+        )) : INTENTS.map((intent) => (
           <button
             key={intent.id}
             onClick={() => onPick(intent.target)}
