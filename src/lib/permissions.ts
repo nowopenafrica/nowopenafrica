@@ -39,7 +39,7 @@ export type AdminTabId =
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
   | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
   | 'review-queue' | 'imports' | 'switches' | 'pages' | 'activation'
-  | 'profile-requests';
+  | 'profile-requests' | 'create-orders';
 
 /**
  * What an editor may open.
@@ -69,6 +69,9 @@ export const EDITOR_TABS: AdminTabId[] = [
   // Owners asking to be listed. Content work, and the queue only pays off if
   // somebody actually works it — so an editor can.
   'profile-requests',
+  // Create orders carry a customer's contact and what they want made. Content
+  // work, and the queue only pays off if somebody actually prices it.
+  'create-orders',
   // The Page Editor is the editor role's actual remit: marketing copy on pages
   // that have been adopted. It cannot reach business records, verification,
   // prices or customer data — those are not editable by anyone, through it.

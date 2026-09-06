@@ -8,6 +8,7 @@ import {
   CATALOGUE, PACKS, CREDIT_BUNDLES, awaitingQuote, byDivision, priceLabel, sellable,
   type CatalogueItem, type Division,
 } from '../../lib/create/catalogue';
+import CreateConfigurator from './CreateConfigurator';
 
 /**
  * NowOpen Create — the public marketplace on /media.
@@ -51,6 +52,9 @@ const ADVERTISE = [
 
 export default function CreateMarketplace() {
   const [division, setDivision] = useState<Division>('create');
+  // The configurator is the page's actual function: choose, customise, price,
+  // order. Until it existed every button here went somewhere else.
+  const [configuring, setConfiguring] = useState<CatalogueItem | null>(null);
   const items = useMemo(() => byDivision(division), [division]);
   const pending = useMemo(() => awaitingQuote().length, []);
 
@@ -91,7 +95,9 @@ export default function CreateMarketplace() {
         )}
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {items.map((item) => <ItemCard key={item.sku} item={item} />)}
+          {items.map((item) => (
+            <ItemCard key={item.sku} item={item} onConfigure={() => setConfiguring(item)} />
+          ))}
         </div>
       </section>
 
@@ -162,16 +168,16 @@ export default function CreateMarketplace() {
           ))}
         </div>
       </section>
+
+      {configuring && (
+        <CreateConfigurator item={configuring} onClose={() => setConfiguring(null)} />
+      )}
     </div>
   );
 }
 
-function ItemCard({ item }: { item: CatalogueItem }) {
+function ItemCard({ item, onConfigure }: { item: CatalogueItem; onConfigure: () => void }) {
   const estimate = item.basis === 'indicative';
-  // Free work happens in Studio, which needs an account; everything else is a
-  // conversation, so it goes to the same queue as any other enquiry.
-  const to = item.free ? '/studio' : '/waitlist';
-
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 flex flex-col">
       <div className="flex items-baseline justify-between gap-2">
@@ -198,14 +204,19 @@ function ItemCard({ item }: { item: CatalogueItem }) {
             ? `${item.turnaround[0]}–${item.turnaround[1]} working days`
             : 'Instant'}
         </span>
-        <Link to={to}
-          className={`min-h-[36px] inline-flex items-center px-3 rounded-lg text-xs font-semibold ${
-            item.free
-              ? 'bg-pink-600 text-white hover:bg-pink-700'
-              : 'border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300'
-          }`}>
-          {item.free ? 'Create it free' : 'Request a quote'}
-        </Link>
+        {/* Opens the configurator rather than navigating away. Free items still
+            go to Studio, which is where the making actually happens. */}
+        {item.free ? (
+          <Link to="/studio"
+            className="min-h-[36px] inline-flex items-center px-3 rounded-lg text-xs font-semibold bg-pink-600 text-white hover:bg-pink-700">
+            Create it free
+          </Link>
+        ) : (
+          <button onClick={onConfigure}
+            className="min-h-[36px] inline-flex items-center px-3 rounded-lg text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:border-pink-400">
+            Configure &amp; price
+          </button>
+        )}
       </div>
     </div>
   );

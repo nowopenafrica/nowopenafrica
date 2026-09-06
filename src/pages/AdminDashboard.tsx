@@ -8,6 +8,7 @@ import FeatureFlagPanel from '../components/admin/FeatureFlagPanel';
 import PageEditor from '../components/admin/PageEditor';
 import ActivationPanel from '../components/admin/ActivationPanel';
 import ProfileRequests from '../components/admin/ProfileRequests';
+import CreateOrders from '../components/admin/CreateOrders';
 import {
   canAccessTab, canDelete, canManageRoles, canManagePlans, isStaff, isEditor,
   ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
@@ -553,6 +554,7 @@ export default function AdminDashboard() {
     { id: 'activation', label: 'Activation', icon: Target, count: 0 },
     // Third: the acquisition queue. People are waiting in it.
     { id: 'profile-requests', label: 'Profile Requests', icon: Send, count: 0 },
+    { id: 'create-orders', label: 'Create Orders', icon: ShoppingBag, count: 0 },
     { id: 'users', label: 'Users', icon: Users, count: users.length },
     { id: 'businesses', label: 'Businesses', icon: ShoppingBag, count: businesses.length },
     { id: 'verification', label: 'Verification', icon: ShieldCheck, count: verificationDocs.filter((d: any) => (d.status || 'pending') === 'pending').length },
@@ -1031,6 +1033,7 @@ export default function AdminDashboard() {
               {activeTab === 'imports' && <ImportCenter />}
               {activeTab === 'activation' && <ActivationPanel />}
               {activeTab === 'profile-requests' && <ProfileRequests />}
+              {activeTab === 'create-orders' && <CreateOrders />}
               {activeTab === 'pages' && <PageEditor />}
               {activeTab === 'switches' && <FeatureFlagPanel />}
 

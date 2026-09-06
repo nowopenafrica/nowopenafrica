@@ -48,6 +48,10 @@ export type EventName =
   // step, and the one worth watching: it needs no account, so it is the only
   // signal available before somebody commits to anything.
   | 'profile_requested'
+  // Somebody configured something on Create and asked for it. The first
+  // demand signal the catalogue can produce, and the number that says whether
+  // any of it is worth signing a printer for.
+  | 'create_order_requested'
   | 'search_performed'
   | 'enquiry_sent'
   | 'booking_started'
