@@ -8,7 +8,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
-import IndustryDirectory from '../components/home/IndustryDirectory';
+import IndustryDirectory, { THIN_DIRECTORY } from '../components/home/IndustryDirectory';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import OpenStateBadge from '../components/OpenStateBadge';
 import { normalize } from '../lib/search';
@@ -432,6 +432,12 @@ export default function Businesses() {
               </Link>
             ))}
           </div>
+        )}
+
+        {/* A handful of real listings still reads as a broken page. Show them
+            first, then say plainly that more are coming. */}
+        {!loading && businesses.length > 0 && businesses.length < THIN_DIRECTORY && (
+          <IndustryDirectory variant="thin" />
         )}
       </div>
     </div>

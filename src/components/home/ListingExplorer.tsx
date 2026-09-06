@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
 import BusinessCard from '../discover/BusinessCard';
-import IndustryDirectory from './IndustryDirectory';
+import IndustryDirectory, { THIN_DIRECTORY } from './IndustryDirectory';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
@@ -402,7 +402,14 @@ export default function ListingExplorer({
               </button>
             </div>
           )}
+
         </div>
+
+        {/* Real listings first, then the honest "more coming" block. Two cards
+            in a six-across grid reads as a page that failed to load. */}
+        {rows.length > 0 && rows.length < THIN_DIRECTORY && (
+          <IndustryDirectory variant="thin" label={active.label.toLowerCase()} />
+        )}
 
         <div className="mt-6 flex items-center justify-between gap-3">
           <p className="text-xs text-gray-500 dark:text-gray-400 tabular-nums">
