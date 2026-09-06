@@ -383,7 +383,7 @@ export default function ListingExplorer({
             // filter that excluded everything, and it needs a different answer.
             // Offering "reset your filters" when there is no inventory sends
             // somebody round a loop that cannot end well.
-            <IndustryDirectory label={active.label.toLowerCase()} />
+            <IndustryDirectory label={active.label.toLowerCase()} showIndustries={false} />
           ) : (
             // Say which filter emptied it, and offer the way back. A bare "no
             // results" leaves the visitor guessing which of four controls to undo.
@@ -408,7 +408,7 @@ export default function ListingExplorer({
         {/* Real listings first, then the honest "more coming" block. Two cards
             in a six-across grid reads as a page that failed to load. */}
         {rows.length > 0 && rows.length < THIN_DIRECTORY && (
-          <IndustryDirectory variant="thin" label={active.label.toLowerCase()} />
+          <IndustryDirectory variant="thin" label={active.label.toLowerCase()} showIndustries={false} />
         )}
 
         <div className="mt-6 flex items-center justify-between gap-3">
