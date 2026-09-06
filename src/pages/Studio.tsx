@@ -29,6 +29,7 @@ import SocialStudioHub from '../components/studio/SocialStudioHub';
 import { GrowthPlanModule } from '../lib/growth';
 import { HUBS, HOME_MODULES, INTENTS, greeting, type ModuleKey } from '../lib/studioHubs';
 import { createForMe, knownFacts, type CreateSuggestion } from '../lib/createForMe';
+import PrintPricing from '../components/studio/PrintPricing';
 
 
 interface ModuleMeta {
@@ -50,6 +51,7 @@ const META: Record<ModuleKey, ModuleMeta> = {
   // links that have already been emailed out. Only what it opens has changed.
   video: { key: 'video', label: 'Motion Studio', icon: Clapperboard, desc: 'Design a motion graphic and render a real video — templates, storyboard, timeline, backgrounds and voiceover, in every aspect ratio.' },
   'brand-kit': { key: 'brand-kit', label: 'Brand OS', icon: Palette, desc: 'Your identity, voice, colours, stationery and brand health — how your entire brand works.' },
+  pricing: { key: 'pricing', label: 'Print & Pricing', icon: Printer, desc: 'What everything costs — free in Studio, priced for a creator, or printed and delivered by a production partner.' },
   card: { key: 'card', label: 'Digital Business Card', icon: CreditCard, desc: 'A professional business card with a live QR that always points to your profile.' },
   landing: { key: 'landing', label: 'Landing Pages', icon: LayoutTemplate, desc: 'A one-page site for launches, events and offers.' },
 
@@ -159,6 +161,7 @@ export default function Studio() {
     if (!business) return null;
     switch (active) {
       case 'home': return <GrowthHome business={business} onNavigate={go} />;
+      case 'pricing': return <PrintPricing />;
       case 'brand-kit': return <BrandKitStudio business={business} />;
       case 'card': return <BrandCardStudio business={business} />;
       case 'social': return <SocialStudioHub key={`${business.id}-social`} business={business} onNavigate={go} />;

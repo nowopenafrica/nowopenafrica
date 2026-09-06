@@ -28,7 +28,7 @@ export type ModuleKey =
   | 'campaigns' | 'promotions' | 'live-promo' | 'planner' | 'landing'
   | 'quotations' | 'invoices' | 'receipts' | 'catalogues' | 'customers' | 'keeps' | 'loyalty'
   | 'health' | 'analytics' | 'challenges'
-  | 'media' | 'export';
+  | 'media' | 'export' | 'pricing';
 
 export type HubKey = 'create' | 'promote' | 'manage';
 
@@ -51,7 +51,7 @@ export const HUBS: Hub[] = [
     key: 'create',
     label: 'Create',
     blurb: 'Make the thing — designs, your brand, and pages that sell.',
-    modules: ['design', 'video', 'brand-kit', 'card', 'landing'],
+    modules: ['design', 'video', 'brand-kit', 'card', 'landing', 'pricing'],
   },
   {
     key: 'promote',
