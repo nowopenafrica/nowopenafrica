@@ -322,10 +322,12 @@ export default function Businesses() {
           </div>
         </div>
 
-        {/* Category browse gallery. Hidden when the directory is empty: twelve
-            category cards each reading "0 businesses" is a wall of dead ends,
-            and IndustryDirectory below already covers "what is NowOpen for". */}
-        <div className={`mb-10 ${businesses.length === 0 ? 'hidden' : ''}`}>
+        {/* Category browse gallery. Hidden until the directory has enough in it
+            to browse: twelve category cards, ten of them reading "0
+            businesses", is a wall of dead ends whether the count is 0 or 2.
+            IndustryDirectory below already answers "what is NowOpen for", and
+            it does it without inviting a click that goes nowhere. */}
+        <div className={`mb-10 ${businesses.length < THIN_DIRECTORY ? 'hidden' : ''}`}>
           <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Browse by category</h2>
           {/* Six across, matching the Promote and Create pages — the three
               category rails read as one system rather than three layouts. */}
@@ -422,10 +424,18 @@ export default function Businesses() {
                     )}
                   </div>
 
+                  {/* No reviews is not a rating of nought — see the note in
+                      components/discover/BusinessCard.tsx. */}
                   <div className="mt-4 flex items-center justify-between">
                     <div className="flex items-center gap-1">
-                      <Star size={14} className="fill-yellow-400 text-yellow-400" />
-                      <span className="text-xs font-medium text-gray-900 dark:text-white">{business.rating ? business.rating.toFixed(1) : '0.0'}</span>
+                      {business.rating > 0 ? (
+                        <>
+                          <Star size={14} className="fill-yellow-400 text-yellow-400" />
+                          <span className="text-xs font-medium text-gray-900 dark:text-white">{business.rating.toFixed(1)}</span>
+                        </>
+                      ) : (
+                        <span className="text-[11px] text-gray-400">No reviews yet</span>
+                      )}
                     </div>
                   </div>
                 </div>

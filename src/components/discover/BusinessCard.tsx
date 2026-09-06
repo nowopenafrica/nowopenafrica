@@ -110,13 +110,24 @@ export default function BusinessCard({
         {/* Rating and the two actions share one row, so the buttons cost the
             card a single line rather than a block of its height. */}
         <div className="mt-3 pt-2 border-t border-gray-100 dark:border-gray-700/60 flex items-center gap-2">
+          {/* A business with no reviews has no rating — it does not have a
+              rating of nought. Printing "0.0" next to a filled star tells a
+              visitor this place was rated and rated badly, which is a worse
+              lie than saying nothing, and it is the owner's listing that
+              carries the damage. */}
           <span className="flex items-center gap-1 shrink-0">
-            <Star size={13} className="fill-yellow-400 text-yellow-400" />
-            <span className="text-[11px] font-medium text-gray-900 dark:text-white">
-              {rating ? rating.toFixed(1) : '0.0'}
-            </span>
-            {reviews > 0 && (
-              <span className="text-[10px] text-gray-400">({reviews})</span>
+            {rating > 0 ? (
+              <>
+                <Star size={13} className="fill-yellow-400 text-yellow-400" />
+                <span className="text-[11px] font-medium text-gray-900 dark:text-white">
+                  {rating.toFixed(1)}
+                </span>
+                {reviews > 0 && (
+                  <span className="text-[10px] text-gray-400">({reviews})</span>
+                )}
+              </>
+            ) : (
+              <span className="text-[10px] text-gray-400">No reviews yet</span>
             )}
           </span>
 
