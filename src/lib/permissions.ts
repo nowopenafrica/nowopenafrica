@@ -38,7 +38,8 @@ export type AdminTabId =
   | 'overview' | 'users' | 'businesses' | 'verification' | 'subscriptions'
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
   | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
-  | 'review-queue' | 'imports' | 'switches' | 'pages' | 'activation';
+  | 'review-queue' | 'imports' | 'switches' | 'pages' | 'activation'
+  | 'profile-requests';
 
 /**
  * What an editor may open.
@@ -65,6 +66,9 @@ export const EDITOR_TABS: AdminTabId[] = [
   // Whether the platform is working is not privileged information — an editor
   // writing listing content should be able to see whether it earns anything.
   'activation',
+  // Owners asking to be listed. Content work, and the queue only pays off if
+  // somebody actually works it — so an editor can.
+  'profile-requests',
   // The Page Editor is the editor role's actual remit: marketing copy on pages
   // that have been adopted. It cannot reach business records, verification,
   // prices or customer data — those are not editable by anyone, through it.

@@ -11,6 +11,7 @@ import BrandMarquee from '../components/BrandMarquee';
 import HeroSlider from '../components/HeroSlider';
 import ListingExplorer from '../components/home/ListingExplorer';
 import HeroSearch from '../components/home/HeroSearch';
+import SendYourBusiness from '../components/home/SendYourBusiness';
 import { loadHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 
 export default function Home() {
@@ -305,14 +306,17 @@ export default function Home() {
             })}
           </div>
 
-          <div className="mt-8 flex flex-wrap justify-center gap-3">
-            {/* Listing a business is the action this section should produce.
-                "Explore the platform" stays, but second. */}
+          {/* The action this section should produce. It is a form rather than a
+              link to one, because the point is that the owner does not have to
+              go anywhere or fill anything in about themselves. */}
+          <SendYourBusiness source="home-directory" className="mt-10 max-w-3xl mx-auto" />
+
+          <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link
               to="/waitlist"
-              className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
+              className="inline-flex items-center gap-2 px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              List your business <ArrowRight size={18} />
+              Join the waitlist <ArrowRight size={18} />
             </Link>
             <Link
               to="/platform"

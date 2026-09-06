@@ -44,6 +44,10 @@ export type EventName =
   // A Keep is the return mechanism, and the only connection that also lives as
   // a durable row. Tracked as an event too so the weekly number is one query.
   | 'business_kept'
+  // An owner asked us to build their profile. The acquisition funnel's first
+  // step, and the one worth watching: it needs no account, so it is the only
+  // signal available before somebody commits to anything.
+  | 'profile_requested'
   | 'search_performed'
   | 'enquiry_sent'
   | 'booking_started'
