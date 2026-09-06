@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { MapPin, TrendingUp, DollarSign, Eye, X, Megaphone, Award, ArrowRight } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
 import LocationAutocomplete from '../components/LocationAutocomplete';
+import PromoteMarketplace from '../components/promote/PromoteMarketplace';
 import { normalize } from '../lib/search';
 import { buildSuggestions } from '../lib/suggest';
 import { AFRICAN_PLACES } from '../data/locations';
@@ -98,7 +99,9 @@ export default function Adverts() {
     return applySeo({
       title: 'Advertise in Africa — Book Billboards & Ad Placements',
       description:
-        'Book real-world and digital advertising placements across 20+ African markets — billboards, transit, digital screens and managed campaigns.',
+        // Checked against the data: 42 cities across 21 countries, so "20+
+        // African markets" is accurate rather than a round number.
+        'Book real-world and digital advertising placements across 20+ African markets — billboards, transit, digital screens and broadcast — plus free ways to reach people already searching on NowOpen.',
       path: '/adverts',
       image: '/og-image.png',
     });
@@ -182,7 +185,11 @@ export default function Adverts() {
           <span className="inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-xs font-semibold">
             <Megaphone size={14} className="text-amber-300" /> Advertise across Africa
           </span>
-          <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-2xl">Book premium ad placements from billboards to broadcast</h1>
+          {/* The workflow, not the inventory. A business does not want a
+              billboard; it wants to be seen by people who then turn up. */}
+          <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-3xl">
+            Be seen where people are. Then see who came.
+          </h1>
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
             {/* Was "{n}+ verified placements". Two problems: the "+" reads as a
                 floor somebody chose rather than a count, and nobody has
@@ -190,12 +197,15 @@ export default function Adverts() {
                 could not stand behind. */}
             {adverts.length > 0
               ? `${adverts.length} placements`
-              : 'Placements'} across outdoor, transit, digital, broadcast and print. Filter by medium, location and budget.
+              : 'Placements'} across outdoor, transit, digital, broadcast and print —
+            plus the free ways to reach people already searching on NowOpen.
           </p>
         </div>
       </section>
 
-      <div className="site-container py-10">
+      <div className="site-container py-10 space-y-12">
+        <PromoteMarketplace />
+
         {/* Search criteria — Search · Location · Category, 3-in-1 full width */}
         <div className="mb-8">
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
