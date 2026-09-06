@@ -34,32 +34,20 @@ const BUSINESS_IMAGES: Record<string, string[]> = {
 // it is not fine for a listing someone books, where the picture is a claim
 // about what they are getting.
 //
-// Served from the operator's own CDN, which is why alternativeadverts.com is on
-// the img-src allowlist in vercel.json. That is a dependency on someone else's
-// server: if a URL moves, the card loses its picture. scripts/rehost-partner-images.mjs
-// pulls them into our own storage and rewrites these constants when you want
-// that dependency gone — it fetches the full-size original rather than the
-// 300x300 thumbnail linked here.
-const OPERATOR = (path: string) => `https://alternativeadverts.com/wp-content/uploads/${path}`;
-
-const OPERATOR_IMAGES = {
-  ibadanEyecatcher: OPERATOR('2022/03/EYECATCHER-DOUBLE-FACE-ALONG-JERICHO-ELEYE-ROADFTT-ONIREKE-JUNCTION-IBADAN-300x300.jpg'),
-  lekkiLedAjah: OPERATOR('2023/01/Picture3222-300x300.jpg'),
-  lekkiLedPortrait: OPERATOR('2022/06/LED-Portrait-By-5th-roundabout-Jakande-Junction-Lekki-Epe-Expressway.-Lagos-300x300.jpg'),
-  railwayScreens: OPERATOR('2023/04/16-Digital-Screens-Spread-Across-Ticketing-Area-And-The-Waiting-Area-Railway-Lagos-300x300.jpg'),
-  palmsFreestanding: OPERATOR('2025/05/2-Double-Sided-Billboard-Freestanding-Screens-The-Palms-Lekki-Lagos-300x300.jpg'),
-  bergerUnipole: OPERATOR('2024/08/2-face-Static-Unipole-Billboard-along-Berger-Lagos-Ibadan-exp.-road-Lagos-300x300.png'),
-  musonWallPanel: OPERATOR('2025/01/2-face-Wall-Panel-Billboard-Muson-Center-Onikan-Lagos-300x300.png'),
-  akinAdesolaScreen: OPERATOR('2023/04/2-Sided-Digital-Screen-At-Akin-Adesola-Victoria-Island-Lagos2-300x300.jpg'),
-  ekoBridgeLed: OPERATOR('2022/03/LED-2-sided-Board-along-Eko-Bridge-FTT-FTF-Lagos-Island-300x300.jpg'),
-  asabaUnipole: OPERATOR('2022/02/Unipole-Proposed-2-sided-b-unipole-at-Asaba-A-division-poilice-station-along-Nnebisi-road-FTT-and-FTF-Ogbogonogo-market-Asaba-2-300x300.jpg'),
-  portHarcourtUnipole: OPERATOR('2022/02/Unipole-Proposed-2-sided-b-unipole-at-Olu-abasanjo-Portharcout-rivers-state-300x300.jpg'),
-  warriMallUnipole: OPERATOR('2022/02/unipole-Proposed-2-sided-b-unipole-at-by-Warri-shoppimg-Mail-facing-directly-the-mall-and-FTF-warri-300x300.jpg'),
-  lawSchoolLed: OPERATOR('2022/05/3FACE-LED-BOARD-BY-FALOMO-BRIDGE-LAW-SCHOOL-300x300.jpg'),
-  ariariaPortrait: OPERATOR('2025/08/Portrait-Billboard-Ariaria-Junction-Aba-Abia-State-300x300.png'),
-  effurunUnipole: OPERATOR('2024/03/3-face-Unipole-Billboard-Effurun-Roundabout-by-tipper-garage-Warri-Delta-State-300x300.png'),
-  lekkiFirstRoundabout: OPERATOR('2023/03/Unipole-Billboard-Lekki-Epe-First-Roundabout-Lekki-Lagos-300x300.jpg'),
-};
+// THE OPERATOR PHOTOGRAPHS ARE GONE. Sixteen placements carried photographs
+// of the exact board, served from alternativeadverts.com. On 2026-09-06 that
+// host stopped answering: DNS resolves to 185.146.23.110 but TCP connect
+// times out, from an environment where Pexels and Google are fine. So there
+// was nothing left to re-host — scripts/rehost-partner-images.mjs copies the
+// originals into our storage, and the originals are unreachable.
+//
+// Those sixteen now use their type's stock pool like every other placement,
+// and the live rows were repointed to match. alternativeadverts.com has been
+// taken off the img-src allowlist in vercel.json, because nothing loads from
+// it any more and an allowlisted host we do not control is a standing risk.
+//
+// A picture OF THIS BOARD is still better than a picture of "a billboard".
+// If an operator supplies photographs again, re-host them first.
 
 // Realistic ad placements across Africa, shown while the database is empty.
 // Tuple: [title, type, location, price per day (USD), dimensions, traffic, image?, listPrice?]
@@ -98,8 +86,8 @@ type PlacementSeed = [string, string, string, number, string, string, string?, n
 const AD_PLACEMENTS: PlacementSeed[] = [
   // Nigeria
   ['3-Face Gantry Billboard, Third Mainland Bridge, Lagos', 'Billboard', 'Lagos, Nigeria', 73, '18m x 9m', 'high'],
-  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 133, '12m x 6m', 'high', OPERATOR_IMAGES.lekkiFirstRoundabout, 144],
-  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 376, '10m x 6m', 'high', OPERATOR_IMAGES.akinAdesolaScreen, 433],
+  ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Billboard', 'Lagos, Nigeria', 133, '12m x 6m', 'high', undefined, 144],
+  ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Digital Screen', 'Lagos, Nigeria', 376, '10m x 6m', 'high', undefined, 433],
   ['Double-Sided Freestanding Screens, Ikeja City Mall, Lagos', 'Mall Media', 'Lagos, Nigeria', 43, '4m x 3m', 'high'],
   ['Arrivals Wall Lightbox, Murtala Muhammed Airport, Lagos', 'Airport', 'Lagos, Nigeria', 101, '8m x 3m', 'high'],
   ['Full Vehicle Wrap, Danfo Fleet of 10, Lagos', 'Transit', 'Lagos, Nigeria', 35, 'Full vehicle', 'high'],
@@ -107,8 +95,8 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['2-Face Unipole Billboard, Wuse Market Entrance, Abuja', 'Billboard', 'Abuja, Nigeria', 35, '10m x 5m', 'high'],
   ['Baggage Hall Lightbox, Nnamdi Azikiwe Airport, Abuja', 'Airport', 'Abuja, Nigeria', 64, '6m x 3m', 'medium'],
   ['Lamp Post Network (20 units), Maitama District, Abuja', 'Street Furniture', 'Abuja, Nigeria', 26, '1.2m x 1.8m each', 'medium'],
-  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 14, '12m x 6m', 'high', OPERATOR_IMAGES.portHarcourtUnipole, 17],
-  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 14, '10m x 5m', 'medium', OPERATOR_IMAGES.ibadanEyecatcher, 18],
+  ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Billboard', 'Port Harcourt, Nigeria', 14, '12m x 6m', 'high', undefined, 17],
+  ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'Billboard', 'Ibadan, Nigeria', 14, '10m x 5m', 'medium', undefined, 18],
   ['2-Face Unipole Billboard, Kofar Mata Roundabout, Kano', 'Billboard', 'Kano, Nigeria', 17, '8m x 4m', 'medium'],
   ['Drive-Time Radio Slot (60s), Wazobia FM, Lagos', 'Radio', 'Lagos, Nigeria', 43, '60 seconds', 'high'],
   // Ghana
@@ -181,7 +169,7 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   ['48-Sheet Billboard, Ihama Road, Benin City', 'Billboard', 'Benin City, Nigeria', 5, '6m x 3m', 'medium'],
   ['Portrait Billboard, Nwaniba Road, Uyo', 'Billboard', 'Uyo, Nigeria', 16, '4m x 8m', 'medium'],
   ['Portrait Billboard, Nsugbe Road, Onitsha', 'Billboard', 'Onitsha, Nigeria', 17, '4m x 8m', 'high'],
-  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 18, '4m x 8m', 'medium', OPERATOR_IMAGES.asabaUnipole, 23],
+  ['Portrait Billboard, Nnebisi Road, Asaba', 'Billboard', 'Asaba, Nigeria', 18, '4m x 8m', 'medium', undefined, 23],
   ['Gantry Billboard, Abakiliki Road, Enugu', 'Billboard', 'Enugu, Nigeria', 73, '15m x 4m', 'high'],
 
   // --- Media the browse page offers but had nothing behind -------------------
@@ -240,17 +228,17 @@ const AD_PLACEMENTS: PlacementSeed[] = [
   // as they actually stand. Five placements above already corresponded to
   // listings here and have been given their photographs too; these eleven had
   // no counterpart.
-  ['LED Portrait Billboard, 5th Roundabout Lekki FTF Ajah, Lagos', 'Digital Screen', 'Lagos, Nigeria', 116, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedAjah, 130],
-  ['LED Portrait Billboard, 5th Roundabout Jakande, Lekki, Lagos', 'Digital Screen', 'Lagos, Nigeria', 104, 'LED portrait, double faced', 'high', OPERATOR_IMAGES.lekkiLedPortrait, 116],
-  ['16 Digital Screens, Railway Ticketing & Waiting Area, Lagos', 'Digital Screen', 'Lagos, Nigeria', 270, '16 screens', 'high', OPERATOR_IMAGES.railwayScreens, 289],
-  ['2 Double-Sided Freestanding Screens, The Palms, Lekki, Lagos', 'Mall Media', 'Lagos, Nigeria', 43, '2 double-sided', 'high', OPERATOR_IMAGES.palmsFreestanding, 49],
-  ['2-Face Static Unipole, Berger, Lagos-Ibadan Expressway', 'Billboard', 'Lagos, Nigeria', 52, '2 faces', 'high', OPERATOR_IMAGES.bergerUnipole, 57],
-  ['2-Face Wall Panel Billboard, Muson Centre, Onikan, Lagos', 'Billboard', 'Lagos, Nigeria', 73, 'Wall panel, 2 faces', 'high', OPERATOR_IMAGES.musonWallPanel, 87],
-  ['2-Sided LED Billboard, Eko Bridge, Lagos Island', 'Digital Screen', 'Lagos, Nigeria', 95, 'LED, 2 sided', 'high', OPERATOR_IMAGES.ekoBridgeLed, 101],
-  ['2-Sided Unipole Billboard, Warri Shopping Mall, Delta', 'Billboard', 'Warri, Nigeria', 25, '2 faces', 'medium', OPERATOR_IMAGES.warriMallUnipole, 27],
-  ['3-Face LED Billboard, Law School Falomo Bridge, Victoria Island', 'Digital Screen', 'Lagos, Nigeria', 376, 'LED, 3 faces', 'high', OPERATOR_IMAGES.lawSchoolLed, 433],
-  ['3-Face Portrait Billboard, Ariaria Junction, Aba', 'Billboard', 'Aba, Nigeria', 22, 'Portrait, 3 faces', 'high', OPERATOR_IMAGES.ariariaPortrait, 25],
-  ['3-Face Unipole Billboard, Effurun Roundabout, Warri', 'Billboard', 'Warri, Nigeria', 23, 'Unipole, 3 faces', 'high', OPERATOR_IMAGES.effurunUnipole, 26]
+  ['LED Portrait Billboard, 5th Roundabout Lekki FTF Ajah, Lagos', 'Digital Screen', 'Lagos, Nigeria', 116, 'LED portrait, double faced', 'high', undefined, 130],
+  ['LED Portrait Billboard, 5th Roundabout Jakande, Lekki, Lagos', 'Digital Screen', 'Lagos, Nigeria', 104, 'LED portrait, double faced', 'high', undefined, 116],
+  ['16 Digital Screens, Railway Ticketing & Waiting Area, Lagos', 'Digital Screen', 'Lagos, Nigeria', 270, '16 screens', 'high', undefined, 289],
+  ['2 Double-Sided Freestanding Screens, The Palms, Lekki, Lagos', 'Mall Media', 'Lagos, Nigeria', 43, '2 double-sided', 'high', undefined, 49],
+  ['2-Face Static Unipole, Berger, Lagos-Ibadan Expressway', 'Billboard', 'Lagos, Nigeria', 52, '2 faces', 'high', undefined, 57],
+  ['2-Face Wall Panel Billboard, Muson Centre, Onikan, Lagos', 'Billboard', 'Lagos, Nigeria', 73, 'Wall panel, 2 faces', 'high', undefined, 87],
+  ['2-Sided LED Billboard, Eko Bridge, Lagos Island', 'Digital Screen', 'Lagos, Nigeria', 95, 'LED, 2 sided', 'high', undefined, 101],
+  ['2-Sided Unipole Billboard, Warri Shopping Mall, Delta', 'Billboard', 'Warri, Nigeria', 25, '2 faces', 'medium', undefined, 27],
+  ['3-Face LED Billboard, Law School Falomo Bridge, Victoria Island', 'Digital Screen', 'Lagos, Nigeria', 376, 'LED, 3 faces', 'high', undefined, 433],
+  ['3-Face Portrait Billboard, Ariaria Junction, Aba', 'Billboard', 'Aba, Nigeria', 22, 'Portrait, 3 faces', 'high', undefined, 25],
+  ['3-Face Unipole Billboard, Effurun Roundabout, Warri', 'Billboard', 'Warri, Nigeria', 23, 'Unipole, 3 faces', 'high', undefined, 26]
 ];
 
 // Type-appropriate Pexels photos (visually verified) so placement cards show
@@ -281,7 +269,7 @@ const AD_TYPE_IMAGES: Record<string, string[]> = {
   // 8 digital screen placements
   'Digital Screen': [
     3927753, 18187188, 14363740, 12849349, 2506923, 2614818,
-    2372982, 12602146, 35072459, 27164635, 38833542, 11744955,
+    2372982, 12602146, 35072459, 27164635, 38833542, 11744955, 12904000,
   ].map(pexels),
   // 10 transit placements (BRT fleet branding is most of them)
   'Transit': [

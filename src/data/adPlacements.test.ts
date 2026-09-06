@@ -129,23 +129,24 @@ describe('ad placement sample data', () => {
     expect(new Set(images).size).toBe(images.length);
   });
 
-  it('uses the operator photograph on the board it actually shows', () => {
-    // A stock billboard is fine for illustrating a format. On a listing someone
-    // books, the picture is a claim about what they are getting, so where the
-    // operator supplied a photograph of that exact board it must win over the
-    // type's stock pool.
-    const byTitle = (t: string) => adverts.find((a) => a.title === t);
-    const pairs: [string, string][] = [
-      ['2-Sided LED Tower, Akin Adesola, Victoria Island, Lagos', 'Akin-Adesola'],
-      ['2-Sided Unipole Billboard, Aba Road, Port Harcourt', 'Olu-abasanjo'],
-      ['Double-Face Eyecatcher Billboard, Ring Road, Ibadan', 'JERICHO-ELEYE'],
-      ['Portrait Billboard, Nnebisi Road, Asaba', 'Asaba'],
-      ['3-Face Unipole Billboard, Lekki-Epe Expressway, Lagos', 'Lekki-Epe-First-Roundabout'],
-    ];
-    for (const [title, fragment] of pairs) {
-      const a = byTitle(title);
-      expect(a, `${title} is missing`).toBeTruthy();
-      expect(a!.image_url, `${title} lost its operator photo`).toContain(fragment);
+  it('carries no photograph from a host we do not control', () => {
+    // This replaced "uses the operator photograph on the board it actually
+    // shows". Five placements did carry a photograph of that exact board,
+    // served from alternativeadverts.com — better than a stock picture, because
+    // on a listing someone books the image is a claim about what they get.
+    //
+    // On 2026-09-06 that host stopped answering (DNS resolves, TCP times out),
+    // so all sixteen of its photographs were dead and there was nothing left to
+    // re-host. They now use their type's stock pool, and the host is off the
+    // CSP allowlist.
+    //
+    // The assertion is inverted rather than deleted: an image on a host that is
+    // not allowlisted fails only in production, where nobody is watching.
+    for (const a of adverts) {
+      expect(
+        /^https:\/\/(images\.pexels\.com|[a-z0-9-]+\.supabase\.co)\//.test(a.image_url),
+        `${a.title} points at a host the CSP does not allow: ${a.image_url}`,
+      ).toBe(true);
     }
   });
 
@@ -159,7 +160,9 @@ describe('ad placement sample data', () => {
       .filter((u) => !u.startsWith('https://images.pexels.com/'));
     for (const url of external) {
       expect(
-        /^https:\/\/(alternativeadverts\.com|[a-z0-9-]+\.supabase\.co)\//.test(url),
+        // alternativeadverts.com was removed from the CSP after the host went
+        // dark; permitting it here would let a dead URL back in unnoticed.
+        /^https:\/\/[a-z0-9-]+\.supabase\.co\//.test(url),
         `${url} is on a host the CSP does not allow`,
       ).toBe(true);
     }
