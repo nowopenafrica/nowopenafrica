@@ -184,7 +184,13 @@ export default function Adverts() {
           </span>
           <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-2xl">Book premium ad placements from billboards to broadcast</h1>
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
-            {adverts.length > 0 ? `${adverts.length}+ verified placements` : 'Verified placements'} across outdoor, transit, digital, broadcast and print. Filter by medium, location and budget.
+            {/* Was "{n}+ verified placements". Two problems: the "+" reads as a
+                floor somebody chose rather than a count, and nobody has
+                inspected these sites, so "verified" was a claim the platform
+                could not stand behind. */}
+            {adverts.length > 0
+              ? `${adverts.length} placements`
+              : 'Placements'} across outdoor, transit, digital, broadcast and print. Filter by medium, location and budget.
           </p>
         </div>
       </section>

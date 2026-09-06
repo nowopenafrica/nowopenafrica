@@ -6,6 +6,7 @@ import { MediaService } from '../types';
 import { Star, DollarSign, Palette, X, ArrowRight } from 'lucide-react';
 import { buildSuggestions } from '../lib/suggest';
 import SuggestInput from '../components/SuggestInput';
+import IndustryDirectory from '../components/home/IndustryDirectory';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { normalize } from '../lib/search';
 import { MEDIA_CATEGORY_GROUPS, groupForMediaType, DEFAULT_MEDIA_ICON } from '../data/mediaCategories';
@@ -120,7 +121,12 @@ export default function Media() {
           </span>
           <h1 className="mt-4 text-2xl sm:text-4xl font-bold max-w-2xl">Photographers, designers, editors & studios booked in one place</h1>
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
-            {services.length}+ vetted creative services across photo & video, design, motion, content, audio and live streaming.
+            {/* Was "{n}+ vetted creative services". Nobody vetted them — the
+                thirty that were here were invented, with invented ratings — and
+                "0+" is what the "+" produces on an empty list. */}
+            {services.length > 0
+              ? `${services.length} creative ${services.length === 1 ? 'service' : 'services'} across photo & video, design, motion, content, audio and live streaming.`
+              : 'Creative services across photo & video, design, motion, content, audio and live streaming.'}
           </p>
         </div>
       </section>
@@ -212,6 +218,9 @@ export default function Media() {
 
         {loading ? (
           <div className="text-center py-12"><p className="text-gray-600 dark:text-gray-400">Loading services…</p></div>
+        ) : services.length === 0 ? (
+          // Nothing listed at all, which is not "no match for your filters".
+          <IndustryDirectory label="creative services" />
         ) : filteredServices.length === 0 ? (
           <div className="text-center py-16">
             <Palette size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />

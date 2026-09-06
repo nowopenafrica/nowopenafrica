@@ -439,7 +439,12 @@ export default function AdvertDetail() {
               <div className="space-y-3 text-sm text-gray-600 dark:text-gray-400">
                 <div className="flex items-start gap-3">
                   <Star size={18} className="text-yellow-500 mt-0.5 flex-shrink-0" />
-                  <span>Every placement is verified on-site before it's listed</span>
+                  {/* Was "Every placement is verified on-site before it's
+                      listed". That describes a physical inspection programme
+                      across 97 sites in 42 cities which has not happened. What
+                      IS true is that each listing carries its medium, exact
+                      location, dimensions and rate. */}
+                  <span>Every placement lists its exact site, medium, dimensions and rate</span>
                 </div>
                 <div className="flex items-start gap-3">
                   <DollarSign size={18} className="text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" />
