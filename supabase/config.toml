@@ -35,6 +35,13 @@ verify_jwt = false
 enabled = true
 verify_jwt = false
 
+# enrich-business is the enrichment executor — pg_cron's `nowopen-enrichment`
+# tick posts to it via net.http_post, which can't attach a user JWT. Access is
+# gated by the AUTOMATION_SECRET header inside the function instead.
+[functions.enrich-business]
+enabled = true
+verify_jwt = false
+
 # social-auth's callback route is hit by Facebook/LinkedIn/X/TikTok redirects,
 # which can't attach our JWT — verification must be off. authorize/disconnect
 # re-validate the user JWT in code, and callback trusts the signed `state` only.
