@@ -283,14 +283,16 @@ ops functions, and auto-apply. What the founder asked for here:
   owner said it.
 
 After this paste, `npm run check:drift` reports the live schema matches the
-migrations. The auto-apply engine (`apply_business_change_proposals`) is gated
-by `auto_apply_check.exe()` (20260912020000) — schedule it with the SQL editor
-once you trust the proposals in review:
-
-```sql
--- daily, 06:00 Africa/Lagos:
-select cron.schedule('auto-apply-proposals', '0 6 * * *', $$select public.auto_apply_due_proposals()$$);
-```
+migrations. The auto-apply engine is owner-gated by `auto_apply_due_proposals`
+(20260912020000): a proposal applies only if the owner's stored flags allow it,
+every flag defaults to ask-first, and nothing applies to a business with no
+prefs row. It is invoked automatically at the end of every live enrichment run
+by the executor; `20260913030000_auto_apply_sweep.sql` adds a daily sweep
+(`auto_apply_all_due_proposals()`) for proposals lingering after a failed run.
+Apply that migration with the SQL editor once you trust proposals in review
+(the migration schedules the cron itself — the earlier runbook draft's
+no-arg `auto_apply_due_proposals()` overload does not exist and would fail
+every night, so do not schedule that form by hand):
 
 **Why the Enrichment Ops panel still says "No endpoint configured" after 8a**
 
