@@ -15,7 +15,7 @@ import { BUSINESS_CATEGORY_GROUPS, matchesCategory } from '../data/categories';
 import LoadFailure from '../components/LoadFailure';
 import {
   openNow, newest, topRated, hiddenGems,
-  affinityCategories, recommended,
+  affinityCategories, recommended, featuredFirst,
   DISCOVER_SELECT, tallyReviews, withReviewCounts,
   searchBusinesses, availableCategories, availableGroups,
   STATUS_FILTERS, type StatusKey,
@@ -223,27 +223,27 @@ export default function Discover() {
     }
     list.push({
       key: 'open', title: 'Open right now', blurb: 'Doors open as of this minute.',
-      icon: DoorOpen, items: openNow(scope, now),
+      icon: DoorOpen, items: featuredFirst(openNow(scope, now)),
     });
     if (cats.length) {
       list.push({
         key: 'foryou',
         title: `Because you keep ${cats[0].toLowerCase()}`,
         blurb: 'Places like the ones you already follow.',
-        icon: Heart, items: recommended(scope, cats, keptIds),
+        icon: Heart, items: featuredFirst(recommended(scope, cats, keptIds)),
       });
     }
     list.push({
       key: 'new', title: 'New on NowOpen', blurb: 'Listed in the last month.',
-      icon: Sparkles, items: newest(scope, now),
+      icon: Sparkles, items: featuredFirst(newest(scope, now)),
     });
     list.push({
       key: 'top', title: 'Top rated', blurb: 'Consistently well reviewed.',
-      icon: Star, items: topRated(scope),
+      icon: Star, items: featuredFirst(topRated(scope)),
     });
     list.push({
       key: 'gems', title: 'Hidden gems', blurb: 'Well rated, not yet well known.',
-      icon: Gem, items: hiddenGems(scope),
+      icon: Gem, items: featuredFirst(hiddenGems(scope)),
     });
 
     return list.filter((r) => r.items.length > 0);

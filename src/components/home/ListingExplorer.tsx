@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
 import BusinessCard from '../discover/BusinessCard';
-import { isClaimed, byClaimedThenVerified } from '../../lib/discover';
+import { isClaimed, hasListingImage, byClaimedThenImageThenVerified } from '../../lib/discover';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
@@ -79,6 +79,8 @@ interface Row {
   verified?: boolean;
   /** A real person runs this one. Businesses only — see claimedFirst. */
   claimed?: boolean;
+  /** Has a logo or cover photo to show. Businesses only. */
+  hasImage?: boolean;
   reach?: number;
   created_at?: string;
   type: 'business' | 'advert' | 'media';
@@ -167,6 +169,7 @@ export default function ListingExplorer({
       href: b.username ? `/${b.username}` : `/businesses/${b.id}`,
       verified: b.verified,
       claimed: isClaimed(b as unknown as DiscoverBusiness),
+      hasImage: hasListingImage(b),
       title: b.name,
       description: b.description ?? '',
       image_url: b.image_url || FALLBACK_IMG.business,
@@ -234,13 +237,17 @@ export default function ListingExplorer({
        * heard of us. Leading with the guesses is worse for the visitor and
        * backwards as an incentive.
        *
+       * Within a claim tier, businesses with a logo or cover photo lead — the
+       * card has something to show instead of a placeholder. Never across
+       * tiers: a photo is not more real than an owner.
+       *
        * Deliberately independent of open/closed. A business that shuts at six
        * is still the one somebody wants to find at seven, and ranking on the
        * clock would drop every claimed listing out of view for most of the
        * day — including under the "All" chip, where everything is supposed to
        * be on show.
        */
-      out = [...out].sort(byClaimedThenVerified);
+      out = [...out].sort(byClaimedThenImageThenVerified);
     }
     return out;
   }, [rows, query, category, location, sort, type]);

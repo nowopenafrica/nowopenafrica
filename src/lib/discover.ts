@@ -73,6 +73,10 @@ export interface DiscoverBusiness extends OpenStateInput {
 export const isClaimed = (b: Pick<DiscoverBusiness, 'claim_status' | 'user_id'>): boolean =>
   Boolean(b.user_id) || b.claim_status === 'claimed';
 
+/** Has a logo or cover photo — the card has a real image to show. */
+export const hasListingImage = (b: Pick<DiscoverBusiness, 'logo_url' | 'image_url'>): boolean =>
+  Boolean(b.logo_url || b.image_url);
+
 /**
  * Claimed businesses first.
  *
@@ -98,19 +102,36 @@ export const isClaimed = (b: Pick<DiscoverBusiness, 'claim_status' | 'user_id'>)
  * the ones a visitor can actually use come first, and the order is stable.
  */
 /**
- * The same primary rule, for a grid whose rows have already been flattened.
+ * The same primary rule, for a grid whose rows have already been flattened,
+ * with the logo/cover tier folded in between claim and verification.
  *
  * The homepage explorer reshapes businesses, adverts and services into one Row
  * type, so it cannot use `claimedFirst` — but it must not answer the question
  * differently. Exported so there is one place to read "claimed comes first",
  * and so a test can hold both to it.
+ *
+ * A finished card is impossible without a logo or cover — the image slot on
+ * every surface renders that or a placeholder. Image-complete listings sort
+ * above image-less ones WITHIN a claim tier, so a photo never surfaces a
+ * guessed import above a profile a real person runs; it only keeps the
+ * front pages from leading with broken-image shells.
  */
-export function byClaimedThenVerified(
-  a: { claimed?: boolean; verified?: boolean },
-  b: { claimed?: boolean; verified?: boolean },
+export interface ClaimedImageVerifiedRow {
+  /** A real person runs this one. Businesses only — see claimedFirst. */
+  claimed?: boolean;
+  /** Has a logo or cover photo to show. Businesses only. */
+  hasImage?: boolean;
+  verified?: boolean;
+}
+
+export function byClaimedThenImageThenVerified(
+  a: ClaimedImageVerifiedRow,
+  b: ClaimedImageVerifiedRow,
 ): number {
   const claim = Number(b.claimed ?? false) - Number(a.claimed ?? false);
   if (claim !== 0) return claim;
+  const image = Number(b.hasImage ?? false) - Number(a.hasImage ?? false);
+  if (image !== 0) return image;
   return Number(b.verified ?? false) - Number(a.verified ?? false);
 }
 
@@ -123,6 +144,27 @@ export function claimedFirst<T extends Pick<DiscoverBusiness, 'claim_status' | '
     const score = (b.listing_score ?? 0) - (a.listing_score ?? 0);
     if (score !== 0) return score;
     return String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
+  });
+}
+
+/**
+ * The tier every featured rail shares, for rows that are still full
+ * business objects: claimed first, then logo/cover, then verified — the same
+ * primary rule the homepage grid applies to its flattened rows.
+ *
+ * STABLE. A rail arrives ordered by its own meaning (rating, recency, …) and
+ * the sort only lifts businesses within each tier, so "Top rated" still ranks
+ * by rating among the image-complete businesses it shows first.
+ */
+export function featuredFirst<T extends Pick<DiscoverBusiness, 'claim_status' | 'user_id' | 'logo_url' | 'image_url' | 'verified'>>(
+  list: T[],
+): T[] {
+  return [...list].sort((a, b) => {
+    const claim = Number(isClaimed(b)) - Number(isClaimed(a));
+    if (claim !== 0) return claim;
+    const image = Number(hasListingImage(b)) - Number(hasListingImage(a));
+    if (image !== 0) return image;
+    return Number(b.verified === true) - Number(a.verified === true);
   });
 }
 

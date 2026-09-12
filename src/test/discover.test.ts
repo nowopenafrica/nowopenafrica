@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   openNow, newest, topRated, hiddenGems, near,
   affinityCategories, recommended, businessHref,
-  isClaimed, claimedFirst, byClaimedThenVerified, DISCOVER_SELECT,
+  isClaimed, hasListingImage, claimedFirst, byClaimedThenImageThenVerified, featuredFirst, DISCOVER_SELECT,
   type DiscoverBusiness,
 } from '../lib/discover';
 
@@ -502,11 +502,23 @@ describe('claimed businesses come first', () => {
     // The explorer flattens businesses, adverts and services into one Row and
     // so cannot use claimedFirst — but it must not answer differently.
     const rows = [
-      { id: 'unclaimed-verified', claimed: false, verified: true },
-      { id: 'claimed-plain', claimed: true, verified: false },
+      { id: 'unclaimed-verified', claimed: false, hasImage: false, verified: true },
+      { id: 'claimed-plain', claimed: true, hasImage: false, verified: false },
     ];
-    expect([...rows].sort(byClaimedThenVerified).map((r) => r.id))
+    expect([...rows].sort(byClaimedThenImageThenVerified).map((r) => r.id))
       .toEqual(['claimed-plain', 'unclaimed-verified']);
+  });
+
+  it('lifts image-complete businesses within each claim tier', () => {
+    // A photo is never more real than an owner: claimed-no-image still leads,
+    // and among imports the ones with a logo/cover come before the shells.
+    const rows = [
+      { id: 'import-with-logo', claimed: false, hasImage: true, verified: false },
+      { id: 'claimed-no-image', claimed: true, hasImage: false, verified: true },
+      { id: 'import-no-image', claimed: false, hasImage: false, verified: true },
+    ];
+    expect([...rows].sort(byClaimedThenImageThenVerified).map((r) => r.id))
+      .toEqual(['claimed-no-image', 'import-with-logo', 'import-no-image']);
   });
 
   it('asks the database for the columns the rule needs', () => {
@@ -518,5 +530,42 @@ describe('claimed businesses come first', () => {
      */
     expect(DISCOVER_SELECT).toContain('claim_status');
     expect(DISCOVER_SELECT).toContain('user_id');
+  });
+});
+
+describe('hasListingImage', () => {
+  it('a logo or a cover counts as having an image', () => {
+    expect(hasListingImage({ logo_url: 'l' })).toBe(true);
+    expect(hasListingImage({ image_url: 'c' })).toBe(true);
+    expect(hasListingImage({ logo_url: '', image_url: null })).toBe(false);
+    expect(hasListingImage({})).toBe(false);
+  });
+});
+
+describe('featuredFirst', () => {
+  it('puts image-complete businesses on top within claim tiers', () => {
+    const list = [
+      b({ id: 'import-no-image', logo_url: null, image_url: null }),
+      b({ id: 'import-with-logo', logo_url: 'https://x/logo.png' }),
+      b({ id: 'claimed-no-image', claim_status: 'claimed' }),
+    ];
+    expect(featuredFirst(list).map((x) => x.id))
+      .toEqual(['claimed-no-image', 'import-with-logo', 'import-no-image']);
+  });
+
+  it('preserves the rail order within an image tier', () => {
+    // A rail arrives ordered by its own key. featuredFirst must lift tiers
+    // without scrambling the rail's ranking among equals.
+    const list = [
+      b({ id: 'r42', rating: 4.2, review_count: 9, image_url: 'i' }),
+      b({ id: 'r46', rating: 4.6, review_count: 9, image_url: 'i' }),
+    ];
+    expect(featuredFirst(topRated(list)).map((x) => x.id)).toEqual(['r46', 'r42']);
+  });
+
+  it('does not mutate its input', () => {
+    const list = [b({ id: 'a' }), b({ id: 'b', claim_status: 'claimed' })];
+    featuredFirst(list);
+    expect(list.map((x) => x.id)).toEqual(['a', 'b']);
   });
 });
