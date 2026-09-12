@@ -16,6 +16,9 @@
 import { normalizeBusiness, type NormalizedBusiness } from '../radar/normalize';
 import { scoreConfidence } from '../radar/confidence';
 import type { Dataset } from './mapping';
+import { checkImageUrl, checkGalleryUrls, mediaProblemMessage } from './media';
+import { isPlaceholderValue } from '../webLink';
+import { normaliseProfile } from './profileFields';
 
 export type RowStatus = 'valid' | 'review' | 'invalid';
 
@@ -54,6 +57,28 @@ export function buildReference(
   return { categories: c, cities: new Set(locations.map((l) => l.city.toLowerCase()).filter(Boolean)) };
 }
 
+/**
+ * Fields a placeholder is scrubbed from.
+ *
+ * An EXPLICIT list, and numeric fields are deliberately absent: `price`,
+ * `capacity`, `rating`, `latitude` and `longitude` can legitimately be "0",
+ * and the placeholder rule treats an all-zero string as empty. Scrubbing a
+ * price of 0 would turn "free" into "unknown".
+ */
+const SCRUBBED_FIELDS = [
+  'name', 'category', 'city', 'location', 'area', 'landmark', 'address',
+  'phone', 'whatsapp', 'email', 'website',
+  'description', 'about', 'opening_hours', 'hours',
+  'logo_url', 'cover_image_url', 'image_url', 'gallery_urls',
+  'placement_type', 'media_type', 'service_category',
+  // The rest of the profile. A tagline reading "N/A" is worse than no tagline:
+  // it publishes on the page, in the largest type on the card.
+  'tagline', 'story', 'mission', 'vision', 'why_us', 'core_values',
+  'services', 'faqs', 'founded_year', 'employees', 'business_type',
+  'service_area', 'languages', 'payment_methods', 'secondary_categories',
+  'timezone', 'instagram', 'facebook', 'twitter', 'tiktok', 'linkedin', 'youtube',
+] as const;
+
 /** Required fields per dataset, from the import contract. */
 const REQUIRED: Record<Dataset, string[]> = {
   businesses: ['name', 'category', 'city'],
@@ -76,6 +101,35 @@ export function validateRow(
   ref: ReferenceData,
 ): ValidatedRow {
   const issues: RowIssue[] = [];
+
+  /*
+   * PLACEHOLDERS FIRST, and by deleting them.
+   *
+   * A spreadsheet cell reading "UNKNOWN" is an empty cell wearing a coat, and
+   * every check below is written for an empty cell. 257 of the 271 businesses
+   * on the live platform arrived with `whatsapp = 'UNKNOWN'` — nothing looked
+   * at whatsapp at all, so it published, and `listing_score` then credited
+   * 195 businesses with a contact nobody can use, which pushed 26 of them
+   * over the indexability bar.
+   *
+   * Deleting rather than flagging is what makes the rest correct: a required
+   * field holding a placeholder now reports as MISSING (blocking), and an
+   * optional one is simply absent. The note says what happened, because
+   * silently dropping a column an admin believes they supplied is how a
+   * spreadsheet's problems become the platform's.
+   */
+  for (const field of SCRUBBED_FIELDS) {
+    const raw = mapped[field];
+    if (raw === undefined || String(raw).trim() === '') continue;
+    if (!isPlaceholderValue(raw)) continue;
+    issues.push({
+      field,
+      severity: 'note',
+      message: `"${String(raw).trim()}" says nothing, so ${field.replace(/_/g, ' ')} is treated as blank.`,
+    });
+    delete mapped[field];
+  }
+
   const has = (k: string) => !!mapped[k]?.trim();
 
   for (const field of REQUIRED[dataset]) {
@@ -119,6 +173,65 @@ export function validateRow(
     }
     if ((has('latitude') || has('longitude')) && (normalized?.latitude === null || normalized?.longitude === null)) {
       issues.push({ field: 'latitude', severity: 'review', message: 'Coordinates are out of range and will be left blank.' });
+    }
+
+    /*
+     * Image URLs.
+     *
+     * `logo_url` and `cover_image_url` were mapped and never checked, which is
+     * the wrong way round for a value that ends up in an `<img src>` on a
+     * public profile. A `javascript:` cell would be a script NowOpen publishes
+     * on somebody's behalf; an `http://` image is blocked as mixed content and
+     * shows as a broken picture, which reads as NowOpen being broken rather
+     * than the file being wrong.
+     *
+     * Never blocking. A bad logo is a cosmetic problem on an otherwise good
+     * listing, and refusing the whole business over it would lose the row that
+     * matters to keep the picture that does not.
+     */
+    for (const field of ['logo_url', 'cover_image_url'] as const) {
+      if (!has(field)) continue;
+      const { url, problem } = checkImageUrl(mapped[field]);
+      if (problem && problem !== 'empty') {
+        issues.push({
+          field,
+          severity: 'review',
+          message: mediaProblemMessage(field, problem, String(mapped[field] ?? '')),
+        });
+      }
+      // Write back the cleaned value so an https upgrade actually takes effect.
+      if (url) mapped[field] = url;
+      else if (problem && problem !== 'empty') delete mapped[field];
+    }
+
+    /*
+     * THE REST OF THE PROFILE — socials, services, FAQs, lists, founding year.
+     *
+     * Normalised into canonical forms here so the SQL that moves a candidate
+     * into `businesses` only has to split a delimiter or cast a JSON string.
+     * "@mamaput" becoming https://instagram.com/mamaput is interpretation, and
+     * interpretation belongs in tested code rather than in a migration.
+     *
+     * Every issue is 'review' rather than blocking: a mangled services cell is
+     * a reason for a person to look, never a reason to refuse a real business.
+     */
+    const profile = normaliseProfile(mapped);
+    for (const [key, value] of Object.entries(profile.fields)) mapped[key] = value;
+    for (const issue of profile.issues) {
+      issues.push({ field: issue.field, severity: 'review', message: issue.message });
+    }
+
+    if (has('gallery_urls')) {
+      const { urls, rejected } = checkGalleryUrls(mapped.gallery_urls);
+      for (const r of rejected) {
+        issues.push({
+          field: 'gallery_urls',
+          severity: 'review',
+          message: mediaProblemMessage('gallery image', r.problem, r.value),
+        });
+      }
+      if (urls.length) mapped.gallery_urls = urls.join('|');
+      else delete mapped.gallery_urls;
     }
   }
 

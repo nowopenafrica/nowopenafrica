@@ -41,9 +41,7 @@ export const EDUCATION_SPOTLIGHTS: Record<string, any> = {
     email: 'admissions@brightminds.example.com',
     opening_hours: 'Mon–Fri: 8AM–4PM',
     image_url: px(8471835),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

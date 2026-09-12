@@ -335,6 +335,694 @@ export function growthDirector(f: RawFacts): AgentResult {
   };
 }
 
+/* =========================================================== strategy director */
+/**
+ * The quarter, measured. Reports the launch board and the enrichment engine as
+ * numbers the plan can be argued against, instead of a mood.
+ */
+export function strategyDirector(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'listings_public', label: 'Public listings', value: n(f, 'listings_public'), source: 'businesses', filter: 'is_listable' },
+    { key: 'claimed', label: 'Claimed', value: n(f, 'claimed'), source: 'businesses' },
+    { key: 'verified', label: 'Verified', value: n(f, 'verified'), source: 'businesses' },
+    { key: 'claims_started', label: 'Claims ever started', value: n(f, 'claims_started'), source: 'business_claims' },
+    { key: 'launches_total', label: 'Launches on the board', value: n(f, 'launches_total'), source: 'os_launches' },
+    { key: 'launches_ready', label: 'Launches with a full checklist', value: n(f, 'launches_ready'), source: 'os_launches', filter: 'no false items' },
+    { key: 'enrichment_backlog', label: 'Enrichment jobs queued or running', value: n(f, 'enrichment_backlog'), source: 'business_enrichment_jobs' },
+    { key: 'suggestions_7d', label: 'Suggestions this week', value: n(f, 'suggestions_7d'), source: 'radar_candidates' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'launches_total') > 0 && n(f, 'launches_ready') === 0) {
+    findings.push({
+      title: 'No launch on the board is ready',
+      severity: 'attention',
+      detail: 'Every launch still has checklist items open. A board with nothing shippable is a todo list, not a plan.',
+      basis: ['launches_total', 'launches_ready'],
+    });
+  }
+
+  if (n(f, 'enrichment_backlog') > 0) {
+    findings.push({
+      title: `${n(f, 'enrichment_backlog')} business${n(f, 'enrichment_backlog') === 1 ? ' is' : 'es are'} queued for enrichment`,
+      severity: 'watch',
+      detail: 'The intelligence engine is falling behind its own queue. Each run makes the directory stronger; every queued row is that run not happening.',
+      basis: ['enrichment_backlog'],
+    });
+  }
+
+  return {
+    agentKey: 'strategy-director',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'claimed')} claimed of ${n(f, 'listings_public')} public listings`),
+  };
+}
+
+/* ============================================================ research analyst */
+/**
+ * Intelligence supply. Radar is the raw feed and the knowledge base is the
+ * memory; an empty week on both means the strategy teams are planning blind
+ * and nobody has noticed because nobody was scheduled to notice.
+ */
+export function researchAnalyst(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'radar_pending', label: 'Discovery records in review', value: n(f, 'radar_pending'), source: 'radar_candidates', filter: "status IN ('pending','review')" },
+    { key: 'suggestions_7d', label: 'Suggestions this week', value: n(f, 'suggestions_7d'), source: 'radar_candidates' },
+    { key: 'discovery_7d', label: 'Discovery records this week', value: n(f, 'discovery_7d'), source: 'radar_candidates' },
+    { key: 'profile_requests_new', label: 'Profile requests to build', value: n(f, 'profile_requests_new'), source: 'profile_requests', filter: "status='new'" },
+    { key: 'knowledge_7d', label: 'Knowledge entries this week', value: n(f, 'knowledge_7d'), source: 'os_knowledge' },
+    { key: 'media_assets_discovered', label: 'Assets proposed by sources', value: n(f, 'media_assets_discovered'), source: 'business_media_assets', filter: "status='discovered'" },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'radar_pending') > 0) {
+    findings.push({
+      title: `${n(f, 'radar_pending')} discovery record${n(f, 'radar_pending') === 1 ? '' : 's'} waiting to be reviewed`,
+      severity: 'watch',
+      detail: 'Records that are not reviewed are not intelligence, they are a pile. Reviewing them is what turns sourcing into market data.',
+      basis: ['radar_pending'],
+    });
+  }
+
+  if (n(f, 'suggestions_7d') === 0 && n(f, 'discovery_7d') === 0) {
+    findings.push({
+      title: 'No discovery or suggestions this week',
+      severity: 'watch',
+      detail: 'The market feed has gone quiet on every source. Either nothing is being found or nothing is being submitted — both need attention.',
+      basis: ['suggestions_7d', 'discovery_7d'],
+    });
+  }
+
+  if (n(f, 'knowledge_7d') === 0) {
+    findings.push({
+      title: 'Nothing written to the knowledge base this week',
+      severity: 'watch',
+      detail: 'Decisions and SOPs that are not recorded are decisions that will be made differently next week.',
+      basis: ['knowledge_7d'],
+    });
+  }
+
+  return {
+    agentKey: 'research-analyst',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'radar_pending')} records in the review queue`),
+  };
+}
+
+/* ================================================================= seo manager */
+/**
+ * What search can actually read. The directory earns its traffic by answering
+ * near-me queries, so a listing with no location, no description and no photo
+ * might as well not exist — and the agent has to be willing to say that in
+ * numbers rather than vibes.
+ */
+export function seoManager(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'listings_public', label: 'Public listings', value: n(f, 'listings_public'), source: 'businesses', filter: 'is_listable' },
+    { key: 'no_description', label: 'Without a description', value: n(f, 'no_description'), source: 'businesses' },
+    { key: 'no_location', label: 'Without a location', value: n(f, 'no_location'), source: 'businesses' },
+    { key: 'no_website', label: 'Without a website', value: n(f, 'no_website'), source: 'businesses' },
+    { key: 'no_media', label: 'Without any photo', value: n(f, 'no_media'), source: 'businesses' },
+    { key: 'default_24_7', label: 'Relying on the platform default hours', value: n(f, 'default_24_7'), source: 'businesses' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'no_description') > 0 && n(f, 'listings_public') > 0) {
+    findings.push({
+      title: `${n(f, 'no_description')} listing${n(f, 'no_description') === 1 ? ' has' : 's have'} no description`,
+      severity: 'attention',
+      detail: 'With no body text there is almost nothing for search to index. These pages are invisible except to people who already know the name.',
+      basis: ['no_description', 'listings_public'],
+    });
+  }
+
+  if (n(f, 'no_media') > 0 && n(f, 'listings_public') > 0 && n(f, 'no_media') === n(f, 'listings_public')) {
+    findings.push({
+      title: 'Not one public listing has a photo',
+      severity: 'attention',
+      detail: 'Image-rich results are impossible without assets, and every category page looks abandoned.',
+      basis: ['no_media', 'listings_public'],
+    });
+  }
+
+  if (n(f, 'default_24_7') > 0) {
+    findings.push({
+      title: `${n(f, 'default_24_7')} listing${n(f, 'default_24_7') === 1 ? ' relies' : 's rely'} on platform-default hours`,
+      severity: 'watch',
+      detail: 'The default keeps the page honest, but search schema rewards explicit hours. These pages will not appear in rich results until an owner states them.',
+      basis: ['default_24_7'],
+    });
+  }
+
+  return {
+    agentKey: 'seo-manager',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'no_description')} listings without a description`),
+  };
+}
+
+/* ============================================================ social director */
+/**
+ * The calendar, not the sentiment. NowOpen's social function is a publishing
+ * pipeline, so the agent watches whether the pipeline is fed, moving and
+ * erroring — a failed post is a promise to a business owner that never lands.
+ */
+export function socialDirector(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'listings_public', label: 'Public listings', value: n(f, 'listings_public'), source: 'businesses', filter: 'is_listable' },
+    { key: 'posts_scheduled', label: 'Posts scheduled', value: n(f, 'posts_scheduled'), source: 'social_scheduled_posts', filter: "status='scheduled'" },
+    { key: 'posts_published_7d', label: 'Published this week', value: n(f, 'posts_published_7d'), source: 'social_scheduled_posts' },
+    { key: 'posts_failed', label: 'Failed posts', value: n(f, 'posts_failed'), source: 'social_scheduled_posts', filter: "status='failed'" },
+    { key: 'posts_due_24h', label: 'Due in the next 24 hours', value: n(f, 'posts_due_24h'), source: 'social_scheduled_posts' },
+    { key: 'social_work_open', label: 'Open social work items', value: n(f, 'social_work_open'), source: 'os_work_items' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'posts_failed') > 0) {
+    findings.push({
+      title: `${n(f, 'posts_failed')} scheduled post${n(f, 'posts_failed') === 1 ? '' : 's'} failed`,
+      severity: 'attention',
+      detail: 'The publisher is erroring. Check last_error on the failed rows before anything else gets queued on top of them.',
+      basis: ['posts_failed'],
+    });
+  }
+
+  if (n(f, 'posts_scheduled') === 0 && n(f, 'listings_public') > 0) {
+    findings.push({
+      title: 'Nothing is scheduled',
+      severity: 'watch',
+      detail: 'An empty calendar means every channel goes quiet from here. Schedule ahead so nothing goes dark.',
+      basis: ['posts_scheduled', 'listings_public'],
+    });
+  }
+
+  if (n(f, 'posts_due_24h') > 0) {
+    findings.push({
+      title: `${n(f, 'posts_due_24h')} post${n(f, 'posts_due_24h') === 1 ? ' is' : 's are'} due in the next 24 hours`,
+      severity: 'watch',
+      detail: 'The publishing window is live. Anything wrong with these surfaces now will surface as a missed post.',
+      basis: ['posts_due_24h'],
+    });
+  }
+
+  return {
+    agentKey: 'social-director',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'posts_published_7d')} posts published this week`),
+  };
+}
+
+/* ============================================================ content manager */
+/**
+ * The copy layer under the calendar. A scheduled post without a caption is a
+ * slot with nothing in it, and a work item that never leaves the department is
+ * a brief that died on a desk.
+ */
+export function contentManager(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'social_work_open', label: 'Open content work items', value: n(f, 'social_work_open'), source: 'os_work_items' },
+    { key: 'approvals_pending', label: 'Approvals waiting', value: n(f, 'approvals_pending'), source: 'os_approvals', filter: "status='pending'" },
+    { key: 'posts_scheduled', label: 'Posts scheduled', value: n(f, 'posts_scheduled'), source: 'social_scheduled_posts' },
+    { key: 'posts_needing_caption', label: 'Scheduled without a caption', value: n(f, 'posts_needing_caption'), source: 'social_scheduled_posts' },
+    { key: 'posts_failed', label: 'Failed posts', value: n(f, 'posts_failed'), source: 'social_scheduled_posts' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'posts_needing_caption') > 0) {
+    findings.push({
+      title: `${n(f, 'posts_needing_caption')} scheduled post${n(f, 'posts_needing_caption') === 1 ? '' : 's'} have no caption`,
+      severity: 'attention',
+      detail: 'A slot without copy is a slot that will go out silent or not at all. Captions are the smallest asset with the largest effect.',
+      basis: ['posts_needing_caption'],
+    });
+  }
+
+  if (n(f, 'posts_failed') > 0) {
+    findings.push({
+      title: `${n(f, 'posts_failed')} post${n(f, 'posts_failed') === 1 ? '' : 's'} failed to publish`,
+      severity: 'watch',
+      detail: 'The failed rows still hold their copy. Republish once the reason is known.',
+      basis: ['posts_failed'],
+    });
+  }
+
+  if (n(f, 'social_work_open') > 0) {
+    findings.push({
+      title: `${n(f, 'social_work_open')} content work item${n(f, 'social_work_open') === 1 ? '' : 's'} open`,
+      severity: 'watch',
+      detail: 'Each open item is a piece of the content plan that has not finished moving.',
+      basis: ['social_work_open'],
+    });
+  }
+
+  return {
+    agentKey: 'content-manager',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'posts_scheduled')} scheduled, ${n(f, 'posts_needing_caption')} without captions`),
+  };
+}
+
+/* =========================================================== comms director */
+/**
+ * The gate on being public. Finished work in this department can damage the
+ * company if it ships wrong, so the honest state is "waiting at approval",
+ * counted until a person signs it — and the memory of the decision is only
+ * kept if it reaches the knowledge base.
+ */
+export function commsDirector(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'publication_approvals_pending', label: 'Pieces waiting at the approval gate', value: n(f, 'publication_approvals_pending'), source: 'os_approvals', filter: "status='pending'" },
+    { key: 'knowledge_30d', label: 'Knowledge entries in 30 days', value: n(f, 'knowledge_30d'), source: 'os_knowledge' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'publication_approvals_pending') > 0) {
+    findings.push({
+      title: `${n(f, 'publication_approvals_pending')} piece${n(f, 'publication_approvals_pending') === 1 ? '' : 's'} of finished work waiting on sign-off`,
+      severity: 'attention',
+      detail: 'Nothing public ships without a human decision, and every item here is that decision delayed. This queue is the real publish date.',
+      basis: ['publication_approvals_pending'],
+    });
+  }
+
+  if (n(f, 'knowledge_30d') === 0) {
+    findings.push({
+      title: 'No decisions recorded to the knowledge base in 30 days',
+      severity: 'watch',
+      detail: 'Approved work that is not written down stops being institutional memory and starts being something to rediscover.',
+      basis: ['knowledge_30d'],
+    });
+  }
+
+  return {
+    agentKey: 'comms-director',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'publication_approvals_pending')} approvals pending`),
+  };
+}
+
+/* ========================================================= creative director */
+/**
+ * The image supply chain, and its ethics. Media assets carry rights info or
+ * they are a lawsuit waiting to be filed — an unlicensed asset is the one
+ * thing that stays dangerous even when nobody is looking at it.
+ */
+export function creativeDirector(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'assets_awaiting_review', label: 'Assets awaiting review', value: n(f, 'assets_awaiting_review'), source: 'business_media_assets', filter: "moderation_status='pending'" },
+    { key: 'assets_unlicensed', label: 'Assets with no rights decision', value: n(f, 'assets_unlicensed'), source: 'business_media_assets' },
+    { key: 'takedowns_unhonoured', label: 'Takedown requests not honoured', value: n(f, 'takedowns_unhonoured'), source: 'business_media_assets' },
+    { key: 'assets_published', label: 'Assets published', value: n(f, 'assets_published'), source: 'business_media_assets' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'assets_unlicensed') > 0) {
+    findings.push({
+      title: `${n(f, 'assets_unlicensed')} media asset${n(f, 'assets_unlicensed') === 1 ? '' : 's'} have no rights decision`,
+      severity: 'attention',
+      detail: 'Storing an asset without knowing whether we may use it is how a takedown starts. Decide rights before anything renders.',
+      basis: ['assets_unlicensed'],
+    });
+  }
+
+  if (n(f, 'takedowns_unhonoured') > 0) {
+    findings.push({
+      title: `${n(f, 'takedowns_unhonoured')} takedown request${n(f, 'takedowns_unhonoured') === 1 ? '' : 's'} not yet honoured`,
+      severity: 'attention',
+      detail: 'A takedown is a legal instruction, not a queue item. Honour it, keep the row as the record.',
+      basis: ['takedowns_unhonoured'],
+    });
+  }
+
+  if (n(f, 'assets_awaiting_review') > 0) {
+    findings.push({
+      title: `${n(f, 'assets_awaiting_review')} asset${n(f, 'assets_awaiting_review') === 1 ? '' : 's'} in the review queue`,
+      severity: 'watch',
+      detail: 'Discovered and waiting for a person to look. A review queue that grows owns every page it could have improved.',
+      basis: ['assets_awaiting_review'],
+    });
+  }
+
+  return {
+    agentKey: 'creative-director',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'assets_awaiting_review')} assets in review`),
+  };
+}
+
+/* ================================================================= copywriter */
+/**
+ * Whether the public pages can sell themselves. A description is the pitch, an
+ * offer description is the deal, and a caption is the hook — each one is the
+ * difference between a page that converts and a page that is furniture.
+ */
+export function copywriter(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'listings_public', label: 'Public listings', value: n(f, 'listings_public'), source: 'businesses', filter: 'is_listable' },
+    { key: 'no_description', label: 'Without a description', value: n(f, 'no_description'), source: 'businesses' },
+    { key: 'offers_no_description', label: 'Live offers without a description', value: n(f, 'offers_no_description'), source: 'business_offers' },
+    { key: 'posts_needing_caption', label: 'Scheduled posts without a caption', value: n(f, 'posts_needing_caption'), source: 'social_scheduled_posts' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'no_description') > 0 && n(f, 'listings_public') > 0) {
+    findings.push({
+      title: `${n(f, 'no_description')} listing${n(f, 'no_description') === 1 ? ' has' : 's have'} no description`,
+      severity: 'attention',
+      detail: 'A page with no story cannot convert. This is the highest-yield copy task on the platform: one paragraph per business.',
+      basis: ['no_description', 'listings_public'],
+    });
+  }
+
+  if (n(f, 'offers_no_description') > 0) {
+    findings.push({
+      title: `${n(f, 'offers_no_description')} live offer${n(f, 'offers_no_description') === 1 ? '' : 's'} have no description`,
+      severity: 'attention',
+      detail: 'A deal nobody can read is not a deal. Every running offer needs the story of why it is worth acting on today.',
+      basis: ['offers_no_description'],
+    });
+  }
+
+  if (n(f, 'posts_needing_caption') > 0) {
+    findings.push({
+      title: `${n(f, 'posts_needing_caption')} scheduled post${n(f, 'posts_needing_caption') === 1 ? '' : 's'} have no caption`,
+      severity: 'watch',
+      detail: 'The hook is missing from the post itself.',
+      basis: ['posts_needing_caption'],
+    });
+  }
+
+  return {
+    agentKey: 'copywriter',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'listings_public')} pages, ${n(f, 'no_description')} without a description`),
+  };
+}
+
+/* ========================================================= production manager */
+/**
+ * Whether concepts become deliverables. The video product is only real when
+ * an approved asset actually reaches the published state — everything before
+ * that is a meeting.
+ */
+export function productionManager(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'video_assets_approved', label: 'Approved videos', value: n(f, 'video_assets_approved'), source: 'business_media_assets', filter: "asset_type='video' AND status='approved'" },
+    { key: 'video_assets_published', label: 'Published videos', value: n(f, 'video_assets_published'), source: 'business_media_assets' },
+    { key: 'video_assets_pending', label: 'Videos at discovery', value: n(f, 'video_assets_pending'), source: 'business_media_assets' },
+    { key: 'production_work_open', label: 'Open production items', value: n(f, 'production_work_open'), source: 'os_work_items' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'video_assets_approved') > 0 && n(f, 'video_assets_published') === 0) {
+    findings.push({
+      title: `${n(f, 'video_assets_approved')} approved video${n(f, 'video_assets_approved') === 1 ? '' : 's'} not yet published`,
+      severity: 'attention',
+      detail: 'Work that passed QA is stuck between approval and delivery. The video product has inventory nobody can see.',
+      basis: ['video_assets_approved', 'video_assets_published'],
+    });
+  }
+
+  if (n(f, 'video_assets_pending') > 0) {
+    findings.push({
+      title: `${n(f, 'video_assets_pending')} video asset${n(f, 'video_assets_pending') === 1 ? '' : 's'} still at discovery`,
+      severity: 'watch',
+      detail: 'Discovered is a proposal, not a product. Decide which of these become real assets.',
+      basis: ['video_assets_pending'],
+    });
+  }
+
+  return {
+    agentKey: 'production-manager',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'video_assets_approved')} approved videos`),
+  };
+}
+
+/* ========================================================== post supervisor */
+/**
+ * The QA gate. Assets must be checked before they render — the moderation
+ * queue is the honest inventory of what has not been verified, and a rejected
+ * asset that is never revisited is a page quietly missing its image.
+ */
+export function postSupervisor(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'assets_awaiting_review', label: 'Assets awaiting QA', value: n(f, 'assets_awaiting_review'), source: 'business_media_assets', filter: "moderation_status='pending'" },
+    { key: 'assets_rejected', label: 'Rejected assets', value: n(f, 'assets_rejected'), source: 'business_media_assets', filter: "moderation_status='rejected'" },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'assets_awaiting_review') > 0) {
+    findings.push({
+      title: `${n(f, 'assets_awaiting_review')} asset${n(f, 'assets_awaiting_review') === 1 ? '' : 's'} not yet quality-checked`,
+      severity: 'attention',
+      detail: 'Nothing should render before it is checked. This queue is the line between a curated directory and a scraped one.',
+      basis: ['assets_awaiting_review'],
+    });
+  }
+
+  if (n(f, 'assets_rejected') > 0) {
+    findings.push({
+      title: `${n(f, 'assets_rejected')} asset${n(f, 'assets_rejected') === 1 ? '' : 's'} were rejected`,
+      severity: 'watch',
+      detail: 'Rejected is not finished — the moderation reason decides whether it is corrected, replaced or dropped.',
+      basis: ['assets_rejected'],
+    });
+  }
+
+  return {
+    agentKey: 'post-supervisor',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'assets_awaiting_review')} assets awaiting QA`),
+  };
+}
+
+/* ============================================================= sales director */
+/**
+ * Where the pipeline can stall. Every profile request is a business owner who
+ * asked us to do the work for them — the warmest lead there is — and it decays
+ * in hours, not weeks. Also: create orders are revenue sitting at the quote
+ * step, where the price decides whether the sale closes.
+ */
+export function salesDirector(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'prospects', label: 'Prospects awaiting an owner', value: n(f, 'prospects'), source: 'businesses', filter: "data_status='synthetic_unverified'" },
+    { key: 'profile_requests_new', label: 'Profile requests to build', value: n(f, 'profile_requests_new'), source: 'profile_requests', filter: "status='new'" },
+    { key: 'profile_requests_7d', label: 'Profile requests this week', value: n(f, 'profile_requests_7d'), source: 'profile_requests' },
+    { key: 'orders_open', label: 'Orders awaiting a quote', value: n(f, 'orders_open'), source: 'create_orders', filter: "status IN ('new','quoting')" },
+    { key: 'claimed', label: 'Businesses claimed', value: n(f, 'claimed'), source: 'businesses' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'profile_requests_new') > 0) {
+    findings.push({
+      title: `${n(f, 'profile_requests_new')} owner${n(f, 'profile_requests_new') === 1 ? ' has' : 's have'} asked us to build their page`,
+      severity: 'attention',
+      detail: 'Someone sent their name and their number and then waited. Answer before the ask goes cold — this is acquisition arriving by itself.',
+      basis: ['profile_requests_new'],
+    });
+  }
+
+  if (n(f, 'orders_open') > 0) {
+    findings.push({
+      title: `${n(f, 'orders_open')} order${n(f, 'orders_open') === 1 ? '' : 's'} waiting for a real quote`,
+      severity: 'attention',
+      detail: 'The catalogue shows estimates nobody has confirmed. The quoted price is the moment each one becomes a yes or a no.',
+      basis: ['orders_open'],
+    });
+  }
+
+  if (n(f, 'prospects') > 0 && n(f, 'profile_requests_7d') === 0) {
+    findings.push({
+      title: `${n(f, 'prospects')} prospects, but nobody asked to be built this week`,
+      severity: 'watch',
+      detail: 'The front door for that funnel is not being seen. The request form is the surface that turns prospects into jobs of work.',
+      basis: ['prospects', 'profile_requests_7d'],
+    });
+  }
+
+  return {
+    agentKey: 'sales-director',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'profile_requests_new')} profile requests waiting`),
+  };
+}
+
+/* ======================================================== operations director */
+/**
+ * Whether anything is stuck and unspoken. Blocked work and failed queues are
+ * the operations cost of silence — each one is a thing that was supposed to
+ * happen and did not, sitting in a status column instead of in front of a
+ * person.
+ */
+export function operationsDirector(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'work_blocked', label: 'Blocked work items', value: n(f, 'work_blocked'), source: 'os_work_items', filter: "status='blocked'" },
+    { key: 'work_waiting', label: 'Waiting work items', value: n(f, 'work_waiting'), source: 'os_work_items', filter: "status='waiting'" },
+    { key: 'approvals_pending', label: 'Approvals waiting on a human', value: n(f, 'approvals_pending'), source: 'os_approvals', filter: "status='pending'" },
+    { key: 'orders_open', label: 'Orders awaiting a quote', value: n(f, 'orders_open'), source: 'create_orders' },
+    { key: 'enrichment_failed', label: 'Failed enrichment jobs', value: n(f, 'enrichment_failed'), source: 'business_enrichment_jobs', filter: "status='failed'" },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'work_blocked') > 0) {
+    findings.push({
+      title: `${n(f, 'work_blocked')} work item${n(f, 'work_blocked') === 1 ? ' is' : 's are'} blocked`,
+      severity: 'attention',
+      detail: 'Blocked is the most expensive status in the company: a dependency problem owned by nobody. Unblocking these is the highest-leverage action available.',
+      basis: ['work_blocked'],
+    });
+  }
+
+  if (n(f, 'enrichment_failed') > 0) {
+    findings.push({
+      title: `${n(f, 'enrichment_failed')} enrichment job${n(f, 'enrichment_failed') === 1 ? '' : 's'} failed`,
+      severity: 'attention',
+      detail: 'The intelligence engine is losing rows. Check the error column before the backlog hides the pattern.',
+      basis: ['enrichment_failed'],
+    });
+  }
+
+  if (n(f, 'approvals_pending') > 0) {
+    findings.push({
+      title: `${n(f, 'approvals_pending')} approval${n(f, 'approvals_pending') === 1 ? '' : 's'} waiting on a human`,
+      severity: 'watch',
+      detail: 'Approvals are where work converts to decisions. Each day an approval waits, the work behind it ages.',
+      basis: ['approvals_pending'],
+    });
+  }
+
+  return {
+    agentKey: 'operations-director',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'work_blocked')} blocked work items`),
+  };
+}
+
+/* ============================================================ finance analyst */
+/**
+ * The cash flow the revenue board can show pre-revenue. Order quotes decide
+ * whether money appears, and checkout intents that never become paid are a
+ * funnel leaking at the very last step — which is worth saying even though the
+ * numbers are small.
+ */
+export function financeAnalyst(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'orders_open', label: 'Orders awaiting a quote', value: n(f, 'orders_open'), source: 'create_orders', filter: "status IN ('new','quoting')" },
+    { key: 'orders_quoted', label: 'Orders quoted', value: n(f, 'orders_quoted'), source: 'create_orders', filter: "status='quoted'" },
+    { key: 'orders_delivered', label: 'Orders delivered', value: n(f, 'orders_delivered'), source: 'create_orders', filter: "status='delivered'" },
+    { key: 'orders_cancelled', label: 'Orders cancelled', value: n(f, 'orders_cancelled'), source: 'create_orders', filter: "status='cancelled'" },
+    { key: 'leads_total', label: 'Checkout intents', value: n(f, 'leads_total'), source: 'payment_intents' },
+    { key: 'leads_paid', label: 'Intents paid', value: n(f, 'leads_paid'), source: 'payment_intents', filter: "status='paid'" },
+    { key: 'founding_claimed', label: 'Founding numbers issued', value: n(f, 'founding_claimed'), source: 'founding_members' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'orders_open') > 0) {
+    findings.push({
+      title: `${n(f, 'orders_open')} order${n(f, 'orders_open') === 1 ? '' : 's'} awaiting a quote`,
+      severity: 'watch',
+      detail: 'Revenue is being decided in a queue, not by a price. Quoted orders are the number this platform can point to.',
+      basis: ['orders_open'],
+    });
+  }
+
+  if (n(f, 'leads_total') > 0 && n(f, 'leads_paid') === 0) {
+    findings.push({
+      title: `${n(f, 'leads_total')} checkout intent${n(f, 'leads_total') === 1 ? '' : 's'}, none paid`,
+      severity: 'watch',
+      detail: 'Capture is working and checkout is closing nobody. Pre-payment that is a real gap, not just a stage.',
+      basis: ['leads_total', 'leads_paid'],
+    });
+  }
+
+  return {
+    agentKey: 'finance-analyst',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'orders_open')} open orders`),
+  };
+}
+
+/* ============================================================ product manager */
+/**
+ * Whether the roadmap can ship. A launch with open checklist items is not
+ * behind the plan — it IS the plan, and this agent counts how many times the
+ * team is right about that. Blocked work and a quiet suggestion door are the
+ * two ways the roadmap learns nothing.
+ */
+export function productManager(f: RawFacts): AgentResult {
+  const facts: Fact[] = [
+    { key: 'launches_total', label: 'Launches on the board', value: n(f, 'launches_total'), source: 'os_launches' },
+    { key: 'launches_ready', label: 'Launches with a full checklist', value: n(f, 'launches_ready'), source: 'os_launches' },
+    { key: 'work_items_open', label: 'Open work items', value: n(f, 'work_items_open'), source: 'os_work_items' },
+    { key: 'work_blocked', label: 'Blocked items', value: n(f, 'work_blocked'), source: 'os_work_items' },
+    { key: 'suggestions_7d', label: 'Suggestions this week', value: n(f, 'suggestions_7d'), source: 'radar_candidates' },
+    { key: 'listings_public', label: 'Public listings', value: n(f, 'listings_public'), source: 'businesses', filter: 'is_listable' },
+  ];
+
+  const findings: Finding[] = [];
+
+  if (n(f, 'launches_total') > 0 && n(f, 'launches_ready') === 0) {
+    findings.push({
+      title: 'Nothing on the launch board is shippable',
+      severity: 'attention',
+      detail: 'Every launch still has checklist items open. The roadmap is a set of commitments with no completion.',
+      basis: ['launches_total', 'launches_ready'],
+    });
+  }
+
+  if (n(f, 'work_blocked') > 0) {
+    findings.push({
+      title: `${n(f, 'work_blocked')} roadmap item${n(f, 'work_blocked') === 1 ? '' : 's'} blocked`,
+      severity: 'attention',
+      detail: 'Find the dependency and unblock it — blocked roadmap items are how delivery dates quietly stop being true.',
+      basis: ['work_blocked'],
+    });
+  }
+
+  if (n(f, 'suggestions_7d') === 0 && n(f, 'listings_public') > 0) {
+    findings.push({
+      title: 'No suggestions this week',
+      severity: 'watch',
+      detail: 'The feedback door is quiet. Either the platform is not being seen or nobody bothered to tell us what to fix.',
+      basis: ['suggestions_7d', 'listings_public'],
+    });
+  }
+
+  return {
+    agentKey: 'product-manager',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${n(f, 'launches_ready')} of ${n(f, 'launches_total')} launches ready`),
+  };
+}
+
 /* ===================================================================== shared */
 function summarise(findings: Finding[], fallback: string): string {
   const critical = findings.filter((x) => x.severity === 'critical').length;
@@ -350,6 +1038,20 @@ export const AGENTS: Record<string, (f: RawFacts) => AgentResult> = {
   'trust-safety': trustSafety,
   'customer-success': customerSuccess,
   'growth-director': growthDirector,
+  'strategy-director': strategyDirector,
+  'research-analyst': researchAnalyst,
+  'seo-manager': seoManager,
+  'social-director': socialDirector,
+  'content-manager': contentManager,
+  'comms-director': commsDirector,
+  'creative-director': creativeDirector,
+  'copywriter': copywriter,
+  'production-manager': productionManager,
+  'post-supervisor': postSupervisor,
+  'sales-director': salesDirector,
+  'operations-director': operationsDirector,
+  'finance-analyst': financeAnalyst,
+  'product-manager': productManager,
 };
 
 /**

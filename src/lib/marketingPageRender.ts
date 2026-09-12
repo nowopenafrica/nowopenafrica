@@ -112,6 +112,44 @@ export const MARKETING_PAGES: MarketingPage[] = [
     ],
   },
   {
+    // The campaign destination. This one matters more than the rest: it is
+    // mostly shared on WhatsApp, and a WhatsApp link preview is built from
+    // server-rendered meta by a crawler that runs no JavaScript. Without this
+    // entry the most-shared link on the site previews as a blank shell.
+    path: '/send-business',
+    title: 'Send us your business name — we set up your NowOpen profile',
+    description:
+      'Own a business in Africa? Do not register. Send your business name and NowOpen sets up your profile. You check it, then you claim it. No account, no forms.',
+    h1: 'Your business deserves to be found.',
+    paragraphs: [
+      'Send us your business name. We will set up your NowOpen profile.',
+      'No account. No forms. No complicated setup. We build it. You check it. Then it is yours.',
+      'Nothing goes live until you have seen it and said yes.',
+    ],
+    links: [
+      { href: '/nominate', label: 'Nominate a business' },
+      { href: '/businesses', label: 'Browse businesses' },
+      { href: '/discover', label: 'Discover' },
+      { href: '/about', label: 'About NowOpen Africa' },
+    ],
+  },
+  {
+    path: '/nominate',
+    title: 'Nominate a business for NowOpen Africa',
+    description:
+      'Know a business that should be on NowOpen? Send us the name and where it is. We prepare the page and the owner claims it — no account needed.',
+    h1: 'Know a business that should be on NowOpen?',
+    paragraphs: [
+      'Send us the name. We prepare the page, and the owner claims it when they are ready.',
+      'We check every nomination before anything appears.',
+    ],
+    links: [
+      { href: '/send-business', label: 'Send your own business' },
+      { href: '/businesses', label: 'Browse businesses' },
+      { href: '/discover', label: 'Discover' },
+    ],
+  },
+  {
     path: '/waitlist',
     title: 'Join the Waitlist — NowOpen Africa',
     description:
@@ -127,6 +165,112 @@ export const MARKETING_PAGES: MarketingPage[] = [
       { href: '/pricing', label: 'Pricing' },
       { href: '/businesses', label: 'Browse businesses' },
     ],
+  },
+  /*
+   * The eight pages that were in the sitemap and served the crawler the HOME
+   * PAGE's title.
+   *
+   * Measured before this: fetched as Googlebot, /businesses, /media, /pricing,
+   * /adverts, /contact, /founder, /terms and /privacy each returned
+   * "NowOpen Africa — The Operating System for Business Growth in Africa"
+   * with a canonical pointing at `/` — the shell's baked-in tags. Eight of the
+   * fourteen URLs the site asks to be indexed were declaring themselves
+   * duplicates of the front page. The canonical half of that is fixed (the
+   * shell no longer asserts one), and this fixes the other half: each page now
+   * says what it actually is.
+   *
+   * Every string here is copied verbatim from the page's own applySeo() call
+   * and <h1>. That is not a coincidence — the test reads the .tsx and fails if
+   * they drift, because serving a crawler text the page does not contain is
+   * cloaking.
+   */
+  {
+    path: '/businesses',
+    title: 'Businesses Directory — Find Businesses Across Africa',
+    description:
+      'Search and discover businesses across Africa by category, location and opening status. See what is open now and contact a business directly.',
+    h1: 'Find and connect with businesses across Africa',
+    paragraphs: [
+      'Search and discover businesses across Africa by category, location and opening status.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/media',
+    title: 'NowOpen Create — Design, Print & Promote for African Business',
+    description:
+      'Design, print and promote your business in one place. Free creation from your own brand, professional design by African creators, and printing delivered across Nigeria.',
+    h1: 'Create it. Brand it. Print it. Promote it. Grow it.',
+    paragraphs: [
+      'Design, print and promote your business in one place. Free creation from your own brand, professional design by African creators, and printing delivered across Nigeria.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/pricing',
+    title: 'Pricing — NowOpen Africa Plans for Businesses & Creatives',
+    description:
+      'Simple, honest pricing for African businesses and creatives — free listings, growth plans and enterprise options with founding-member discounts.',
+    h1: 'Pricing built for every African business',
+    paragraphs: [
+      'Simple, honest pricing for African businesses and creatives — free listings, growth plans and enterprise options with founding-member discounts.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/adverts',
+    title: 'Advertise in Africa — Book Billboards & Ad Placements',
+    description:
+      'Book real-world and digital advertising placements across 20+ African markets — billboards, transit, digital screens and broadcast — plus free ways to reach people already searching on NowOpen.',
+    h1: 'Be seen where people are. Then see who came.',
+    paragraphs: [
+      'Book real-world and digital advertising placements across 20+ African markets — billboards, transit, digital screens and broadcast.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/contact',
+    title: 'Contact NowOpen Africa',
+    description:
+      'Questions, partnerships or press — reach the NowOpen Africa team by email, phone or WhatsApp. We respond within 1\u20132 business days.',
+    h1: 'Get in touch',
+    paragraphs: [
+      'Questions, partnerships or press — reach the NowOpen Africa team by email, phone or WhatsApp.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/founder',
+    title: 'Adeyemi Odunaike — Founder & Brand Designer of NowOpen Africa',
+    description:
+      'Adeyemi Odunaike is the Founder & Brand Designer of NowOpen Africa, the operating system for African business growth.',
+    h1: 'Adeyemi Odunaike',
+    paragraphs: [
+      'Adeyemi Odunaike is the Founder & Brand Designer of NowOpen Africa.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/terms',
+    title: 'Terms of Service — NowOpen Africa',
+    description:
+      'The plain-language terms governing your use of NowOpen Africa — accounts, listings, bookings, payments, verification and acceptable use.',
+    h1: 'Terms of Service',
+    paragraphs: [
+      'The plain-language terms governing your use of NowOpen Africa — accounts, listings, bookings, payments, verification and acceptable use.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/privacy',
+    title: 'Privacy Policy — NowOpen Africa',
+    description:
+      'How NowOpen Africa collects, uses and protects your personal data, and the rights you have over it.',
+    h1: 'Privacy Policy',
+    paragraphs: [
+      'How NowOpen Africa collects, uses and protects your personal data, and the rights you have over it.',
+    ],
+    links: EXPLORE,
   },
 ];
 

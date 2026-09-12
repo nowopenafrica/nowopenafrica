@@ -15,6 +15,18 @@ interface LocationAutocompleteProps {
   /** Locations found in live data, merged above the curated city list */
   extraOptions?: string[];
   placeholder?: string;
+  /*
+   * The accessible name.
+   *
+   * This input declares `role="combobox"` with `aria-expanded` and
+   * `aria-autocomplete`, and had NO name at all — which is worse than a plain
+   * input would be, because the role promises one. A screen reader announced
+   * "combobox" and nothing about what it filters.
+   *
+   * A placeholder is not a substitute: it is not reliably exposed as a name,
+   * and it disappears the moment anyone types.
+   */
+  ariaLabel?: string;
   className?: string;
   /** Ring/focus accent, defaults to blue */
   accent?: 'blue' | 'pink';
@@ -38,6 +50,7 @@ export default function LocationAutocomplete({
   onChange,
   extraOptions = [],
   placeholder = 'e.g., Lagos, Ikeja...',
+  ariaLabel = 'Filter by location',
   className = '',
   accent = 'blue',
 }: LocationAutocompleteProps) {
@@ -116,6 +129,7 @@ export default function LocationAutocomplete({
       <input
         type="text"
         role="combobox"
+        aria-label={ariaLabel}
         aria-expanded={open && suggestions.length > 0}
         aria-autocomplete="list"
         value={value}

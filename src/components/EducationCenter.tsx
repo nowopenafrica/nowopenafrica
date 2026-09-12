@@ -2,7 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   GraduationCap, User, CalendarClock, Clock, Wifi, CalendarCheck, MessageCircle, FileText,
 } from 'lucide-react';
-
+import SmartImg from './SmartImg';
 export interface Course {
   id: string | number;
   name: string;
@@ -90,7 +90,7 @@ export default function EducationCenter({ courses, ctaLabel, hasPhone, onBook, o
           {filtered.map((c) => (
             <div key={c.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-2xl overflow-hidden">
               {c.image ? (
-                <img loading="lazy" decoding="async" src={c.image} alt={c.name} className="w-full h-36 object-cover" />
+                <SmartImg src={c.image} alt={c.name} className="w-full h-36 object-cover" />
               ) : (
                 <div className="w-full h-36 bg-gradient-to-br from-indigo-100 to-blue-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                   <GraduationCap size={32} className="text-indigo-400 dark:text-gray-400" />

@@ -404,9 +404,17 @@ export const generateBusinesses = (count: number = 30) =>
       website: `https://business${index + 1}.example.com`,
       // Cycle through the category's photo set so repeat categories vary
       image_url: BUSINESS_IMAGES[category][Math.floor(index / BUSINESS_CATEGORIES.length) % BUSINESS_IMAGES[category].length],
-      rating: 3.5 + ((index * 7) % 15) / 10,
+      /*
+       * NO RATING AND NO VERIFIED BADGE ON A SAMPLE.
+       *
+       * These two lines invented a star rating and handed a third of the
+       * generated listings a verification badge "for realism". Both are on the
+       * permanent prohibition list, and both are counter-productive: a rating
+       * nobody left devalues every real rating, and a verified badge nobody
+       * earned devalues every real verification. A demo profile with neither
+       * reads as a business that has just joined — which is exactly what it is.
+       */
       status: index % 3 === 0 ? 'closed' : 'open',
-      verified: index % 3 === 1, // a realistic share of listings are verified
       user_id: 'sample',
     };
   });

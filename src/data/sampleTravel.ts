@@ -37,9 +37,7 @@ export const TRAVEL_SPOTLIGHTS: Record<string, any> = {
     email: 'travel@wanderlust.example.com',
     opening_hours: 'Mon–Sat: 9AM–6PM',
     image_url: px(1287460),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

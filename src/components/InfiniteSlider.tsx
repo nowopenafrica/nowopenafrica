@@ -4,6 +4,7 @@ import { Link } from 'react-router-dom';
 import { useCurrency } from '../contexts/CurrencyContext';
 import BusinessStatusBadge from './BusinessStatusBadge';
 import { legacyStatusToLive } from '../lib/businessStatus';
+import SmartImg from './SmartImg';
 
 interface Card {
   id: string;
@@ -145,11 +146,9 @@ export function InfiniteSlider({ cards, onCardClick, linkBase, layout = 'marquee
     >
       <div className="h-24 overflow-hidden">
         {card.image_url ? (
-          <img
+          <SmartImg
             src={card.image_url}
             alt={card.title}
-            loading="lazy"
-            decoding="async"
             className="w-full h-full object-cover hover:scale-105 transition-transform duration-300"
           />
         ) : (
@@ -162,7 +161,7 @@ export function InfiniteSlider({ cards, onCardClick, linkBase, layout = 'marquee
             {card.category}
           </p>
         )}
-        <h3 className="font-semibold text-gray-900 dark:text-white text-xs mb-1 line-clamp-2 leading-tight">
+        <h3 className="font-semibold text-gray-900 dark:text-white text-xs mb-1 truncate leading-tight">
           {card.title}
           {card.verified && (
             <BadgeCheck size={12} className="inline-block align-text-bottom ml-1 text-blue-500 fill-blue-100" aria-label="Verified" />

@@ -51,9 +51,7 @@ export const MUSIC_SPOTLIGHTS: Record<string, any> = {
     email: 'bookings@afrobeatlive.example.com',
     opening_hours: 'Bookings: Mon–Sun',
     image_url: px(1105666),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

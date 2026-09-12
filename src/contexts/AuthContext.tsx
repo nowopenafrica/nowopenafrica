@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '../lib/supabase';
 import { setTelemetryUser, track } from '../lib/telemetry';
@@ -57,6 +57,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
 
+  /*
+   * Who was signed in on the previous auth event, and whether we have seen one.
+   *
+   * These exist to make `signin` mean what it says. It did not: the event was
+   * emitted for every `SIGNED_IN` callback, and Supabase raises that for a
+   * restored session and (historically) whenever a tab regains focus, not only
+   * when somebody actually authenticates. Measured on production before this
+   * fix: 42,910 `signin` events across 64 sessions — about 670 each, and 99.4%
+   * of every row in the telemetry table.
+   *
+   * A genuine sign-in is a transition from nobody to somebody, after the
+   * initial session has settled. TOKEN_REFRESHED, USER_UPDATED, a restored
+   * session on reload and a refocused tab are all none of those things.
+   */
+  const seenFirstAuthEvent = useRef(false);
+  const previousUserId = useRef<string | null>(null);
+
   useEffect(() => {
     // Get initial session
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -74,10 +91,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        setTelemetryUser(session?.user?.id ?? null);
-        // Recorded from the auth event rather than from the submit handler, so
+        const userId = session?.user?.id ?? null;
+        setTelemetryUser(userId);
+
+        // Still recorded from the auth event rather than the submit handler, so
         // social and magic-link sign-ins count too — they never touch signIn().
-        if (event === 'SIGNED_IN') track('signin');
+        // But only for a real transition: see seenFirstAuthEvent above.
+        if (
+          event === 'SIGNED_IN' &&
+          seenFirstAuthEvent.current &&
+          !previousUserId.current &&
+          userId
+        ) {
+          track('signin');
+        }
+        previousUserId.current = userId;
+        seenFirstAuthEvent.current = true;
+
         setLoading(false);
       }
     );
@@ -98,6 +128,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         options: { data: { role, phone: ph } },
       });
       if (error) throw error;
+      /*
+       * The top of the acquisition funnel, and it was never instrumented —
+       * `signup` was a declared EventName with zero call sites while eleven
+       * accounts existed. Without it there is no denominator: signup →
+       * onboarding → business_created → claim cannot be computed at all.
+       *
+       * Role and method only. The identifier is never sent; sanitizeProps
+       * would drop it by key, but relying on the blocklist to catch what the
+       * caller should not have passed is the wrong way round.
+       */
+      track('signup', { role, method: 'phone' });
       // Fire the onboarding welcome pack (best-effort, backgrounded). For phone
       // signups the follow-up WhatsApp lands on the same number.
       if (data.user) sendWelcomePack({ userId: data.user.id, phone: ph, role });
@@ -117,6 +158,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       },
     });
     if (error) throw error;
+    track('signup', { role, method: 'email' });
 
     // The database trigger (handle_new_user) creates the profile row on
     // signup. This upsert is a best-effort fallback for projects where the

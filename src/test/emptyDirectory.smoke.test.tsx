@@ -69,13 +69,40 @@ describe('the empty state is only used when the directory is truly empty', () =>
   });
 
   it('says the directory story once on the homepage, not twice', () => {
-    // The homepage owns this message in its own section; the explorer above it
-    // must not render a second copy with its own industry grid.
+    // The explorer must not render its own industry grid alongside the one the
+    // page already has.
     const explorer = readFileSync('src/components/home/ListingExplorer.tsx', 'utf8');
     expect(explorer).not.toContain('IndustryDirectory');
+
     const home = readFileSync('src/pages/Home.tsx', 'utf8');
     expect(home).toContain('The directory is being built');
     expect(home).not.toContain('Not a directory. An operating system.');
+    // The form is what the section exists to produce, so it must not get lost
+    // in a future edit to the copy around it.
+    expect(home).toContain('<SendYourBusiness');
+  });
+
+  it('keeps the directory story off the Create page', () => {
+    /*
+     * IndustryDirectory used to be the Create page's empty state, which meant
+     * /media carried the "directory is being built" badge, a grid of 42
+     * industries and "Is this your industry?".
+     *
+     * All three belong to the DIRECTORY. Somebody on Create wants a design
+     * made, and answering with a tour of industries answers a question they did
+     * not ask. The homepage and /businesses still carry it — this asserts only
+     * that Create does not, and that its own empty state is not a dead end.
+     */
+    const media = readFileSync('src/pages/Media.tsx', 'utf8');
+    expect(media).not.toContain('<IndustryDirectory');
+    expect(media).not.toContain('The directory is being built');
+    expect(media).not.toContain('Is this your industry');
+    expect(media).toContain('No creative professionals listed yet');
+    // Both routes out have to be real.
+    expect(media).toContain('#create-designs');
+    expect(media).toMatch(/to="\/waitlist"/);
+    expect(readFileSync('src/components/create/TemplateGallery.tsx', 'utf8'))
+      .toContain('id="create-designs"');
   });
 
   it('keeps the filtered-empty message separate on /businesses', () => {

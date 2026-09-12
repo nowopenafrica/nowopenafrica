@@ -205,6 +205,16 @@ describe('businessStatus — honest public status', () => {
     expect(resolvePublicStatus(biz, tuesdayNoonUtc)).toBeNull();
   });
 
+  it('a default_24_7 unclaimed business is open', () => {
+    // No hours and NowOpen's safe default applies: never closed, so open.
+    expect(
+      resolvePublicStatus(
+        { ...biz, availability_mode: 'default_24_7', is_24_hours: true, is_24_hours_confirmed: false },
+        tuesdayNoonUtc,
+      ),
+    ).toBe('open');
+  });
+
   it('an owner DB override wins over the schedule', () => {
     const closedEarly = { ...lagosShop, open_status: 'closed' as const };
     expect(resolvePublicStatus(closedEarly, tuesdayNoonUtc)).toBe('closed');

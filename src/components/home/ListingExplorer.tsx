@@ -3,10 +3,13 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
 import BusinessCard from '../discover/BusinessCard';
+import { isClaimed, byClaimedThenVerified } from '../../lib/discover';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
 import { byDivision, priceLabel } from '../../lib/create/catalogue';
+import IndustryExamples from '../discover/IndustryExamples';
+import LoadFailure from '../LoadFailure';
 
 // The homepage browse section, laid out the way a creative marketplace does it:
 //
@@ -74,6 +77,8 @@ interface Row {
   location?: string;
   status?: 'open' | 'closed' | 'active';
   verified?: boolean;
+  /** A real person runs this one. Businesses only — see claimedFirst. */
+  claimed?: boolean;
   reach?: number;
   created_at?: string;
   type: 'business' | 'advert' | 'media';
@@ -99,10 +104,21 @@ export default function ListingExplorer({
   businesses,
   adverts,
   mediaServices,
+  loadFailed,
+  onRetry,
 }: {
   businesses: Business[];
   adverts: Advertisement[];
   mediaServices: MediaService[];
+  /*
+   * Which reads failed, per tab. Without this the component cannot tell an
+   * empty table from an unreachable one, and it says "No X listed yet — the
+   * directory is being built" either way. That sentence is a claim about the
+   * platform; making it when the network dropped is how a visitor concludes
+   * NowOpen is dead rather than that their signal went.
+   */
+  loadFailed?: Record<ListingType, boolean>;
+  onRetry?: () => void;
 }) {
   const navigate = useNavigate();
   const [type, setType] = useState<ListingType>('businesses');
@@ -150,6 +166,7 @@ export default function ListingExplorer({
       id: b.id,
       href: b.username ? `/${b.username}` : `/businesses/${b.id}`,
       verified: b.verified,
+      claimed: isClaimed(b as unknown as DiscoverBusiness),
       title: b.name,
       description: b.description ?? '',
       image_url: b.image_url || FALLBACK_IMG.business,
@@ -208,9 +225,25 @@ export default function ListingExplorer({
       out = [...out].sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0));
     } else if (sort === 'newest') {
       out = [...out].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
+    } else if (type === 'businesses') {
+      /*
+       * "Recommended" means claimed first.
+       *
+       * A claimed profile is a business that turned up and maintains what its
+       * page says; an imported one is our guess at a business that has never
+       * heard of us. Leading with the guesses is worse for the visitor and
+       * backwards as an incentive.
+       *
+       * Deliberately independent of open/closed. A business that shuts at six
+       * is still the one somebody wants to find at seven, and ranking on the
+       * clock would drop every claimed listing out of view for most of the
+       * day — including under the "All" chip, where everything is supposed to
+       * be on show.
+       */
+      out = [...out].sort(byClaimedThenVerified);
     }
     return out;
-  }, [rows, query, category, location, sort]);
+  }, [rows, query, category, location, sort, type]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -399,6 +432,14 @@ export default function ListingExplorer({
             ) : (
               <InfiniteSlider cards={visible} linkBase={type} layout="grid" />
             )
+          ) : loadFailed?.[type] ? (
+            /* A failed read, not an empty directory. Replaces the empty state
+               rather than sitting beside it, so what is on screen matches what
+               actually happened — and carries the retry, which matters most on
+               the connections that caused this. */
+            <div className="py-8">
+              <LoadFailure what={active.label.toLowerCase()} onRetry={() => onRetry?.()} />
+            </div>
           ) : rows.length === 0 ? (
             // Nothing exists for this type at all — a different problem from a
             // filter that excluded everything, and it needs a different answer.
@@ -473,6 +514,23 @@ export default function ListingExplorer({
                 Reset
               </button>
             </div>
+          )}
+
+          {/*
+            A thin grid is the state this whole block spends most of its life
+            in, and it had no answer for it.
+
+            Two real listings read as a broken page — and the industry examples
+            were only wired into /businesses, which is not where anybody
+            actually meets the problem. The homepage is.
+
+            Businesses only: the Creative Services tab already answers its own
+            emptiness with the free items from Create, and adverts have their
+            own surface. And only when there ARE listings — with none, the
+            empty state above and the directory section below already speak.
+          */}
+          {type === 'businesses' && (
+            <IndustryExamples label="businesses" />
           )}
 
         </div>

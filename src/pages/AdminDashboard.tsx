@@ -1,7 +1,8 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import StuckPayments from '../components/admin/StuckPayments';
 import ImportCenter from '../components/admin/ImportCenter';
 import ReviewQueue from '../components/admin/ReviewQueue';
 import FeatureFlagPanel from '../components/admin/FeatureFlagPanel';
@@ -9,8 +10,11 @@ import PageEditor from '../components/admin/PageEditor';
 import ActivationPanel from '../components/admin/ActivationPanel';
 import ProfileRequests from '../components/admin/ProfileRequests';
 import CreateOrders from '../components/admin/CreateOrders';
+import ClaimReachConsole from '../components/admin/ClaimReachConsole';
+import AdminBusinessEditor from '../components/admin/AdminBusinessEditor';
 import {
-  canAccessTab, canDelete, canManageRoles, canManagePlans, isStaff, isEditor,
+  canAccessTab, canDelete, canEditBusinessProfile, canManageRoles, canManagePlans,
+  isStaff, isEditor,
   ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
 } from '../lib/permissions';
 import { loadHeroSettings, saveHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
@@ -21,7 +25,7 @@ import { Business, Advertisement, MediaService, User as UserProfile } from '../t
 import {
   Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
   CalendarCheck, CreditCard, ListChecks, FileText, MessageSquare, Upload, Video, LayoutGrid, ShieldCheck,
-  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare, Target, Send } from 'lucide-react';
+  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare, Target, Send, Radio, Pencil, Lock, CheckSquare, Square, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
 import { APPLICATION_STATUS_LABELS, hubRelationshipById } from '../lib/formsEngine';
 import { NOWOPEN_ORG_ID } from '../lib/workforce';
 import TrustPanel from '../components/dashboard/TrustPanel';
@@ -29,6 +33,7 @@ import TrustBadge from '../components/TrustBadge';
 import { getBusinessTier, BUSINESS_TIERS } from '../data/pricingPlans';
 import { logAudit } from '../lib/audit';
 import { createNotification } from '../lib/notifications';
+import { fetchAllBusinesses } from '../lib/fetchAllBusinesses';
 
 type AdminTab = AdminTabId;
 
@@ -89,9 +94,20 @@ export default function AdminDashboard() {
    */
   const [searchParams, setSearchParams] = useSearchParams();
   const [trustReviewBiz, setTrustReviewBiz] = useState<{ id: string; name: string } | null>(null);
+  /** The unclaimed listing an admin is editing, if any. */
+  const [editBizId, setEditBizId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ table: DeletableTable; id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState('');
+  const [selectedBizIds, setSelectedBizIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [bizCategoryFilter, setBizCategoryFilter] = useState('');
+  const [bizStatusFilter, setBizStatusFilter] = useState('');
+  const [bizVerifiedFilter, setBizVerifiedFilter] = useState('');
+  const [bizDuplicatesOnly, setBizDuplicatesOnly] = useState(false);
+  const [bizPage, setBizPage] = useState(1);
+
+  useEffect(() => { setBizPage(1); }, [search, bizCategoryFilter, bizStatusFilter, bizVerifiedFilter, bizDuplicatesOnly]);
 
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -161,12 +177,24 @@ export default function AdminDashboard() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [role]);
 
+  // The Review Queue publishes candidates on its own tab; the Businesses list,
+  // read when the panel opened, is one stale refresh behind. Fetch the moment
+  // the Businesses tab is asked for, so a just-published listing is there.
+  const businessesTabParam = searchParams.get('tab');
+  useEffect(() => {
+    if (businessesTabParam === 'businesses' && isStaff(role)) void fetchBusinesses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [businessesTabParam, role]);
+
   const fetchAll = async () => {
     setLoading(true);
     try {
       const [usersRes, businessRes, advertRes, mediaRes, bookingsRes, paymentsRes, waitlistRes, registrationsRes, enquiriesRes] = await Promise.all([
         supabase.from('users').select('*').order('created_at', { ascending: false }),
-        supabase.from('businesses').select('*').order('created_at', { ascending: false }),
+        // The businesses table is paged: PostgREST caps a single response at
+        // 1000 rows, so `.limit(50000)` would still hand back exactly 1000 and
+        // every review-queue publish beyond that would silently never show.
+        fetchAllBusinesses().then((r) => ({ data: r.data, error: r.error ? new Error(r.error) : null })),
         supabase.from('advertisements').select('*').order('created_at', { ascending: false }),
         supabase.from('media_services').select('*').order('created_at', { ascending: false }),
         supabase.from('business_bookings').select('*').order('created_at', { ascending: false }),
@@ -213,6 +241,19 @@ export default function AdminDashboard() {
       setLoading(false);
     }
   };
+
+  /**
+   * Just the businesses table, for when a single list is stale.
+   *
+   * Publishing happens on the Review Queue tab; the Businesses tab read its
+   * list when the panel opened. Arriving on Businesses therefore refetches,
+   * so a business published seconds ago is there instead of waiting for the
+   * whole-panel Refresh button.
+   */
+  const fetchBusinesses = useCallback(async () => {
+    const { data } = await fetchAllBusinesses();
+    if (data) setBusinesses(data);
+  }, []);
 
   // ---- mutations ------------------------------------------------------
 
@@ -397,6 +438,132 @@ export default function AdminDashboard() {
     logAudit(authUser, verified ? 'verify_business' : 'unverify_business', 'businesses', id);
   };
 
+  // ---- bulk multi-select actions ---------------------------------------
+
+  const toggleBizSelected = (id: string) => {
+    setSelectedBizIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAllBiz = (ids: string[]) => {
+    setSelectedBizIds(prev => {
+      if (ids.length > 0 && ids.every(id => prev.has(id))) {
+        return new Set<string>();
+      }
+      return new Set(ids);
+    });
+  };
+
+  const bulkSetVerified = async (verified: boolean) => {
+    const ids = [...selectedBizIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Mark ${ids.length} selected business(es) as ${verified ? 'verified' : 'unverified'}?`)) return;
+    let failed = 0;
+    for (const id of ids) {
+      const { error } = await supabase.from('businesses').update({ verified }).eq('id', id);
+      if (error) failed++;
+      else logAudit(authUser, verified ? 'verify_business' : 'unverify_business', 'businesses', id);
+    }
+    setBusinesses(prev => prev.map(b => ids.includes(b.id) ? { ...b, verified } : b));
+    setSelectedBizIds(new Set());
+    if (failed > 0) toast.error(`Updated ${ids.length - failed} of ${ids.length} — ${failed} failed`);
+    else toast.success(`${ids.length} business(es) updated`);
+  };
+
+  const bulkSetStatus = async (status: string) => {
+    const ids = [...selectedBizIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Set ${ids.length} selected business(es) status to "${status}"?`)) return;
+    let failed = 0;
+    for (const id of ids) {
+      const { error } = await supabase.from('businesses').update({ status }).eq('id', id);
+      if (error) failed++;
+    }
+    setBusinesses(prev => prev.map(b => ids.includes(b.id) ? { ...b, status } : b));
+    setSelectedBizIds(new Set());
+    if (failed > 0) toast.error(`Updated ${ids.length - failed} of ${ids.length} — ${failed} failed`);
+    else toast.success(`${ids.length} business(es) set to ${status}`);
+  };
+
+  const bulkDelete = async () => {
+    const ids = [...selectedBizIds];
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} selected business(es)? This cannot be undone.`)) return;
+    setBulkDeleting(true);
+    let failed = 0;
+    for (const id of ids) {
+      const { data, error } = await supabase.from('businesses').delete().eq('id', id).select();
+      if (error || !data || data.length === 0) failed++;
+      else logAudit(authUser, 'delete', 'businesses', id);
+    }
+    setBulkDeleting(false);
+    setBusinesses(prev => prev.filter(b => !ids.includes(b.id)));
+    setSelectedBizIds(new Set());
+    if (failed > 0) toast.error(`Deleted ${ids.length - failed} of ${ids.length} — ${failed} failed`);
+    else toast.success(`${ids.length} business(es) deleted`);
+  };
+
+  // ---- duplicate detection --------------------------------------------
+
+  const bizKey = (val?: string | null) => (val || '').toLowerCase().replace(/[^a-z0-9]+/g, '').trim();
+
+  const duplicateGroups = useMemo(() => {
+    const groups: Map<string, Business[]> = new Map();
+    const seen: Map<string, string> = new Map();
+    for (const b of businesses) {
+      const nameK = bizKey(b.name);
+      if (!nameK) continue;
+      const locK = bizKey(b.location);
+      const catK = bizKey(b.category);
+      const idKey = `${nameK}`;
+      let groupKey: string | null = null;
+      if (catK && locK) {
+        const trio = `${nameK}|${catK}|${locK}`;
+        if (seen.has(trio)) groupKey = trio;
+      }
+      if (!groupKey && locK) {
+        const pair = `${nameK}|loc:${locK}`;
+        if (seen.has(pair)) groupKey = pair;
+      }
+      if (!groupKey) {
+        if (seen.has(idKey)) groupKey = idKey;
+      }
+      const key = groupKey || idKey;
+      const existing = groups.get(key);
+      if (existing) {
+        existing.push(b);
+        seen.set(key, seen.get(key) || b.id);
+      } else {
+        groups.set(key, [b]);
+        seen.set(key, b.id);
+      }
+    }
+    const out: { key: string; items: Business[]; name: string; category: boolean; location: boolean }[] = [];
+    for (const [key, items] of groups) {
+      if (items.length < 2) continue;
+      const sample = items[0];
+      const catK = bizKey(sample.category);
+      const locK = bizKey(sample.location);
+      const allSameCategory = items.every(i => bizKey(i.category) === catK);
+      const allSameLocation = items.every(i => bizKey(i.location) === locK);
+      const catMatch = allSameCategory && catK !== '';
+      const locMatch = allSameLocation && locK !== '';
+      if (!catMatch && !locMatch) continue;
+      out.push({ key, items, name: sample.name, category: catMatch, location: locMatch });
+    }
+    return out;
+  }, [businesses]);
+
+  const dupIds = useMemo(() => {
+    const set = new Set<string>();
+    for (const g of duplicateGroups) for (const item of g.items) set.add(item.id);
+    return set;
+  }, [duplicateGroups]);
+
   // ---- hero video slider management ------------------------------------
 
   // Optimistic: the switch moves immediately, and reverts if the write fails.
@@ -499,7 +666,20 @@ export default function AdminDashboard() {
     !q || fields.some(f => f?.toLowerCase().includes(q));
 
   const filteredUsers = users.filter(u => match(u.email, u.name, u.role));
-  const filteredBusinesses = businesses.filter(b => match(b.name, b.category, b.location));
+  const bizCategories = Array.from(new Set(businesses.map(b => b.category).filter(Boolean))).sort((a, b) => a.localeCompare(b));
+  const filteredBusinesses = businesses.filter(b => {
+    if (!match(b.name, b.category, b.location)) return false;
+    if (bizCategoryFilter && (b.category || '') !== bizCategoryFilter) return false;
+    if (bizStatusFilter && (b.status || 'open') !== bizStatusFilter) return false;
+    if (bizVerifiedFilter === 'verified' && !b.verified) return false;
+    if (bizVerifiedFilter === 'unverified' && b.verified) return false;
+    if (bizDuplicatesOnly && !dupIds.has(b.id)) return false;
+    return true;
+  });
+  const BIZ_PAGE_SIZE = 100;
+  const bizPageCount = Math.max(1, Math.ceil(filteredBusinesses.length / BIZ_PAGE_SIZE));
+  const bizPageSafe = Math.min(bizPage, bizPageCount);
+  const pageBusinesses = filteredBusinesses.slice((bizPageSafe - 1) * BIZ_PAGE_SIZE, bizPageSafe * BIZ_PAGE_SIZE);
   const filteredAdverts = adverts.filter(a => match(a.title, a.category, a.type, a.location));
   const filteredMedia = mediaServices.filter(m => match(m.title, m.service_type));
   const businessNameById = Object.fromEntries(businesses.map(b => [String(b.id), b.name]));
@@ -553,8 +733,10 @@ export default function AdminDashboard() {
     // Second, deliberately: this is the screen that says whether the rest matters.
     { id: 'activation', label: 'Activation', icon: Target, count: 0 },
     // Third: the acquisition queue. People are waiting in it.
-    { id: 'profile-requests', label: 'Profile Requests', icon: Send, count: 0 },
+    { id: 'profile-requests', label: 'Acquisition', icon: Send, count: 0 },
     { id: 'create-orders', label: 'Create Orders', icon: ShoppingBag, count: 0 },
+    // Outreach, and only ever as a plan: the console cannot send.
+    { id: 'claimreach', label: 'ClaimReach', icon: Radio, count: 0 },
     { id: 'users', label: 'Users', icon: Users, count: users.length },
     { id: 'businesses', label: 'Businesses', icon: ShoppingBag, count: businesses.length },
     { id: 'verification', label: 'Verification', icon: ShieldCheck, count: verificationDocs.filter((d: any) => (d.status || 'pending') === 'pending').length },
@@ -871,81 +1053,314 @@ export default function AdminDashboard() {
 
               {/* Businesses */}
               {activeTab === 'businesses' && (
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Name</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Category</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Location</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Trust tier</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Verified</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Status</th>
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredBusinesses.map(b => (
-                      <tr key={b.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                        <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
-                          <Link to={b.username ? `/${b.username}` : `/businesses/${b.id}`} className="inline-flex items-center min-h-[44px] hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded">{b.name}</Link>
-                        </td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{b.category}</td>
-                        <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{b.location || '—'}</td>
-                        <td className="px-4 py-3 text-sm">
-                          {(b as any).verification_tier && (b as any).verification_tier !== 'none'
-                            ? <TrustBadge tier={(b as any).verification_tier} score={(b as any).trust_score} />
-                            : <span className="text-xs text-gray-400">—</span>}
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <button
-                            onClick={() => toggleVerified(b.id, !b.verified)}
-                            className={`inline-flex items-center gap-1 px-2 min-h-[44px] rounded text-xs font-medium transition ${
-                              b.verified
-                                ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'
-                                : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
-                            }`}
-                            title={b.verified ? 'Click to remove verification' : 'Click to verify'}
-                          >
-                            <BadgeCheck size={14} />
-                            {b.verified ? 'Verified' : 'Verify'}
-                          </button>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <select
-                            value={b.status || 'open'}
-                            onChange={e => updateStatus('businesses', b.id, e.target.value)}
-                            className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
-                          >
-                            <option value="open">open</option>
-                            <option value="closed">closed</option>
-                          </select>
-                        </td>
-                        <td className="px-4 py-3 text-sm">
-                          <div className="flex items-center gap-1">
-                            <button
-                              onClick={() => setTrustReviewBiz({ id: b.id, name: b.name })}
-                              title="Review trust & verification"
-                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
-                            >
-                              <ShieldCheck size={16} />
-                            </button>
-                            {canDelete(role) && (
-                              <button
-                                onClick={() => deleteRow('businesses', b.id, b.name)}
-                                className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            )}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredBusinesses.length === 0 && (
-                      <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No businesses found</td></tr>
+                <div>
+                  {/* Filter bar */}
+                  <div className="flex items-center flex-wrap gap-2 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" size={15} />
+                      <input
+                        type="text"
+                        value={search}
+                        onChange={e => setSearch(e.target.value)}
+                        placeholder="Filter by name, category or location…"
+                        className="pl-9 pr-3 min-h-[40px] border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800 w-64 max-w-full"
+                      />
+                    </div>
+                    <select
+                      value={bizCategoryFilter}
+                      onChange={e => setBizCategoryFilter(e.target.value)}
+                      className="px-3 min-h-[40px] border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800"
+                    >
+                      <option value="">All categories</option>
+                      {bizCategories.map(c => <option key={c} value={c}>{c}</option>)}
+                    </select>
+                    <select
+                      value={bizStatusFilter}
+                      onChange={e => setBizStatusFilter(e.target.value)}
+                      className="px-3 min-h-[40px] border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800"
+                    >
+                      <option value="">All statuses</option>
+                      <option value="open">Open</option>
+                      <option value="closed">Closed</option>
+                    </select>
+                    <select
+                      value={bizVerifiedFilter}
+                      onChange={e => setBizVerifiedFilter(e.target.value)}
+                      className="px-3 min-h-[40px] border border-gray-300 dark:border-gray-600 rounded-lg text-sm bg-white dark:bg-gray-800"
+                    >
+                      <option value="">All verification</option>
+                      <option value="verified">Verified</option>
+                      <option value="unverified">Unverified</option>
+                    </select>
+                    <button
+                      onClick={() => setBizDuplicatesOnly(v => !v)}
+                      className={`inline-flex items-center gap-1.5 px-3 min-h-[40px] rounded-lg text-sm font-medium transition border ${
+                        bizDuplicatesOnly
+                          ? 'bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300 border-amber-300 dark:border-amber-700'
+                          : 'border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700'
+                      }`}
+                      title="Show only businesses detected as duplicates"
+                    >
+                      <Copy size={15} />
+                      Duplicates only
+                    </button>
+                    {(bizCategoryFilter || bizStatusFilter || bizVerifiedFilter || bizDuplicatesOnly) && (
+                      <button
+                        onClick={() => {
+                          setBizCategoryFilter('');
+                          setBizStatusFilter('');
+                          setBizVerifiedFilter('');
+                          setBizDuplicatesOnly(false);
+                        }}
+                        className="px-3 min-h-[40px] rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+                      >
+                        Reset
+                      </button>
                     )}
-                  </tbody>
-                </table>
+                  </div>
+
+                  {/* Bulk action bar */}
+                  {selectedBizIds.size > 0 && (
+                    <div className="flex items-center justify-between flex-wrap gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-purple-50 dark:bg-purple-900/20">
+                      <div className="flex items-center gap-2 text-sm font-medium text-purple-700 dark:text-purple-300">
+                        <CheckSquare size={16} />
+                        {selectedBizIds.size} selected
+                      </div>
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={() => bulkSetVerified(true)}
+                          className="px-3 py-2 text-xs font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                        >
+                          <BadgeCheck size={13} className="inline mr-1 -mt-0.5" />Verify
+                        </button>
+                        <button
+                          onClick={() => bulkSetVerified(false)}
+                          className="px-3 py-2 text-xs font-semibold bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-300 dark:hover:bg-gray-600 transition"
+                        >
+                          Unverify
+                        </button>
+                        <select
+                          value=""
+                          onChange={e => { if (e.target.value) bulkSetStatus(e.target.value); }}
+                          className="px-3 py-2 text-xs border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-800"
+                        >
+                          <option value="">Set status…</option>
+                          <option value="open">Open</option>
+                          <option value="closed">Closed</option>
+                        </select>
+                        <button
+                          onClick={bulkDelete}
+                          disabled={bulkDeleting}
+                          className="px-3 py-2 text-xs font-semibold bg-red-600 text-white rounded-lg hover:bg-red-700 transition disabled:opacity-50 inline-flex items-center gap-1"
+                        >
+                          {bulkDeleting ? <RefreshCw size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                          Delete
+                        </button>
+                        <button
+                          onClick={() => setSelectedBizIds(new Set())}
+                          className="px-3 py-2 text-xs font-semibold border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Duplicate warning banner */}
+                  {duplicateGroups.length > 0 && (
+                    <div className="flex items-start gap-3 px-4 py-3 border-b border-gray-200 dark:border-gray-700 bg-amber-50 dark:bg-amber-900/20">
+                      <Copy size={18} className="text-amber-600 dark:text-amber-400 mt-0.5 flex-shrink-0" />
+                      <div className="text-sm">
+                        <p className="font-semibold text-amber-800 dark:text-amber-300">
+                          {dupIds.size} business(es) look like duplicates across {duplicateGroups.length} group(s).
+                        </p>
+                        <p className="text-amber-700 dark:text-amber-400 text-xs mt-0.5">
+                          Select the rows to inspect them and use the bulk bar to verify, close or delete duplicates.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
+                        <th className="px-4 py-3 w-10">
+                          <button
+                            onClick={() => toggleSelectAllBiz(pageBusinesses.map(b => b.id))}
+                            title="Select all on this page"
+                            aria-label="Select all businesses on this page"
+                            className="inline-flex items-center justify-center w-[44px] h-[44px] -ml-1 text-gray-500 dark:text-gray-400 hover:text-purple-600 dark:hover:text-purple-400"
+                          >
+                            {pageBusinesses.length > 0 && pageBusinesses.every(b => selectedBizIds.has(b.id))
+                              ? <CheckSquare size={16} />
+                              : <Square size={16} />}
+                          </button>
+                        </th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Name</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Category</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Location</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Trust tier</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Verified</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Status</th>
+                        <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {pageBusinesses.map(b => {
+                        const isDup = dupIds.has(b.id);
+                        return (
+                        <tr
+                          key={b.id}
+                          className={`border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 ${
+                            selectedBizIds.has(b.id) ? 'bg-purple-50 dark:bg-purple-900/20' : ''
+                          } ${isDup ? 'bg-amber-50/50 dark:bg-amber-900/10' : ''}`}
+                        >
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => toggleBizSelected(b.id)}
+                              aria-label={selectedBizIds.has(b.id) ? 'Deselect' : 'Select'}
+                              className={`inline-flex items-center justify-center w-[44px] h-[44px] -ml-1 ${selectedBizIds.has(b.id) ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-gray-500'} hover:text-purple-600 dark:hover:text-purple-400`}
+                            >
+                              {selectedBizIds.has(b.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
+                            <div className="flex items-center gap-2">
+                              <Link to={b.username ? `/${b.username}` : `/businesses/${b.id}`} className="inline-flex items-center min-h-[44px] hover:text-blue-600 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500 rounded">{b.name}</Link>
+                              {isDup && (
+                                <span
+                                  className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-100 dark:bg-amber-900/40 text-amber-700 dark:text-amber-300"
+                                  title="Detected as a possible duplicate"
+                                >
+                                  <Copy size={10} /> Dup
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{b.category}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{b.location || '—'}</td>
+                          <td className="px-4 py-3 text-sm">
+                            {(b as any).verification_tier && (b as any).verification_tier !== 'none'
+                              ? <TrustBadge tier={(b as any).verification_tier} score={(b as any).trust_score} />
+                              : <span className="text-xs text-gray-400">—</span>}
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <button
+                              onClick={() => toggleVerified(b.id, !b.verified)}
+                              className={`inline-flex items-center gap-1 px-2 min-h-[44px] rounded text-xs font-medium transition ${
+                                b.verified
+                                  ? 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/50'
+                                  : 'bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-200 dark:hover:bg-gray-600'
+                              }`}
+                              title={b.verified ? 'Click to remove verification' : 'Click to verify'}
+                            >
+                              <BadgeCheck size={14} />
+                              {b.verified ? 'Verified' : 'Verify'}
+                            </button>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <select
+                              value={b.status || 'open'}
+                              onChange={e => updateStatus('businesses', b.id, e.target.value)}
+                              className="px-2 min-h-[44px] border border-gray-300 dark:border-gray-600 rounded text-xs bg-white dark:bg-gray-800"
+                            >
+                              <option value="open">open</option>
+                              <option value="closed">closed</option>
+                            </select>
+                          </td>
+                          <td className="px-4 py-3 text-sm">
+                            <div className="flex items-center gap-1">
+                              {(() => {
+                                /*
+                                 * Edit, but only until it is claimed.
+                                 *
+                                 * The locked state is rendered rather than the
+                                 * button being hidden: an admin looking for a way
+                                 * to fix a listing needs to be told why there
+                                 * isn't one, or they will go and do it in the SQL
+                                 * editor where nothing is logged.
+                                 */
+                                const verdict = canEditBusinessProfile(role, {
+                                  claim_status: (b as any).claim_status,
+                                  user_id: (b as any).user_id,
+                                });
+                                return verdict.allowed ? (
+                                  <button
+                                    onClick={() => setEditBizId(b.id)}
+                                    title="Edit this listing"
+                                    className="inline-flex items-center justify-center w-[44px] h-[44px] text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded transition"
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                ) : (
+                                  <span
+                                    title={verdict.reason}
+                                    aria-label={verdict.reason}
+                                    className="inline-flex items-center justify-center w-[44px] h-[44px] text-gray-300 dark:text-gray-600"
+                                  >
+                                    <Lock size={16} />
+                                  </span>
+                                );
+                              })()}
+                              <button
+                                onClick={() => toggleBizSelected(b.id)}
+                                title="Select / deselect"
+                                aria-label="Select / deselect business"
+                                className={`inline-flex items-center justify-center w-[44px] h-[44px] ${selectedBizIds.has(b.id) ? 'text-purple-600 dark:text-purple-400' : 'text-gray-400 dark:text-gray-500'} hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition`}
+                              >
+                                {selectedBizIds.has(b.id) ? <CheckSquare size={16} /> : <Square size={16} />}
+                              </button>
+                              <button
+                                onClick={() => setTrustReviewBiz({ id: b.id, name: b.name })}
+                                title="Review trust & verification"
+                                className="inline-flex items-center justify-center w-[44px] h-[44px] text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
+                              >
+                                <ShieldCheck size={16} />
+                              </button>
+                              {canDelete(role) && (
+                                <button
+                                  onClick={() => deleteRow('businesses', b.id, b.name)}
+                                  className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                                >
+                                  <Trash2 size={16} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                        );
+                      })}
+                      {filteredBusinesses.length === 0 && (
+                        <tr><td colSpan={8} className="px-4 py-8 text-center text-sm text-gray-500 dark:text-gray-400">No businesses found</td></tr>
+                      )}
+                    </tbody>
+                  </table>
+
+                  <div className="flex items-center justify-between flex-wrap gap-3 px-4 py-3 border-t border-gray-200 dark:border-gray-700">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      Showing {(bizPageSafe - 1) * BIZ_PAGE_SIZE + 1}–{Math.min(bizPageSafe * BIZ_PAGE_SIZE, filteredBusinesses.length)} of {filteredBusinesses.length} business(es)
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setBizPage(p => Math.max(1, p - 1))}
+                        disabled={bizPageSafe <= 1}
+                        className="inline-flex items-center gap-1 px-3 min-h-[40px] rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:pointer-events-none transition"
+                      >
+                        <ChevronLeft size={15} /> <span className="hidden sm:inline">Prev</span>
+                      </button>
+                      <span className="text-xs tabular-nums text-gray-500 dark:text-gray-400">
+                        Page {bizPageSafe} / {bizPageCount}
+                      </span>
+                      <button
+                        onClick={() => setBizPage(p => Math.min(bizPageCount, p + 1))}
+                        disabled={bizPageSafe >= bizPageCount}
+                        className="inline-flex items-center gap-1 px-3 min-h-[40px] rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 disabled:opacity-40 disabled:pointer-events-none transition"
+                      >
+                        <span className="hidden sm:inline">Next</span> <ChevronRight size={15} />
+                      </button>
+                    </div>
+                  </div>
+                </div>
               )}
 
               {/* Verification queue */}
@@ -1034,6 +1449,7 @@ export default function AdminDashboard() {
               {activeTab === 'activation' && <ActivationPanel />}
               {activeTab === 'profile-requests' && <ProfileRequests />}
               {activeTab === 'create-orders' && <CreateOrders />}
+              {activeTab === 'claimreach' && <ClaimReachConsole />}
               {activeTab === 'pages' && <PageEditor />}
               {activeTab === 'switches' && <FeatureFlagPanel />}
 
@@ -1306,6 +1722,15 @@ export default function AdminDashboard() {
               )}
 
               {/* Payments */}
+              {/* Unresolved checkouts first: a customer who paid and was never
+                  credited is the one thing on this page that costs real money
+                  and real trust, and it is invisible in the table below —
+                  where a stuck intent looks like any other row. */}
+              {activeTab === 'payments' && (
+                <div className="p-4 sm:p-5">
+                  <StuckPayments />
+                </div>
+              )}
               {activeTab === 'payments' && (
                 <table className="w-full">
                   <thead>
@@ -1812,6 +2237,22 @@ export default function AdminDashboard() {
           The login account itself must be removed from Supabase Dashboard → Authentication.
         </p>
       </div>
+
+      {editBizId && (
+
+        <AdminBusinessEditor
+
+          businessId={editBizId}
+
+          role={role}
+
+          onClose={() => setEditBizId(null)}
+
+          onSaved={fetchAll}
+
+        />
+
+      )}
 
       {trustReviewBiz && (
         <TrustPanel

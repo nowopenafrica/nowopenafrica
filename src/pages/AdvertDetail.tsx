@@ -11,6 +11,8 @@ import { Advertisement } from '../types';
 import { telHref, whatsappHref } from '../lib/phone';
 import { applySeo } from '../lib/seo';
 import { localDateISO } from '../lib/dates';
+import LoadFailure from '../components/LoadFailure';
+import SmartImg from '../components/SmartImg';
 
 const DURATION_PRESETS = [7, 14, 30, 60, 90];
 
@@ -20,6 +22,13 @@ export default function AdvertDetail() {
   const [advert, setAdvert] = useState<Advertisement | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * A failed READ, as distinct from an advert that does not exist. Both used
+   * to render "The advert you are looking for does not exist", which is a
+   * claim about the listing made when the truth was about the connection.
+   */
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
   const [ownerBusiness, setOwnerBusiness] = useState<{ id: string; name: string; username?: string; phone?: string; location?: string } | null>(null);
@@ -53,6 +62,7 @@ export default function AdvertDetail() {
     try {
       setLoading(true);
       setError(null);
+      setLoadFailed(false);
 
       // Sample ids (e.g. "advert_5") come from the fallback data on the
       // homepage — resolve them locally instead of querying the database.
@@ -72,6 +82,14 @@ export default function AdvertDetail() {
 
       if (supabaseError) {
         console.error('Supabase error:', supabaseError);
+        /*
+         * PGRST116 is `.single()` reporting that no row matched — a real
+         * 404, and the only error here that means the advert is absent.
+         * Everything else (network, RLS, 5xx) is a failure to load, and
+         * saying "does not exist" for those is how a dropped connection
+         * came to tell somebody their listing was gone.
+         */
+        if (supabaseError.code !== 'PGRST116') setLoadFailed(true);
         throw supabaseError;
       }
 
@@ -79,11 +97,14 @@ export default function AdvertDetail() {
       setDays(data.duration || 30);
     } catch (err: any) {
       console.error('Error fetching advert:', err);
+      // A thrown error is never a "no such row" — that arrives as PGRST116
+      // and is handled above — so anything landing here failed to load.
+      if (err?.code !== 'PGRST116') setLoadFailed(true);
       setError(err.message || 'Failed to load advert details');
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, reloadKey]);
 
   useEffect(() => {
     if (id) fetchAdvert();
@@ -126,6 +147,18 @@ export default function AdvertDetail() {
     );
   }
 
+  /* Checked BEFORE the not-found branch: both states have `advert === null`,
+     so whichever is evaluated first is the one the visitor is told. */
+  if (loadFailed) {
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center px-4">
+        <div className="w-full max-w-md">
+          <LoadFailure what="this advert" onRetry={() => setReloadKey((k) => k + 1)} />
+        </div>
+      </div>
+    );
+  }
+
   if (error || !advert) {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center">
@@ -134,7 +167,12 @@ export default function AdvertDetail() {
             <Eye size={32} className="text-red-600 dark:text-red-400" />
           </div>
           <h2 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">Advert Not Found</h2>
-          <p className="text-gray-600 dark:text-gray-400 mb-6">{error || 'The advert you are looking for does not exist.'}</p>
+          {/* Deliberately NOT {error}. A dead advert link rendered the raw
+              PostgREST string — "Cannot coerce the result to a single JSON
+              object" — straight to the visitor. Genuine load failures are
+              handled above by LoadFailure, so everything reaching here means
+              the advert is absent, and there is one honest sentence for that. */}
+          <p className="text-gray-600 dark:text-gray-400 mb-6">The advert you are looking for does not exist.</p>
           <Link
             to="/adverts"
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
@@ -176,7 +214,7 @@ export default function AdvertDetail() {
             {/* Image */}
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               {advert.image_url ? (
-                <img
+                <SmartImg
                   src={advert.image_url}
                   alt={advert.title}
                   className="w-full h-48 sm:h-72 md:h-96 object-cover"
@@ -296,7 +334,7 @@ export default function AdvertDetail() {
                       className="flex gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 transition"
                     >
                       <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
-                        {a.image_url && <img loading="lazy" decoding="async" src={a.image_url} alt={a.title} className="w-full h-full object-cover" />}
+                        {a.image_url && <SmartImg loading="lazy" decoding="async" src={a.image_url} alt={a.title} className="w-full h-full object-cover" />}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{a.title}</p>

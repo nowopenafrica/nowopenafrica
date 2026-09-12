@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import toast from 'react-hot-toast';
-import { X, Camera, Video, Circle, Square, Loader2, Check, RotateCcw, Pause, Play, Sun, Settings2, Minus, Plus, SwitchCamera } from 'lucide-react';
+import { X, Camera, Video, Circle, Square, Loader2, Check, RotateCcw, Pause, Play, Sun, Settings2, Minus, Plus, SwitchCamera, Scissors } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { compressImage, CAPTURE_MAX_DIMENSION } from '../../lib/imageCompression';
 import {
@@ -11,7 +11,7 @@ import {
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
   applyPointOfInterest, bracketStops, fuseExposures,
   videoConstraintsFor, canFlipCamera, previewTransform, oppositeFacing, facingLabel,
-  driveVideoFrames,
+  driveVideoFrames, clampTrimWindow, formatTrimSeconds, MIN_TRIM_SECONDS, trimVideoBlob,
   type ZoomStep, type CameraControls, type RgbaFrame, type FacingMode,
 } from '../../lib/openReel';
 import { POSTER_SUFFIX } from '../../lib/reelShare';
@@ -64,6 +64,13 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   const [reviewUrl, setReviewUrl] = useState<string | null>(null);
   const [reviewType, setReviewType] = useState<'photo' | 'video'>('photo');
   const [cameraError, setCameraError] = useState<string | null>(null);
+  // Quick clip trim, offered on the review of a video. The window only ever
+  // covers a real cut — an open panel with nothing cut re-encodes nothing.
+  const [trimOpen, setTrimOpen] = useState(false);
+  const [trimStart, setTrimStart] = useState(0);
+  const [trimEnd, setTrimEnd] = useState(0);
+  const [clipDuration, setClipDuration] = useState(0);
+  const [trimming, setTrimming] = useState(false);
   const [zoom, setZoom] = useState<ZoomStep>(1);
   const [softwareZoom, setSoftwareZoom] = useState(false);
   // Whether this camera accepted continuous exposure/white-balance/focus.
@@ -88,6 +95,8 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   const [canFlip, setCanFlip] = useState(false);
   const [flipping, setFlipping] = useState(false);
   const facingRef = useRef<FacingMode>('environment');
+  // The review-stage video, so the trim preview and the meta read can see it.
+  const reviewVideoRef = useRef<HTMLVideoElement>(null);
 
   /** The live video track, cast past the DOM typings for camera capabilities. */
   const videoTrack = useCallback(() => (
@@ -350,6 +359,44 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
     setReviewType(type);
     setStage('review');
   }, []);
+
+  /** Whether this browser can re-record a trimmed clip (needs canvas.captureStream). */
+  const trimVideoSupported = useCallback(() => {
+    if (typeof document === 'undefined') return false;
+    try { return typeof document.createElement('canvas').captureStream === 'function'; } catch { return false; }
+  }, []);
+
+  /**
+   * A real cut — strictly beyond the recording's edit handles. An untouched
+   * window (0 → full duration) is the "no edit" case and must not spend CPU on
+   * a pointless re-encode.
+   */
+  const trimmed = useCallback(
+    () => clipDuration > 0 && (trimStart > 0.01 || trimEnd < clipDuration - 0.01),
+    [clipDuration, trimStart, trimEnd],
+  );
+
+  /** Set the trim window to the whole clip when a recording is first shown. */
+  const onReviewMetadata = useCallback(() => {
+    const v = reviewVideoRef.current;
+    if (!v) return;
+    const d = Number.isFinite(v.duration) && v.duration > 0 ? v.duration : 0;
+    if (d <= 0) return;
+    setClipDuration(d);
+    setTrimStart(0);
+    setTrimEnd(d);
+  }, []);
+
+  /**
+   * Preview only the part that will survive: once playback passes the end
+   * handle, loop back to the start handle so what the owner watches is what
+   * they keep.
+   */
+  const onReviewTimeUpdate = useCallback(() => {
+    const v = reviewVideoRef.current;
+    if (!v || !trimmed()) return;
+    if (v.currentTime >= trimEnd) v.currentTime = trimStart;
+  }, [trimmed, trimEnd, trimStart]);
 
   const capturePhoto = useCallback(async () => {
     const video = videoRef.current;
@@ -647,10 +694,31 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   }, [buildRecordingStream, showCaptured, stopRecording, limitSeconds]);
 
   const uploadCapture = useCallback(async () => {
-    const captured = capturedBlobRef.current;
+    let captured = capturedBlobRef.current;
     if (!captured) return;
     setUploading(true);
     try {
+      // When the owner actually cut something off a reel, produce the trimmed
+      // clip BEFORE uploading so the gallery only ever holds the file as sent.
+      // Failing the trim (an unsupported codec, a dead encoder) is not fatal:
+      // the full recording is still saved, told about it, and nothing is stuck.
+      if (reviewType === 'video' && trimmed() && trimVideoSupported()) {
+        setTrimming(true);
+        try {
+          const cut = await trimVideoBlob(captured, trimStart, trimEnd);
+          if (cut) {
+            capturedBlobRef.current = cut;
+            captured = cut;
+          } else {
+            toast('Could not trim the clip — saving the full recording.');
+          }
+        } catch {
+          toast('Could not trim the clip — saving the full recording.');
+        } finally {
+          setTrimming(false);
+        }
+      }
+
       let body: Blob = captured;
       let ext: string;
       let contentType: string;
@@ -714,12 +782,16 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
     } finally {
       setUploading(false);
     }
-  }, [reviewType, userId, onCaptured]);
+  }, [reviewType, userId, onCaptured, trimStart, trimEnd, trimmed, trimVideoSupported]);
 
   const retake = useCallback(() => {
     capturedBlobRef.current = null;
     setReviewUrl(null);
     setStage('preview');
+    setTrimOpen(false);
+    setClipDuration(0);
+    setTrimStart(0);
+    setTrimEnd(0);
     startCamera(mode);
   }, [startCamera, mode]);
 
@@ -778,23 +850,123 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
               {reviewType === 'photo' ? (
                 <img src={reviewUrl} alt="Captured" className="w-full max-h-[60vh] object-contain" />
               ) : (
-                <video src={reviewUrl} controls autoPlay playsInline className="w-full max-h-[60vh] object-contain" />
+                <video
+                  ref={reviewVideoRef}
+                  src={reviewUrl}
+                  controls
+                  autoPlay
+                  playsInline
+                  onLoadedMetadata={onReviewMetadata}
+                  onTimeUpdate={onReviewTimeUpdate}
+                  className="w-full max-h-[60vh] object-contain"
+                />
               )}
             </div>
+            {reviewType === 'video' && (
+              <div className="px-4">
+                {!trimVideoSupported() ? (
+                  <p className="text-[11px] text-gray-400 dark:text-gray-500">
+                    Quick trim isn&apos;t supported in this browser — the clip saves as recorded.
+                  </p>
+                ) : (
+                  <div className="rounded-lg bg-gray-50 dark:bg-gray-900 p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                        <Scissors size={11} className="inline mr-1 -mt-px" />
+                        Trim clip
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        {trimmed() && (
+                          <button
+                            type="button"
+                            onClick={() => { setTrimStart(0); setTrimEnd(clipDuration); }}
+                            className="text-[11px] font-medium text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 flex items-center gap-1"
+                          >
+                            <RotateCcw size={10} /> Reset
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setTrimOpen((o) => !o)}
+                          aria-expanded={trimOpen}
+                          aria-label={trimOpen ? 'Hide trim controls' : 'Show trim controls'}
+                          className={`text-[11px] font-semibold px-2.5 py-1 rounded-md transition ${
+                            trimmed()
+                              ? 'bg-black text-white dark:bg-white dark:text-gray-900'
+                              : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-200'
+                          }`}
+                        >
+                          {trimOpen ? 'Done' : 'Trim'}
+                        </button>
+                      </div>
+                    </div>
+                    {trimOpen && clipDuration > 0 && (
+                      <div className="space-y-2.5">
+                        <div>
+                          <div className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                            <span>Start</span>
+                            <span className="font-mono">{formatTrimSeconds(trimStart)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            aria-label="Trim start"
+                            min={0}
+                            max={Math.max(0, clipDuration - MIN_TRIM_SECONDS)}
+                            step={0.1}
+                            value={Math.min(trimStart, Math.max(0, clipDuration - MIN_TRIM_SECONDS))}
+                            onChange={(e) => {
+                              const w = clampTrimWindow(Number(e.target.value), trimEnd, clipDuration);
+                              setTrimStart(w.start);
+                              setTrimEnd(w.end);
+                            }}
+                            className="w-full accent-black dark:accent-white"
+                          />
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-[10px] text-gray-500 dark:text-gray-400 mb-0.5">
+                            <span>End</span>
+                            <span className="font-mono">{formatTrimSeconds(trimEnd)}</span>
+                          </div>
+                          <input
+                            type="range"
+                            aria-label="Trim end"
+                            min={Math.min(clipDuration, trimStart + MIN_TRIM_SECONDS)}
+                            max={clipDuration}
+                            step={0.1}
+                            value={Math.max(trimEnd, Math.min(clipDuration, trimStart + MIN_TRIM_SECONDS))}
+                            onChange={(e) => {
+                              const w = clampTrimWindow(trimStart, Number(e.target.value), clipDuration);
+                              setTrimStart(w.start);
+                              setTrimEnd(w.end);
+                            }}
+                            className="w-full accent-black dark:accent-white"
+                          />
+                        </div>
+                        <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                          Keeping <span className="font-semibold font-mono">{formatTrimSeconds(trimEnd - trimStart)}</span>
+                          {trimmed() && <> — the preview plays only this part</>}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             <div className="flex gap-2 p-4">
               <button
                 onClick={retake}
-                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm"
+                disabled={uploading || trimming}
+                className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm disabled:opacity-50"
               >
                 <RotateCcw size={14} /> Retake
               </button>
               <button
                 onClick={uploadCapture}
-                disabled={uploading}
+                disabled={uploading || trimming}
                 className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 bg-black text-white font-medium rounded-lg hover:bg-gray-800 transition text-sm disabled:opacity-50"
               >
-                {uploading ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
-                {uploading ? 'Uploading…' : 'Use This'}
+                {uploading || trimming ? <Loader2 size={14} className="animate-spin" /> : <Check size={14} />}
+                {uploading ? 'Uploading…' : trimming ? 'Trimming…' : 'Use This'}
               </button>
             </div>
           </div>

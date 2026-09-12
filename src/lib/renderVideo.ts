@@ -30,6 +30,7 @@ import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
 import { drawTemplateFrame, type TemplatePaintContent } from './drawTemplate';
 import { defaultMediaScrim, type DesignTemplate } from './designTemplates';
+import { ensureTypefacesReady } from './design/typefaces';
 
 export type RenderAspect = 'Square' | 'Vertical' | 'Landscape' | 'Ratio4x5' | 'Ratio16x9';
 
@@ -1322,6 +1323,9 @@ function drawTimelineFrame(
       {
         accent: opts.palette?.[0] ?? '#9a3412',
         t: seconds,
+        // The scene's own length, so a template that declares a camera move
+        // completes exactly one move over exactly this clip.
+        sceneSeconds: scene.seconds,
         base: opts.background,
         // Thin the template's own tint so the picture reads through it. Full
         // opacity would leave the media technically drawn and effectively
@@ -1665,6 +1669,21 @@ export async function renderVideo(
   if (typeof window === 'undefined' || !window.MediaRecorder) {
     throw new Error('Video recording is not supported in this browser.');
   }
+
+  /*
+   * Every typeface proven loaded before the first frame is painted.
+   *
+   * A canvas has no fallback behaviour worth relying on: ctx.font silently
+   * resolves to the next family in the stack if the face is not yet usable, and
+   * unlike the DOM it will never re-paint when the font arrives. So a render
+   * started a second too early bakes Georgia into 900 frames and there is no
+   * way to tell from the file that anything went wrong.
+   *
+   * Awaiting here rather than in the caller because there is exactly one entry
+   * point and every caller would otherwise have to remember.
+   */
+  await ensureTypefacesReady();
+
   const dims = RENDER_DIMENSIONS[opts.aspect];
   const canvas = makeCanvas(dims.width, dims.height);
   if (!canvas) throw new Error('Could not create the render canvas.');

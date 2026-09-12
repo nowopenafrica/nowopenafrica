@@ -10,6 +10,7 @@ import {
   type DiscoverBusiness,
 } from '../lib/discover';
 import { publicOpenState } from '../lib/openingHours';
+import LoadFailure from '../components/LoadFailure';
 
 /**
  * The question the product is named after.
@@ -22,6 +23,18 @@ import { publicOpenState } from '../lib/openingHours';
 export default function OpenNow() {
   const [all, setAll] = useState<DiscoverBusiness[]>([]);
   const [loading, setLoading] = useState(true);
+  /*
+   * Whether the fetch FAILED, as distinct from returning nothing.
+   *
+   * The catch below used to swallow the error and just stop the spinner, so a
+   * dropped connection rendered the empty state — telling a visitor there is
+   * nothing here when the truth was that we could not ask. On the mobile
+   * connections this audience uses, and on a directory that genuinely is
+   * nearly empty, that is the worst possible confusion to create.
+   */
+  const [loadError, setLoadError] = useState(false);
+  /** Bumped by the retry button to re-run the effect. */
+  const [reloadKey, setReloadKey] = useState(0);
   const [place, setPlace] = useState('');
   const [typed, setTyped] = useState('');
 
@@ -33,21 +46,34 @@ export default function OpenNow() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(false);
+    setLoading(true);
     (async () => {
       const [biz, reviews] = await Promise.all([
         supabase.from('businesses').select(DISCOVER_SELECT).limit(400),
         supabase.from('business_reviews').select('business_id').limit(5000),
       ]);
       if (!cancelled) {
+        // supabase-js RESOLVES with { data: null, error } on a network failure
+        // rather than throwing, so the catch below never sees it. Read the
+        // error off the primary response, or the page tells somebody whose
+        // connection dropped that there is nothing here.
+        // The reviews call is only a tally — its failure costs a count, not
+        // the page, so it does not set this.
+        if (biz.error) setLoadError(true);
         setAll(withReviewCounts(
           (biz.data as DiscoverBusiness[]) || [],
           tallyReviews((reviews.data as { business_id: string }[]) || []),
         ));
         setLoading(false);
       }
-    })().catch(() => { if (!cancelled) setLoading(false); });
+    })().catch(() => {
+      if (cancelled) return;
+      setLoadError(true);
+      setLoading(false);
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   // Recomputed each minute, because a page that says "open" is making a claim
   // about right now and goes stale while somebody reads it.
@@ -100,7 +126,10 @@ export default function OpenNow() {
         </button>
       </form>
 
-      {loading ? (
+      {/* A failed load is shown as a failed load, never as an empty result. */}
+      {loadError ? (
+        <LoadFailure what={'what is open now'} onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-10">
           <Loader2 size={16} className="animate-spin" /> Checking who is open…
         </div>

@@ -29,6 +29,16 @@ export const LAUNCH_STATUS_LABELS: Record<LaunchStatus, string> = {
   ready: 'Ready to ship',
 };
 
+/** Per-checklist-item proof of an automated tick, written by
+ *  advance_launch_automations() (20260913020000_launch_automation.sql).
+ *  Human ticks carry no evidence entry — when the board shows one, the tick
+ *  was derived from real data, not clicked. */
+export interface ChecklistEvidence {
+  auto: boolean;
+  source: string;
+  at?: string;
+}
+
 export interface LaunchItem {
   id: string;
   org_id: string;
@@ -37,6 +47,8 @@ export interface LaunchItem {
   target: string;
   /** One tick per LAUNCH_CHECKLIST item. */
   done: boolean[];
+  /** One optional evidence entry per LAUNCH_CHECKLIST item (auto ticks). */
+  evidence?: (ChecklistEvidence | null)[] | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -48,6 +60,7 @@ export interface LaunchRow {
   area: string;
   target: string;
   checklist_done?: boolean[] | null;
+  checklist_evidence?: (ChecklistEvidence | null)[] | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -61,9 +74,16 @@ export function mapLaunchRow(row: LaunchRow): LaunchItem {
     area: row.area,
     target: row.target,
     done: row.checklist_done ?? [],
+    evidence: row.checklist_evidence ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+/** Number of checklist items the automation proved with real data. */
+export function autoTickCount(l: LaunchItem): number {
+  if (!l.evidence) return 0;
+  return l.evidence.filter((e) => e?.auto === true).length;
 }
 
 export function launchStatus(l: LaunchItem): LaunchStatus {

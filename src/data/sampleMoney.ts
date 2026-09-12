@@ -37,9 +37,7 @@ export const MONEY_SPOTLIGHTS: Record<string, any> = {
     opening_hours: 'Mon–Sun: 7AM–9PM',
     image_url:
       'https://images.pexels.com/photos/4386370/pexels-photo-4386370.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.6,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

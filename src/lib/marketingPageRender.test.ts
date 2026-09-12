@@ -14,6 +14,17 @@ const SOURCE: Record<string, string> = {
   '/platform': 'src/pages/Platform.tsx',
   '/discover': 'src/pages/Discover.tsx',
   '/waitlist': 'src/pages/Waitlist.tsx',
+  '/send-business': 'src/pages/SendBusiness.tsx',
+  '/nominate': 'src/pages/Nominate.tsx',
+  // The eight that used to serve the crawler the home page's title.
+  '/businesses': 'src/pages/Businesses.tsx',
+  '/media': 'src/pages/Media.tsx',
+  '/pricing': 'src/pages/Pricing.tsx',
+  '/adverts': 'src/pages/Adverts.tsx',
+  '/contact': 'src/pages/Contact.tsx',
+  '/founder': 'src/pages/Founder.tsx',
+  '/terms': 'src/pages/Terms.tsx',
+  '/privacy': 'src/pages/Privacy.tsx',
 };
 
 // Curly apostrophes, entities and JSX line wrapping make exact substring
@@ -26,7 +37,7 @@ const normalise = (s: string) => s
   .trim();
 
 describe('routing', () => {
-  it('matches the five pages and nothing else', () => {
+  it('matches the marketing pages and nothing else', () => {
     expect(marketingPageFor('/')?.path).toBe('/');
     expect(marketingPageFor('/about')?.path).toBe('/about');
     expect(marketingPageFor('/ABOUT')?.path).toBe('/about');
@@ -36,6 +47,12 @@ describe('routing', () => {
     expect(marketingPageFor('/yemzoarts')).toBeUndefined();
     expect(marketingPageFor('/businesses/in/lagos')).toBeUndefined();
     expect(marketingPageFor('')).toBeUndefined();
+    // The campaign URLs, which are the ones actually shared.
+    expect(marketingPageFor('/send-business')?.path).toBe('/send-business');
+    expect(marketingPageFor('/nominate')?.path).toBe('/nominate');
+    // Every entry must name the React page it claims to describe, or the
+    // anti-drift check below silently skips it.
+    for (const page of MARKETING_PAGES) expect(SOURCE[page.path], page.path).toBeTruthy();
   });
 });
 

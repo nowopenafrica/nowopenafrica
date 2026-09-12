@@ -39,9 +39,7 @@ export const TRANSPORT_SPOTLIGHTS: Record<string, any> = {
     email: 'bookings@swiftmovers.example.com',
     opening_hours: 'Terminal open 24/7',
     image_url: 'https://images.pexels.com/photos/385998/pexels-photo-385998.jpeg?auto=compress&cs=tinysrgb&w=1000',
-    rating: 4.6,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

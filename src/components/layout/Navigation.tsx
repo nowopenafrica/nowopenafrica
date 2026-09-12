@@ -42,7 +42,18 @@ import AudienceSwitch from './AudienceSwitch';
 
       return (
         <>
-          <nav className="sticky top-0 z-50 bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
+          {/* Positioning lives on the <header> in App.tsx — see the note
+              there. This element is only as tall as itself, so a sticky here
+              had nothing to stick against.
+
+              It used to slide away going down and return coming up. That was
+              a misreading of the request, and it cost more than it looked:
+              a sub-nav pinned beneath it needed a CSS rule to chase the gap,
+              a keyboard user tabbing into an off-screen bar had to be
+              rescued with onFocus, and the open mobile menu had to pin the
+              bar so it did not leave with it. A bar that does not move needs
+              none of that. */}
+          <nav className="bg-white dark:bg-gray-800 border-b border-gray-200 dark:border-gray-700 shadow-sm">
             <div className="site-container">
               <div className="flex items-center h-16 gap-4 xl:gap-6">
                 <div className="flex items-center gap-6 xl:gap-8 shrink-0">
@@ -239,7 +250,12 @@ import AudienceSwitch from './AudienceSwitch';
                     <ThemeToggle />
                     <button
                       onClick={() => setIsOpen(!isOpen)}
-                      className="lg:hidden p-1.5"
+                      /* 44x44 minimum. Measured at 35x35 on production — the
+                         single most-tapped control on mobile, under both the
+                         Apple and Android guideline and uncomfortable for a
+                         thumb. -mr-1.5 keeps the icon optically where it was
+                         so the header spacing does not shift. */
+                      className="lg:hidden inline-flex items-center justify-center min-w-[44px] min-h-[44px] -mr-1.5 rounded-lg"
                       aria-label={isOpen ? t('nav.closeMenu') : t('nav.openMenu')}
                       aria-expanded={isOpen}
                       aria-controls="mobile-menu"

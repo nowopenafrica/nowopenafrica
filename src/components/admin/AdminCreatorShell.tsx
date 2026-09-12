@@ -4,7 +4,7 @@ import {
   LayoutDashboard, PenTool, Clapperboard, Video, Instagram, Rocket, FileText, MessageCircle,
   Boxes, Newspaper, Users, Bot, TrendingUp, Radar, Braces, LayoutTemplate, Component,
   BookOpen, Crown, ChevronDown, ArrowLeft, Sparkles, UsersRound, Kanban, ClipboardCheck,
-  Factory, Search, ClipboardList, FolderOpen, FileSignature, Inbox, type LucideIcon,
+  Factory, Search, ClipboardList, FolderOpen, FileSignature, Inbox, Image, FileCheck2, Activity, type LucideIcon,
 } from 'lucide-react';
 import {
   ADMIN_SECTIONS, ADMIN_GROUPS, sectionById,
@@ -40,6 +40,10 @@ import OnboardingCommandCenter from './OnboardingCommandCenter';
 import DocumentCenter from './DocumentCenter';
 import SigningVault from './SigningVault';
 import ApplicationsReview from './ApplicationsReview';
+import AiCommandCenter from './AiCommandCenter';
+import MediaIntelligencePanel from './MediaIntelligencePanel';
+import ChangeProposalsPanel from './ChangeProposalsPanel';
+import EnrichmentOpsPanel from './EnrichmentOpsPanel';
 
 // One internal frame for the whole team: every department in the sidebar,
 // Command Center as the front door. Sections that are live get a real
@@ -75,6 +79,10 @@ const LIVE_MODULES: Record<string, (open: (id: string) => void) => JSX.Element> 
   partners: () => <PartnershipCrm />,
   launch: () => <LaunchControl />,
   knowledge: () => <KnowledgeBase />,
+  'ai-command': (open) => <AiCommandCenter onOpenSection={open} />,
+  'media-intelligence': () => <MediaIntelligencePanel />,
+  'change-proposals': () => <ChangeProposalsPanel />,
+  'enrichment-ops': () => <EnrichmentOpsPanel />,
 };
 
 function PlannedPage({ section }: { section: AdminSection }) {
@@ -110,6 +118,10 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   trends: Radar,
   launch: Rocket,
   knowledge: BookOpen,
+  'ai-command': Sparkles,
+  'media-intelligence': Image,
+  'change-proposals': FileCheck2,
+  'enrichment-ops': Activity,
 };
 
 const GROUP_ICONS: Record<AdminGroup, LucideIcon> = {

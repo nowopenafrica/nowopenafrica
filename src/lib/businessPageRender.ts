@@ -23,6 +23,8 @@
 // and api/business/[slug].ts is the thin part that fetches and serves it.
 
 import { escapeHtml } from './shareRender.js';
+// .js extension: this module is imported by api/business/[slug].ts too.
+import { socialEntries } from './businessProfile.js';
 import {
   parseOpeningHours, formatClock, publicOpenState, WEEKDAY_FULL,
   CLOSING_SOON_MINUTES, type OpenState,
@@ -46,6 +48,8 @@ export interface ProfileBusiness {
   phone?: string | null;
   email?: string | null;
   website?: string | null;
+  /** `{instagram: 'https://…'}`. Read through socialEntries, never trusted raw. */
+  social_links?: unknown;
   image_url?: string | null;
   logo_url?: string | null;
   rating?: number | null;
@@ -54,6 +58,13 @@ export interface ProfileBusiness {
   hours?: string | null;
   timezone?: string | null;
   open_status?: 'open' | 'closed' | null;
+  /**
+   * 0-100 completeness, generated in the database.
+   *
+   * Read by isIndexableProfile: an imported profile must clear the usefulness
+   * bar before the sitemap asks Google to index it.
+   */
+  listing_score?: number | null;
   /** Who is accountable for this record. Decides indexability — see isIndexableProfile. */
   claim_status?: string | null;
   data_status?: string | null;
@@ -79,8 +90,44 @@ export interface ProfileBusiness {
  * and the prospect seed: display freely, assert only what somebody stands
  * behind.
  */
+/**
+ * The usefulness bar for asking Google to index an unclaimed profile.
+ *
+ * Deliberately the SAME number as `MIN_USEFUL_SCORE` in discover.ts. Two
+ * thresholds for "is this profile worth showing" would drift, and the drift
+ * already happened once in the other direction: Discover was hiding 100
+ * imported profiles as too thin while the sitemap submitted every one of them.
+ */
+export const MIN_INDEXABLE_SCORE = 40;
+
 export function isIndexableProfile(b: ProfileBusiness): boolean {
-  return b.claim_status === 'claimed' || b.data_status === 'imported_authorized';
+  /*
+   * A claimed profile is indexable whatever its score.
+   *
+   * The owner is accountable for it and can complete it, and de-indexing a
+   * brand-new claimed business for being incomplete would punish precisely
+   * the behaviour the platform exists to cause.
+   */
+  if (b.claim_status === 'claimed') return true;
+
+  /*
+   * An imported profile has nobody vouching for its content, so the content
+   * has to vouch for itself.
+   *
+   * MEASURED 2026-09-08: 100 businesses imported as `imported_authorized`
+   * averaged a listing_score of 30 — no description, no address, no hours, no
+   * phone on any of them — and all 100 were in the sitemap. Accountability
+   * alone justifies SHOWING a profile; accountability plus usefulness is what
+   * justifies asking Google to index it.
+   *
+   * A missing score is treated as not-yet-useful rather than assumed good: an
+   * unscored record is one we know nothing about.
+   */
+  if (b.data_status === 'imported_authorized') {
+    return (b.listing_score ?? 0) >= MIN_INDEXABLE_SCORE;
+  }
+
+  return false;
 }
 
 export interface ProfileProduct {
@@ -173,6 +220,11 @@ export function profileJsonLd(p: ProfilePage): unknown {
   const image = b.image_url || b.logo_url;
   const hasRating = typeof b.rating === 'number' && b.rating > 0 && p.reviewCount > 0;
 
+  const sameAs = [
+    ...(b.website ? [b.website] : []),
+    ...socialEntries(b.social_links).map((sl) => sl.url),
+  ];
+
   const business: Record<string, unknown> = {
     '@context': 'https://schema.org',
     '@type': 'LocalBusiness',
@@ -183,7 +235,17 @@ export function profileJsonLd(p: ProfilePage): unknown {
     ...(image ? { image: [image] } : {}),
     ...(b.phone ? { telephone: b.phone } : {}),
     ...(b.email ? { email: b.email } : {}),
-    ...(b.website ? { sameAs: [b.website] } : {}),
+    /*
+     * sameAs is how a search engine connects this page to the same business on
+     * Instagram, Facebook and X — the property that turns six unconnected
+     * profiles into one entity. It was carrying the website alone, so a
+     * business with five handles told Google about none of them.
+     *
+     * socialEntries refuses anything that is not an absolute http(s) URL, so
+     * an owner-entered "@handle" cannot end up in structured data as a
+     * relative link that resolves to a NowOpen page.
+     */
+    ...(sameAs.length ? { sameAs } : {}),
     ...(b.location ? { address: { '@type': 'PostalAddress', addressLocality: b.location } } : {}),
     ...(hasRating ? {
       aggregateRating: {

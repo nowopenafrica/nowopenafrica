@@ -44,11 +44,59 @@ const BUSINESS_FIELDS: FieldSpec[] = [
   { field: 'whatsapp', label: 'WhatsApp', aliases: ['whatsapp', 'whatsapp_number', 'wa'], hints: ['whats'] },
   { field: 'email', label: 'Email', aliases: ['email', 'e_mail', 'email_address', 'mail'], hints: ['mail'] },
   { field: 'website', label: 'Website', aliases: ['website', 'url', 'web', 'site', 'homepage'], hints: ['web', 'url', 'site'] },
-  { field: 'instagram', label: 'Instagram', aliases: ['instagram', 'ig'], hints: ['insta'] },
-  { field: 'facebook', label: 'Facebook', aliases: ['facebook', 'fb'], hints: ['face'] },
+  /*
+   * Socials, all six, and they land in `businesses.social_links` as absolute
+   * URLs. Instagram and Facebook were mapped here long before anything carried
+   * them past the candidate stage — the column was read, validated and
+   * dropped. See profileFields.ts.
+   */
+  { field: 'instagram', label: 'Instagram', aliases: ['instagram', 'ig', 'insta', 'instagram_handle', 'instagram_url'], hints: ['insta'] },
+  { field: 'facebook', label: 'Facebook', aliases: ['facebook', 'fb', 'facebook_page', 'facebook_url'], hints: ['face'] },
+  { field: 'twitter', label: 'X (Twitter)', aliases: ['twitter', 'x', 'twitter_handle', 'x_handle', 'twitter_url'], hints: ['twitter'] },
+  { field: 'tiktok', label: 'TikTok', aliases: ['tiktok', 'tik_tok', 'tiktok_handle', 'tiktok_url'], hints: ['tiktok'] },
+  { field: 'linkedin', label: 'LinkedIn', aliases: ['linkedin', 'linked_in', 'linkedin_url'], hints: ['linked'] },
+  { field: 'youtube', label: 'YouTube', aliases: ['youtube', 'you_tube', 'youtube_channel', 'youtube_url'], hints: ['youtube'] },
   { field: 'opening_hours', label: 'Opening hours', aliases: ['opening_hours', 'hours', 'open_hours', 'business_hours'], hints: ['hour'] },
   { field: 'logo_url', label: 'Logo', aliases: ['logo_url', 'logo'], hints: ['logo'] },
   { field: 'cover_image_url', label: 'Cover image', aliases: ['cover_image_url', 'cover', 'cover_url', 'image_url', 'image'], hints: ['cover', 'image'] },
+  /*
+   * Several images in one cell. Exports separate them with a pipe, a
+   * semicolon or a newline — and sometimes a comma, which is why the splitter
+   * in media.ts only treats a comma as a separator when a URL clearly follows
+   * it (a `?w=800,h=600` query string is common and must survive).
+   */
+  { field: 'gallery_urls', label: 'Gallery images', aliases: ['gallery_urls', 'gallery', 'images', 'photos', 'photo_urls', 'image_urls'], hints: ['gallery', 'images', 'photos'] },
+
+  /*
+   * THE REST OF THE PROFILE.
+   *
+   * `businesses` has 72 columns and this list covered 23 of them, so a file
+   * carrying a tagline, a founding year or a service list had nowhere to put
+   * it. Everything below reaches the published business through
+   * radar_candidates.profile — see 20260908200000.
+   *
+   * Deliberately absent: `team`, `credentials` and `policies`. Each is a list
+   * of objects with several fields apiece, and squeezing them into one
+   * spreadsheet cell produces a format nobody can type correctly. They belong
+   * in the owner's own profile editor, and the template says so.
+   */
+  { field: 'tagline', label: 'Tagline', aliases: ['tagline', 'slogan', 'strapline', 'motto'], hints: ['tagline', 'slogan'] },
+  { field: 'about', label: 'About (long)', aliases: ['about', 'about_us', 'long_description', 'full_description', 'overview'], hints: ['about', 'overview'] },
+  { field: 'story', label: 'Our story', aliases: ['story', 'our_story', 'history', 'background'], hints: ['story', 'history'] },
+  { field: 'mission', label: 'Mission', aliases: ['mission', 'mission_statement'], hints: ['mission'] },
+  { field: 'vision', label: 'Vision', aliases: ['vision', 'vision_statement'], hints: ['vision'] },
+  { field: 'why_us', label: 'Why choose us', aliases: ['why_us', 'why_choose_us', 'usp', 'differentiators', 'strengths'], hints: ['why', 'usp'] },
+  { field: 'core_values', label: 'Core values', aliases: ['core_values', 'values'], hints: ['values'] },
+  { field: 'services', label: 'Services', aliases: ['services', 'service_list', 'offerings', 'products', 'menu', 'price_list'], hints: ['service', 'offering', 'menu'] },
+  { field: 'faqs', label: 'FAQs', aliases: ['faqs', 'faq', 'questions'], hints: ['faq'] },
+  { field: 'founded_year', label: 'Year founded', aliases: ['founded_year', 'founded', 'year_founded', 'established', 'est', 'year_established'], hints: ['found', 'establish'] },
+  { field: 'employees', label: 'Team size', aliases: ['employees', 'team_size', 'staff', 'staff_count', 'headcount'], hints: ['employee', 'staff', 'team_size'] },
+  { field: 'business_type', label: 'Business type', aliases: ['business_type', 'company_type', 'entity_type', 'ownership'], hints: ['entity', 'ownership'] },
+  { field: 'service_area', label: 'Service area', aliases: ['service_area', 'coverage', 'areas_served', 'serves'], hints: ['coverage', 'served'] },
+  { field: 'languages', label: 'Languages', aliases: ['languages', 'language', 'languages_spoken'], hints: ['langua'] },
+  { field: 'payment_methods', label: 'Payment methods', aliases: ['payment_methods', 'payments', 'payment', 'accepted_payments'], hints: ['payment'] },
+  { field: 'secondary_categories', label: 'Other categories', aliases: ['secondary_categories', 'other_categories', 'additional_categories', 'tags'], hints: ['categories', 'tags'] },
+  { field: 'timezone', label: 'Timezone', aliases: ['timezone', 'time_zone', 'tz'], hints: ['timezone'] },
 ];
 
 const PLACEMENT_FIELDS: FieldSpec[] = [

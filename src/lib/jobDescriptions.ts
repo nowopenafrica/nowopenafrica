@@ -351,7 +351,7 @@ export const JOB_DESCRIPTIONS: JobDescription[] = [
     },
   },
   {
-    agentKey: 'customer-success-manager',
+    agentKey: 'customer-success',
     role: 'Customer Success Manager',
     department: 'Customer Success',
     purpose: 'Onboard businesses and watch for drop-off; nudge owners before they churn.',
@@ -370,7 +370,7 @@ export const JOB_DESCRIPTIONS: JobDescription[] = [
     },
   },
   {
-    agentKey: 'trust-safety-agent',
+    agentKey: 'trust-safety',
     role: 'Trust & Safety Agent',
     department: 'Trust & Safety',
     purpose: 'Review verification and flag suspicious activity; enforcement escalates to a human.',

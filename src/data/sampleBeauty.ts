@@ -50,9 +50,7 @@ export const BEAUTY_SPOTLIGHTS: Record<string, any> = {
     email: 'book@glowbeauty.example.com',
     opening_hours: 'Tue–Sun: 9AM–8PM',
     image_url: px(3993449),
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

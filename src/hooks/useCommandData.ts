@@ -59,7 +59,7 @@ export function useCommandData(): CommandData {
         regsRes, enquiriesRes, waitlistRes, publishLogRes,
       ] = await Promise.all([
         supabase.from('users').select('created_at, plan_status'),
-        supabase.from('businesses').select('verified, created_at, category'),
+        supabase.from('businesses').select('verified, created_at, category').limit(50000),
         supabase.from('payment_intents').select('status, amount_local, currency, created_at'),
         supabase.from('verification_docs').select('status'),
         supabase.from('business_registrations').select('status'),

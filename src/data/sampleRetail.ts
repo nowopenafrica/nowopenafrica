@@ -43,9 +43,7 @@ export const RETAIL_SPOTLIGHTS: Record<string, any> = {
     email: 'orders@primecuts.example.com',
     opening_hours: 'Mon–Sat: 7AM–7PM',
     image_url: px(618775),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

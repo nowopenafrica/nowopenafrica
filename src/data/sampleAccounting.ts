@@ -42,9 +42,7 @@ export const ACCOUNTING_SPOTLIGHTS: Record<string, any> = {
     opening_hours: 'Mon–Fri: 8:30AM–5:30PM',
     image_url:
       'https://images.pexels.com/photos/6693661/pexels-photo-6693661.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

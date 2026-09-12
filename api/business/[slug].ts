@@ -78,8 +78,16 @@ const BUSINESS_COLUMNS = [
   'id', 'username', 'name', 'description', 'category', 'location', 'phone', 'email',
   'website', 'image_url', 'logo_url', 'rating', 'verified', 'opening_hours', 'hours',
   'timezone', 'open_status',
+  // Feeds `sameAs` in the LocalBusiness JSON-LD — the property that tells a
+  // search engine this page and the business's Instagram are the same entity.
+  'social_links',
   // Decide indexability, not display — see isIndexableProfile.
-  'claim_status', 'data_status',
+  //
+  // `listing_score` is part of that rule now: an imported profile has to clear
+  // the usefulness bar before this page asks Google to index it. Omitting it
+  // would make every imported profile read as score 0 and silently noindex the
+  // good ones along with the thin ones.
+  'claim_status', 'data_status', 'listing_score',
 ].join(',');
 
 const isUuid = (s: string) => /^[0-9a-fA-F]{8}-[0-9a-fA-F-]{20,30}$/.test(s);

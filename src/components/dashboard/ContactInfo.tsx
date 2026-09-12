@@ -1,5 +1,7 @@
 import { Phone, Mail, Globe, MapPin } from 'lucide-react';
 
+import { websiteHref, websiteLabel } from '../../lib/webLink';
+
 interface ContactInfoProps {
   business: any;
 }
@@ -23,11 +25,11 @@ export default function ContactInfo({ business }: ContactInfoProps) {
           </a>
         </div>
       )}
-      {business.website && (
+      {websiteHref(business.website) && (
         <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
           <Globe size={16} className="text-blue-500" />
-          <a href={business.website} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600">
-            {business.website}
+          <a href={websiteHref(business.website)!} target="_blank" rel="noopener noreferrer" className="hover:text-blue-600">
+            {websiteLabel(business.website)}
           </a>
         </div>
       )}

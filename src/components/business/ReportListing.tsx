@@ -88,7 +88,11 @@ export default function ReportListing({
     <>
       <button
         onClick={() => setOpen(true)}
-        className="text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 inline-flex items-center gap-1.5 underline underline-offset-2"
+        /* min-h-[44px] with -my-2.5 to absorb it: measured at 17px tall, which
+           fails even WCAG 2.2 AA (24x24) and is the control a customer
+           reaches for when a listing is wrong — the one report path the
+           platform has for bad data. */
+        className="min-h-[44px] -my-2.5 text-[11px] text-gray-500 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 inline-flex items-center gap-1.5 underline underline-offset-2"
       >
         <Flag size={12} /> Something wrong with this listing?
       </button>

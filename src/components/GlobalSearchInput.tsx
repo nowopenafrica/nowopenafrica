@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, KeyboardEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, MapPin, Tag, Store, Megaphone, Clapperboard, ArrowUpRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -25,6 +25,14 @@ interface SearchIndex {
   items: IndexItem[];
   categories: Record<SearchType, string[]>;
   locations: string[];
+  /**
+   * True when any of the three reads failed.
+   *
+   * Without this the index cannot distinguish "the tables are empty" from
+   * "the database was unreachable" — and since the built index is cached for
+   * the session, the second case would disable search until a reload.
+   */
+  failed: boolean;
 }
 
 const TYPE_ICONS: Record<SearchType, typeof Store> = {
@@ -45,6 +53,13 @@ async function buildIndex(): Promise<SearchIndex> {
     supabase.from('advertisements').select('id, title, category, location').limit(300),
     supabase.from('media_services').select('id, title, service_type').limit(300),
   ]).catch(() => [null, null, null] as const);
+
+  /*
+   * `error`, not the catch above. supabase-js RESOLVES with
+   * `{ data: null, error }` when a read fails, so the catch only ever fired
+   * for a thrown exception — which is not how these fail.
+   */
+  const failed = !bizRes || !!bizRes.error || !adRes || !!adRes.error || !mediaRes || !!mediaRes.error;
 
   const biz = bizRes?.data?.length ? bizRes.data : generateBusinesses(30);
   const ads = adRes?.data?.length ? adRes.data : generateAdverts();
@@ -88,11 +103,32 @@ async function buildIndex(): Promise<SearchIndex> {
       media: collect('media'),
     },
     locations: [...new Set(items.map(i => i.location).filter(Boolean) as string[])],
+    failed,
   };
 }
 
 function getIndex(): Promise<SearchIndex> {
-  if (!indexPromise) indexPromise = buildIndex();
+  if (!indexPromise) {
+    /*
+     * Cache the SUCCESSFUL build only.
+     *
+     * This used to memoise unconditionally, and `buildIndex` never rejects —
+     * it swallows failures and returns an empty index. So a single blip while
+     * the header mounted left an empty index cached for the whole session:
+     * the search box opened, accepted typing and matched nothing, with no way
+     * for the visitor to know or recover short of a reload.
+     */
+    indexPromise = buildIndex().then(
+      (index) => {
+        if (index.failed) indexPromise = null;
+        return index;
+      },
+      (err) => {
+        indexPromise = null;
+        throw err;
+      },
+    );
+  }
   return indexPromise;
 }
 
@@ -132,11 +168,40 @@ export default function GlobalSearchInput({
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const loadStarted = useRef(false);
+  /*
+   * The pending close-on-blur timer.
+   *
+   * The delay is deliberate — a click on a suggestion has to land before the
+   * list closes — but nothing cancelled it, so the callback could run after
+   * the component had gone and call setState on nothing. The header mounts
+   * this on every page, so it happened on every navigation.
+   */
+  const blurTimer = useRef<number | undefined>(undefined);
+
+  useEffect(() => () => window.clearTimeout(blurTimer.current), []);
 
   const ensureIndex = () => {
     if (loadStarted.current) return;
     loadStarted.current = true;
-    getIndex().then(setIndex).catch(err => console.warn('Search index failed to load:', err));
+    getIndex()
+      .then((index) => {
+        setIndex(index);
+        /*
+         * Let THIS box try again.
+         *
+         * `loadStarted` is a per-instance ref, so clearing the module-level
+         * cache is not enough on its own: the component that hit the failure
+         * would never call getIndex again for as long as it stays mounted,
+         * and the visitor keeps typing into a search box that has quietly
+         * given up. Clearing it means the next keystroke rebuilds — which is
+         * precisely when they are still looking for something.
+         */
+        if (index.failed) loadStarted.current = false;
+      })
+      .catch(err => {
+        console.warn('Search index failed to load:', err);
+        loadStarted.current = false;
+      });
   };
 
   const rows = useMemo<Row[]>(() => {
@@ -210,7 +275,10 @@ export default function GlobalSearchInput({
         value={value}
         onChange={(e) => { onChange(e.target.value); setOpen(true); setActive(-1); ensureIndex(); }}
         onFocus={() => { setOpen(true); ensureIndex(); }}
-        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onBlur={() => {
+          window.clearTimeout(blurTimer.current);
+          blurTimer.current = window.setTimeout(() => setOpen(false), 120);
+        }}
         onKeyDown={onKeyDown}
         className="w-full pl-10 pr-4 py-3 border border-gray-200 dark:border-gray-700 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm bg-gray-50 dark:bg-gray-900"
       />

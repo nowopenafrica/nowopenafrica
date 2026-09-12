@@ -2,6 +2,7 @@ import { Download, Image as ImageIcon, FolderOpen, Cloud } from 'lucide-react';
 import toast from 'react-hot-toast';
 import { Business } from '../../types';
 import { downloadRemoteUrl, slugForFile } from '../../lib/studio';
+import SmartImg from '../SmartImg';
 
 // A lightweight media library for now: the assets already on the business
 // profile. These are the same files Studio uses as flyer/poster backgrounds,
@@ -35,7 +36,7 @@ export default function MediaLibrary({ business }: { business: Business }) {
             {items.map((item) => (
               <div key={item.key} className="rounded-xl overflow-hidden border border-gray-200 dark:border-gray-700">
                 <div className="h-32 bg-gray-100 dark:bg-gray-900 flex items-center justify-center">
-                  <img src={item.url} alt={item.label} className="max-h-full max-w-full object-contain" />
+                  <SmartImg src={item.url} alt={item.label} className="max-h-full max-w-full object-contain" />
                 </div>
                 <div className="flex items-center justify-between px-3 py-2">
                   <p className="text-xs font-semibold text-gray-700 dark:text-gray-300">{item.label}</p>

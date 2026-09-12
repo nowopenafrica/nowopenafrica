@@ -42,9 +42,7 @@ export const INSURANCE_SPOTLIGHTS: Record<string, any> = {
     opening_hours: 'Mon–Fri: 8AM–5PM',
     image_url:
       'https://images.pexels.com/photos/5921788/pexels-photo-5921788.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

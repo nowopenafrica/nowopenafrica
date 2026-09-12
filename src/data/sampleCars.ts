@@ -77,9 +77,7 @@ export const CAR_SPOTLIGHTS: Record<string, any> = {
     email: 'sales@aceauto.example.com',
     opening_hours: 'Mon–Sat: 9AM–7PM',
     image_url: px(112460),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

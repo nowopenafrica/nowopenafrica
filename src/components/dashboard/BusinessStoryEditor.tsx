@@ -7,6 +7,7 @@ import {
   stringList, faqList, teamList, credentialList, profileCompleteness,
   type Faq, type TeamMember, type Credential,
 } from '../../lib/businessProfile';
+import { SOCIAL_PLATFORMS, socialUrl } from '../../lib/imports/profileFields';
 import type { Business } from '../../types';
 
 /**
@@ -128,6 +129,20 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
   const [foundedYear, setFoundedYear] = useState(
     typeof b.founded_year === 'number' ? String(b.founded_year) : '');
   const [employees, setEmployees] = useState(str('employees'));
+  /*
+   * Social links.
+   *
+   * `social_links` has had a column, a reader and a test for months, and no
+   * way to enter a single one — so the only businesses with any are the ones
+   * an import brought them for. Stored as { platform: url }, which is what
+   * socialEntries() reads.
+   */
+  const [socials, setSocials] = useState<Record<string, string>>(() => {
+    const v = b.social_links;
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return {};
+    return Object.fromEntries(Object.entries(v as Record<string, unknown>)
+      .map(([k, val]) => [k, typeof val === 'string' ? val : '']));
+  });
   const [businessType, setBusinessType] = useState(str('business_type'));
   const [serviceArea, setServiceArea] = useState(str('service_area'));
   const [languages, setLanguages] = useState<string[]>(stringList(b.languages));
@@ -235,6 +250,17 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
         service_area: serviceArea.trim() || null,
         languages,
         payment_methods: payments,
+        /*
+         * Normalised through the same code the importer uses, so a handle
+         * typed here and a handle in a CSV become the same URL — and an
+         * unusable value is dropped rather than stored as a link that goes
+         * nowhere.
+         */
+        social_links: Object.fromEntries(
+          Object.entries(socials)
+            .map(([key, value]) => [key, socialUrl(key, value).url])
+            .filter(([, url]) => !!url),
+        ),
       })
       .eq('id', business.id);
     setSaving(false);
@@ -442,6 +468,40 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
             suggestions={['English', 'Yoruba', 'Igbo', 'Hausa', 'Pidgin', 'French', 'Swahili', 'Arabic']} />
           <ChipList label="Payment methods" values={payments} onChange={setPayments} placeholder="Bank transfer"
             suggestions={PAYMENT_SUGGESTIONS} />
+
+          {/* Where to find them. Handles are fine — they become links. */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-900 dark:text-white">Social links</label>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+              A handle or a full link — @yourname works. Anything that is not a usable link is left off
+              the page rather than shown as one that goes nowhere.
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {SOCIAL_PLATFORMS.map((platform) => {
+                const value = socials[platform.key] ?? '';
+                const bad = value.trim() !== '' && !socialUrl(platform.key, value).url;
+                return (
+                  <div key={platform.key}>
+                    <label htmlFor={`social-${platform.key}`} className="block text-[11px] text-gray-500 dark:text-gray-400">
+                      {platform.label}
+                    </label>
+                    <input
+                      id={`social-${platform.key}`}
+                      value={value}
+                      onChange={(e) => setSocials((prev) => ({ ...prev, [platform.key]: e.target.value }))}
+                      placeholder="@yourname"
+                      className={`${field} mt-1 ${bad ? 'border-amber-500' : ''}`}
+                    />
+                    {bad && (
+                      <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
+                        Not a usable handle or link — this one will be left off.
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
 
           {/* Policies — only the ones written are ever shown publicly. */}
           <div>

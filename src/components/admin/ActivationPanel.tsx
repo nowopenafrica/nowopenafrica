@@ -4,7 +4,9 @@ import { AlertTriangle, RefreshCw, TrendingDown, TrendingUp } from 'lucide-react
 import { supabase } from '../../lib/supabase';
 import {
   activationFunnel, verdict, weekOnWeek, weeklyConnections,
-  type FunnelBusiness, type FunnelStage, type RawEvent, type WeekConnections,
+  supplyGaps,
+  type FunnelBusiness, type FunnelStage, type RawEvent, type SupplyGap,
+  type WeekConnections,
 } from '../../lib/northStar';
 
 /**
@@ -25,6 +27,8 @@ interface Loaded {
   funnel: FunnelStage[];
   businesses: number;
   syntheticWarning: number;
+  /** Searches that found nothing — demand with no supply behind it. */
+  gaps: SupplyGap[];
 }
 
 export default function ActivationPanel() {
@@ -67,6 +71,7 @@ export default function ActivationPanel() {
       setData({
         series: weeklyConnections(events),
         funnel: activationFunnel(businesses, events, keeps),
+        gaps: supplyGaps(events),
         businesses: businesses.length,
         syntheticWarning: rows.filter((b) => b.data_status && b.data_status !== 'user_created'
           && b.claim_status !== 'claimed').length,
@@ -187,6 +192,63 @@ export default function ActivationPanel() {
             </div>
           ))}
         </div>
+      </div>
+
+      {/*
+        Demand with no supply behind it.
+        The most directly actionable panel here: every row is a customer who
+        told us, in their own words, which business they wanted and could not
+        find. On a platform whose real constraint is supply, that is a
+        recruitment list written by demand rather than guesswork.
+      */}
+      <div className="bg-white dark:bg-gray-800 rounded-2xl border border-gray-100 dark:border-gray-700 p-5 sm:p-6">
+        <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+          Searched for, not found
+        </h3>
+        <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+          Zero-result searches over the last {DAYS} days. Each one names a business worth recruiting.
+        </p>
+
+        {data.gaps.length === 0 ? (
+          <div className="mt-4 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-5 text-sm text-gray-600 dark:text-gray-400">
+            {/* Honest about which of the two reasons this is. With 114 sessions
+                in a fortnight it is almost certainly the second. */}
+            No zero-result searches recorded yet — either every search found
+            something, or too few people have searched to tell. Outcome tracking
+            began on the directory today, so this fills as visitors arrive.
+          </div>
+        ) : (
+          <div className="mt-4 overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                  <th className="pb-2 pr-3 font-semibold">They searched for</th>
+                  <th className="pb-2 pr-3 font-semibold">Where</th>
+                  <th className="pb-2 pr-3 font-semibold text-right">People</th>
+                  <th className="pb-2 font-semibold text-right">Searches</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 dark:divide-gray-700">
+                {data.gaps.map((g) => (
+                  <tr key={`${g.term}|${g.place}`}>
+                    <td className="py-2.5 pr-3 font-medium text-gray-900 dark:text-white">
+                      {g.term || <span className="text-gray-400">(no term)</span>}
+                    </td>
+                    <td className="py-2.5 pr-3 text-gray-600 dark:text-gray-400">
+                      {g.place || <span className="text-gray-400">—</span>}
+                    </td>
+                    <td className="py-2.5 pr-3 text-right tabular-nums font-semibold text-gray-900 dark:text-white">
+                      {g.people}
+                    </td>
+                    <td className="py-2.5 text-right tabular-nums text-gray-600 dark:text-gray-400">
+                      {g.searches}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   );

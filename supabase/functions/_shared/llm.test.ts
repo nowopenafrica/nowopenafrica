@@ -78,6 +78,15 @@ describe('resolveProvider', () => {
     expect(first.model).toBe('llama-3.1-8b-instant');
     expect(second.model).toBe('claude-opus-4-8');
   });
+
+  it('adds OpenCode Zen last, only when its key is set', () => {
+    env = { GROQ_API_KEY: 'g', OPENCODE_API_KEY: 'z' };
+    const providers = resolveProviders();
+    expect(providers.at(-1)).toMatchObject({ name: 'zen', model: 'opencode/big-pickle' });
+
+    env = { GROQ_API_KEY: 'g' };
+    expect(resolveProviders().some((p) => p.name === 'zen')).toBe(false);
+  });
 });
 
 describe('runAgent', () => {
@@ -299,5 +308,43 @@ describe('runAgent', () => {
 
     const out = await runAgent('sys', [{ role: 'user', content: 'x' }], [TOOL], async () => ({}));
     expect(out).toMatchObject({ text: 'Real answer.', provider: 'anthropic' });
+  });
+
+  it('pins OpenCode Zen and the picked opencode/:* id when the picker forwards one', async () => {
+    env = { GROQ_API_KEY: 'g', OPENCODE_API_KEY: 'z' };
+    const { bodies } = stubFetch([{ choices: [{ message: { content: 'Eleven in Lagos.' } }] }]);
+
+    const out = await runAgent('sys', [{ role: 'user', content: 'popular?' }], [TOOL], async () => ({}), {
+      model: 'opencode/north-mini-code-free',
+    });
+
+    expect(out).toMatchObject({ ok: true, text: 'Eleven in Lagos.', provider: 'zen', model: 'opencode/north-mini-code-free' });
+    // The pinned id replaces any fallback providers — Zen alone is consulted.
+    expect(bodies).toHaveLength(1);
+    expect(bodies[0].model).toBe('opencode/north-mini-code-free');
+  });
+
+  it('falls back to the configured provider when a picked Zen id has no key behind it', async () => {
+    env = { GROQ_API_KEY: 'g' }; // no OPENCODE_API_KEY
+    stubFetch([{ choices: [{ message: { content: 'Answering from Groq.' } }] }]);
+
+    const out = await runAgent('sys', [{ role: 'user', content: 'x' }], [TOOL], async () => ({}), {
+      model: 'opencode/big-pickle',
+    });
+
+    // The picker must never break an honest reply: the id is ignored because
+    // Zen isn't configured, and the configured provider answers instead.
+    expect(out).toMatchObject({ ok: true, provider: 'groq', model: 'openai/gpt-oss-120b' });
+  });
+
+  it('serves the default Zen model when its key is set but no specific id is picked', async () => {
+    env = { OPENCODE_API_KEY: 'z' };
+    const { bodies } = stubFetch([{ choices: [{ message: { content: 'Big Pickle speaks.' } }] }]);
+
+    const out = await runAgent('sys', [{ role: 'user', content: 'hi' }], [], undefined);
+
+    expect(out).toMatchObject({ ok: true, provider: 'zen', model: 'opencode/big-pickle' });
+    expect(bodies[0].model).toBe('opencode/big-pickle');
+    expect(String(bodies[0].messages[0].content)).toBe('sys');
   });
 });

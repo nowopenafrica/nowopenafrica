@@ -1,16 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { Compass, DoorOpen, Sparkles, Star, Gem, Search, Loader2, Heart, Tag, X, BadgeCheck } from 'lucide-react';
+import { Compass, DoorOpen, Sparkles, Star, Gem, Search, Loader2, Heart, Tag, X, BadgeCheck, ChevronDown } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import BusinessCard from '../components/discover/BusinessCard';
+import IndustryExamples from '../components/discover/IndustryExamples';
 import SearchSuggest from '../components/discover/SearchSuggest';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import CategoryCarousel from '../components/discover/CategoryCarousel';
 import SuggestBusiness from '../components/business/SuggestBusiness';
 import { BUSINESS_CATEGORY_GROUPS, matchesCategory } from '../data/categories';
+import LoadFailure from '../components/LoadFailure';
 import {
   openNow, newest, topRated, hiddenGems,
   affinityCategories, recommended,
@@ -30,11 +32,22 @@ import {
  * Every rail hides itself when empty. A column of headings above nothing is how
  * a young directory advertises how little it has.
  */
+/** How many cards a rail shows before "See more". */
+const RAIL_PAGE = 8;
+
 interface Rail {
   key: string;
   title: string;
   blurb: string;
   icon: typeof Compass;
+  /**
+   * EVERYTHING the rail matched, not the first eight.
+   *
+   * Each rail used to slice to eight before storing, so the page could not say
+   * how many more there were — and "New on NowOpen" quietly hid most of a
+   * month's listings behind a heading that looked complete. Slicing happens at
+   * render time now, which is also what makes the count on the button honest.
+   */
   items: DiscoverBusiness[];
 }
 
@@ -44,6 +57,16 @@ export default function Discover() {
   const [all, setAll] = useState<DiscoverBusiness[]>([]);
   const [kept, setKept] = useState<{ business_id: string; category: string | null }[]>([]);
   const [loading, setLoading] = useState(true);
+  /*
+   * The primary read FAILED, as distinct from there being nothing to discover.
+   *
+   * The catch below only stopped the spinner, so a dropped connection rendered
+   * the empty state. The recommendations effect further down stays
+   * best-effort on purpose — its failure costs a suggestion, not the page —
+   * but the business list is the page.
+   */
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   // Filters live in the URL so a search can be shared, bookmarked and
   // returned to by the back button. They update as you type — with 32
   // businesses already in memory, filtering is instant and a Search button
@@ -95,6 +118,8 @@ export default function Discover() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(false);
+    setLoading(true);
     (async () => {
       const [biz, reviews] = await Promise.all([
         supabase.from('businesses').select(DISCOVER_SELECT)
@@ -111,15 +136,23 @@ export default function Discover() {
         supabase.from('business_reviews').select('business_id').limit(5000),
       ]);
       if (!cancelled) {
+        // supabase-js RESOLVES with { data: null, error } instead of throwing,
+        // so the catch never sees a network failure. The reviews call is only
+        // a tally — its failure costs a count, not the page.
+        if (biz.error) setLoadError(true);
         setAll(withReviewCounts(
           (biz.data as DiscoverBusiness[]) || [],
           tallyReviews((reviews.data as { business_id: string }[]) || []),
         ));
         setLoading(false);
       }
-    })().catch(() => { if (!cancelled) setLoading(false); });
+    })().catch(() => {
+      if (cancelled) return;
+      setLoadError(true);
+      setLoading(false);
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   // What this person already keeps — used only to avoid recommending back
   // something they already follow, and to name the categories they care about.
@@ -163,6 +196,15 @@ export default function Discover() {
     [all, query, place, category, group, status, now],
   );
 
+  /*
+   * Rails an visitor has asked to see more of, by key.
+   *
+   * Expanding in place rather than linking away: the rail IS the answer,
+   * and sending somebody to a filtered directory to see nine more shops
+   * costs a page load and loses the reason they were looking.
+   */
+  const [expanded, setExpanded] = useState<Record<string, number>>({});
+
   const rails = useMemo<Rail[]>(() => {
     const keptIds = kept.map((k) => k.business_id);
     const cats = affinityCategories(kept);
@@ -176,32 +218,32 @@ export default function Discover() {
         key: 'results',
         title: 'Matches',
         blurb: `${scope.length} ${scope.length === 1 ? 'business' : 'businesses'}`,
-        icon: Search, items: scope.slice(0, 12),
+        icon: Search, items: scope,
       });
     }
     list.push({
       key: 'open', title: 'Open right now', blurb: 'Doors open as of this minute.',
-      icon: DoorOpen, items: openNow(scope, now).slice(0, 8),
+      icon: DoorOpen, items: openNow(scope, now),
     });
     if (cats.length) {
       list.push({
         key: 'foryou',
         title: `Because you keep ${cats[0].toLowerCase()}`,
         blurb: 'Places like the ones you already follow.',
-        icon: Heart, items: recommended(scope, cats, keptIds).slice(0, 8),
+        icon: Heart, items: recommended(scope, cats, keptIds),
       });
     }
     list.push({
       key: 'new', title: 'New on NowOpen', blurb: 'Listed in the last month.',
-      icon: Sparkles, items: newest(scope, now).slice(0, 8),
+      icon: Sparkles, items: newest(scope, now),
     });
     list.push({
       key: 'top', title: 'Top rated', blurb: 'Consistently well reviewed.',
-      icon: Star, items: topRated(scope).slice(0, 8),
+      icon: Star, items: topRated(scope),
     });
     list.push({
       key: 'gems', title: 'Hidden gems', blurb: 'Well rated, not yet well known.',
-      icon: Gem, items: hiddenGems(scope).slice(0, 8),
+      icon: Gem, items: hiddenGems(scope),
     });
 
     return list.filter((r) => r.items.length > 0);
@@ -243,6 +285,7 @@ export default function Discover() {
               onChange={(v) => setFilter('place', v)}
               extraOptions={placeOptions}
               placeholder="Anywhere"
+              ariaLabel="Filter by place"
               className="min-h-[44px] bg-white dark:bg-gray-800 text-gray-900 dark:text-white"
             />
           </div>
@@ -324,7 +367,10 @@ export default function Discover() {
         )}
       </div>
 
-      {loading ? (
+      {/* A failed read is shown as a failed read, never as an empty result. */}
+      {loadError ? (
+        <LoadFailure what="businesses" onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-10">
           <Loader2 size={16} className="animate-spin" /> Finding businesses…
         </div>
@@ -350,6 +396,8 @@ export default function Discover() {
         <div className="space-y-10">
           {rails.map((rail) => {
             const Icon = rail.icon;
+            const shown = expanded[rail.key] ?? RAIL_PAGE;
+            const remaining = rail.items.length - shown;
             return (
               <section key={rail.key}>
                 <div className="flex items-baseline justify-between gap-3 mb-3">
@@ -361,13 +409,38 @@ export default function Discover() {
                   </div>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-3">
-                  {rail.items.map((b) => (
+                  {rail.items.slice(0, shown).map((b) => (
                     <BusinessCard key={`${rail.key}-${b.id}`} business={b} now={now} />
                   ))}
                 </div>
+
+                {/* The count is on the button because a bare "See more" cannot
+                    say whether it is worth pressing — and after the last press
+                    the button leaves rather than sitting there doing nothing. */}
+                {remaining > 0 && (
+                  <div className="mt-3 flex justify-center">
+                    <button
+                      type="button"
+                      onClick={() => setExpanded((prev) => ({
+                        ...prev,
+                        [rail.key]: shown + RAIL_PAGE * 2,
+                      }))}
+                      className="inline-flex items-center gap-1.5 px-4 min-h-[44px] rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800 transition"
+                    >
+                      See {Math.min(remaining, RAIL_PAGE * 2)} more
+                      <ChevronDown size={15} />
+                    </button>
+                  </div>
+                )}
               </section>
             );
           })}
+
+          {/* Same reasoning as the homepage: a handful of real listings across
+              several rails still reads as a page with nothing on it, and the
+              examples were only wired into /businesses. Below the rails, in
+              their own labelled block, never inside one. */}
+          <IndustryExamples label="businesses" />
         </div>
       )}
     </div>

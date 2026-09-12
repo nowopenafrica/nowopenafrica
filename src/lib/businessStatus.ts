@@ -17,7 +17,7 @@
 
 import { Business } from '../types';
 import { hashString, mulberry32, pick } from './videoCreator';
-import { parseOpeningHours, isOpenAtInZone, DEFAULT_BUSINESS_TIMEZONE } from './openingHours';
+import { DEFAULT_BUSINESS_TIMEZONE, publicOpenState } from './openingHours';
 
 // --- Status model -------------------------------------------------------------
 
@@ -82,13 +82,26 @@ export function businessTimezone(business: Business): string {
   return business.timezone || DEFAULT_BUSINESS_TIMEZONE;
 }
 
-/** Honest public open/closed, or null when it can't be confirmed. */
+/**
+ * Honest public open/closed, or null when it can't be confirmed.
+ *
+ * DELEGATES to `publicOpenState`, and must keep doing so. This function used to
+ * be a second, independent implementation — it short-circuited on
+ * `open_status` with no expiry and knew nothing about public holidays. Two
+ * engines answering the same question is how a directory ends up telling one
+ * customer a shop is open and another that it is closed, on the same day: on
+ * Christmas morning `publicOpenState` said "Closed for Christmas Day" while
+ * this said "open". Whichever engine a given surface happened to import
+ * decided what the customer was told.
+ *
+ * There is now one engine. This is the adapter that keeps the older
+ * three-state signature (`'open' | 'closed' | null`) for the callers that
+ * expect it.
+ */
 export function resolvePublicStatus(business: Business, now: Date): 'open' | 'closed' | null {
-  // The owner's DB override (if any) is the strongest truth on the public side.
-  if (business.open_status === 'open' || business.open_status === 'closed') return business.open_status;
-  const parsed = parseOpeningHours(business.opening_hours ?? business.hours);
-  if (!parsed) return null;
-  return isOpenAtInZone(parsed, now, businessTimezone(business)) ? 'open' : 'closed';
+  const state = publicOpenState(business as Parameters<typeof publicOpenState>[0], now);
+  if (state.kind === 'unknown') return null;
+  return state.kind === 'closed' ? 'closed' : 'open';
 }
 
 // --- Time helpers -------------------------------------------------------------

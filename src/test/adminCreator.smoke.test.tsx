@@ -6,6 +6,10 @@ import { MemoryRouter } from 'react-router-dom';
 if (!Element.prototype.scrollIntoView) {
   Element.prototype.scrollIntoView = () => {};
 }
+// jsdom has no element scrollTo — the OpenAI Code Center thread auto-scrolls.
+if (typeof Element.prototype.scrollTo !== 'function') {
+  Element.prototype.scrollTo = () => {};
+}
 
 vi.mock('../lib/supabase', () => {
   const tableData: Record<string, unknown[]> = {
@@ -27,6 +31,7 @@ vi.mock('../lib/supabase', () => {
       select: vi.fn(() => chain),
       eq: vi.fn(() => chain),
       order: vi.fn(() => chain),
+      limit: vi.fn(() => chain),
       maybeSingle: vi.fn(async () => ({
         data: Array.isArray(data) ? data[0] ?? null : data ?? null,
         error: null,
@@ -43,6 +48,10 @@ vi.mock('../lib/supabase', () => {
         getSession: vi.fn().mockResolvedValue({ data: { session: null }, error: null }),
         onAuthStateChange: vi.fn().mockReturnValue({ data: { subscription: { unsubscribe: vi.fn() } } }),
       },
+      // Panels may call RPCs on mount (e.g. enrichment_cron_status); in this
+      // tour the replies substitute for absence — empty, so sections render
+      // their honest idle states rather than crash.
+      rpc: vi.fn(async () => ({ data: null, error: null })),
       from: vi.fn((table: string) => q(tableData[table] ?? [])),
     },
   };

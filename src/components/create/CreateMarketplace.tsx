@@ -1,14 +1,15 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
-  AlertTriangle, ArrowRight, Megaphone, Package, Printer, Sparkles, Video,
+  AlertTriangle, ArrowRight, Megaphone, Package, PackageSearch, Printer, Sparkles, Video,
 } from 'lucide-react';
 
 import {
-  CATALOGUE, PACKS, CREDIT_BUNDLES, awaitingQuote, byDivision, priceLabel, sellable,
-  type CatalogueItem, type Division,
+  CATALOGUE, PACKS, CREDIT_BUNDLES, awaitingQuote, byDivision, packAsItem, priceLabel,
+  sellable, type CatalogueItem, type Division,
 } from '../../lib/create/catalogue';
 import CreateConfigurator from './CreateConfigurator';
+import TemplateGallery from './TemplateGallery';
 
 /**
  * NowOpen Create — the public marketplace on /media.
@@ -42,12 +43,20 @@ const DIVISIONS: {
   { key: 'print', label: 'Print', icon: Printer, blurb: 'Cards, flyers, banners and branded items, produced and delivered.' },
 ];
 
-/** The step after a design exists. This is what a print shop cannot offer. */
+/**
+ * The step after a design exists. This is what a print shop cannot offer.
+ *
+ * Each of these must land on the thing it promises. Two of them did not:
+ * "Share to WhatsApp" went to the Studio front door rather than the tool that
+ * shares to WhatsApp, and "Publish an offer" went to /offers — the page where
+ * customers BROWSE other people's offers, which is the opposite of publishing
+ * one.
+ */
 const ADVERTISE = [
   { label: 'Promote on NowOpen', to: '/adverts', blurb: 'Sponsored placement where people are already searching.' },
   { label: 'Billboards & LED', to: '/adverts', blurb: 'Real-world placements across 42 cities.' },
-  { label: 'Share to WhatsApp', to: '/studio', blurb: 'The channel your customers actually open.' },
-  { label: 'Publish an offer', to: '/offers', blurb: 'Put it in front of people looking for a reason to buy.' },
+  { label: 'Share to WhatsApp', to: '/studio?module=live-promo', blurb: 'The channel your customers actually open.' },
+  { label: 'Publish an offer', to: '/studio?module=promotions', blurb: 'Put it in front of people looking for a reason to buy.' },
 ];
 
 export default function CreateMarketplace() {
@@ -63,6 +72,41 @@ export default function CreateMarketplace() {
       {/* No heading here. The page's own hero already says "Create it. Brand it.
           Print it. Promote it. Grow it." — repeating it immediately below was
           the same duplication this page had before. */}
+
+      {/*
+        What a visitor is actually worried about, answered before the catalogue.
+
+        Printivo answers the same four questions above the fold — delivery,
+        turnaround, quality, price — and it is right that they are answered
+        early. Ours have to be OUR answers though: we have no print partner, so
+        "shipped to your doorstep in 3–7 days" would be a promise nobody here
+        can keep. These are four things that are true today.
+      */}
+      <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          ['Designing is free', 'Make it with your own logo and colours, and download it. No credits, no trial.'],
+          ['You see the price first', 'Configure the job and the price is itemised before you send anything.'],
+          ['Nothing is charged upfront', 'Printed work is quoted by a person. You decide once you have the real number.'],
+          ['Then it goes to work', 'The same asset becomes an advert, a post or a page customers already search.'],
+        ].map(([title, blurb]) => (
+          <div key={title} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4">
+            <h3 className="font-bold text-sm text-gray-900 dark:text-white">{title}</h3>
+            <p className="mt-1 text-xs text-gray-600 dark:text-gray-400">{blurb}</p>
+          </div>
+        ))}
+      </section>
+
+      {/*
+        The work, before the price list.
+
+        Everything the design engine can do lived behind the sign-in: this page
+        promised "make it free with your own logo and colours" and then showed a
+        catalogue of prices. Design quality is the only thing that decides
+        whether somebody trusts a creative tool, and it was the one thing we
+        were hiding.
+      */}
+      <TemplateGallery />
+
       <section>
         <div className="flex flex-wrap gap-2">
           {DIVISIONS.map(({ key, label, icon: Icon }) => (
@@ -94,7 +138,12 @@ export default function CreateMarketplace() {
           </div>
         )}
 
-        <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {/* Six across on a wide screen. Same reasoning as the layout gallery
+            above it: these are scanned to find one, not read one at a time, so
+            seeing the whole division at once beats a shorter, taller list. Six
+            only from xl — at lg a card is ~155px, too narrow for a name, a
+            price and a button. */}
+        <div className="mt-5 grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
           {items.map((item) => (
             <ItemCard key={item.sku} item={item} onConfigure={() => setConfiguring(item)} />
           ))}
@@ -144,10 +193,12 @@ export default function CreateMarketplace() {
                 {p.includes.slice(0, 6).map((line) => <li key={line}>· {line}</li>)}
                 {p.includes.length > 6 && <li className="text-gray-400">+ {p.includes.length - 6} more</li>}
               </ul>
-              <Link to="/waitlist"
-                className="mt-3 inline-flex items-center justify-center gap-1.5 min-h-[40px] rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-800 dark:text-gray-200">
+              {/* Was the launch waitlist — a signup form that reached nobody who
+                  could price the job. A pack is just a large order. */}
+              <button onClick={() => setConfiguring(packAsItem(p))}
+                className="mt-3 inline-flex items-center justify-center gap-1.5 min-h-[40px] rounded-lg border border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-800 dark:text-gray-200 hover:border-pink-400">
                 Request a quote <ArrowRight size={14} />
-              </Link>
+              </button>
             </div>
           ))}
         </div>
@@ -167,6 +218,21 @@ export default function CreateMarketplace() {
             </div>
           ))}
         </div>
+      </section>
+
+      {/* Printivo keeps Order Tracking in the top navigation, and it belongs
+          there: somebody returning to check an order is not browsing. We built
+          /order and then linked it from nowhere, so the only way back to an
+          order was the reference in the confirmation screen. */}
+      <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-gray-200 dark:border-gray-700 p-4">
+        <PackageSearch size={20} className="text-gray-500 shrink-0" />
+        <p className="text-sm text-gray-700 dark:text-gray-300 flex-1 min-w-[12rem]">
+          Already ordered? Check where it has got to with the reference we gave you.
+        </p>
+        <Link to="/order"
+          className="inline-flex items-center gap-1.5 min-h-[42px] px-4 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-semibold text-gray-800 dark:text-gray-200 hover:border-pink-400">
+          Track an order <ArrowRight size={14} />
+        </Link>
       </section>
 
       {configuring && (
@@ -198,16 +264,19 @@ function ItemCard({ item, onConfigure }: { item: CatalogueItem; onConfigure: () 
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between gap-2">
+      {/* flex-wrap so the button drops below the turnaround rather than
+          squeezing it, once the column is six-across narrow. */}
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
         <span className="text-[11px] text-gray-500">
           {item.turnaround && item.turnaround[1] > 0
             ? `${item.turnaround[0]}–${item.turnaround[1]} working days`
             : 'Instant'}
         </span>
-        {/* Opens the configurator rather than navigating away. Free items still
-            go to Studio, which is where the making actually happens. */}
+        {/* Opens the configurator rather than navigating away. Free items go to
+            Studio — but to the tool that makes THIS thing, not the front door:
+            Studio reads ?module=, and login carries the query through. */}
         {item.free ? (
-          <Link to="/studio"
+          <Link to={`/studio?module=${item.studioModule ?? 'design'}`}
             className="min-h-[36px] inline-flex items-center px-3 rounded-lg text-xs font-semibold bg-pink-600 text-white hover:bg-pink-700">
             Create it free
           </Link>

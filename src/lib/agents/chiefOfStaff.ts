@@ -35,7 +35,7 @@ const SOURCES: Record<keyof PlatformFacts, { label: string; source: string; filt
   listings_total:   { label: 'Listings in total', source: 'businesses' },
   claimed:          { label: 'Claimed by an owner', source: 'businesses', filter: "claim_status = 'claimed'" },
   verified:         { label: 'Verified businesses', source: 'businesses', filter: "verification_status = 'verified'" },
-  missing_hours:    { label: 'Public listings with no opening hours', source: 'businesses', filter: 'is_listable and hours empty' },
+  missing_hours:    { label: 'Listings that cannot say whether they are open', source: 'businesses', filter: 'no hours, no default_24_7, not confirmed 24/7' },
   claims_pending:   { label: 'Claims waiting for review', source: 'business_claims', filter: "status = 'pending'" },
   reports_open:     { label: 'Open reports', source: 'business_reports', filter: "status = 'open'" },
   review_queue:     { label: 'Records waiting in the review queue', source: 'radar_candidates', filter: "status in ('pending','review')" },

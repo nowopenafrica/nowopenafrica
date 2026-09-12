@@ -1,4 +1,5 @@
-// Every relative import reachable from api/ must carry a .js extension.
+// Every relative import reachable from api/ OR middleware.ts must carry a .js
+// extension.
 //
 // The api/ files run as Node ESM serverless functions on Vercel. Node's ESM
 // resolver does not guess extensions, so `from './openingHours'` throws
@@ -26,6 +27,13 @@ const walk = (dir) => {
   }
 };
 walk('api');
+// middleware.ts was outside this check, and that is exactly why its import of
+// marketingPageRender stayed extensionless long enough for Vercel's own
+// typecheck to report TS2835 on every single build. api/marketing.ts imports
+// the very same module as '../src/lib/marketingPageRender.js' and serves
+// crawlers correctly in production, so the .js form is proven on this
+// platform — there was never a reason for the two to disagree.
+if (existsSync('middleware.ts')) queue.push('middleware.ts');
 
 while (queue.length) {
   const path = queue.pop();

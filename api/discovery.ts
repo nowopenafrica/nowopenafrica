@@ -46,7 +46,10 @@ interface Row {
   opening_hours: string | null;
   hours: string | null;
   timezone: string | null;
-  open_status: string | null;
+  // Narrow, not string: publicOpenState only recognises these two, and a wider
+  // type here made Row unassignable to OpenStateInput — an error tsconfig.app
+  // never sees, because it does not cover api/ or middleware.ts.
+  open_status: 'open' | 'closed' | null;
   claim_status: string | null;
   data_status: string | null;
 }

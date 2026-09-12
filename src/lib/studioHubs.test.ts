@@ -13,7 +13,7 @@ const ALL: ModuleKey[] = [
   'campaigns', 'promotions', 'live-promo', 'planner', 'landing',
   'quotations', 'invoices', 'catalogues', 'loyalty',
   'health', 'analytics', 'challenges',
-  'media', 'export',
+  'media', 'export', 'enrichment',
 ];
 
 describe('Studio information architecture', () => {

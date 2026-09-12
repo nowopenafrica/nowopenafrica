@@ -42,6 +42,7 @@ import {
 } from '../../lib/pollinations';
 import { resolveAiVideoClips, releaseAiVideoClips } from '../../lib/videoGen';
 import { downloadText, downloadUrl, slugForFile } from '../../lib/studio';
+import SmartImg from '../SmartImg';
 
 const selectClass = 'w-full rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500';
 const chip = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition';
@@ -927,12 +928,12 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                             <video key={aiClips[s.order - 1].url} src={aiClips[s.order - 1].url} muted autoPlay loop playsInline
                               className="h-full w-full object-cover" />
                           ) : aiArt && aiImages?.[s.order - 1] ? (
-                            <img src={aiImages[s.order - 1] ?? ''} alt={`Scene ${s.order} AI key art`} className="h-full w-full object-cover" />
+                            <SmartImg src={aiImages[s.order - 1] ?? ''} alt={`Scene ${s.order} AI key art`} className="h-full w-full object-cover" />
                           ) : footage?.[s.order - 1] ? (
                             <video key={footage[s.order - 1].url} src={footage[s.order - 1].url} muted autoPlay loop playsInline
                               className="h-full w-full object-cover" />
                           ) : storyStills?.[s.order - 1] ? (
-                            <img src={storyStills[s.order - 1] ?? ''} alt={`Scene ${s.order} preview`} className="h-full w-full object-cover" />
+                            <SmartImg src={storyStills[s.order - 1] ?? ''} alt={`Scene ${s.order} preview`} className="h-full w-full object-cover" />
                           ) : (
                             <span>{SCENE_EMOJI[(s.order - 1) % SCENE_EMOJI.length]}</span>
                           )}
@@ -1055,7 +1056,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                 {media.map((m, i) => (
                   <div key={`${m.name}-${i}`} className="rounded-xl border border-gray-200 dark:border-gray-700 p-2.5 bg-gray-50 dark:bg-gray-900">
                     <div className="w-full h-16 rounded-lg bg-gradient-to-br from-gray-200 to-gray-300 dark:from-gray-700 dark:to-gray-800 flex items-center justify-center text-xl overflow-hidden">
-                      {m.url ? <img src={m.url} alt={m.name} className="w-full h-full object-cover" /> : <ImageIcon size={18} className="text-gray-400" />}
+                      {m.url ? <SmartImg src={m.url} alt={m.name} className="w-full h-full object-cover" /> : <ImageIcon size={18} className="text-gray-400" />}
                     </div>
                     <p className="text-[11px] font-bold text-gray-900 dark:text-white mt-1.5 truncate">{m.name}</p>
                     <div className="flex items-center justify-between mt-1">
@@ -1261,7 +1262,7 @@ export default function CreativeDirectorStudio({ business }: { business: Busines
                             <video key={aiClips[i].url} src={aiClips[i].url} muted autoPlay loop playsInline
                               className="h-full w-full object-cover" />
                           ) : aiImages?.[i] ? (
-                            <img src={aiImages[i] ?? ''} alt={`AI key art ${i + 1}`} className="h-full w-full object-cover" />
+                            <SmartImg src={aiImages[i] ?? ''} alt={`AI key art ${i + 1}`} className="h-full w-full object-cover" />
                           ) : (
                             <div className="flex h-full w-full items-center justify-center text-[9px] font-semibold uppercase tracking-wide text-gray-400">
                               {aiImageStatus === 'loading' ? 'Generating…' : '—'}

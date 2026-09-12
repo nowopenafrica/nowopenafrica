@@ -10,6 +10,7 @@ import {
   near, openNow, DISCOVER_SELECT, tallyReviews, withReviewCounts,
   type DiscoverBusiness,
 } from '../lib/discover';
+import LoadFailure from '../components/LoadFailure';
 
 /**
  * Businesses where you are.
@@ -25,6 +26,18 @@ export default function Nearby() {
   const [place, setPlace] = useState('');
   const [typed, setTyped] = useState('');
   const [loading, setLoading] = useState(true);
+  /*
+   * Whether the fetch FAILED, as distinct from returning nothing.
+   *
+   * The catch below used to swallow the error and just stop the spinner, so a
+   * dropped connection rendered the empty state — telling a visitor there is
+   * nothing here when the truth was that we could not ask. On the mobile
+   * connections this audience uses, and on a directory that genuinely is
+   * nearly empty, that is the worst possible confusion to create.
+   */
+  const [loadError, setLoadError] = useState(false);
+  /** Bumped by the retry button to re-run the effect. */
+  const [reloadKey, setReloadKey] = useState(0);
   const [locating, setLocating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openOnly, setOpenOnly] = useState(false);
@@ -37,21 +50,34 @@ export default function Nearby() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(false);
+    setLoading(true);
     (async () => {
       const [biz, reviews] = await Promise.all([
         supabase.from('businesses').select(DISCOVER_SELECT).limit(400),
         supabase.from('business_reviews').select('business_id').limit(5000),
       ]);
       if (!cancelled) {
+        // supabase-js RESOLVES with { data: null, error } on a network failure
+        // rather than throwing, so the catch below never sees it. Read the
+        // error off the primary response, or the page tells somebody whose
+        // connection dropped that there is nothing here.
+        // The reviews call is only a tally — its failure costs a count, not
+        // the page, so it does not set this.
+        if (biz.error) setLoadError(true);
         setAll(withReviewCounts(
           (biz.data as DiscoverBusiness[]) || [],
           tallyReviews((reviews.data as { business_id: string }[]) || []),
         ));
         setLoading(false);
       }
-    })().catch(() => { if (!cancelled) setLoading(false); });
+    })().catch(() => {
+      if (cancelled) return;
+      setLoadError(true);
+      setLoading(false);
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   const locate = useCallback(async () => {
     setLocating(true);
@@ -137,7 +163,10 @@ export default function Nearby() {
         <p className="text-sm text-red-600 dark:text-red-400 mb-4" role="alert">{error}</p>
       )}
 
-      {loading ? (
+      {/* A failed load is shown as a failed load, never as an empty result. */}
+      {loadError ? (
+        <LoadFailure what={'businesses near you'} onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-10">
           <Loader2 size={16} className="animate-spin" /> Loading businesses…
         </div>

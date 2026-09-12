@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parseOpeningHours, isOpenAt, nextChange, formatClock, dayAndMinutesInZone, isOpenAtInZone, nextChangeInZone,
-  formatOpeningHours, timeInputToMinutes, minutesToTimeInput, type DayHours } from './openingHours';
+  formatOpeningHours, timeInputToMinutes, minutesToTimeInput, publicOpenState, type DayHours } from './openingHours';
 
 // Sunday = 0. These are real local times; the parser has no timezone concept.
 const at = (day: number, hhmm: string) => {
@@ -289,5 +289,56 @@ describe('time input conversion', () => {
     expect(timeInputToMinutes('9')).toBeNull();
     expect(timeInputToMinutes('25:00')).toBeNull();
     expect(timeInputToMinutes('10:75')).toBeNull();
+  });
+});
+
+describe('publicOpenState — the 24/7 default vs confirmed 24/7', () => {
+  const noon = new Date('2026-08-10T12:00:00Z'); // Monday midday
+
+  it('a default_24_7 row is open, honestly marked as the platform default', () => {
+    // Unclaimed, no hours: a listing that is never closed is open. The detail
+    // line keeps the honesty — it says the answer comes from the platform
+    // default, not from anything the owner ever said.
+    const s = publicOpenState(
+      { opening_hours: null, hours: null, availability_mode: 'default_24_7', is_24_hours: true, is_24_hours_confirmed: false },
+      noon,
+    );
+    expect(s.kind).toBe('open');
+    expect(s.label).toBe('Open now');
+    expect(s.detail).toBe('Open 24 hours · platform default');
+    expect(s.detail).not.toBe('Open 24 hours');
+  });
+
+  it('a plain unknown row (no hours, no default) stays "Hours not confirmed"', () => {
+    const s = publicOpenState({ opening_hours: null, hours: null }, noon);
+    expect(s.kind).toBe('unknown');
+    expect(s.label).toBe('Hours not confirmed');
+  });
+
+  it('an owner-confirmed 24/7 row (no hour text) may render open', () => {
+    const s = publicOpenState(
+      { opening_hours: null, hours: null, is_24_hours: true, is_24_hours_confirmed: true },
+      noon,
+    );
+    expect(s.kind).toBe('open');
+    expect(s.detail).toBe('Open 24 hours');
+  });
+
+  it('real stored 24/7 hours still render as the confident open state', () => {
+    const s = publicOpenState(
+      { opening_hours: 'Open 24/7', availability_mode: 'derived' },
+      noon,
+    );
+    expect(s.kind).toBe('open');
+    expect(s.detail).toBe('Open 24 hours');
+  });
+
+  it('real hours flip a default row back to normal (matches the trigger)', () => {
+    const s = publicOpenState(
+      { opening_hours: 'Mon–Sat: 9AM–7PM', availability_mode: 'derived' },
+      new Date('2026-08-10T12:00:00Z'),
+    );
+    expect(s.kind).toBe('open');
+    expect(s.label).toBe('Open now');
   });
 });

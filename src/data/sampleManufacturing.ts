@@ -43,9 +43,7 @@ export const MANUFACTURING_SPOTLIGHTS: Record<string, any> = {
     email: 'wholesale@novafoods.example.com',
     opening_hours: 'Mon–Sat: 8AM–6PM',
     image_url: px(4483610),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

@@ -68,58 +68,134 @@ const cart = (key = 'orders'): CategoryFeatureConfig => ({
   cart: true,
 });
 
+/*
+ * ── FIVE MORE MODULE SHAPES ────────────────────────────────────────────────
+ *
+ * Every one of these reduces to the flags CategoryFeatureConfig already has,
+ * so BookingModal renders them with no changes — a "module type" here is a
+ * PRESET, not a new engine. That is why the platform can afford a dozen of
+ * them: the cost is a line of data, not a component.
+ *
+ * They exist because 140 of the 250 categories had no module at all, and the
+ * reason was always the same: what they need is not a dated appointment. A
+ * consultancy takes an enquiry. A school takes an application. A barber takes
+ * a place in the queue. A cinema sells seats for a night. A gym sells a plan.
+ */
+
+/** A question, not a slot. No date, because there is nothing to schedule yet. */
+const enquiry = (overrides: Partial<CategoryFeatureConfig> & Pick<CategoryFeatureConfig, 'key' | 'ctaLabel'>): CategoryFeatureConfig => ({
+  tabLabel: 'Enquiries',
+  itemSource: 'service',
+  itemLabel: 'Service',
+  showDate: false,
+  showTime: false,
+  showQuantity: false,
+  ...overrides,
+});
+
+/** An application against a programme, a role or a facility. */
+const apply = (overrides: Partial<CategoryFeatureConfig> & Pick<CategoryFeatureConfig, 'key' | 'ctaLabel'>): CategoryFeatureConfig => ({
+  tabLabel: 'Applications',
+  itemSource: 'service',
+  itemLabel: 'Option',
+  showDate: false,
+  showTime: false,
+  showQuantity: false,
+  ...overrides,
+});
+
+/**
+ * A place in line, for a walk-in trade.
+ *
+ * No date and no time on purpose: a barber's customer is not booking Tuesday
+ * at three, they are asking how long the wait is and putting their name down.
+ * Forcing a time slot on that is how a booking form goes unused.
+ */
+const queue = (overrides: Partial<CategoryFeatureConfig> & Pick<CategoryFeatureConfig, 'key' | 'ctaLabel'>): CategoryFeatureConfig => ({
+  tabLabel: 'Queue',
+  itemSource: 'service',
+  itemLabel: 'Service',
+  showDate: false,
+  showTime: false,
+  showQuantity: false,
+  ...overrides,
+});
+
+/** Seats for a dated event. Quantity is the whole point. */
+const ticket = (overrides: Partial<CategoryFeatureConfig> & Pick<CategoryFeatureConfig, 'key' | 'ctaLabel'>): CategoryFeatureConfig => ({
+  tabLabel: 'Tickets',
+  itemSource: 'service',
+  itemLabel: 'Ticket',
+  showDate: true,
+  showTime: true,
+  showQuantity: true,
+  quantityLabel: 'Tickets',
+  ...overrides,
+});
+
+/** A recurring plan — a membership, a retainer, a standing order. */
+const subscribe = (overrides: Partial<CategoryFeatureConfig> & Pick<CategoryFeatureConfig, 'key' | 'ctaLabel'>): CategoryFeatureConfig => ({
+  tabLabel: 'Plans',
+  itemSource: 'service',
+  itemLabel: 'Plan',
+  showDate: false,
+  showTime: false,
+  showQuantity: false,
+  ...overrides,
+});
+
 export const CATEGORY_FEATURES: Record<string, CategoryFeatureConfig[]> = {
   // Booking / appointment style
   'Hotel & Lodging': [booking({
     key: 'rooms', ctaLabel: 'Book a Room', itemLabel: 'Room', showTime: false, showDateRange: true,
     showQuantity: true, quantityLabel: 'Guests',
-  })],
+  }), booking({ key: 'events', tabLabel: 'Events', ctaLabel: 'Enquire About an Event', itemLabel: 'Space', showTime: false, showQuantity: true, quantityLabel: 'Guests' })],
   'Guesthouse & Short-let / B&B': [booking({
     key: 'rooms', ctaLabel: 'Book a Stay', itemLabel: 'Room', showTime: false, showDateRange: true,
     showQuantity: true, quantityLabel: 'Guests',
-  })],
-  'Photography & Video': [booking({ key: 'sessions', ctaLabel: 'Book a Session', itemLabel: 'Package' })],
-  'Event Planning': [booking({ key: 'events', ctaLabel: 'Book Now', itemLabel: 'Package', showQuantity: true, quantityLabel: 'Guests' })],
-  'Travel & Tourism': [booking({ key: 'trips', ctaLabel: 'Book a Trip', itemLabel: 'Package', showQuantity: true, quantityLabel: 'Travelers' })],
-  'Music & Nightlife': [booking({ key: 'performances', tabLabel: 'Bookings', ctaLabel: 'Book a Performance', itemLabel: 'Act' })],
+  }), enquiry({ key: 'long-stay', tabLabel: 'Long Stay', ctaLabel: 'Ask About Monthly Rates' })],
+  'Photography & Video': [booking({ key: 'sessions', ctaLabel: 'Book a Session', itemLabel: 'Package' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Package', showTime: false })],
+  'Event Planning': [booking({ key: 'events', ctaLabel: 'Book Now', itemLabel: 'Package', showQuantity: true, quantityLabel: 'Guests' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Package', showTime: false })],
+  'Travel & Tourism': [booking({ key: 'trips', ctaLabel: 'Book a Trip', itemLabel: 'Package', showQuantity: true, quantityLabel: 'Travelers' }), enquiry({ key: 'enquiries', ctaLabel: 'Ask About a Trip' })],
+  'Music & Nightlife': [booking({ key: 'performances', tabLabel: 'Bookings', ctaLabel: 'Book a Performance', itemLabel: 'Act' }), ticket({ key: 'tickets', ctaLabel: 'Get Tickets' })],
   'Art & Design': [booking({ key: 'projects', tabLabel: 'Services', ctaLabel: 'Start a Project', itemLabel: 'Service', showTime: false })],
-  'Spa & Beauty': [booking({ key: 'appointments', ctaLabel: 'Book an Appointment' })],
+  'Spa & Beauty': [booking({ key: 'appointments', ctaLabel: 'Book an Appointment' }), cart('orders')],
   'Wellness & Therapy': [booking({ key: 'appointments', ctaLabel: 'Book a Session' })],
-  'Fitness & Gym': [booking({ key: 'classes', ctaLabel: 'Book a Class' })],
-  'Hospital & Clinic': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' })],
-  'Dental Care': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' })],
-  'Veterinary Services': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' })],
+  'Fitness & Gym': [booking({ key: 'classes', ctaLabel: 'Book a Class' }), subscribe({ key: 'plans', ctaLabel: 'Choose a Membership' })],
+  'Hospital & Clinic': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' }), enquiry({ key: 'enquiries', ctaLabel: 'Ask a Question' })],
+  'Dental Care': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' }), enquiry({ key: 'enquiries', ctaLabel: 'Ask a Question' })],
+  'Veterinary Services': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' }), booking({ key: 'home-visits', tabLabel: 'Home Visits', ctaLabel: 'Request a Home Visit', itemLabel: 'Service' })],
   'Automotive': [booking({ key: 'service', ctaLabel: 'Book a Service' })],
-  'Cleaning Services': [booking({ key: 'service', ctaLabel: 'Book a Service' })],
+  'Cleaning Services': [booking({ key: 'service', ctaLabel: 'Book a Service' }), subscribe({ key: 'plans', ctaLabel: 'Set Up Regular Cleaning' })],
   'Training & Tutoring': [booking({ key: 'classes', ctaLabel: 'Book a Class' })],
-  'School & Education': [booking({ key: 'admissions', tabLabel: 'Admissions', ctaLabel: 'Apply Now', itemLabel: 'Programme' })],
+  'School & Education': [booking({ key: 'admissions', tabLabel: 'Admissions', ctaLabel: 'Apply Now', itemLabel: 'Programme' }), booking({ key: 'tours', tabLabel: 'Tours', ctaLabel: 'Book a School Visit', itemLabel: 'Visit' })],
   'Logistics & Transport': [booking({
     key: 'trips', tabLabel: 'Trips', ctaLabel: 'Book a Seat', itemLabel: 'Route',
     showQuantity: true, quantityLabel: 'Seats',
-  })],
+  }), enquiry({ key: 'tracking', tabLabel: 'Status', ctaLabel: 'Ask About a Shipment' })],
   'Childcare': [booking({ key: 'care', ctaLabel: 'Book Care' })],
-  'Salon / Barber': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' })],
-  'Legal Services': [booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation', itemLabel: 'Practice Area' })],
+  'Salon / Barber': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' }), queue({ key: 'queue', ctaLabel: 'Join the Queue' }), cart('orders')],
+  'Legal Services': [booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation', itemLabel: 'Practice Area' }), enquiry({ key: 'enquiries', ctaLabel: 'Describe Your Matter' })],
   'Financial Services': [booking({ key: 'applications', tabLabel: 'Products', ctaLabel: 'Apply', itemLabel: 'Product', showTime: false })],
   'Insurance': [booking({ key: 'quotes', tabLabel: 'Products', ctaLabel: 'Get a Quote', itemLabel: 'Policy', showTime: false })],
   'Accounting & Tax': [booking({ key: 'consultations', tabLabel: 'Services', ctaLabel: 'Book a Consultation', itemLabel: 'Service' })],
-  'Digital Marketing': [booking({ key: 'projects', tabLabel: 'Services', ctaLabel: 'Start a Campaign', itemLabel: 'Service', showTime: false })],
+  'Digital Marketing': [booking({ key: 'projects', tabLabel: 'Services', ctaLabel: 'Start a Campaign', itemLabel: 'Service', showTime: false }), subscribe({ key: 'retainer', tabLabel: 'Retainers', ctaLabel: 'Ask About a Retainer' })],
   'Money Transfer / Mobile Money Agent': [booking({ key: 'requests', tabLabel: 'Services', ctaLabel: 'Get Started', itemLabel: 'Service', showTime: false })],
-  'Software & IT': [booking({ key: 'projects', tabLabel: 'Services', ctaLabel: 'Start a Project', itemLabel: 'Service', showTime: false })],
-  'Gadget & Device Repair': [booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Repair', showTime: false })],
-  'Construction': [booking({ key: 'projects', tabLabel: 'Services', ctaLabel: 'Request a Quote', itemLabel: 'Service', showTime: false })],
+  'Software & IT': [booking({ key: 'projects', tabLabel: 'Services', ctaLabel: 'Start a Project', itemLabel: 'Service', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Compare Plans' })],
+  'Gadget & Device Repair': [booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Repair', showTime: false }), booking({ key: 'pickup', tabLabel: 'Pickups', ctaLabel: 'Request a Pickup', itemLabel: 'Device', showTime: false })],
+  'Construction': [booking({ key: 'projects', tabLabel: 'Services', ctaLabel: 'Request a Quote', itemLabel: 'Service', showTime: false }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Site Visit', itemLabel: 'Visit', showTime: false })],
   // Property tours/inspections — a single-pick booking against a listing
   // (business_products), NOT a cart: cart defaults to falsy here.
   'Real Estate': [booking({
     key: 'viewings', tabLabel: 'Viewings', ctaLabel: 'Book a Viewing',
     itemSource: 'product', itemLabel: 'Property',
-  })],
+  }), booking({ key: 'valuation', tabLabel: 'Valuation', ctaLabel: 'Request a Valuation', itemLabel: 'Property', showTime: false })],
   // Car dealership inventory — test drive booked against a single vehicle
   // (business_products), like Real Estate viewings (not a cart).
   'Car Dealership': [booking({
     key: 'test-drive', tabLabel: 'Test Drives', ctaLabel: 'Book a Test Drive',
     itemSource: 'product', itemLabel: 'Vehicle', showTime: true,
-  })],
+  }), booking({ key: 'valuation', tabLabel: 'Trade-in', ctaLabel: 'Value My Car', itemLabel: 'Vehicle', showTime: false })],
 
   // Reservation + cart (dine-in food categories get both — a table AND food ordering)
   'Restaurant': [reservation(), cart()],
@@ -130,9 +206,9 @@ export const CATEGORY_FEATURES: Record<string, CategoryFeatureConfig[]> = {
   'Catering': [cart()],
 
   // Cart-only (shop-and-buy-multiple-things categories)
-  'Pharmacy': [cart()],
-  'Agriculture': [cart()],
-  'Manufacturing': [cart()],
+  'Pharmacy': [cart(), booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Request Delivery', itemLabel: 'Order', showTime: false })],
+  'Agriculture': [cart(), enquiry({ key: 'offtake', tabLabel: 'Off-take', ctaLabel: 'Discuss an Off-take Contract' })],
+  'Manufacturing': [cart(), enquiry({ key: 'contract', tabLabel: 'Contract', ctaLabel: 'Discuss Contract Manufacturing' })],
   'Retail Store': [cart()],
   'Supermarket': [cart()],
   'Grocery / Mini-Mart': [cart()],
@@ -194,7 +270,7 @@ export const CATEGORY_FEATURES: Record<string, CategoryFeatureConfig[]> = {
   'Car Rental': [booking({
     key: 'rentals', tabLabel: 'Rentals', ctaLabel: 'Rent a Car', itemLabel: 'Vehicle',
     showTime: false, showDateRange: true, showQuantity: true, quantityLabel: 'Days',
-  })],
+  }), enquiry({ key: 'corporate', tabLabel: 'Corporate', ctaLabel: 'Ask About Corporate Hire' })],
   'Welders & Fabrication': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Service', showTime: false })],
   'Roofing & Building Works': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Service', showTime: false })],
   'Generator Sales & Repair': [booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Repair', showTime: false })],
@@ -255,6 +331,161 @@ export const CATEGORY_FEATURES: Record<string, CategoryFeatureConfig[]> = {
   // ---------------------------------------------------------------------------
   'Courier & Dispatch': [booking({ key: 'pickup', tabLabel: 'Pickups', ctaLabel: 'Request Pickup', itemLabel: 'Service', showTime: false })],
   'Moving & Haulage': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Service', showTime: false })],
+
+  /*
+   * ── EVERY REMAINING CATEGORY ───────────────────────────────────────────
+   *
+   * 140 of the 250 categories reached here with no module at all, so their
+   * profiles had a Contact button and nothing to do. The reason was almost
+   * always that the trade does not take a dated appointment: a consultancy
+   * takes an enquiry, a school takes an application, a barber takes a place
+   * in the queue, a cinema sells seats, a gym sells a plan.
+   *
+   * Each entry below is chosen for the trade, not filled in for coverage —
+   * and several carry two or three, because a real business does. A block
+   * industry sells blocks AND delivers them. A car dealer sells, values a
+   * trade-in, and books test drives.
+   */
+  'Buka / Local Eatery': [cart('orders'), reservation()],
+  'Small Chops & Snacks': [cart('orders'), booking({ key: 'catering', tabLabel: 'Catering', ctaLabel: 'Order a Tray', itemLabel: 'Tray', showTime: false, showQuantity: true, quantityLabel: 'Trays' })],
+  'Ice Cream & Desserts': [cart('orders')],
+  'Juice & Smoothie Bar': [cart('orders')],
+  'Water Factory & Sachet Water': [cart('orders'), booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Request Delivery', itemLabel: 'Load', showTime: false })],
+  'Wine & Spirits Shop': [cart('orders'), booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Request Delivery', itemLabel: 'Order', showTime: false })],
+  'Serviced Apartments': [booking({ key: 'rooms', ctaLabel: 'Book a Stay', itemLabel: 'Apartment', showTime: false, showDateRange: true, showQuantity: true, quantityLabel: 'Guests' }), enquiry({ key: 'long-stay', tabLabel: 'Long Stay', ctaLabel: 'Ask About Monthly Rates' })],
+  'Resort': [booking({ key: 'rooms', ctaLabel: 'Book a Room', itemLabel: 'Room', showTime: false, showDateRange: true, showQuantity: true, quantityLabel: 'Guests' }), booking({ key: 'events', tabLabel: 'Events', ctaLabel: 'Enquire About an Event', itemLabel: 'Package', showTime: false, showQuantity: true, quantityLabel: 'Guests' }), booking({ key: 'daypass', tabLabel: 'Day Pass', ctaLabel: 'Book a Day Pass', itemLabel: 'Pass', showTime: false, showQuantity: true, quantityLabel: 'Guests' })],
+  'Canteen & Cafeteria': [cart('orders'), subscribe({ key: 'plans', ctaLabel: 'Set Up a Meal Plan' })],
+  'Cold Room & Fish Depot': [cart('orders'), enquiry({ key: 'wholesale', tabLabel: 'Wholesale', ctaLabel: 'Ask for Trade Prices' })],
+  'Building Materials Store': [cart('orders'), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Material', showTime: false }), booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Request Delivery', itemLabel: 'Load', showTime: false })],
+  'Provision Store': [cart('orders'), booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Request Delivery', itemLabel: 'Order', showTime: false })],
+  'Toy & Baby Store': [cart('orders')],
+  'Sports & Fitness Equipment': [cart('orders'), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Equipment', showTime: false })],
+  'Musical Instruments': [cart('orders'), booking({ key: 'rentals', tabLabel: 'Rentals', ctaLabel: 'Rent an Instrument', itemLabel: 'Instrument', showTime: false }), booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Instrument', showTime: false })],
+  'Pet Shop & Supplies': [cart('orders'), booking({ key: 'grooming', tabLabel: 'Grooming', ctaLabel: 'Book Grooming', itemLabel: 'Service' })],
+  'Hardware Store': [cart('orders'), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Item', showTime: false })],
+  'Plastics & Household Goods': [cart('orders'), enquiry({ key: 'wholesale', tabLabel: 'Wholesale', ctaLabel: 'Ask for Trade Prices' })],
+  'Thrift & Second-hand (Okrika)': [cart('orders'), enquiry({ key: 'bale', tabLabel: 'Bales', ctaLabel: 'Ask About a Bale' })],
+  'Wholesale & Distribution': [enquiry({ key: 'wholesale', tabLabel: 'Trade Enquiries', ctaLabel: 'Open a Trade Account' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Product', showTime: false })],
+  'Duty-Free & Travel Retail': [cart('orders')],
+  'Agro Inputs & Seedlings': [cart('orders'), enquiry({ key: 'agronomy', tabLabel: 'Advice', ctaLabel: 'Ask an Agronomist' })],
+  'Telecommunications': [subscribe({ key: 'plans', ctaLabel: 'Choose a Plan' }), enquiry({ key: 'support', tabLabel: 'Support', ctaLabel: 'Report a Fault' }), booking({ key: 'installation', tabLabel: 'Installation', ctaLabel: 'Book an Installation', itemLabel: 'Service', showTime: false })],
+  'Media & Publishing': [enquiry({ key: 'enquiries', ctaLabel: 'Send an Enquiry' }), booking({ key: 'advertising', tabLabel: 'Advertising', ctaLabel: 'Book Ad Space', itemLabel: 'Placement', showTime: false })],
+  'Web & App Development': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Start a Project' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' }), subscribe({ key: 'retainer', tabLabel: 'Retainers', ctaLabel: 'Ask About a Retainer' })],
+  'Fintech & Payments': [subscribe({ key: 'plans', ctaLabel: 'Compare Plans' }), enquiry({ key: 'integration', tabLabel: 'Integrate', ctaLabel: 'Talk to Sales' }), apply({ key: 'onboarding', tabLabel: 'Get Started', ctaLabel: 'Open an Account' })],
+  'Cloud & Hosting Services': [subscribe({ key: 'plans', ctaLabel: 'Choose a Plan' }), enquiry({ key: 'migration', tabLabel: 'Migration', ctaLabel: 'Ask About Migration' })],
+  'Data & Analytics': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Discuss a Project' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' })],
+  'AI & Automation Services': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Discuss a Project' }), booking({ key: 'demos', tabLabel: 'Demos', ctaLabel: 'Book a Demo' })],
+  'Cyber Café & Business Centre': [queue({ key: 'queue', ctaLabel: 'Join the Queue' }), cart('orders'), enquiry({ key: 'bulk', tabLabel: 'Bulk Jobs', ctaLabel: 'Ask About a Bulk Job' })],
+  'Printing & Signage': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), cart('orders'), booking({ key: 'artwork', tabLabel: 'Artwork', ctaLabel: 'Send Artwork', itemLabel: 'Job', showTime: false })],
+  'Animation & Motion Graphics': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Start a Project' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Call' })],
+  'Podcast & Audio Production': [booking({ key: 'studio', tabLabel: 'Studio', ctaLabel: 'Book Studio Time', itemLabel: 'Studio' }), enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Discuss a Project' })],
+  'Game Development': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Discuss a Project' })],
+  'Drone Services': [booking({ key: 'flights', tabLabel: 'Shoots', ctaLabel: 'Book a Shoot', itemLabel: 'Package' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Survey', showTime: false })],
+  'Broadcasting & Radio': [booking({ key: 'advertising', tabLabel: 'Advertising', ctaLabel: 'Book Airtime', itemLabel: 'Slot', showTime: false }), enquiry({ key: 'guest', tabLabel: 'Be a Guest', ctaLabel: 'Pitch a Guest' })],
+  'Call Centre & BPO': [enquiry({ key: 'enquiries', ctaLabel: 'Talk to Sales' }), subscribe({ key: 'plans', ctaLabel: 'Compare Plans' })],
+  'Maternity & Birth Centre': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' }), booking({ key: 'tours', tabLabel: 'Tours', ctaLabel: 'Book a Tour', itemLabel: 'Tour', showTime: true }), subscribe({ key: 'packages', tabLabel: 'Packages', ctaLabel: 'Ask About a Package' })],
+  'Eye Clinic': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Eye Test' }), cart('orders')],
+  'Diagnostic Imaging': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book a Scan', itemLabel: 'Scan' }), enquiry({ key: 'results', tabLabel: 'Results', ctaLabel: 'Ask About Results' })],
+  'Mental Health & Counselling': [booking({ key: 'sessions', tabLabel: 'Sessions', ctaLabel: 'Book a Session', itemLabel: 'Session' }), enquiry({ key: 'enquiries', ctaLabel: 'Ask a Question' })],
+  'Herbal & Traditional Medicine': [booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' }), cart('orders')],
+  'Home Care & Nursing': [booking({ key: 'home-visits', tabLabel: 'Home Visits', ctaLabel: 'Request a Home Visit', itemLabel: 'Service' }), subscribe({ key: 'plans', ctaLabel: 'Ask About a Care Plan' })],
+  'Ambulance & Emergency Services': [enquiry({ key: 'dispatch', tabLabel: 'Dispatch', ctaLabel: 'Request an Ambulance', itemSource: 'none' }), subscribe({ key: 'cover', tabLabel: 'Cover', ctaLabel: 'Ask About Cover' })],
+  'Dialysis Centre': [booking({ key: 'sessions', tabLabel: 'Sessions', ctaLabel: 'Book a Session', itemLabel: 'Session' }), subscribe({ key: 'plans', ctaLabel: 'Ask About a Plan' })],
+  'Medical Equipment Supplier': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Equipment', showTime: false }), cart('orders'), booking({ key: 'servicing', tabLabel: 'Servicing', ctaLabel: 'Book Servicing', itemLabel: 'Equipment', showTime: false })],
+  'Chiropractic & Osteopathy': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' })],
+  'Consulting': [enquiry({ key: 'enquiries', ctaLabel: 'Send a Brief' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' }), subscribe({ key: 'retainer', tabLabel: 'Retainers', ctaLabel: 'Ask About a Retainer' })],
+  'Recruitment & HR': [apply({ key: 'applications', ctaLabel: 'Submit Your CV', itemLabel: 'Role' }), enquiry({ key: 'hiring', tabLabel: 'Hiring', ctaLabel: 'Hire Through Us' })],
+  'Immigration & Visa Services': [booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' }), apply({ key: 'applications', ctaLabel: 'Start an Application', itemLabel: 'Route' })],
+  'Translation & Interpretation': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Language pair', showTime: false }), booking({ key: 'interpreting', tabLabel: 'Interpreting', ctaLabel: 'Book an Interpreter', itemLabel: 'Language' })],
+  'Notary & Documentation': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book an Appointment' }), enquiry({ key: 'enquiries', ctaLabel: 'Ask What You Need' })],
+  'Auditing Services': [enquiry({ key: 'enquiries', ctaLabel: 'Request a Proposal' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Meeting' })],
+  'Market Research': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Brief a Study' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Call' })],
+  'Public Relations': [enquiry({ key: 'enquiries', ctaLabel: 'Send a Brief' }), subscribe({ key: 'retainer', tabLabel: 'Retainers', ctaLabel: 'Ask About a Retainer' })],
+  'Architecture & Design': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Discuss a Project' }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Site Visit', itemLabel: 'Service', showTime: false })],
+  'Surveying & Valuation': [booking({ key: 'valuation', tabLabel: 'Valuation', ctaLabel: 'Request a Valuation', itemLabel: 'Asset', showTime: false }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Survey', itemLabel: 'Survey', showTime: false })],
+  'Procurement & Supply': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Item', showTime: false }), enquiry({ key: 'tender', tabLabel: 'Tenders', ctaLabel: 'Invite Us to Tender' })],
+  'Customs Brokerage & Clearing': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Clearing Quote', itemLabel: 'Shipment', showTime: false }), enquiry({ key: 'tracking', tabLabel: 'Status', ctaLabel: 'Ask About a Shipment' })],
+  'Investment & Wealth Management': [booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' }), subscribe({ key: 'plans', ctaLabel: 'Compare Plans' })],
+  'Trademark & IP Services': [apply({ key: 'applications', ctaLabel: 'Start a Filing', itemLabel: 'Filing' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' })],
+  'Import/Export & Trading': [enquiry({ key: 'enquiries', ctaLabel: 'Send an Enquiry' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Consignment', showTime: false })],
+  'Energy & Utilities': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'System', showTime: false }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Site Survey', itemLabel: 'Survey', showTime: false }), subscribe({ key: 'maintenance', tabLabel: 'Maintenance', ctaLabel: 'Ask About Maintenance' })],
+  'Borehole Drilling & Water Works': [booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Site Survey', itemLabel: 'Survey', showTime: false }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false })],
+  'Block Industry & Cement': [cart('orders'), booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Request Delivery', itemLabel: 'Load', showTime: false })],
+  'Steel & Metal Works': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), enquiry({ key: 'fabrication', tabLabel: 'Fabrication', ctaLabel: 'Send a Drawing' })],
+  'Printing Press': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), cart('orders')],
+  'Packaging & Labelling': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Packaging', showTime: false }), enquiry({ key: 'samples', tabLabel: 'Samples', ctaLabel: 'Request a Sample' })],
+  'Textile Manufacturing': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Fabric', showTime: false }), enquiry({ key: 'samples', tabLabel: 'Samples', ctaLabel: 'Request a Swatch' })],
+  'Food Processing': [enquiry({ key: 'contract', tabLabel: 'Contract', ctaLabel: 'Discuss Contract Manufacturing' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Product', showTime: false })],
+  'Chemical & Industrial Supplies': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Product', showTime: false }), cart('orders')],
+  'Mining & Quarry': [enquiry({ key: 'enquiries', ctaLabel: 'Send an Enquiry' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Material', showTime: false })],
+  'Oil & Gas Services': [enquiry({ key: 'enquiries', ctaLabel: 'Send an Enquiry' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Service', showTime: false })],
+  'Recycling & Waste Management': [booking({ key: 'pickup', tabLabel: 'Pickups', ctaLabel: 'Request a Pickup', itemLabel: 'Waste type', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Set Up Collection' })],
+  'Aluminium & Glass Works': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Measurement Visit', itemLabel: 'Visit', showTime: false })],
+  'Aluminium Windows & Doors': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Measurement Visit', itemLabel: 'Visit', showTime: false })],
+  'Curtains & Blinds': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Room', showTime: false }), booking({ key: 'home-visits', tabLabel: 'Home Visits', ctaLabel: 'Book a Measurement Visit', itemLabel: 'Visit', showTime: false })],
+  'Landscaping & Gardening': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Set Up Regular Upkeep' })],
+  'Swimming Pool Services': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Set Up Servicing' })],
+  'Home Renovation': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Job', showTime: false }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Site Visit', itemLabel: 'Visit', showTime: false })],
+  'Upholstery & Refurbishing': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Item', showTime: false }), booking({ key: 'pickup', tabLabel: 'Pickups', ctaLabel: 'Request a Pickup', itemLabel: 'Item', showTime: false })],
+  'Water Treatment & Purification': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'System', showTime: false }), booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Water Test', itemLabel: 'Test', showTime: false })],
+  'Inverter & Battery Services': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'System', showTime: false }), booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Fault', showTime: false }), cart('orders')],
+  'Air Conditioning & Refrigeration': [booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Fault', showTime: false }), booking({ key: 'installation', tabLabel: 'Installation', ctaLabel: 'Book an Installation', itemLabel: 'Unit', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Set Up Servicing' })],
+  'Satellite & Cable Installation': [booking({ key: 'installation', tabLabel: 'Installation', ctaLabel: 'Book an Installation', itemLabel: 'Package', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Choose a Package' })],
+  'Non-profit & NGO': [enquiry({ key: 'enquiries', ctaLabel: 'Get in Touch' }), apply({ key: 'volunteer', tabLabel: 'Volunteer', ctaLabel: 'Volunteer With Us', itemLabel: 'Programme' })],
+  'Religious Organization': [enquiry({ key: 'enquiries', ctaLabel: 'Get in Touch' }), booking({ key: 'ceremonies', tabLabel: 'Ceremonies', ctaLabel: 'Book a Ceremony', itemLabel: 'Ceremony', showTime: true }), apply({ key: 'volunteer', tabLabel: 'Serve', ctaLabel: 'Join a Team', itemLabel: 'Team' })],
+  'International School': [apply({ key: 'admissions', tabLabel: 'Admissions', ctaLabel: 'Apply for Admission', itemLabel: 'Year group' }), booking({ key: 'tours', tabLabel: 'Tours', ctaLabel: 'Book a Tour', itemLabel: 'Tour' })],
+  'University & College': [apply({ key: 'admissions', tabLabel: 'Admissions', ctaLabel: 'Apply for Admission', itemLabel: 'Programme' }), booking({ key: 'tours', tabLabel: 'Tours', ctaLabel: 'Book a Campus Tour', itemLabel: 'Tour' }), enquiry({ key: 'enquiries', ctaLabel: 'Ask Admissions' })],
+  'Vocational & Skills Training': [apply({ key: 'enrolment', tabLabel: 'Enrolment', ctaLabel: 'Enrol on a Course', itemLabel: 'Course' }), enquiry({ key: 'enquiries', ctaLabel: 'Ask About a Course' })],
+  'Exam Preparation Centre': [apply({ key: 'enrolment', tabLabel: 'Enrolment', ctaLabel: 'Register for a Class', itemLabel: 'Class' }), booking({ key: 'mock', tabLabel: 'Mock Exams', ctaLabel: 'Book a Mock Exam', itemLabel: 'Exam' })],
+  'Library & Study Centre': [subscribe({ key: 'plans', ctaLabel: 'Get a Membership' }), booking({ key: 'desk', tabLabel: 'Study Desk', ctaLabel: 'Reserve a Desk', itemLabel: 'Desk' })],
+  'Special Needs Education': [enquiry({ key: 'enquiries', ctaLabel: 'Talk to Us First' }), booking({ key: 'assessment', tabLabel: 'Assessment', ctaLabel: 'Book an Assessment', itemLabel: 'Assessment' }), booking({ key: 'tours', tabLabel: 'Tours', ctaLabel: 'Book a Visit', itemLabel: 'Visit' })],
+  'Study Abroad & Scholarships': [booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Counselling Session' }), apply({ key: 'applications', ctaLabel: 'Start an Application', itemLabel: 'Destination' })],
+  'Community Association': [enquiry({ key: 'enquiries', ctaLabel: 'Get in Touch' }), apply({ key: 'membership', tabLabel: 'Membership', ctaLabel: 'Join the Association', itemLabel: 'Membership' })],
+  'Cooperative Society': [apply({ key: 'membership', tabLabel: 'Membership', ctaLabel: 'Join the Cooperative', itemLabel: 'Membership' }), enquiry({ key: 'loans', tabLabel: 'Loans', ctaLabel: 'Ask About a Loan' })],
+  'Sports Academy': [apply({ key: 'trials', tabLabel: 'Trials', ctaLabel: 'Register for Trials', itemLabel: 'Age group' }), subscribe({ key: 'plans', ctaLabel: 'Join the Academy' }), booking({ key: 'sessions', tabLabel: 'Sessions', ctaLabel: 'Book a Session', itemLabel: 'Session' })],
+  'Entertainment': [enquiry({ key: 'enquiries', ctaLabel: 'Send an Enquiry' }), booking({ key: 'bookings', ctaLabel: 'Book an Act', itemLabel: 'Act' })],
+  'Sports & Recreation': [booking({ key: 'pitch', tabLabel: 'Bookings', ctaLabel: 'Book a Pitch', itemLabel: 'Pitch', showQuantity: true, quantityLabel: 'Players' }), subscribe({ key: 'plans', ctaLabel: 'Get a Membership' })],
+  'Cinema & Theatre': [ticket({ key: 'tickets', ctaLabel: 'Get Tickets' }), enquiry({ key: 'private', tabLabel: 'Private Hire', ctaLabel: 'Hire a Screen' })],
+  'Event Venue & Hall': [booking({ key: 'venue', tabLabel: 'Bookings', ctaLabel: 'Check Availability', itemLabel: 'Hall', showTime: false, showQuantity: true, quantityLabel: 'Guests' }), booking({ key: 'tours', tabLabel: 'Tours', ctaLabel: 'Book a Viewing', itemLabel: 'Viewing' })],
+  'Comedy & Live Performance': [ticket({ key: 'tickets', ctaLabel: 'Get Tickets' }), booking({ key: 'bookings', ctaLabel: 'Book the Act', itemLabel: 'Act', showTime: false })],
+  'Gaming & Esports Centre': [booking({ key: 'station', tabLabel: 'Bookings', ctaLabel: 'Book a Station', itemLabel: 'Station', showQuantity: true, quantityLabel: 'Players' }), ticket({ key: 'tournaments', tabLabel: 'Tournaments', ctaLabel: 'Enter a Tournament', itemLabel: 'Tournament' }), subscribe({ key: 'plans', ctaLabel: 'Get a Pass' })],
+  'Betting & Lottery': [enquiry({ key: 'enquiries', ctaLabel: 'Ask a Question' })],
+  'Football Viewing Centre': [ticket({ key: 'seats', tabLabel: 'Seats', ctaLabel: 'Reserve a Seat', itemLabel: 'Match' }), enquiry({ key: 'private', tabLabel: 'Private Hire', ctaLabel: 'Book the Centre' })],
+  'Amusement Park & Play Centre': [ticket({ key: 'tickets', ctaLabel: 'Get Tickets' }), booking({ key: 'parties', tabLabel: 'Parties', ctaLabel: 'Book a Party', itemLabel: 'Package', showQuantity: true, quantityLabel: 'Children' })],
+  'Art Gallery': [cart('orders'), booking({ key: 'viewing', tabLabel: 'Viewings', ctaLabel: 'Book a Private Viewing', itemLabel: 'Viewing' })],
+  'Museum & Heritage Site': [ticket({ key: 'tickets', ctaLabel: 'Get Tickets' }), booking({ key: 'tours', tabLabel: 'Guided Tours', ctaLabel: 'Book a Guided Tour', itemLabel: 'Tour', showQuantity: true, quantityLabel: 'Visitors' })],
+  'Talent & Modelling Agency': [apply({ key: 'casting', tabLabel: 'Casting', ctaLabel: 'Submit a Portfolio', itemLabel: 'Category' }), enquiry({ key: 'booking', tabLabel: 'Book Talent', ctaLabel: 'Book Talent' })],
+  'Film & Video Production': [enquiry({ key: 'projects', tabLabel: 'Projects', ctaLabel: 'Discuss a Project' }), booking({ key: 'crew', tabLabel: 'Crew & Kit', ctaLabel: 'Book Crew or Kit', itemLabel: 'Package', showTime: false })],
+  'Makeup Artist': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book a Session', itemLabel: 'Look' }), booking({ key: 'home-visits', tabLabel: 'Home Visits', ctaLabel: 'Book a Home Visit', itemLabel: 'Look' })],
+  'Gele & Aso-Oke Styling': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book a Styling', itemLabel: 'Style' }), cart('orders')],
+  'Bridal & Wedding Services': [booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Consultation' }), booking({ key: 'fittings', tabLabel: 'Fittings', ctaLabel: 'Book a Fitting', itemLabel: 'Fitting', showTime: false }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Package', showTime: false })],
+  'Shoe Repair & Cobbler': [booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Repair', showTime: false }), booking({ key: 'pickup', tabLabel: 'Pickups', ctaLabel: 'Request a Pickup', itemLabel: 'Item', showTime: false })],
+  'Leather Works': [cart('orders'), booking({ key: 'bespoke', tabLabel: 'Bespoke', ctaLabel: 'Order Something Bespoke', itemLabel: 'Item', showTime: false })],
+  'Uniform & Corporate Wear': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Uniform', showTime: false }), booking({ key: 'fittings', tabLabel: 'Fittings', ctaLabel: 'Book Measurements', itemLabel: 'Fitting', showTime: false })],
+  'Skincare Clinic': [booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book a Treatment', itemLabel: 'Treatment' }), booking({ key: 'consultations', tabLabel: 'Consultations', ctaLabel: 'Book a Skin Consultation' }), cart('orders')],
+  'Jewellery Making': [cart('orders'), booking({ key: 'bespoke', tabLabel: 'Bespoke', ctaLabel: 'Commission a Piece', itemLabel: 'Piece', showTime: false }), booking({ key: 'repairs', tabLabel: 'Repairs', ctaLabel: 'Book a Repair', itemLabel: 'Repair', showTime: false })],
+  'Personal Styling & Shopping': [booking({ key: 'sessions', tabLabel: 'Sessions', ctaLabel: 'Book a Styling Session', itemLabel: 'Session' }), subscribe({ key: 'plans', ctaLabel: 'Ask About a Package' })],
+  'POS & Agent Banking': [enquiry({ key: 'enquiries', ctaLabel: 'Ask a Question', itemSource: 'none' }), apply({ key: 'agent', tabLabel: 'Become an Agent', ctaLabel: 'Apply to Be an Agent', itemLabel: 'Route' })],
+  'Bureau de Change': [enquiry({ key: 'rates', tabLabel: 'Rates', ctaLabel: 'Ask Today\u2019s Rate', itemSource: 'none' })],
+  'Recharge Card & Data Vendor': [cart('orders'), enquiry({ key: 'bulk', tabLabel: 'Bulk', ctaLabel: 'Ask About Bulk Pricing' })],
+  'Photocopy & Printing Kiosk': [queue({ key: 'queue', ctaLabel: 'Send a Job Ahead' }), booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Ask for a Price', itemLabel: 'Job', showTime: false })],
+  'Local Market Stall': [cart('orders'), enquiry({ key: 'enquiries', ctaLabel: 'Ask What Is Available' })],
+  'Water Vendor': [booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Request Water', itemLabel: 'Load', showTime: false, showQuantity: true, quantityLabel: 'Jerrycans' }), subscribe({ key: 'plans', ctaLabel: 'Set Up Regular Delivery' })],
+  'Roadside Mechanic': [queue({ key: 'queue', ctaLabel: 'Tell Us You Are Coming' }), booking({ key: 'roadside', tabLabel: 'Roadside', ctaLabel: 'Call Me Out', itemLabel: 'Fault', showTime: false })],
+  'Sewing & Alterations': [booking({ key: 'fittings', tabLabel: 'Fittings', ctaLabel: 'Book a Fitting', itemLabel: 'Garment', showTime: false }), booking({ key: 'pickup', tabLabel: 'Pickups', ctaLabel: 'Request a Pickup', itemLabel: 'Garment', showTime: false })],
+  'Barbing Kiosk': [queue({ key: 'queue', ctaLabel: 'Join the Queue' }), booking({ key: 'appointments', tabLabel: 'Appointments', ctaLabel: 'Book a Time', itemLabel: 'Cut' })],
+  'Laundry Kiosk': [booking({ key: 'pickup', tabLabel: 'Pickups', ctaLabel: 'Request a Pickup', itemLabel: 'Load', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Set Up Weekly Laundry' })],
+  'Freight Forwarding': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Freight Quote', itemLabel: 'Shipment', showTime: false }), enquiry({ key: 'tracking', tabLabel: 'Status', ctaLabel: 'Ask About a Shipment' })],
+  'Shipping & Customs Agency': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Shipment', showTime: false }), enquiry({ key: 'clearing', tabLabel: 'Clearing', ctaLabel: 'Ask About Clearing' })],
+  'Airline & Flight Booking': [enquiry({ key: 'enquiries', ctaLabel: 'Ask About a Fare' }), booking({ key: 'trips', tabLabel: 'Trips', ctaLabel: 'Request a Booking', itemLabel: 'Route', showTime: false, showQuantity: true, quantityLabel: 'Passengers' })],
+  'Ride-Hailing & Taxi': [booking({ key: 'rides', tabLabel: 'Rides', ctaLabel: 'Request a Ride', itemLabel: 'Vehicle', showQuantity: true, quantityLabel: 'Passengers' }), booking({ key: 'airport', tabLabel: 'Airport', ctaLabel: 'Book an Airport Run', itemLabel: 'Route' }), subscribe({ key: 'plans', ctaLabel: 'Ask About a Monthly Driver' })],
+  'Keke & Okada Services': [booking({ key: 'rides', tabLabel: 'Rides', ctaLabel: 'Request a Ride', itemLabel: 'Trip', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Set Up a Daily Run' })],
+  'Truck & Heavy Haulage': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Haulage Quote', itemLabel: 'Load', showTime: false }), booking({ key: 'rentals', tabLabel: 'Hire', ctaLabel: 'Hire a Truck', itemLabel: 'Truck', showTime: false })],
+  'Warehousing & Storage': [enquiry({ key: 'enquiries', ctaLabel: 'Ask About Space' }), booking({ key: 'tours', tabLabel: 'Tours', ctaLabel: 'Book a Site Visit', itemLabel: 'Visit', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Take Monthly Space' })],
+  'Last-Mile Delivery': [booking({ key: 'deliveries', tabLabel: 'Deliveries', ctaLabel: 'Book a Delivery', itemLabel: 'Package', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Set Up Daily Dispatch' }), enquiry({ key: 'tracking', tabLabel: 'Status', ctaLabel: 'Ask About a Delivery' })],
+  'Bus & Interstate Transport': [ticket({ key: 'seats', tabLabel: 'Seats', ctaLabel: 'Book a Seat', itemLabel: 'Route', quantityLabel: 'Seats' }), enquiry({ key: 'charter', tabLabel: 'Charter', ctaLabel: 'Charter a Bus' })],
+  'Cold Chain Logistics': [booking({ key: 'quotes', tabLabel: 'Estimates', ctaLabel: 'Request a Quote', itemLabel: 'Consignment', showTime: false }), enquiry({ key: 'enquiries', ctaLabel: 'Ask About Capacity' })],
+  'Vehicle Tracking & Telematics': [booking({ key: 'installation', tabLabel: 'Installation', ctaLabel: 'Book an Installation', itemLabel: 'Vehicle', showTime: false }), subscribe({ key: 'plans', ctaLabel: 'Choose a Plan' })],
 };
 
 export function getCategoryFeatures(category: string | undefined | null): CategoryFeatureConfig[] {
@@ -299,6 +530,14 @@ export const MODULE_LIBRARY: ModuleLibraryEntry[] = [
   { ...booking({ key: 'rentals', tabLabel: 'Rentals', ctaLabel: 'Rent Now', itemLabel: 'Item', showTime: false }), name: 'Rentals & Hire', desc: 'Take rental requests for items, equipment or vehicles.' },
   { ...booking({ key: 'fittings', tabLabel: 'Fittings', ctaLabel: 'Book a Fitting', itemLabel: 'Style', showTime: false }), name: 'Fittings & Measurements', desc: 'Customers book a fitting or measurements session.' },
   { ...booking({ key: 'lessons', tabLabel: 'Lessons', ctaLabel: 'Book a Lesson', itemLabel: 'Lesson' }), name: 'Book a Lesson', desc: 'Take one-off or recurring lesson bookings.' },
+  { ...enquiry({ key: 'enquiries', ctaLabel: 'Send an Enquiry' }), name: 'Enquiries', desc: 'Take a question about a service, with no date to pick.' },
+  { ...enquiry({ key: 'callback', tabLabel: 'Call Back', ctaLabel: 'Request a Call Back', itemSource: 'none' }), name: 'Call Back', desc: 'Customers ask to be phoned, with nothing else to fill in.' },
+  { ...apply({ key: 'applications', ctaLabel: 'Apply Now' }), name: 'Applications', desc: 'Applications for a programme, a role or a place.' },
+  { ...queue({ key: 'queue', ctaLabel: 'Join the Queue' }), name: 'Walk-in Queue', desc: 'A place in line for a walk-in trade — no time slot.' },
+  { ...ticket({ key: 'tickets', ctaLabel: 'Get Tickets' }), name: 'Tickets', desc: 'Seats for a dated event, with a ticket count.' },
+  { ...subscribe({ key: 'plans', ctaLabel: 'Choose a Plan' }), name: 'Plans & Memberships', desc: 'A recurring plan, membership or standing order.' },
+  { ...booking({ key: 'site-visits', tabLabel: 'Site Visits', ctaLabel: 'Book a Site Visit', itemLabel: 'Service', showTime: false }), name: 'Site Visits', desc: 'A visit to a site, plot or premises.' },
+  { ...booking({ key: 'valuation', tabLabel: 'Valuation', ctaLabel: 'Request a Valuation', itemLabel: 'Asset', showTime: false }), name: 'Valuation', desc: 'A written valuation of an asset or property.' },
 ];
 
 const MODULE_BY_KEY: Record<string, CategoryFeatureConfig> =

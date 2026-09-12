@@ -13,9 +13,13 @@
 //                       models. Slower and rate-limited, but a drop-in second.
 //   ANTHROPIC_API_KEY   Anthropic — the original provider, kept working so
 //                       nothing regresses for anyone already using it.
+//   OPENCODE_API_KEY    OpenCode Zen — OpenAI-compatible gateway for the open
+//                       models (Big Pickle, DeepSeek V4 flash, North Mini…).
+//                       The AI Command Center pins it when a model id starts
+//                       with "opencode/"; it is never used for other ids.
 //
-// Groq and OpenRouter both speak the OpenAI chat-completions format, so ONE
-// adapter covers both — only the base URL and model id differ.
+// Groq, OpenRouter and OpenCode Zen all speak the OpenAI chat-completions
+// format, so ONE adapter covers them — only the base URL and model id differ.
 //
 // A NOTE ON "FREE": the models are genuinely open-weight, but a hosted product
 // still needs a free API key from the host. There is no reliable keyless option
@@ -26,7 +30,7 @@
 // `provider: 'none'` and the function falls back to formatting real search
 // results directly. Degraded, but never a dead chat box.
 
-export type ProviderName = "groq" | "openrouter" | "anthropic" | "none";
+export type ProviderName = "groq" | "openrouter" | "anthropic" | "zen" | "none";
 
 export interface ProviderConfig {
   name: ProviderName;
@@ -55,6 +59,9 @@ const DEFAULTS: Record<Exclude<ProviderName, "none">, string> = {
   groq: "openai/gpt-oss-120b",
   openrouter: "meta-llama/llama-3.3-70b-instruct:free",
   anthropic: "claude-opus-4-8",
+  // OpenCode Zen's free flagship. The AI Command Center pin model ids that
+  // start with "opencode/" here when the user picks one.
+  zen: "opencode/big-pickle",
 };
 
 /**
@@ -82,6 +89,11 @@ export function resolveProviders(): ProviderConfig[] {
   }
   if (env("ANTHROPIC_API_KEY")) {
     out.push({ name: "anthropic", model: DEFAULTS.anthropic, label: "Anthropic" });
+  }
+  // Zen last so existing deployments keep their current provider priority until
+  // a caller explicitly pins an opencode/:* model id.
+  if (env("OPENCODE_API_KEY")) {
+    out.push({ name: "zen", model: DEFAULTS.zen, label: "OpenCode Zen · Big Pickle" });
   }
 
   const override = env("ASSISTANT_MODEL");
@@ -196,6 +208,7 @@ async function postWithRetry(url: string, init: RequestInit, label: string): Pro
 const OPENAI_BASE: Record<string, string> = {
   groq: "https://api.groq.com/openai/v1/chat/completions",
   openrouter: "https://openrouter.ai/api/v1/chat/completions",
+  zen: "https://opencode.ai/zen/v1/chat/completions",
 };
 
 async function runOpenAICompatible(
@@ -207,7 +220,11 @@ async function runOpenAICompatible(
   maxTokens: number,
   diag: Diag,
 ): Promise<AgentResult | null> {
-  const key = Deno.env.get(cfg.name === "groq" ? "GROQ_API_KEY" : "OPENROUTER_API_KEY") || "";
+  const key = Deno.env.get(
+    cfg.name === "groq" ? "GROQ_API_KEY"
+      : cfg.name === "zen" ? "OPENCODE_API_KEY"
+        : "OPENROUTER_API_KEY",
+  ) || "";
   const url = OPENAI_BASE[cfg.name];
 
   const messages: any[] = [{ role: "system", content: system }, ...turns];
@@ -434,7 +451,11 @@ async function probeOne(cfg: ProviderConfig): Promise<ProbeResult> {
         : { ...base, status: res.status, error: (await res.text()).slice(0, 400) };
     }
 
-    const key = Deno.env.get(cfg.name === "groq" ? "GROQ_API_KEY" : "OPENROUTER_API_KEY") || "";
+    const key = Deno.env.get(
+      cfg.name === "groq" ? "GROQ_API_KEY"
+        : cfg.name === "zen" ? "OPENCODE_API_KEY"
+          : "OPENROUTER_API_KEY",
+    ) || "";
     const res = await fetch(OPENAI_BASE[cfg.name], {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
@@ -480,10 +501,21 @@ export async function runAgent(
   turns: AgentTurn[],
   tools: ToolDef[] = [],
   runTool: RunTool = async () => ({ error: "no tools" }),
-  opts: { maxTokens?: number } = {},
+  opts: { maxTokens?: number; model?: string } = {},
 ): Promise<AgentOutcome> {
   const maxTokens = opts.maxTokens ?? 1024;
-  const providers = resolveProviders();
+  let providers = resolveProviders();
+
+  // The AI Command Center forwards opencode/:* ids from its model picker. Those
+  // ids only exist on OpenCode Zen, so a picked id pins the provider list to
+  // Zen — and when no Zen key is configured the other providers still serve, so
+  // an honest configured-provider reply comes back rather than a picker that
+  // silently means nothing.
+  if (opts.model?.startsWith("opencode/")) {
+    const zen = providers.find((p) => p.name === "zen");
+    if (zen) providers = [{ ...zen, model: opts.model }];
+  }
+
   if (!providers.length) return { ok: false, reason: "no_provider" };
 
   const diag: Diag = {};

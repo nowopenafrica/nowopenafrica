@@ -22,6 +22,7 @@
 // the service role here would risk listing something RLS hides.
 
 import { discoveryPages, type DiscoverableListing } from '../src/lib/discoveryPages.js';
+import { isIndexableProfile } from '../src/lib/businessPageRender.js';
 
 const SITE_URL = (process.env.APP_BASE_URL || 'https://nowopenafrica.com').replace(/\/$/, '');
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
@@ -106,6 +107,7 @@ interface BusinessRow extends DiscoverableListing {
   username?: string | null;
   /** Accountability, not display. Decides whether the URL may be submitted. */
   claim_status?: string | null;
+  listing_score?: number | null;
   data_status?: string | null;
 }
 
@@ -117,10 +119,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   const [allBusinesses, adverts, media] = await Promise.all([
     rest<BusinessRow>(
-      `businesses?select=id,username,category,location,updated_at,created_at,claim_status,data_status&order=updated_at.desc&limit=${PER_TABLE}`,
+      `businesses?select=id,username,category,location,updated_at,created_at,claim_status,data_status,listing_score&order=updated_at.desc&limit=${PER_TABLE}`,
     ),
-    rest<{ id: string; updated_at?: string; created_at?: string }>(
-      `advertisements?select=id,updated_at,created_at&order=created_at.desc&limit=${PER_TABLE}`,
+    rest<{ id: string; user_id?: string | null; updated_at?: string; created_at?: string }>(
+      `advertisements?select=id,user_id,updated_at,created_at&order=created_at.desc&limit=${PER_TABLE}`,
     ),
     rest<{ id: string; updated_at?: string; created_at?: string }>(
       `media_services?select=id,updated_at,created_at&order=created_at.desc&limit=${PER_TABLE}`,
@@ -133,15 +135,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
    * tells it not to, which wastes crawl budget and reads as a site that does
    * not know its own mind.
    *
-   * The rule matches the renderers exactly (isIndexableProfile, isIndexable):
-   * somebody must be accountable for the record — an owner has claimed it, or
-   * it came from an authorised source. Today that is 2 of 32, because the rest
-   * are fabricated demo listings with placeholder phone numbers and websites
-   * that do not resolve.
+   * So this calls `isIndexableProfile` rather than restating its rule. The two
+   * had the same logic written out twice, and when the rule gained a quality
+   * requirement only one copy would have changed — which is the exact failure
+   * this comment warns about.
+   *
+   * The rule: an owner who claimed it is accountable whatever the score; an
+   * imported record has nobody vouching for its content, so the content has to
+   * clear MIN_INDEXABLE_SCORE.
+   *
+   * MEASURED 2026-09-08: 100 profiles imported that morning averaged a score
+   * of 30, and every one was in this sitemap while Discover was hiding all of
+   * them as too thin to show.
    */
-  const businesses = allBusinesses.filter(
-    (b) => b.claim_status === 'claimed' || b.data_status === 'imported_authorized',
-  );
+  const businesses = allBusinesses.filter((b) => isIndexableProfile({
+    claim_status: b.claim_status,
+    data_status: b.data_status,
+    listing_score: b.listing_score,
+  } as Parameters<typeof isIndexableProfile>[0]));
 
   const entries: UrlEntry[] = [...STATIC_ROUTES];
 
@@ -168,7 +179,30 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  for (const a of adverts) {
+  /*
+   * The same accountability rule the business listings above are held to, now
+   * applied to advertising inventory — which it never was.
+   *
+   * Measured: `advertisements` holds 97 rows, 89 of them `status = 'active'`,
+   * and `user_id` is NULL on every single one. They name specific real-world
+   * third-party sites — "2 Double-Sided Freestanding Screens, The Palms,
+   * Lekki", "16 Digital Screens, Railway Ticketing & Waiting Area, Lagos" —
+   * with day rates attached, and all 97 were being submitted for indexing.
+   *
+   * Whether NowOpen holds the rights to broker those placements cannot be
+   * established from the data, and it must not be guessed. So the rule is the
+   * conservative one and it is the same rule as above: no accountable owner,
+   * no request to index. Nothing is deleted and nothing is marked verified —
+   * the rows stay exactly as they are, and re-enter the sitemap the moment a
+   * real owner or a verified rights record is attached.
+   *
+   * This also removes pure noise: every one of these URLs served the home
+   * page's title and a canonical pointing at `/`, so submitting them asked
+   * Google to index 97 declared duplicates of the front page.
+   */
+  const accountableAdverts = adverts.filter((a) => !!a.user_id);
+
+  for (const a of accountableAdverts) {
     entries.push({
       loc: `/adverts/${a.id}`,
       lastmod: isoDay(a.updated_at) ?? isoDay(a.created_at),

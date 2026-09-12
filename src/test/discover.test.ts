@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   openNow, newest, topRated, hiddenGems, near,
   affinityCategories, recommended, businessHref,
+  isClaimed, claimedFirst, byClaimedThenVerified, DISCOVER_SELECT,
   type DiscoverBusiness,
 } from '../lib/discover';
 
@@ -440,5 +441,82 @@ describe('category carousel', () => {
       expect(GROUP_SHORT[group], `no short label for ${group}`).toBeTruthy();
     }
     expect(CATEGORY_GROUPS.length).toBe(12);
+  });
+});
+
+describe('claimed businesses come first', () => {
+  /*
+   * MEASURED 2026-09-08: the only two claimed businesses on the platform were
+   * the OLDEST rows in the table, with 451 newer listings between them and the
+   * top. The homepage fetched the newest 30, so neither profile run by a real
+   * person had ever appeared on the front page — while 451 imported guesses had.
+   */
+  it('counts an owner or a claimed status as claimed', () => {
+    expect(isClaimed({ claim_status: 'claimed', user_id: null })).toBe(true);
+    expect(isClaimed({ claim_status: 'unclaimed', user_id: 'u1' })).toBe(true);
+    expect(isClaimed({ claim_status: 'unclaimed', user_id: null })).toBe(false);
+    expect(isClaimed({})).toBe(false);
+  });
+
+  it('puts every claimed listing above every unclaimed one', () => {
+    const list = [
+      b({ id: 'imported-new', created_at: ago(0), listing_score: 90 }),
+      b({ id: 'claimed-old', created_at: ago(400), listing_score: 20, claim_status: 'claimed' }),
+      b({ id: 'imported-old', created_at: ago(300), listing_score: 80 }),
+      b({ id: 'owned', created_at: ago(500), listing_score: 10, user_id: 'u1' }),
+    ];
+    const order = claimedFirst(list).map((x) => x.id);
+    expect(order.slice(0, 2).sort()).toEqual(['claimed-old', 'owned']);
+    expect(order.slice(2)).toEqual(['imported-new', 'imported-old']);
+  });
+
+  it('ignores whether a business is open right now', () => {
+    /*
+     * A shop that shuts at six is still the one somebody wants to find at
+     * seven. Ranking on the clock would drop claimed listings out of view for
+     * most of the day — which is why "always feature claimed, open or closed"
+     * has to be said out loud.
+     */
+    const shut = b({ id: 'claimed-shut', claim_status: 'claimed', opening_hours: 'Mon-Sun 01:00-02:00' });
+    const open = b({ id: 'imported-open', opening_hours: 'Mon-Sun 00:00-23:59', listing_score: 100 });
+    expect(claimedFirst([open, shut]).map((x) => x.id)).toEqual(['claimed-shut', 'imported-open']);
+  });
+
+  it('breaks ties by completeness, then recency, so the order is stable', () => {
+    const list = [
+      b({ id: 'thin', claim_status: 'claimed', listing_score: 10, created_at: ago(1) }),
+      b({ id: 'full', claim_status: 'claimed', listing_score: 90, created_at: ago(9) }),
+    ];
+    expect(claimedFirst(list).map((x) => x.id)).toEqual(['full', 'thin']);
+    // Same input, different starting order — same answer.
+    expect(claimedFirst([...list].reverse()).map((x) => x.id)).toEqual(['full', 'thin']);
+  });
+
+  it('does not mutate its input', () => {
+    const list = [b({ id: 'a' }), b({ id: 'b', claim_status: 'claimed' })];
+    claimedFirst(list);
+    expect(list.map((x) => x.id)).toEqual(['a', 'b']);
+  });
+
+  it('gives the homepage grid the same primary rule', () => {
+    // The explorer flattens businesses, adverts and services into one Row and
+    // so cannot use claimedFirst — but it must not answer differently.
+    const rows = [
+      { id: 'unclaimed-verified', claimed: false, verified: true },
+      { id: 'claimed-plain', claimed: true, verified: false },
+    ];
+    expect([...rows].sort(byClaimedThenVerified).map((r) => r.id))
+      .toEqual(['claimed-plain', 'unclaimed-verified']);
+  });
+
+  it('asks the database for the columns the rule needs', () => {
+    /*
+     * The rule reads claim_status and user_id. PostgREST returns only what is
+     * selected, so omitting them would make every business look unclaimed —
+     * silently, and in exactly the direction that hides the businesses this is
+     * meant to promote.
+     */
+    expect(DISCOVER_SELECT).toContain('claim_status');
+    expect(DISCOVER_SELECT).toContain('user_id');
   });
 });

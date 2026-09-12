@@ -69,7 +69,10 @@ describe('a request is not a business', () => {
 describe('it is on the homepage and it is measured', () => {
   it('sits in the directory section, not buried on /waitlist', () => {
     expect(home).toContain('<SendYourBusiness');
-    expect(home).toMatch(/source="home-directory"/);
+    // A declared fallback, used only when the visit carries no attribution of
+    // its own — crediting "homepage" for a visitor who arrived from Instagram
+    // would credit the page they landed on rather than the thing that worked.
+    expect(home).toMatch(/fallbackSource="[a-z]+"/);
   });
 
   it('emits an event, so the funnel can show whether it works', () => {

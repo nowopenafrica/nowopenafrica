@@ -35,7 +35,7 @@ import { businessCategories, matchesCategory, BUSINESS_CATEGORY_GROUPS } from '.
 /* One literal, not a concatenation. The Supabase client infers the row type
    from the string itself, so splitting it across a `+` turns every result into
    GenericStringError. */
-export const DISCOVER_SELECT = 'id,name,category,secondary_categories,description,location,phone,website,verified,rating,image_url,logo_url,username,created_at,opening_hours,hours,timezone,open_status,listing_score';
+export const DISCOVER_SELECT = 'id,name,category,secondary_categories,description,location,phone,website,verified,rating,image_url,logo_url,username,created_at,opening_hours,hours,timezone,open_status,listing_score,claim_status,user_id';
 
 export interface DiscoverBusiness extends OpenStateInput {
   id: string;
@@ -55,6 +55,75 @@ export interface DiscoverBusiness extends OpenStateInput {
   logo_url?: string | null;
   username?: string | null;
   created_at?: string | null;
+  /** 'unclaimed' | 'claim_pending' | 'claimed' | … */
+  claim_status?: string | null;
+  /** Set once a real person owns the profile. */
+  user_id?: string | null;
+}
+
+/* --- Who runs this place? ------------------------------------------------ */
+
+/**
+ * Has a real person taken this profile over?
+ *
+ * `user_id` counts as well as `claim_status` because the two can disagree —
+ * a row with an owner and a stale status is claimed in every sense that
+ * matters to a visitor.
+ */
+export const isClaimed = (b: Pick<DiscoverBusiness, 'claim_status' | 'user_id'>): boolean =>
+  Boolean(b.user_id) || b.claim_status === 'claimed';
+
+/**
+ * Claimed businesses first.
+ *
+ * WHY THIS IS A RULE AND NOT A PREFERENCE
+ *
+ * A claimed profile is a business that turned up: somebody proved they run it,
+ * and they maintain what it says. An imported one is NowOpen's guess at a
+ * business that has never heard of us. Showing the guesses first is both worse
+ * for a visitor — they get pages with no hours and no contact — and backwards
+ * as an incentive, because claiming is the thing the whole platform is asking
+ * businesses to do.
+ *
+ * Measured on 2026-09-08: the two claimed businesses were the OLDEST rows in
+ * the table, with 451 newer listings between them and the top. The homepage
+ * fetched the newest 30, so neither had ever appeared on it.
+ *
+ * OPEN OR CLOSED IS NOT PART OF IT. A business that closes at six is still the
+ * business a visitor wants to find at seven; ranking on the clock would hide a
+ * claimed profile for most of the day and is why "always feature claimed" has
+ * to be said out loud.
+ *
+ * Ties are broken by completeness and then recency, so among claimed listings
+ * the ones a visitor can actually use come first, and the order is stable.
+ */
+/**
+ * The same primary rule, for a grid whose rows have already been flattened.
+ *
+ * The homepage explorer reshapes businesses, adverts and services into one Row
+ * type, so it cannot use `claimedFirst` — but it must not answer the question
+ * differently. Exported so there is one place to read "claimed comes first",
+ * and so a test can hold both to it.
+ */
+export function byClaimedThenVerified(
+  a: { claimed?: boolean; verified?: boolean },
+  b: { claimed?: boolean; verified?: boolean },
+): number {
+  const claim = Number(b.claimed ?? false) - Number(a.claimed ?? false);
+  if (claim !== 0) return claim;
+  return Number(b.verified ?? false) - Number(a.verified ?? false);
+}
+
+export function claimedFirst<T extends Pick<DiscoverBusiness, 'claim_status' | 'user_id' | 'listing_score' | 'created_at'>>(
+  list: T[],
+): T[] {
+  return [...list].sort((a, b) => {
+    const claim = Number(isClaimed(b)) - Number(isClaimed(a));
+    if (claim !== 0) return claim;
+    const score = (b.listing_score ?? 0) - (a.listing_score ?? 0);
+    if (score !== 0) return score;
+    return String(b.created_at ?? '').localeCompare(String(a.created_at ?? ''));
+  });
 }
 
 /**

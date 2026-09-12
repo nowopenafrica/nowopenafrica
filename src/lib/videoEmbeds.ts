@@ -119,6 +119,33 @@ export function parseVideoEmbed(raw: string): VideoEmbed | null {
 }
 
 /** True when the URL is a platform link we can embed. */
+/**
+ * A still image for an embedded video, where the platform publishes one at a
+ * derivable URL.
+ *
+ * WHY ONLY YOUTUBE
+ *
+ * YouTube serves `https://i.ytimg.com/vi/<id>/hqdefault.jpg` with no API key
+ * and no signature — verified 200 image/jpeg — and `i.ytimg.com` is already in
+ * the img-src allowlist. Vimeo, TikTok, Instagram and Facebook all require an
+ * oEmbed or Graph call to resolve a thumbnail, which is a network round trip
+ * per tile and a credential this does not have.
+ *
+ * So this returns null for those rather than constructing a URL that 404s. A
+ * caller that gets null falls back to the platform-labelled placeholder, which
+ * is honest about not having the picture.
+ *
+ * `hqdefault` rather than `maxresdefault`: maxres does not exist for every
+ * video and 404s when it does not, while hqdefault is always generated.
+ */
+export function embedThumbnailUrl(raw: string): string | null {
+  const embed = parseVideoEmbed(raw);
+  if (!embed) return null;
+  if (embed.platform !== 'youtube') return null;
+  // The id comes from our own parser, not from the raw string.
+  return `https://i.ytimg.com/vi/${encodeURIComponent(embed.id)}/hqdefault.jpg`;
+}
+
 export const isEmbeddableVideoUrl = (raw: string): boolean => parseVideoEmbed(raw) !== null;
 
 /**

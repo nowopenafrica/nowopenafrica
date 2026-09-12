@@ -256,3 +256,204 @@ export function verdict(series: WeekConnections[], funnel: FunnelStage[]): strin
   }
   return `${latest.total} connection(s) this week across ${latest.businesses} business(es).`;
 }
+
+/* ------------------------------------------------- demand with no supply ---- */
+
+/**
+ * What people searched for and did not find.
+ *
+ * The most actionable number this platform can produce, and it was not being
+ * collected. `search_performed` carried the term but never the outcome, and
+ * the directory — where a search actually resolves — emitted nothing at all.
+ * So the company could see that somebody searched and never whether they found
+ * anything.
+ *
+ * A zero-result search is not a failed session. It is a customer naming, in
+ * their own words, a business they wanted and could not find. For a directory
+ * whose real problem is supply, that is a recruitment list written by demand
+ * rather than by guesswork: "24 hour pharmacy in Lekki" returning nothing
+ * tells you exactly which business to go and sign up, and that at least one
+ * person is already looking for it.
+ *
+ * Grouped by term and place so repeated demand rises to the top — three people
+ * looking for the same thing in the same area is a much stronger signal than
+ * three unrelated misses.
+ */
+export interface SupplyGap {
+  /** What they typed, lower-cased for grouping. */
+  term: string;
+  /** Where they were looking, if they said. */
+  place: string;
+  /** How many searches hit nothing. */
+  searches: number;
+  /** How many distinct sessions — three people beats one person three times. */
+  people: number;
+  /** Most recent occurrence, ISO. */
+  lastSeen: string;
+}
+
+export function supplyGaps(events: RawEvent[], limit = 25): SupplyGap[] {
+  const groups = new Map<string, {
+    term: string; place: string; searches: number; sessions: Set<string>; lastSeen: string;
+  }>();
+
+  for (const e of events) {
+    if (e.name !== 'search_performed') continue;
+    const props = e.props ?? {};
+
+    /*
+     * Only events that actually report an outcome, and only the empty ones.
+     *
+     * `results` is absent on the older home-hero events, which recorded intent
+     * before this existed. Treating a missing count as zero would invent
+     * demand gaps out of searches that may well have succeeded — so they are
+     * skipped rather than assumed.
+     */
+    const raw = props.results;
+    if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;
+    if (raw > 0) continue;
+
+    const term = String(props.term ?? '').trim().toLowerCase();
+    const place = String(props.place ?? '').trim().toLowerCase();
+    // A blank search is browsing, not unmet demand.
+    if (!term && !place) continue;
+
+    const key = `${term}|${place}`;
+    const cur = groups.get(key);
+    if (cur) {
+      cur.searches += 1;
+      if (e.session_id) cur.sessions.add(e.session_id);
+      if (e.created_at > cur.lastSeen) cur.lastSeen = e.created_at;
+    } else {
+      groups.set(key, {
+        term,
+        place,
+        searches: 1,
+        sessions: new Set(e.session_id ? [e.session_id] : []),
+        lastSeen: e.created_at,
+      });
+    }
+  }
+
+  return [...groups.values()]
+    .map((g) => ({
+      term: g.term,
+      place: g.place,
+      searches: g.searches,
+      people: g.sessions.size,
+      lastSeen: g.lastSeen,
+    }))
+    // Distinct people first: repeated demand from different sessions is the
+    // signal worth acting on.
+    .sort((a, b) => b.people - a.people || b.searches - a.searches
+      || b.lastSeen.localeCompare(a.lastSeen))
+    .slice(0, limit);
+}
+
+/**
+ * The smallest number of searches worth computing a rate from.
+ *
+ * Ten is not a statistical claim; it is the point below which a percentage
+ * misleads more than it informs. Two searches and one click is not "50% search
+ * success", and printing that number would make the scorecard worse than
+ * printing nothing.
+ */
+export const MIN_SEARCHES = 10;
+
+export interface SearchQuality {
+  /** Searches that reported an outcome at all. */
+  measured: number;
+  /** Of those, how many returned at least one result. */
+  answered: number;
+  /** Of the answered, how many led to a result being clicked. */
+  engaged: number;
+  /** Of the engaged, how many led to a connection in the same session. */
+  converted: number;
+  /**
+   * Null below MIN_SEARCHES. A rate computed from a handful of searches is
+   * noise wearing a percentage sign.
+   */
+  answerRate: number | null;
+  engagementRate: number | null;
+  conversionRate: number | null;
+  /** Median rank of clicked results — how far down people have to look. */
+  medianClickPosition: number | null;
+}
+
+/**
+ * How well search is actually serving people.
+ *
+ * §36: a search is not successful because results appeared. This measures the
+ * three steps after that, and reports nothing at all when there is too little
+ * to measure — which, on a directory with two businesses, is the honest
+ * answer and the one it will give for a while yet.
+ */
+export function searchQuality(events: RawEvent[]): SearchQuality {
+  const searches = new Map<string, { answered: boolean; session: string }>();
+  const clickedKeys = new Set<string>();
+  const positions: number[] = [];
+  /** Sessions in which a connection happened, at any point. */
+  const connectedSessions = new Set<string>();
+
+  const keyOf = (session: string, props: Record<string, unknown>) =>
+    `${session}|${String(props.term ?? '').trim().toLowerCase()}|${String(props.place ?? '').trim().toLowerCase()}`;
+
+  for (const e of events) {
+    const session = e.session_id ?? '';
+    if (isConnection(e)) connectedSessions.add(session);
+
+    const props = e.props ?? {};
+
+    if (e.name === 'search_performed') {
+      /*
+       * Only searches that report an outcome. A missing `results` key means
+       * the event predates the field, not that the search found nothing —
+       * the same rule supplyGaps() applies, for the same reason.
+       */
+      const raw = props.results;
+      if (typeof raw !== 'number' || !Number.isFinite(raw)) continue;
+      if (!session) continue;
+      searches.set(keyOf(session, props), { answered: raw > 0, session });
+      continue;
+    }
+
+    if (e.name === 'search_result_clicked') {
+      if (!session) continue;
+      clickedKeys.add(keyOf(session, props));
+      const pos = props.position;
+      if (typeof pos === 'number' && Number.isFinite(pos) && pos > 0) positions.push(pos);
+    }
+  }
+
+  const measured = searches.size;
+  let answered = 0;
+  let engaged = 0;
+  let converted = 0;
+
+  for (const [key, rec] of searches) {
+    if (!rec.answered) continue;
+    answered += 1;
+    if (!clickedKeys.has(key)) continue;
+    engaged += 1;
+    if (connectedSessions.has(rec.session)) converted += 1;
+  }
+
+  const rate = (num: number, den: number) =>
+    measured < MIN_SEARCHES || den === 0 ? null : Math.round((num / den) * 100);
+
+  positions.sort((a, b) => a - b);
+  const medianClickPosition = positions.length
+    ? positions[Math.floor(positions.length / 2)]
+    : null;
+
+  return {
+    measured,
+    answered,
+    engaged,
+    converted,
+    answerRate: rate(answered, measured),
+    engagementRate: rate(engaged, answered),
+    conversionRate: rate(converted, engaged),
+    medianClickPosition,
+  };
+}

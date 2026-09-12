@@ -39,7 +39,7 @@ export default function AdminBusinessPicker({ selectedId, onSelect, strip, tool 
     setLoading(true);
     try {
       const [bizRes, logRes] = await Promise.all([
-        supabase.from('businesses').select('*').order('created_at', { ascending: false }),
+        supabase.from('businesses').select('*').order('created_at', { ascending: false }).limit(50000),
         supabase.from('social_publish_log').select('status'),
       ]);
       if (bizRes.error) throw bizRes.error;

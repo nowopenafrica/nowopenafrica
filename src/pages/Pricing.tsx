@@ -14,6 +14,7 @@ import {
   moduleLimitForPlan,
 } from '../data/pricingPlans';
 import { applySeo } from '../lib/seo';
+import { track } from '../lib/telemetry';
 
 const BUSINESS_ICONS: Record<string, typeof Building2> = {
   starter: Building2,
@@ -84,6 +85,19 @@ export default function Pricing() {
   }, []);
 
   useEffect(() => {
+    /*
+     * `plan_viewed` was a declared EventName with no call site, so the step
+     * between interest and payment produced nothing — and it is the only
+     * place the pricing page appears in any funnel.
+     *
+     * Once per mount, not per render or per plan card: the question is how
+     * many people reached pricing, and firing per card would answer a
+     * different question badly.
+     */
+    track('plan_viewed');
+  }, []);
+
+  useEffect(() => {
     supabase
       .from('businesses')
       .select('id', { count: 'exact', head: true })
@@ -96,14 +110,37 @@ export default function Pricing() {
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       {/* Hero */}
-      <section className="text-white py-16" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
+      {/*
+        * One gradient, not six.
+        *
+        * This band used to run navy → violet → magenta → orange → amber →
+        * green across its full width. Six hues is a colour test card rather
+        * than a brand, and on the page where somebody decides whether to pay,
+        * it competed with the plan cards that are the actual subject.
+        *
+        * A single deep field with two soft highlights keeps the depth and the
+        * confidence, and lets the prices below be the loudest thing on screen.
+        */}
+      <section
+        className="relative overflow-hidden text-white py-20"
+        style={{
+          backgroundColor: '#1e1b4b',
+          backgroundImage:
+            'radial-gradient(ellipse 80% 60% at 15% 0%, rgba(99,102,241,0.45), transparent 60%),' +
+            'radial-gradient(ellipse 70% 60% at 85% 20%, rgba(217,70,239,0.28), transparent 62%),' +
+            'linear-gradient(160deg, #1e1b4b 0%, #2e1065 55%, #1e1b4b 100%)',
+        }}
+      >
+        {/* A hairline of light along the bottom edge, so the band ends on a
+            deliberate line rather than a hard colour change. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
             <Sparkles size={16} className="text-yellow-300" />
             Join for free. Grow with NowOpen. Upgrade when your business grows.
           </div>
           <h1 className="text-3xl md:text-5xl font-bold">Pricing built for every African business</h1>
-          <p className="text-blue-100 text-base md:text-lg max-w-2xl mx-auto">
+          <p className="text-indigo-100/85 text-base md:text-lg max-w-2xl mx-auto">
             From a neighborhood tailor to a multinational — start free with Free Launch, unlock essential tools
             with Growth, and move to Business Pro when you're ready to scale.
           </p>
@@ -112,13 +149,13 @@ export default function Pricing() {
           <div className="inline-flex items-center gap-3 bg-white/10 backdrop-blur-sm rounded-full p-1.5 mt-4">
             <button
               onClick={() => setAnnual(false)}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition ${!annual ? 'bg-white text-blue-700' : 'text-white'}`}
+              className={`px-5 py-2 rounded-full text-sm font-medium transition ${!annual ? 'bg-white text-indigo-900 shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
             >
               Monthly
             </button>
             <button
               onClick={() => setAnnual(true)}
-              className={`px-5 py-2 rounded-full text-sm font-medium transition inline-flex items-center gap-1.5 ${annual ? 'bg-white text-blue-700' : 'text-white'}`}
+              className={`px-5 py-2 rounded-full text-sm font-medium transition inline-flex items-center gap-1.5 ${annual ? 'bg-white text-indigo-900 shadow-sm' : 'text-white/80 hover:text-white hover:bg-white/10'}`}
             >
               Annual
               <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${annual ? 'bg-green-100 text-green-700' : 'bg-green-400/90 text-green-950'}`}>
@@ -133,7 +170,7 @@ export default function Pricing() {
               <a
                 key={s.id}
                 href={`#${s.id}`}
-                className="px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-xs font-medium transition"
+                className="px-3 py-1.5 rounded-full bg-white/10 ring-1 ring-inset ring-white/15 hover:bg-white/20 hover:ring-white/30 text-xs font-medium transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white"
               >
                 {s.label}
               </a>
@@ -161,8 +198,8 @@ export default function Pricing() {
 
       {/* Business Plans */}
       <section id="business-plans" className="site-container pt-10 pb-16 scroll-mt-20">
-        <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white text-center mb-2">Business Plans</h2>
-        <p className="text-center text-gray-600 dark:text-gray-400 mb-10">Join for free. Grow with NowOpen. Upgrade when your business grows.</p>
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white text-center">Business plans</h2>
+        <p className="mt-2 text-center text-gray-600 dark:text-gray-400 mb-12 max-w-xl mx-auto">Join for free. Grow with NowOpen. Upgrade when your business grows.</p>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {BUSINESS_TIERS.map((tier) => {
             const Icon = BUSINESS_ICONS[tier.id] ?? Building2;
@@ -180,36 +217,49 @@ export default function Pricing() {
               : `${modLimit} selectable booking module${modLimit === 1 ? '' : 's'}`;
 
             return (
+              /*
+               * The recommended plan is raised, not outlined.
+               *
+               * A 2px purple border around one card and hairline borders around
+               * the others made the row read as "one of these is different"
+               * rather than "this is the one to take". Lifting it, warming its
+               * surface and deepening its shadow says the same thing the way a
+               * physical shelf does — and it leaves the border free to mean
+               * "edge of card" everywhere else on the page.
+               */
               <div
                 key={tier.id}
-                className={`relative bg-white dark:bg-gray-800 rounded-2xl p-6 flex flex-col ${
+                className={`relative rounded-2xl p-6 flex flex-col transition-shadow ${
                   tier.highlight
-                    ? 'shadow-2xl border-2 border-purple-500 md:-mt-4 md:mb-[-1rem]'
-                    : 'shadow-lg border border-gray-100 dark:border-gray-800'
+                    ? 'bg-white dark:bg-gray-800 ring-1 ring-purple-200 dark:ring-purple-500/30 shadow-[0_20px_50px_-12px_rgba(147,51,234,0.25)] xl:-mt-5 xl:mb-[-1.25rem] xl:pt-8'
+                    : 'bg-white/70 dark:bg-gray-800/60 ring-1 ring-gray-200 dark:ring-gray-700/60 shadow-sm hover:shadow-lg'
                 }`}
               >
                 {tier.highlight && (
-                  <span className="absolute -top-3.5 left-1/2 -translate-x-1/2 px-4 py-1 bg-purple-600 text-white text-xs font-bold rounded-full uppercase tracking-wide whitespace-nowrap">
-                    Most Popular
+                  <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3.5 py-1 bg-gradient-to-r from-purple-600 to-fuchsia-600 text-white text-[11px] font-semibold rounded-full tracking-wide whitespace-nowrap shadow-md shadow-purple-500/30">
+                    Most popular
                   </span>
                 )}
-                <div className="w-11 h-11 bg-blue-100 dark:bg-blue-900/30 rounded-xl flex items-center justify-center mb-3">
-                  <Icon size={22} className="text-blue-600 dark:text-blue-400" />
+                {/* Deliberately quiet. On a pricing card the price is the
+                    thing being compared, and a saturated blue tile above it was
+                    winning that contest four times over. */}
+                <div className="w-9 h-9 rounded-lg bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center mb-3">
+                  <Icon size={18} strokeWidth={1.75} className="text-gray-500 dark:text-gray-400" />
                 </div>
                 <h3 className="text-lg font-bold text-gray-900 dark:text-white">{tier.name}</h3>
                 <p className="text-xs text-gray-600 dark:text-gray-400 mb-4 min-h-[2.5em]">{tier.tagline}</p>
 
                 <div className="mb-5">
                   {tier.custom ? (
-                    <span className="text-2xl font-bold text-gray-900 dark:text-white">Custom Pricing</span>
+                    <span className="text-2xl font-bold tracking-tight text-gray-900 dark:text-white">Custom pricing</span>
                   ) : free ? (
-                    <span className="text-3xl font-bold text-gray-900 dark:text-white">{format(0)}</span>
+                    <span className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white tabular-nums">{format(0)}</span>
                   ) : (
                     <>
                       {isDiscounted && (
                         <span className="text-sm text-gray-400 line-through mr-2">{format(rawMonthly!)}</span>
                       )}
-                      <span className="text-3xl font-bold text-gray-900 dark:text-white">{format(displayMonthly!)}</span>
+                      <span className="text-4xl font-bold tracking-tight text-gray-900 dark:text-white tabular-nums">{format(displayMonthly!)}</span>
                       <span className="text-gray-500 dark:text-gray-400 text-xs">/mo{annual ? ', billed annually' : ''}</span>
                       {currency !== 'USD' && (
                         <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">{formatUsd(displayMonthly!)} USD/month</p>

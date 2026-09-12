@@ -21,6 +21,8 @@
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { AGENTS, notifiable, runStatus, type RawFacts } from "../_shared/agents.ts";
+import { buildDailyDigest, type DigestRun } from "../_shared/digest.ts";
+import { sendEmail, sendWhatsAppText, emailShell } from "../_shared/notify.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,6 +36,77 @@ function json(body: unknown, status = 200): Response {
     status,
     headers: { ...corsHeaders, "Content-Type": "application/json" },
   });
+}
+
+/*
+ * The founder reads the digest against Lagos time ("Saturday 12 September"),
+ * so "today" means the day that started at midnight there. Africa/Lagos is
+ * UTC+1 year-round (no DST), so local midnight is 23:00Z the UTC day before.
+ */
+function digestWindow(): { ref: string; startISO: string; label: string } {
+  const fmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Africa/Lagos", year: "numeric", month: "2-digit", day: "2-digit",
+  });
+  const [y, m, d] = fmt.format(new Date()).split("-").map(Number);
+  const midnightLagos = new Date(Date.UTC(y, m - 1, d) - 3_600_000);
+  return {
+    ref: `${y}-${m}-${d}`,
+    startISO: midnightLagos.toISOString(),
+    label: new Intl.DateTimeFormat("en-GB", {
+      timeZone: "Africa/Lagos", weekday: "long", day: "numeric", month: "long",
+    }).format(new Date()),
+  };
+}
+
+/*
+ * Push today's brief once, not once per run. The claim insert in automation_log
+ * is the atomic guard: the unique (kind, ref_id) index means a second call the
+ * same day fails as a duplicate and sends nothing.
+ */
+async function pushDailyDigest(db: ReturnType<typeof createClient>): Promise<Record<string, unknown>> {
+  const win = digestWindow();
+
+  const { error: claimErr } = await db.from("automation_log").insert({
+    kind: "workforce_digest",
+    ref_id: win.ref,
+    detail: { full: "daily workforce digest" },
+  });
+  if (claimErr) return { sent: false, why: "already sent today" };
+
+  const { data: runs, error: runsErr } = await db
+    .from("workforce_runs")
+    .select("agent_key,status,summary,findings,reason")
+    .gte("created_at", win.startISO)
+    .order("created_at", { ascending: false });
+  if (runsErr) return { sent: false, why: runsErr.message };
+
+  const content = buildDailyDigest((runs ?? []) as DigestRun[], win.label);
+
+  const { data: flags } = await db.from("feature_flags").select("key,enabled").in("key", ["outbound_email", "outbound_whatsapp"]);
+  const flagOn = (name: string) => (flags ?? []).find((f) => f.key === name)?.enabled === true;
+
+  const { data: admins } = await db.from("users").select("email,phone").eq("role", "admin").limit(20);
+
+  const out = { sent: true, email: false, whatsapp: false };
+  if (flagOn("outbound_email")) {
+    for (const admin of (admins ?? []) as Array<{ email?: string | null }>) {
+      if (!admin.email) continue;
+      const res = await sendEmail(
+        admin.email,
+        content.subject,
+        emailShell("Daily brief", content.emailHtml),
+      );
+      if (res.ok) out.email = true;
+    }
+  }
+  if (flagOn("outbound_whatsapp")) {
+    for (const admin of (admins ?? []) as Array<{ phone?: string | null }>) {
+      if (!admin.phone) continue;
+      const res = await sendWhatsAppText(admin.phone, content.whatsappText);
+      if (res.ok) out.whatsapp = true;
+    }
+  }
+  return out;
 }
 
 Deno.serve(async (req: Request) => {
@@ -155,10 +228,22 @@ Deno.serve(async (req: Request) => {
     }
   }
 
+  /*
+   * The daily digest rides the Chief of Staff's cadence. It runs once a day,
+   * so when this tick ran it to a real outcome, the day's brief goes out by
+   * email and WhatsApp. The claim-guard makes it once-per-day even if cron
+   * re-fires the function within the same Lagos calendar day.
+   */
+  const chiefRan = ran.some(
+    (r) => r.agent === "chief-of-staff" && (r.status === "ok" || r.status === "nothing-to-report"),
+  );
+  const digest = chiefRan ? await pushDailyDigest(db) : null;
+
   return json({
     ok: errors.length === 0,
     checked: (due ?? []).length,
     ran,
+    digest,
     errors,
   });
 });

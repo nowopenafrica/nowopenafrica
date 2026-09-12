@@ -29,6 +29,106 @@
   font-display: swap;
 }
 
+
+/* ---------------------------------------------------------------------------
+   Studio typefaces.
+
+   Self-hosted rather than linked, for three reasons that all matter here: the
+   CSP allows `font-src 'self'` and nothing else; a design tool that exports
+   must be able to PROVE a face is loaded before it rasterises (see
+   ensureTypefacesReady in src/lib/design/typefaces.ts); and no visitor of ours
+   is announced to a third party for the sake of a font.
+
+   All SIL OFL 1.1. Fetched by scripts/fetch-typefaces.mjs.
+
+   `font-display: swap` plus the fact that a browser only downloads a face it
+   actually renders means these cost nothing on pages that set no Studio type.
+   --------------------------------------------------------------------------- */
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/studio/outfit-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/studio/outfit-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Outfit';
+  src: url('/fonts/studio/outfit-800.woff2') format('woff2');
+  font-weight: 800;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/fonts/studio/playfair-display-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Playfair Display';
+  src: url('/fonts/studio/playfair-display-900.woff2') format('woff2');
+  font-weight: 900;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Serif Display';
+  src: url('/fonts/studio/dm-serif-display-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Fraunces';
+  src: url('/fonts/studio/fraunces-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bebas Neue';
+  src: url('/fonts/studio/bebas-neue-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Archivo Black';
+  src: url('/fonts/studio/archivo-black-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/fonts/studio/space-grotesk-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Grotesk';
+  src: url('/fonts/studio/space-grotesk-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Space Mono';
+  src: url('/fonts/studio/space-mono-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 @layer utilities {
   /* Hide the scrollbar on horizontally-scrollable strips (e.g. the founder
      sub-nav) while keeping them scrollable via drag/swipe. */
@@ -187,3 +287,12 @@
     transform: translateX(-50%);
   }
 }
+
+/*
+ * The nav is plain sticky, so a sub-nav beneath it can simply pin at `top-16`
+ * and stay there.
+ *
+ * `.nav-offset-sticky` used to live here, chasing the gap the nav left behind
+ * while it slid out of view. The nav no longer moves, so the rule had nothing
+ * left to correct and was removed rather than left inert.
+ */

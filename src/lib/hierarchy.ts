@@ -32,8 +32,8 @@ export const REPORTING_TREE: Record<string, string> = {
   'motion-designer': 'creative-director',
   'post-supervisor': 'production-manager',
   'partnerships-manager': 'sales-director',
-  'customer-success-manager': 'operations-director',
-  'trust-safety-agent': 'operations-director',
+  'customer-success': 'operations-director',
+  'trust-safety': 'operations-director',
   'community-manager': 'operations-director',
 };
 

@@ -73,6 +73,24 @@ export interface CatalogueItem {
   benchmark?: Benchmark;
   /** Working days, [fastest, slowest]. */
   turnaround?: [number, number];
+  /**
+   * For free items: the Studio tool that actually makes this thing.
+   *
+   * Every "Create it free" button used to point at bare /studio, so choosing
+   * "Poster" and choosing "Caption" both landed on the Growth Center and the
+   * visitor had to go and find the tool themselves. Studio reads ?module=,
+   * so the button can open the thing it named. Keys are the ModuleKey values
+   * in pages/Studio.tsx; studioModulesExist() in the test keeps them honest.
+   */
+  studioModule?: string;
+  /**
+   * The design work is already inside the price.
+   *
+   * True for packs, where "hire a creator" is not an upsell — it is what the
+   * pack is. Without this the configurator would offer to add a creator fee on
+   * top of a bundle whose whole point is that a creator does all of it.
+   */
+  designIncluded?: boolean;
 }
 
 const PRINTIVO = (low: number, high?: number): Benchmark =>
@@ -80,16 +98,19 @@ const PRINTIVO = (low: number, high?: number): Benchmark =>
 
 /* ── DIGITAL: free, because this is how a business gets into Create ───────── */
 
-const QUICK_CREATE: CatalogueItem[] = [
-  ['qc-social', 'Social post', 'A post sized for every platform, using your brand.'],
-  ['qc-flyer', 'Flyer', 'A flyer built from your logo, colours and details.'],
-  ['qc-poster', 'Poster', 'A poster you can print or post.'],
-  ['qc-card', 'Business card design', 'Your card, ready to download or print.'],
-  ['qc-digital-card', 'Digital business card', 'A live card with a QR that points at your profile.'],
-  ['qc-caption', 'Caption', 'Wording for the post, in your brand voice.'],
-  ['qc-resize', 'Resize', 'One design, every size, without redoing it.'],
-].map(([sku, name, blurb]) => ({
-  sku, name, blurb, division: 'create' as const, fulfilment: 'instant' as const,
+const QUICK_CREATE: CatalogueItem[] = ([
+  ['qc-social', 'Social post', 'A post sized for every platform, using your brand.', 'design'],
+  ['qc-flyer', 'Flyer', 'A flyer built from your logo, colours and details.', 'design'],
+  ['qc-poster', 'Poster', 'A poster you can print or post.', 'design'],
+  // Both cards open the same tool: BrandCardStudio exports the printable card
+  // and the QR lockup, so splitting them across two modules would be a lie.
+  ['qc-card', 'Business card design', 'Your card, ready to download or print.', 'card'],
+  ['qc-digital-card', 'Digital business card', 'A live card with a QR that points at your profile.', 'card'],
+  ['qc-caption', 'Caption', 'Wording for the post, in your brand voice.', 'copywriter'],
+  ['qc-resize', 'Resize', 'One design, every size, without redoing it.', 'design'],
+] as const).map(([sku, name, blurb, studioModule]) => ({
+  sku, name, blurb, studioModule,
+  division: 'create' as const, fulfilment: 'instant' as const,
   basis: 'quoted' as const, free: true, turnaround: [0, 0] as [number, number],
 }));
 
@@ -268,6 +289,8 @@ export interface Pack {
   price: number;
   basis: PriceBasis;
   includes: string[];
+  /** Working days for the whole pack, [fastest, slowest]. */
+  turnaround: [number, number];
 }
 
 /**
@@ -278,20 +301,48 @@ export const PACKS: Pack[] = [
   {
     sku: 'pack-starter', name: 'Starter Brand Pack', price: 25_000, basis: 'indicative',
     includes: ['100 business cards', '1 flyer design', '5 social designs', 'Digital business card', 'QR code', 'Profile optimisation'],
+    turnaround: [3, 7],
   },
   {
     sku: 'pack-growth', name: 'Growth Pack', price: 75_000, basis: 'indicative',
     includes: ['250 business cards', '100 flyers', '10 social creatives', '2 reels', 'Digital card', 'QR poster', 'WhatsApp creative', 'Profile optimisation'],
+    turnaround: [5, 10],
   },
   {
     sku: 'pack-visibility', name: 'Business Visibility Pack', price: 150_000, basis: 'indicative',
     includes: ['500 business cards', '250 flyers', '20 social creatives', '4 reels', 'Roll-up banner', 'QR poster', 'Digital card', 'Profile optimisation', '1 campaign'],
+    turnaround: [7, 14],
   },
   {
     sku: 'pack-launch', name: 'Launch Pack', price: 250_000, basis: 'indicative',
     includes: ['Logo', 'Brand identity', 'Digital brand kit', 'Business cards', 'Flyers', 'Social templates', '5 reels', 'Banner', 'QR', 'Business profile', 'Launch campaign', 'Advertising credit'],
+    turnaround: [10, 21],
   },
 ];
+
+/**
+ * A pack, shaped so the configurator can price and order it.
+ *
+ * The "Request a quote" button on every pack used to go to /waitlist — a
+ * launch-signup form, which is not a quote request and never reached anybody
+ * who could price the job. A pack is just a large order, so it goes through
+ * the same flow as everything else.
+ *
+ * Fulfilment is 'creator', not 'partner': a pack contains print, but finish
+ * and sides are per-item choices that mean nothing across a whole bundle.
+ * Speed is the only thing a customer can actually vary here.
+ */
+export const packAsItem = (pack: Pack): CatalogueItem => ({
+  sku: pack.sku,
+  division: 'create',
+  name: pack.name,
+  blurb: pack.includes.join(' · '),
+  fulfilment: 'creator',
+  basis: pack.basis,
+  price: pack.price,
+  turnaround: pack.turnaround,
+  designIncluded: true,
+});
 
 /* ── Credits ─────────────────────────────────────────────────────────────── */
 
@@ -356,11 +407,21 @@ export const sellable = (item: CatalogueItem | Pack): boolean =>
 /** How a price should be shown, given what is actually known about it. */
 export function priceLabel(item: CatalogueItem): string {
   if (item.free) return 'Free';
-  const amount = item.tiers?.length ? item.tiers[0].price : item.price;
+  const tier = item.tiers?.length ? item.tiers[0] : null;
+  const amount = tier ? tier.price : item.price;
   if (amount == null) return 'On request';
-  const money = `₦${amount.toLocaleString('en-NG')}`;
+  /*
+   * "per 100", not just the number.
+   *
+   * Printivo writes every price as "starting at ₦15,100 per 100", and it is the
+   * better label for a reason that has nothing to do with copying them: a price
+   * for a printed thing is meaningless without the quantity it buys. Ours said
+   * "from ₦15,000" and left the reader to work out whether that was for one
+   * card or a thousand — which reads as expensive until they find out.
+   */
+  const money = `₦${amount.toLocaleString('en-NG')}${tier ? ` per ${tier.qty}` : ''}`;
   if (item.basis === 'indicative') return `from ${money} — estimate`;
-  return item.from ? `from ${money}` : money;
+  return item.from || tier ? `from ${money}` : money;
 }
 
 export const byDivision = (division: Division): CatalogueItem[] =>

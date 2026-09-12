@@ -39,9 +39,7 @@ export const HEALTH_SPOTLIGHTS: Record<string, any> = {
     email: 'care@lifelinemedical.example.com',
     opening_hours: 'Clinics: Mon–Sat 8AM–6PM · Emergency: 24/7',
     image_url: px(263402),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

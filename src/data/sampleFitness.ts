@@ -45,9 +45,7 @@ export const FITNESS_SPOTLIGHTS: Record<string, any> = {
     email: 'hello@pulsefitness.example.com',
     opening_hours: 'Mon–Sat: 5AM–10PM, Sun: 7AM–8PM',
     image_url: px(1954524),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

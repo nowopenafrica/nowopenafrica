@@ -2,6 +2,10 @@ import { describe, it, expect } from 'vitest';
 
 import {
   chiefOfStaff, trustSafety, customerSuccess, growthDirector,
+  strategyDirector, researchAnalyst, seoManager, socialDirector,
+  contentManager, commsDirector, creativeDirector, copywriter,
+  productionManager, postSupervisor, salesDirector, operationsDirector,
+  financeAnalyst, productManager,
   AGENTS, notifiable, runStatus, bySeverity, type Finding,
 } from './agents';
 
@@ -167,7 +171,194 @@ describe('the safety boundary', () => {
 
   it('every scheduled agent has an implementation', () => {
     expect(Object.keys(AGENTS).sort()).toEqual(
-      ['chief-of-staff', 'customer-success', 'growth-director', 'trust-safety'],
+      [
+        'chief-of-staff', 'comms-director', 'content-manager', 'copywriter',
+        'creative-director', 'customer-success', 'finance-analyst',
+        'growth-director', 'operations-director', 'post-supervisor',
+        'production-manager', 'product-manager', 'research-analyst',
+        'sales-director', 'seo-manager', 'social-director',
+        'strategy-director', 'trust-safety',
+      ].sort(),
     );
+  });
+});
+
+describe('the strategy director', () => {
+  it('flags a board where nothing is ready', () => {
+    const r = strategyDirector({ launches_total: 2, launches_ready: 0, enrichment_backlog: 0 });
+    expect(r.findings.some((x) => x.severity === 'attention' && /no launch on the board is ready/i.test(x.title))).toBe(true);
+  });
+
+  it('watches the enrichment queue without crying crisis', () => {
+    const r = strategyDirector({ launches_total: 1, launches_ready: 1, enrichment_backlog: 3 });
+    expect(r.findings.filter((x) => x.severity === 'attention')).toEqual([]);
+    expect(r.findings[0].basis).toEqual(['enrichment_backlog']);
+  });
+
+  it('says nothing quietly when both are healthy', () => {
+    expect(strategyDirector({ launches_total: 1, launches_ready: 1, enrichment_backlog: 0 }).findings).toEqual([]);
+  });
+});
+
+describe('the research analyst', () => {
+  it('counts the unturned intelligence', () => {
+    const r = researchAnalyst({ radar_pending: 4 });
+    expect(r.findings[0].basis).toEqual(['radar_pending']);
+  });
+
+  it('names a week when every source is silent', () => {
+    const r = researchAnalyst({ suggestions_7d: 0, discovery_7d: 0 });
+    expect(r.findings.some((x) => /no discovery or suggestions/i.test(x.title))).toBe(true);
+  });
+});
+
+describe('the SEO manager', () => {
+  it('calls out listings search cannot index', () => {
+    const r = seoManager({ listings_public: 10, no_description: 6 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].basis).toEqual(['no_description', 'listings_public']);
+  });
+
+  it('is quiet when every listing carries copy', () => {
+    const r = seoManager({ listings_public: 10, no_description: 0, no_media: 0, default_24_7: 0 });
+    expect(r.findings).toEqual([]);
+  });
+});
+
+describe('the social director', () => {
+  it('treats a failed post as the pipeline erroring', () => {
+    const r = socialDirector({ posts_failed: 1 });
+    expect(r.findings[0].severity).toBe('attention');
+  });
+
+  it('flags an empty calendar only when there is something to promote', () => {
+    const r = socialDirector({ posts_scheduled: 0, listings_public: 10 });
+    expect(r.findings.some((x) => /nothing is scheduled/i.test(x.title))).toBe(true);
+    expect(socialDirector({ posts_scheduled: 0, listings_public: 0 }).findings.some((x) => /nothing is scheduled/i.test(x.title))).toBe(false);
+  });
+});
+
+describe('the content manager', () => {
+  it('spots slots holding no copy', () => {
+    const r = contentManager({ posts_needing_caption: 3 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/no caption/i);
+  });
+
+  it('is quiet when the pipeline is clean', () => {
+    expect(contentManager({ posts_scheduled: 6, posts_needing_caption: 0, posts_failed: 0, social_work_open: 0 }).findings).toEqual([]);
+  });
+});
+
+describe('the comms director', () => {
+  it('measures the human gate on everything public', () => {
+    const r = commsDirector({ publication_approvals_pending: 2 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].basis).toEqual(['publication_approvals_pending']);
+  });
+
+  it('protests silence in the knowledge base', () => {
+    const r = commsDirector({ publication_approvals_pending: 0, knowledge_30d: 0 });
+    expect(r.findings.some((x) => /knowledge base in 30 days/i.test(x.title))).toBe(true);
+  });
+});
+
+describe('the creative director', () => {
+  it('treats unlicensed assets as the one thing that stays dangerous', () => {
+    const r = creativeDirector({ assets_unlicensed: 5 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/rights decision/i);
+  });
+
+  it('escalates unhonoured takedowns', () => {
+    const r = creativeDirector({ takedowns_unhonoured: 1 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/takedown/i);
+  });
+});
+
+describe('the copywriter', () => {
+  it('calls out the highest-yield copy task there is', () => {
+    const r = copywriter({ listings_public: 10, no_description: 4 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/no description/i);
+  });
+
+  it('names deals nobody can read', () => {
+    const r = copywriter({ listings_public: 0, offers_no_description: 2 });
+    expect(r.findings.some((x) => /no description/i.test(x.title))).toBe(true);
+  });
+});
+
+describe('the production manager', () => {
+  it('flags approved work stuck between approval and delivery', () => {
+    const r = productionManager({ video_assets_approved: 2, video_assets_published: 0 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].basis).toEqual(['video_assets_approved', 'video_assets_published']);
+  });
+});
+
+describe('the post supervisor', () => {
+  it('defends the QA line', () => {
+    const r = postSupervisor({ assets_awaiting_review: 7 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/not yet quality-checked/i);
+  });
+
+  it('watches rejected assets rather than forgetting them', () => {
+    const r = postSupervisor({ assets_awaiting_review: 0, assets_rejected: 2 });
+    expect(r.findings[0].basis).toEqual(['assets_rejected']);
+  });
+});
+
+describe('the sales director', () => {
+  it('ranks an unanswered profile request above everything', () => {
+    const r = salesDirector({ profile_requests_new: 3, orders_open: 0, prospects: 0 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/asked us to build/i);
+  });
+
+  it('spots prospects whose front door is not seen', () => {
+    const r = salesDirector({ prospects: 100, profile_requests_new: 0, profile_requests_7d: 0 });
+    expect(r.findings.some((x) => x.severity === 'watch' && /nobody asked to be built/i.test(x.title))).toBe(true);
+  });
+});
+
+describe('the operations director', () => {
+  it('names blocked work as the most expensive status', () => {
+    const r = operationsDirector({ work_blocked: 2 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/blocked/i);
+  });
+
+  it('surfaces failed enrichment jobs as lost rows', () => {
+    const r = operationsDirector({ work_blocked: 0, enrichment_failed: 3 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/enrichment job/i);
+  });
+});
+
+describe('the finance analyst', () => {
+  it('watches revenue being decided in the quote queue', () => {
+    const r = financeAnalyst({ orders_open: 4 });
+    expect(r.findings[0].severity).toBe('watch');
+  });
+
+  it('names a checkout that never closes', () => {
+    const r = financeAnalyst({ leads_total: 5, leads_paid: 0 });
+    expect(r.findings.some((x) => /none paid/i.test(x.title))).toBe(true);
+  });
+});
+
+describe('the product manager', () => {
+  it('calls a roadmap with nothing shippable', () => {
+    const r = productManager({ launches_total: 3, launches_ready: 0 });
+    expect(r.findings[0].severity).toBe('attention');
+    expect(r.findings[0].title).toMatch(/shippable/i);
+  });
+
+  it('is quiet when launches are ready and nothing is blocked', () => {
+    const r = productManager({ launches_total: 3, launches_ready: 3, work_blocked: 0, suggestions_7d: 2, listings_public: 200 });
+    expect(r.findings.filter((x) => x.severity === 'attention')).toEqual([]);
   });
 });

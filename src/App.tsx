@@ -1,4 +1,5 @@
-import { lazy, Suspense } from 'react';
+import { Suspense } from 'react';
+import { lazyRoute } from './lib/lazyRoute';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/layout/Navigation';
@@ -19,42 +20,46 @@ import './index.css';
 
 // Route-level code splitting: only Home ships in the main bundle so the
 // landing page paints fast on slow connections; everything else loads on demand.
-const Businesses = lazy(() => import('./pages/Businesses'));
-const Discover = lazy(() => import('./pages/Discover'));
-const Keeps = lazy(() => import('./pages/Keeps'));
-const Nearby = lazy(() => import('./pages/Nearby'));
-const OpenNow = lazy(() => import('./pages/OpenNow'));
-const Offers = lazy(() => import('./pages/Offers'));
-const Founding = lazy(() => import('./pages/Founding'));
-const Campaign = lazy(() => import('./pages/Campaign'));
-const BusinessDetail = lazy(() => import('./pages/BusinessDetail'));
-const Adverts = lazy(() => import('./pages/Adverts'));
-const AdvertDetail = lazy(() => import('./pages/AdvertDetail'));
-const Media = lazy(() => import('./pages/Media'));
-const MediaDetail = lazy(() => import('./pages/MediaDetail'));
-const Login = lazy(() => import('./pages/Login'));
-const Register = lazy(() => import('./pages/Register'));
-const Profile = lazy(() => import('./pages/Profile'));
-const Security = lazy(() => import('./pages/Security'));
-const Studio = lazy(() => import('./pages/Studio'));
-const DiscoveryPage = lazy(() => import('./pages/DiscoveryPage'));
-const Dashboard = lazy(() => import('./pages/Dashboard'));
-const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
-const AdminCreator = lazy(() => import('./pages/AdminCreator'));
-const DigitalForms = lazy(() => import('./pages/DigitalForms'));
-const Pricing = lazy(() => import('./pages/Pricing'));
-const Waitlist = lazy(() => import('./pages/Waitlist'));
-const Founder = lazy(() => import('./pages/Founder'));
-const Platform = lazy(() => import('./pages/Platform'));
-const NowOpenOs = lazy(() => import('./pages/NowOpenOs'));
-const Forms = lazy(() => import('./pages/Forms'));
-const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
-const ResetPassword = lazy(() => import('./pages/ResetPassword'));
-const Terms = lazy(() => import('./pages/Terms'));
-const Privacy = lazy(() => import('./pages/Privacy'));
-const About = lazy(() => import('./pages/About'));
-const Contact = lazy(() => import('./pages/Contact'));
-const NotFound = lazy(() => import('./pages/NotFound'));
+const Businesses = lazyRoute(() => import('./pages/Businesses'));
+const Discover = lazyRoute(() => import('./pages/Discover'));
+const Keeps = lazyRoute(() => import('./pages/Keeps'));
+const Nearby = lazyRoute(() => import('./pages/Nearby'));
+const OpenNow = lazyRoute(() => import('./pages/OpenNow'));
+const Offers = lazyRoute(() => import('./pages/Offers'));
+const Founding = lazyRoute(() => import('./pages/Founding'));
+const Campaign = lazyRoute(() => import('./pages/Campaign'));
+const BusinessDetail = lazyRoute(() => import('./pages/BusinessDetail'));
+const Adverts = lazyRoute(() => import('./pages/Adverts'));
+const AdvertDetail = lazyRoute(() => import('./pages/AdvertDetail'));
+const Media = lazyRoute(() => import('./pages/Media'));
+const MediaDetail = lazyRoute(() => import('./pages/MediaDetail'));
+const OrderStatus = lazyRoute(() => import('./pages/OrderStatus'));
+const SendBusiness = lazyRoute(() => import('./pages/SendBusiness'));
+const Nominate = lazyRoute(() => import('./pages/Nominate'));
+const IndustryExamplePage = lazyRoute(() => import('./pages/IndustryExamplePage'));
+const Login = lazyRoute(() => import('./pages/Login'));
+const Register = lazyRoute(() => import('./pages/Register'));
+const Profile = lazyRoute(() => import('./pages/Profile'));
+const Security = lazyRoute(() => import('./pages/Security'));
+const Studio = lazyRoute(() => import('./pages/Studio'));
+const DiscoveryPage = lazyRoute(() => import('./pages/DiscoveryPage'));
+const Dashboard = lazyRoute(() => import('./pages/Dashboard'));
+const AdminDashboard = lazyRoute(() => import('./pages/AdminDashboard'));
+const AdminCreator = lazyRoute(() => import('./pages/AdminCreator'));
+const DigitalForms = lazyRoute(() => import('./pages/DigitalForms'));
+const Pricing = lazyRoute(() => import('./pages/Pricing'));
+const Waitlist = lazyRoute(() => import('./pages/Waitlist'));
+const Founder = lazyRoute(() => import('./pages/Founder'));
+const Platform = lazyRoute(() => import('./pages/Platform'));
+const NowOpenOs = lazyRoute(() => import('./pages/NowOpenOs'));
+const Forms = lazyRoute(() => import('./pages/Forms'));
+const ForgotPassword = lazyRoute(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazyRoute(() => import('./pages/ResetPassword'));
+const Terms = lazyRoute(() => import('./pages/Terms'));
+const Privacy = lazyRoute(() => import('./pages/Privacy'));
+const About = lazyRoute(() => import('./pages/About'));
+const Contact = lazyRoute(() => import('./pages/Contact'));
+const NotFound = lazyRoute(() => import('./pages/NotFound'));
 
 function PageLoader() {
   return (
@@ -96,7 +101,21 @@ function App() {
           neither on its own, so navigation was silent and focus was stranded
           on the previous page. */}
       <RouteAnnouncer />
-      <header>
+      {/*
+        * The STICKY lives here, not on the <nav> inside.
+        *
+        * A sticky element can only travel within its containing block, and
+        * this <header> is exactly as tall as the nav — so a `sticky top-0`
+        * on the nav had a range of zero pixels and scrolled away with the
+        * page. It was measured doing exactly that on production: at scroll
+        * 900, the nav's top was -900.
+        *
+        * The <header> was added later, for the banner landmark, and silently
+        * capped the sticky it was wrapping. Moving the positioning out here
+        * gives it the full height of the page to stick against; the nav keeps
+        * its own background and border.
+        */}
+      <header className="sticky top-0 z-50">
         <Navbar />
       </header>
       {/* tabIndex={-1} so the skip target can actually receive focus; without it
@@ -147,6 +166,11 @@ function App() {
               <Route path="/adverts/:id" element={<AdvertDetail />} />
               <Route path="/media" element={<Media />} />
               <Route path="/media/:id" element={<MediaDetail />} />
+              {/* Tracking a Create order. Placed without an account, so the
+                  reference in the URL is the only way back to it. Static
+                  segment, so it ranks above the /:username catch-all. */}
+              <Route path="/order" element={<OrderStatus />} />
+              <Route path="/order/:reference" element={<OrderStatus />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/forgot-password" element={<ForgotPassword />} />
@@ -158,6 +182,20 @@ function App() {
               <Route path="/digital-forms" element={<DigitalForms />} />
               <Route path="/pricing" element={<Pricing />} />
               <Route path="/waitlist" element={<Waitlist />} />
+              {/* NOWOPEN YOUR BUSINESS. /send-business is the canonical
+                  campaign URL — it is what goes on the flyer, the QR code and
+                  the WhatsApp status. The other two are aliases people will
+                  type or half-remember; applySeo points the canonical tag at
+                  the first, so they never compete with it in search. */}
+              <Route path="/send-business" element={<SendBusiness />} />
+              <Route path="/send-your-business" element={<SendBusiness />} />
+              <Route path="/yourbusiness" element={<SendBusiness />} />
+              <Route path="/nominate" element={<Nominate />} />
+              {/* Industry page examples. NOT under /business/ — that namespace
+                  belongs to real businesses, and an example living there would
+                  put an invented company one URL away from looking real. */}
+              <Route path="/example" element={<IndustryExamplePage />} />
+              <Route path="/example/:slug" element={<IndustryExamplePage />} />
               {/* Founder hub. Static path — ranks above the /:username catch-all. */}
               <Route path="/founder" element={<Founder />} />
               <Route path="/platform" element={<Platform />} />

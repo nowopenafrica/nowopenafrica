@@ -40,6 +40,67 @@ const page = (over: Partial<ProfilePage> = {}): ProfilePage => ({
   ...over,
 });
 
+describe('structured data links the business to its own channels', () => {
+  /*
+   * `sameAs` is how a search engine connects this page to the same business on
+   * Instagram, Facebook and X. It carried the website alone, so a business
+   * with five handles told Google about none of them — and `social_links` had
+   * a reader, a test and no renderer anywhere in the product.
+   */
+  const base = {
+    id: 'b1', username: 'mama-put', name: 'Mama Put', location: 'Lagos',
+    claim_status: 'claimed' as const, listing_score: 80,
+  };
+
+  const jsonLd = (over: Record<string, unknown>): Record<string, unknown> => {
+    const html = renderBusinessPage({
+      business: { ...base, ...over } as never,
+      siteUrl: 'https://nowopenafrica.com',
+      products: [], services: [], reviews: [], reviewCount: 0, locations: [],
+    });
+    const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+      .map((m) => JSON.parse(m[1]));
+    return blocks.find((b) => b['@type'] === 'LocalBusiness') ?? blocks[0];
+  };
+
+  it('lists every social link alongside the website', () => {
+    const ld = jsonLd({
+      website: 'https://mamaput.ng',
+      social_links: {
+        instagram: 'https://instagram.com/mamaput',
+        tiktok: 'https://tiktok.com/@mamaput',
+      },
+    });
+    expect(ld.sameAs).toEqual([
+      'https://mamaput.ng',
+      'https://instagram.com/mamaput',
+      'https://tiktok.com/@mamaput',
+    ]);
+  });
+
+  it('omits sameAs entirely when there is nothing to link to', () => {
+    // An empty array in structured data is a claim that there are no other
+    // profiles, which is different from saying nothing.
+    expect(jsonLd({}).sameAs).toBeUndefined();
+  });
+
+  it('refuses a handle that is not a URL', () => {
+    /*
+     * An owner-entered "@mamaput" in structured data would be a relative link
+     * resolving to a NowOpen page — a claim that the business's Instagram is
+     * somewhere on our own site.
+     */
+    const ld = jsonLd({ social_links: { instagram: '@mamaput', facebook: 'https://facebook.com/mamaput' } });
+    expect(ld.sameAs).toEqual(['https://facebook.com/mamaput']);
+  });
+
+  it('is unbothered by a malformed social_links column', () => {
+    for (const value of [null, 'not an object', 42, ['https://x.com/a']]) {
+      expect(() => jsonLd({ social_links: value })).not.toThrow();
+    }
+  });
+});
+
 describe('the page a crawler receives', () => {
   it('contains the business name, category and location as real text', () => {
     // The whole point: this used to be "NowOpen Africa needs JavaScript

@@ -42,7 +42,8 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
       const { data } = await supabase
         .from('businesses')
         .select('*')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .limit(50000);
       setBusinesses(data || []);
 
       // Which of these already have a pending deletion request?

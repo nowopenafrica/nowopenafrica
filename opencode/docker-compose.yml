@@ -1,0 +1,9 @@
+services:
+  opencode:
+    build:
+      context: ..
+      dockerfile: opencode/Dockerfile
+    env_file: .env.example
+    ports:
+      - "4096:4096"
+    restart: unless-stopped

@@ -13,12 +13,32 @@ import { XLogo } from '../components/SocialLinks';
 
 // The pan-African spectrum used across the site's hero surfaces.
 const AFRICA_GRADIENT =
-  'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)';
+  'linear-gradient(150deg, #14213d 0%, #3b1d5e 45%, #7c2d12 100%)';
+
+/*
+ * The warmth stays; the rainbow goes.
+ *
+ * This ran six stops — navy, violet, magenta, rust, amber, green — evenly
+ * across the band. The intent was African warmth, and the execution read as a
+ * colour test card: six hues competing at equal strength, none of them able to
+ * carry the portrait or the type sitting on top.
+ *
+ * Three stops, unevenly spaced, keep the same journey from deep night blue
+ * through violet into terracotta — a palette rather than a spectrum. The
+ * highlights below add the depth the six stops were trying to supply.
+ */
+const AFRICA_GLOW =
+  'radial-gradient(ellipse 70% 55% at 12% 8%, rgba(129,140,248,0.35), transparent 62%),' +
+  'radial-gradient(ellipse 60% 50% at 88% 85%, rgba(251,146,60,0.30), transparent 60%)';
 
 const WHEEL_COLORS = ['#3b82f6', '#8b5cf6', '#ec4899', '#f97316', '#eab308', '#22c55e'];
 
 const FOUNDER_NAME = 'Adeyemi Odunaike';
 const FOUNDER_ROLE = 'Founder & Brand Designer';
+// The resolved page title, written out rather than assembled, so the
+// server-rendered crawler page and this page cannot claim different
+// titles — marketingPageRender.test.ts asserts the string appears here.
+const PAGE_TITLE = 'Adeyemi Odunaike — Founder & Brand Designer of NowOpen Africa';
 // The single canonical sentence — repeated verbatim across the page and in
 // JSON-LD so search engines resolve the founder↔company entity relationship.
 const CANONICAL_DESCRIPTOR =
@@ -265,7 +285,7 @@ export default function Founder() {
       about: { '@type': 'Organization', name: 'NowOpen Africa', founder: { '@type': 'Person', name: FOUNDER_NAME } },
     };
     return applySeo({
-      title: `${FOUNDER_NAME} — ${FOUNDER_ROLE} of NowOpen Africa`,
+      title: PAGE_TITLE,
       description: CANONICAL_DESCRIPTOR + ' ' + SHORT_BIO,
       path: '/founder',
       image: '/og-image.png',
@@ -277,30 +297,38 @@ export default function Founder() {
   return (
     <div className="bg-gray-50 dark:bg-gray-900 scroll-smooth">
       {/* ---------------------------------------------------------- HERO ---- */}
-      <section className="relative text-white overflow-hidden" style={{ background: AFRICA_GRADIENT }}>
+      <section
+        className="relative text-white overflow-hidden"
+        style={{ backgroundColor: '#14213d', backgroundImage: `${AFRICA_GLOW}, ${AFRICA_GRADIENT}` }}
+      >
+        {/* Ends on a deliberate line rather than a hard colour change. */}
+        <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-white/25 to-transparent" />
         <div className="site-container py-16 sm:py-20 grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
           <div className="space-y-6 text-center lg:text-left order-2 lg:order-1">
             <Pill>
               <Sparkles size={16} className="text-yellow-300" />
               Founder · NowOpen Africa
             </Pill>
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight">{FOUNDER_NAME}</h1>
+            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05]">{FOUNDER_NAME}</h1>
             <p className="text-xl font-medium text-white/90">{FOUNDER_ROLE}</p>
             <p className="text-lg text-white/80 max-w-xl mx-auto lg:mx-0">
               Building the digital infrastructure that helps African businesses become discoverable,
               trusted and ready to grow — across Africa and beyond.
             </p>
             <div className="flex flex-wrap gap-3 justify-center lg:justify-start pt-2">
-              <a href="#story" className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition">
+              {/* One primary, three quiet. Four buttons of equal weight is
+                  four decisions at the top of a page whose job is to get
+                  somebody into the story. */}
+              <a href="#story" className="inline-flex items-center gap-2 px-6 min-h-[48px] bg-white text-gray-900 font-semibold rounded-xl shadow-lg shadow-black/20 hover:bg-gray-100 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-transparent">
                 <BookOpen size={18} /> Read my story
               </a>
-              <a href="#writing" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition">
+              <a href="#writing" className="inline-flex items-center gap-2 px-5 min-h-[48px] bg-white/5 backdrop-blur-sm ring-1 ring-inset ring-white/20 text-white/90 font-medium rounded-xl hover:bg-white/15 hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
                 <PenLine size={18} /> Articles
               </a>
-              <a href="#speaking" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition">
+              <a href="#speaking" className="inline-flex items-center gap-2 px-5 min-h-[48px] bg-white/5 backdrop-blur-sm ring-1 ring-inset ring-white/20 text-white/90 font-medium rounded-xl hover:bg-white/15 hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
                 <Mic2 size={18} /> Speaking
               </a>
-              <a href="#media-kit" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition">
+              <a href="#media-kit" className="inline-flex items-center gap-2 px-5 min-h-[48px] bg-white/5 backdrop-blur-sm ring-1 ring-inset ring-white/20 text-white/90 font-medium rounded-xl hover:bg-white/15 hover:text-white transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white">
                 <FileDown size={18} /> Media kit
               </a>
             </div>
@@ -312,7 +340,7 @@ export default function Founder() {
       </section>
 
       {/* ------------------------------------------------------- SUB-NAV ---- */}
-      <nav className="sticky top-16 z-30 bg-white/90 dark:bg-gray-900/90 backdrop-blur border-b border-gray-200 dark:border-gray-800">
+      <nav className="sticky top-16 z-30 bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200/80 dark:border-gray-800/80 supports-[backdrop-filter]:bg-white/60 dark:supports-[backdrop-filter]:bg-gray-900/60">
         <div className="site-container">
           <div className="flex gap-1 overflow-x-auto no-scrollbar py-2 text-sm">
             {SUBNAV.map((s) => (
@@ -414,8 +442,11 @@ export default function Founder() {
               const inner = (
                 <>
                   <div className="flex items-start gap-4">
-                    <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center flex-shrink-0">
-                      <Icon size={22} className="text-white" />
+                    <div className="w-11 h-11 rounded-xl bg-gray-100 dark:bg-gray-700/60 flex items-center justify-center flex-shrink-0">
+                      {/* Was white on a saturated tile. The tile is now light,
+                          so the icon has to be too — a white icon here would be
+                          invisible in light mode. */}
+                      <Icon size={20} strokeWidth={1.75} className="text-gray-600 dark:text-gray-300" />
                     </div>
                     <div>
                       <h3 className="text-lg font-bold text-gray-900 dark:text-white">{name}</h3>

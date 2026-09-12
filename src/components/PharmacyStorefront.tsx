@@ -5,6 +5,7 @@ import {
   Pill, FileUp, BellRing, MessageCircle, Plus, Minus, ShoppingCart,
   BadgeCheck, Search, Stethoscope,
 } from 'lucide-react';
+import SmartImg from './SmartImg';
 
 export interface Medicine {
   id: string | number;
@@ -126,7 +127,7 @@ export default function PharmacyStorefront({ items, hasPhone, claims = [], onAdd
               <div key={m.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                 <div className="flex gap-3 p-3">
                   {m.image ? (
-                    <img loading="lazy" decoding="async" src={m.image} alt={m.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
+                    <SmartImg src={m.image} alt={m.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
                   ) : (
                     <div className="w-16 h-16 rounded-lg bg-gradient-to-br from-green-100 to-emerald-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center flex-shrink-0">
                       <Pill size={22} className="text-green-500 dark:text-gray-400" />
@@ -134,7 +135,7 @@ export default function PharmacyStorefront({ items, hasPhone, claims = [], onAdd
                   )}
                   <div className="min-w-0 flex-1">
                     <div className="flex items-start gap-1.5">
-                      <h4 className="font-semibold text-gray-900 dark:text-white leading-tight line-clamp-2">{m.name}</h4>
+                      <h4 className="font-semibold text-gray-900 dark:text-white leading-tight truncate">{m.name}</h4>
                     </div>
                     {m.pack_size && <p className="text-[11px] text-gray-500 dark:text-gray-400">{m.pack_size}</p>}
                     {rx && (

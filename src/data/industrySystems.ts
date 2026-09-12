@@ -21,6 +21,7 @@ import {
   Network, Palette, Home, Truck, Laptop,
 } from 'lucide-react';
 import { BUSINESS_CATEGORIES } from './categories';
+import { CATEGORY_FEATURES } from './categoryFeatures';
 
 /* ------------------------------------------------ the 10 NowOpen pillars ---- */
 
@@ -115,6 +116,24 @@ export interface IndustrySystem {
   categories: string[];
 }
 
+/*
+ * A NOTE ON TAGLINES, because this file is read by the home page.
+ *
+ * `groups` below is the full vision and most of it is not built — that is fine,
+ * it is labelled as a roadmap on /platform. A `tagline` is different: it is
+ * rendered on the HOME PAGE next to a "LIVE PAGE" badge, which makes it a
+ * claim about what a business gets today.
+ *
+ * Six of them were not true. "Portfolios that plug into Behance, Dribbble and
+ * Figma" (no such integration), "live runway shows", "queue status and walk-in
+ * availability in real time" (the queue module is a form; nothing is
+ * real-time), "same-day delivery" and "telemedicine built in" (neither
+ * exists). They now describe the modules `liveModulesFor()` actually reports.
+ *
+ * So: a tagline must be checkable against the shipped module map. If you want
+ * to describe something unbuilt, it belongs in `groups`.
+ */
+
 export const INDUSTRIES: IndustrySystem[] = [
   {
     slug: 'real-estate', name: 'Real Estate', icon: Building2, accent: 'from-blue-500 to-indigo-600',
@@ -168,7 +187,7 @@ export const INDUSTRIES: IndustrySystem[] = [
   },
   {
     slug: 'hospitals', name: 'Hospitals & Clinics', icon: Stethoscope, accent: 'from-sky-500 to-blue-600',
-    tagline: 'Departments, doctors and appointments with telemedicine built in.',
+    tagline: 'Departments, doctors and bookable appointments — with home visits and enquiries.',
     categories: ['Hospital & Clinic', 'Dental Care', 'Veterinary Services', 'Medical Laboratory', 'Optician', 'Physiotherapy & Rehab', 'Nutrition & Diet Consultation', 'Wellness & Therapy', 'Maternity & Birth Centre', 'Eye Clinic', 'Diagnostic Imaging', 'Mental Health & Counselling', 'Home Care & Nursing', 'Ambulance & Emergency Services', 'Dialysis Centre'],
     groups: [
       { label: 'Services', features: ['Departments', 'Doctors', 'Specialists', 'Veterinary care', 'Emergency'] },
@@ -203,7 +222,7 @@ export const INDUSTRIES: IndustrySystem[] = [
   },
   {
     slug: 'barbers', name: 'Barbers', icon: Scissors, accent: 'from-zinc-600 to-neutral-800',
-    tagline: 'Cuts, queue status and walk-in availability in real time.',
+    tagline: 'Cuts and treatments, a walk-in queue to join, and products to buy.',
     categories: ['Salon / Barber', 'Hair Braiding Studio', 'Barbing Kiosk'],
     groups: [
       { label: 'Core', features: ['Haircuts', 'Beard', 'Braids', 'VIP lounge', 'Queue status', 'Walk-in available'] },
@@ -211,7 +230,7 @@ export const INDUSTRIES: IndustrySystem[] = [
   },
   {
     slug: 'fashion', name: 'Fashion', icon: Shirt, accent: 'from-fuchsia-500 to-purple-600',
-    tagline: 'Catalog, custom measurement and live runway shows.',
+    tagline: 'A catalogue, bookable fittings and made-to-measure commissions.',
     categories: ['Fashion & Apparel', 'Tailor & Fashion Designer', 'Jewellery Making', 'Personal Styling & Shopping'],
     groups: [
       { label: 'Catalog', features: ['Catalog', 'Size guide', 'Fabric types', 'Custom measurement', 'New collection'] },
@@ -220,7 +239,7 @@ export const INDUSTRIES: IndustrySystem[] = [
   },
   {
     slug: 'retail', name: 'Retail Shops', icon: ShoppingBag, accent: 'from-amber-500 to-orange-600',
-    tagline: 'A storefront with inventory, flash sales and same-day delivery.',
+    tagline: 'A storefront with inventory, delivery requests and trade pricing.',
     categories: ['Retail Store', 'Supermarket', 'Grocery / Mini-Mart', 'Electronics', 'Jewelry & Accessories', 'Furniture & Home', 'Online Store / E-commerce', 'Boutique', 'Phone & Gadget Store', 'Bookstore & Stationery', 'Gift & Souvenir Shop', 'Spare Parts Store', 'Provision Store', 'Toy & Baby Store', 'Sports & Fitness Equipment', 'Musical Instruments', 'Pet Shop & Supplies', 'Hardware Store', 'Plastics & Household Goods', 'Thrift & Second-hand (Okrika)', 'Wholesale & Distribution', 'Duty-Free & Travel Retail', 'Local Market Stall'],
     groups: [
       { label: 'Core', features: ['Products', 'Inventory', 'Coupons', 'Flash sales', 'Same-day delivery', 'Wishlist'] },
@@ -238,10 +257,10 @@ export const INDUSTRIES: IndustrySystem[] = [
   },
   {
     slug: 'designers', name: 'Designers', icon: PenTool, accent: 'from-rose-500 to-pink-600',
-    tagline: 'Portfolios that plug into Behance, Dribbble and Figma.',
+    tagline: 'A portfolio, project briefs and bookable consultations.',
     categories: ['Art & Design', 'Art Gallery'],
     groups: [
-      { label: 'Core', features: ['Portfolio', 'Behance', 'Dribbble', 'Figma preview', 'Book consultation'] },
+      { label: 'Core', features: ['Portfolio', 'External portfolio links', 'Project briefs', 'Book consultation'] },
     ],
   },
   {
@@ -483,7 +502,7 @@ export const INDUSTRIES: IndustrySystem[] = [
   },
   {
     slug: 'bakeries', name: 'Bakeries & Desserts', icon: ShoppingBag, accent: 'from-orange-500 to-amber-600',
-    tagline: 'Fresh bakes, custom cakes and same-day delivery — straight from the oven.',
+    tagline: 'Fresh bakes, custom cake orders and delivery requests.',
     categories: ['Bakery & Pastry', 'Café & Bakery', 'Ice Cream & Desserts'],
     groups: [
       { label: 'Menu', features: ['Fresh bakes', 'Bread & pastries', 'Cakes & custom orders', 'Desserts', 'Drinks'] },
@@ -518,6 +537,46 @@ export const UNIVERSAL_FEATURES: string[] = [
   'Verified documents', 'Business insights', 'Multi-language', 'Multi-currency',
   'Multi-category listing',
 ];
+
+/* ------------------------------------------------- what actually ships now -- */
+
+/**
+ * The modules an industry runs TODAY, derived from `data/categoryFeatures.ts`.
+ *
+ * The `groups` above are the full vision — a roadmap, most of it not built. So
+ * the /platform page had no way to say which of it works, and rendered every
+ * feature with a green tick regardless. Meanwhile the shipped module map grew
+ * to cover all 250 categories, and none of that was visible.
+ *
+ * This is COMPUTED, never authored. That is the whole point: the page cannot
+ * claim a module the product does not ship, and a module added to a category
+ * appears here without anyone remembering to update a marketing list. It is
+ * the same guarantee the DEV category check below gives, applied to features.
+ *
+ * Grouped by `tabLabel` — the interaction — rather than by ctaLabel, because
+ * the CTAs are per-trade wordings ("Book a Call", "Book a Meeting", "Book a
+ * Consultation") that all describe one capability. `categories` counts how
+ * many of the industry's categories run it, which is what makes the ordering
+ * meaningful: the first chip is what that industry mostly does.
+ */
+export interface LiveModule {
+  /** The interaction, e.g. 'Appointments', 'Orders', 'Estimates', 'Tickets'. */
+  label: string;
+  /** How many of this industry's categories ship it. */
+  categories: number;
+}
+
+export function liveModulesFor(industry: IndustrySystem): LiveModule[] {
+  const counts = new Map<string, number>();
+  for (const category of industry.categories) {
+    for (const feature of CATEGORY_FEATURES[category] ?? []) {
+      counts.set(feature.tabLabel, (counts.get(feature.tabLabel) ?? 0) + 1);
+    }
+  }
+  return [...counts.entries()]
+    .map(([label, categories]) => ({ label, categories }))
+    .sort((a, b) => b.categories - a.categories || a.label.localeCompare(b.label));
+}
 
 export function getIndustry(slug: string): IndustrySystem | undefined {
   return INDUSTRIES.find((i) => i.slug === slug);

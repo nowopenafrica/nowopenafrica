@@ -34,9 +34,7 @@ export const LEGAL_SPOTLIGHTS: Record<string, any> = {
     email: 'consult@apexlegal.example.com',
     opening_hours: 'Mon–Fri: 9AM–5PM',
     image_url: 'https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=1000',
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

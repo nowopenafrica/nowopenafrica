@@ -42,9 +42,7 @@ export const AGRICULTURE_SPOTLIGHTS: Record<string, any> = {
     email: 'sales@greenharvest.example.com',
     opening_hours: 'Mon–Sat: 8AM–5PM',
     image_url: px(2255801),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

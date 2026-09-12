@@ -46,9 +46,7 @@ export const CONSTRUCTION_SPOTLIGHTS: Record<string, any> = {
     email: 'projects@buildwell.example.com',
     opening_hours: 'Mon–Sat: 8AM–6PM',
     image_url: px(1216589),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

@@ -10,6 +10,7 @@ import {
 } from '../../lib/landing';
 import { downloadText, slugForFile } from '../../lib/studio';
 import AiGenerateToggle from './AiGenerateToggle';
+import SmartImg from '../SmartImg';
 
 interface Props {
   business: Business;
@@ -67,7 +68,7 @@ export default function LandingPageBuilder({ business }: Props) {
     <section key={s.id} className="px-6 py-5 border-b border-purple-100 dark:border-gray-700/50">
       {s.media && (s.media.type === 'video'
         ? <video src={s.media.url} className="w-full h-36 object-cover rounded-xl bg-black mb-3" muted controls playsInline />
-        : <img src={s.media.url} alt={s.title} className="w-full h-36 object-cover rounded-xl bg-black mb-3" />)}
+        : <SmartImg src={s.media.url} alt={s.title} className="w-full h-36 object-cover rounded-xl bg-black mb-3" />)}
       <h3 className="text-base font-extrabold text-gray-900 dark:text-white" style={{ color: page.theme === 'dark' ? '#f9fafb' : undefined }}>{s.title}</h3>
       {s.subtitle && <p className="text-xs mt-0.5 text-gray-500 dark:text-gray-400">{s.subtitle}</p>}
       {s.body && <p className="text-xs mt-2 text-gray-600 dark:text-gray-300 whitespace-pre-line">{s.body}</p>}
@@ -180,7 +181,7 @@ export default function LandingPageBuilder({ business }: Props) {
                           <div className="flex items-center gap-2">
                             {s.media.type === 'video'
                               ? <video src={s.media.url} className="w-16 h-12 rounded-lg object-cover bg-black" muted />
-                              : <img src={s.media.url} alt="" className="w-16 h-12 rounded-lg object-cover bg-black" />}
+                              : <SmartImg src={s.media.url} alt="" className="w-16 h-12 rounded-lg object-cover bg-black" />}
                             <span className="text-xs text-gray-600 dark:text-gray-300">{s.media.type === 'video' ? 'Video' : 'Image'} added</span>
                             <button onClick={() => updateSection(s.id, { media: undefined })}
                               className="text-red-500 hover:text-red-600" aria-label="Remove media">
@@ -230,7 +231,7 @@ export default function LandingPageBuilder({ business }: Props) {
             <div className="max-h-[420px] overflow-y-auto">
               <header className="text-center px-6 py-5" style={{ backgroundColor: frameTheme === 'dark' ? '#111c33' : '#faf5ff' }}>
                 {page.showLogo && business.logo_url && (
-                  <img src={business.logo_url} alt="" className="w-10 h-10 rounded-xl object-cover mx-auto mb-2" />
+                  <SmartImg src={business.logo_url} alt="" className="w-10 h-10 rounded-xl object-cover mx-auto mb-2" />
                 )}
                 <h2 className="text-lg font-extrabold text-gray-900 dark:text-gray-100">{page.title}</h2>
                 <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">{page.tagline}</p>

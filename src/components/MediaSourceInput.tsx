@@ -10,7 +10,7 @@ import { isVideoUrl, videoThumbnailSrc } from '../lib/galleryMedia';
 import { parseVideoEmbed, embedRejectionReason } from '../lib/videoEmbeds';
 import VideoEmbedFrame from './VideoEmbedFrame';
 import OpenReelCapture from './dashboard/OpenReelCapture';
-
+import SmartImg from './SmartImg';
 // One media picker for every surface that needs an image or a video: upload a
 // file, paste a link from anywhere, or record with the OpenReel camera.
 //
@@ -197,11 +197,10 @@ export default function MediaSourceInput({
               className="w-full max-w-xs rounded-lg bg-black"
             />
           ) : (
-            <img loading="lazy" decoding="async"
+            <SmartImg
               src={trimmed}
               alt="Selected media preview"
               className="w-full max-w-xs rounded-lg object-cover"
-              onError={(e) => { e.currentTarget.style.visibility = 'hidden'; }}
             />
           )}
         </div>

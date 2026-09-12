@@ -18,11 +18,18 @@ export default function OpeningHoursPanel({
   hours,
   timeZone,
   className = '',
+  availabilityDefault = false,
 }: {
   hours?: string | null;
   /** IANA timezone of the business — makes "Open now" mean their local clock. */
   timeZone?: string | null;
   className?: string;
+  /**
+   * True when the row carries Business Intelligence's safe 24/7 default
+   * (availability_mode = 'default_24_7'). Rendered explicitly as an
+   * assumption, never as confirmed hours.
+   */
+  availabilityDefault?: boolean;
 }) {
   const parsed = parseOpeningHours(hours);
   const now = new Date();
@@ -40,6 +47,14 @@ export default function OpeningHoursPanel({
             <p className="mt-1 inline-flex items-start gap-1 text-[10px] text-gray-400">
               <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
               As written by the business — we can’t confirm whether they’re open right now.
+            </p>
+          </>
+        ) : availabilityDefault ? (
+          <>
+            <p className="mt-1.5 text-sm text-gray-800 dark:text-gray-100">Open 24/7 — assumed</p>
+            <p className="mt-1 inline-flex items-start gap-1 text-[10px] text-gray-400">
+              <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
+              No hours confirmed yet, so we show the 24/7 default. The business can confirm real hours.
             </p>
           </>
         ) : (

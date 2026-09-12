@@ -12,6 +12,13 @@
 // never appear as a literal in source. Those are listed in RUNTIME_HOSTS below
 // and checked too — add to it whenever an API hands back URLs on a new host.
 //
+// WHAT THIS DOES NOT CHECK: whether the entries already in the CSP are
+// SYNTACTICALLY VALID. That is the inverse question, and it has its own
+// failure mode — connect-src carried `stun:stun.l.google.com:19302`, which is
+// not a legal source expression, so the browser discarded it and logged an
+// error on every page load. This script saw a host it recognised and was
+// satisfied. src/test/cspSources.test.ts covers that side.
+//
 // Usage:  node scripts/check-csp.mjs
 
 import { readFileSync, readdirSync, statSync } from 'node:fs';
@@ -78,6 +85,19 @@ function allowed(directives, host, directive) {
   return sources.some((raw) => {
     const s = raw.replace(/\/$/, '');
     if (s === host) return true;
+
+    /*
+     * A bare scheme-source allows every host on that scheme.
+     *
+     * `img-src` carries `https:` deliberately — a directory cannot enumerate
+     * its members' CDNs, and 51 business logos were being blocked. Without
+     * this branch the checker reports every https image host as a gap, which
+     * is noise that trains people to ignore it.
+     */
+    if (/^[a-z][a-z0-9+.-]*:$/i.test(s)) {
+      return host.toLowerCase().startsWith(s.toLowerCase());
+    }
+
     if (s.startsWith('https://*.')) {
       const suffix = s.slice('https://*.'.length);
       return host.startsWith('https://') && host.slice('https://'.length).endsWith(suffix);
@@ -90,7 +110,14 @@ function walk(dir, acc = []) {
   for (const name of readdirSync(dir)) {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) walk(p, acc);
-    else if (['.ts', '.tsx'].includes(extname(name)) && !name.includes('.test.')) acc.push(p);
+    /*
+     * `template.ts` holds EXAMPLE URLs for a downloadable CSV — zanzibarcoffee.ng
+     * is sample data an admin overwrites, not a host this app ever fetches.
+     * Excluded by name rather than by pattern, so adding a genuine external
+     * host anywhere else is still caught.
+     */
+    else if (['.ts', '.tsx'].includes(extname(name)) && !name.includes('.test.')
+             && !p.endsWith(join('imports', 'template.ts'))) acc.push(p);
   }
   return acc;
 }

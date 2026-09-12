@@ -6,7 +6,7 @@ import {
   MessageCircle, X, ChevronLeft, ChevronRight, Calculator, Hash,
 } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
-
+import SmartImg from './SmartImg';
 export interface Vehicle {
   id: string | number;
   name: string;
@@ -151,7 +151,7 @@ function VehicleCard({ v, onOpen }: { v: Vehicle; onOpen: () => void }) {
     <button onClick={onOpen} className="text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow group">
       <div className="relative">
         {v.image ? (
-          <img loading="lazy" decoding="async" src={v.image} alt={v.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
+          <SmartImg src={v.image} alt={v.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
         ) : (
           <div className="w-full h-44 bg-gradient-to-br from-slate-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
             <Car size={36} className="text-slate-400 dark:text-gray-400" />
@@ -189,7 +189,7 @@ function VehicleModal({
       <div className="relative bg-white dark:bg-gray-900 w-full sm:max-w-2xl sm:rounded-2xl rounded-t-2xl max-h-[92vh] overflow-y-auto shadow-2xl">
         <div className="relative">
           {images.length > 0 ? (
-            <img loading="lazy" decoding="async" src={images[idx]} alt={v.name} className="w-full h-60 sm:h-72 object-cover sm:rounded-t-2xl" />
+            <SmartImg src={images[idx]} alt={v.name} className="w-full h-60 sm:h-72 object-cover sm:rounded-t-2xl" />
           ) : (
             <div className="w-full h-60 bg-gradient-to-br from-slate-600 to-gray-800 flex items-center justify-center"><Car size={48} className="text-white/80" /></div>
           )}

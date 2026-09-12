@@ -25,6 +25,10 @@ import GeneratePanel from './GeneratePanel';
 import { track } from '../../lib/telemetry';
 import TemplateSurface from './TemplateSurface';
 import { DESIGN_TEMPLATES, templateByKey, templateListRoles, defaultMediaScrim, type SlotRole } from '../../lib/designTemplates';
+import { DESIGN_STYLES, applyStyle, styleColours, styleOf } from '../../lib/design/styles';
+import {
+  TEMPLATE_USES, findTemplates, industryGroupFor, type TemplateUse,
+} from '../../lib/design/taxonomy';
 import FlyerContentEditor, { type FlyerContent } from '../admin/FlyerContentEditor';
 import { currencyInfo, detectRegionCurrency, formatUsdAmount } from '../../lib/currency';
 import type { InspirationPlan } from '../../lib/designInspiration';
@@ -322,7 +326,53 @@ export default function DesignStudio({
 }) {
   const startTemplate = templates.find((t) => t.key === (seed?.templateKey ?? initialTemplateKey)) || templates[0];
   const [templateKey, setTemplateKey] = useState(startTemplate.key);
-  const [layoutKey, setLayoutKey] = useState(STUDIO_LAYOUTS[0].key);
+  /*
+   * The style and layout can arrive in the URL.
+   *
+   * /studio?module=design&template=quiet-luxe&style=gallery
+   *
+   * Without this, every route into Creative Studio landed on the front door
+   * with whatever was last selected — so a card on the public Create page, a
+   * link in an email and a QR on a flyer all pointed at "some design", which
+   * is why clicking a specific one felt like nothing had happened.
+   *
+   * Read ONCE, on mount: a later navigation inside Studio must not yank the
+   * canvas back to the URL's design after the owner has changed it.
+   */
+  const fromUrl = useMemo(() => {
+    if (typeof window === 'undefined') return { template: null, style: null };
+    const q = new URLSearchParams(window.location.search);
+    const wanted = q.get('template');
+    const style = q.get('style');
+    return {
+      // Verified against the catalogue, never trusted: an unknown key would
+      // otherwise render a blank canvas with no explanation.
+      template: wanted && templateByKey(wanted).key === wanted ? wanted : null,
+      style: style && DESIGN_STYLES.some((s) => s.key === style) ? style : null,
+    };
+  }, []);
+
+  const [layoutKey, setLayoutKey] = useState(
+    fromUrl.template ? `t:${fromUrl.template}` : STUDIO_LAYOUTS[0].key,
+  );
+  // Which STYLE the chosen layout is dressed in. Layout and treatment are
+  // separate choices (see lib/design/styles.ts) — 27 layouts x 8 styles rather
+  // than 216 hand-authored templates nobody could keep good.
+  const [styleKey, setStyleKey] = useState(fromUrl.style ?? DESIGN_STYLES[0].key);
+  // Template discovery. A flat grid worked at 27 layouts; at 39 it is already a
+  // wall, and the library is meant to keep growing.
+  const [tplQuery, setTplQuery] = useState('');
+  const [tplUse, setTplUse] = useState<TemplateUse | ''>('');
+  /*
+   * Opens filtered to the business's OWN trade.
+   *
+   * This is the whole business-first argument in one line: somebody who runs a
+   * laundry should not have to scroll past wedding invitations to find a price
+   * list. null means we could not place the category, and null has to mean
+   * "show everything" — a wrong guess is worse than no guess.
+   */
+  const ownIndustry = useMemo(() => industryGroupFor(business.category), [business.category]);
+  const [tplIndustry, setTplIndustry] = useState<string>(ownIndustry ?? '');
   const [formatKey, setFormatKey] = useState(seed && formats.some((f) => f.key === seed.formatKey) ? seed.formatKey : formats[0].key);
   const [headline, setHeadline] = useState(startTemplate.headline);
   const [subline, setSubline] = useState(startTemplate.subline);
@@ -415,7 +465,8 @@ export default function DesignStudio({
   // legacy hardcoded layouts keep working untouched, so nothing regresses while
   // the new system takes over surface by surface.
   const modernKey = layoutKey.startsWith('t:') ? layoutKey.slice(2) : null;
-  const modernTpl = modernKey ? templateByKey(modernKey) : null;
+  const rawModernTpl = modernKey ? templateByKey(modernKey) : null;
+  const designStyle = styleOf(styleKey);
   const { w, h } = format;
   const url = profileUrl(business);
   const brandUrl = url.replace(/^https?:\/\//, '');
@@ -437,6 +488,54 @@ export default function DesignStudio({
   const { identity } = useBrandIdentity(business.id);
   const { settings } = useCardSettings(business.id);
   const brandAccent = settings.accentColor || '';
+
+  /*
+   * The layout, dressed.
+   *
+   * Two things are decided here and nowhere else: which typefaces the slots
+   * speak in, and what the style does with the business's own brand colour.
+   * styleColours() guarantees the ink clears WCAG AA on whatever ground comes
+   * out — a generated design goes to print without anybody checking all 216
+   * combinations, so that guarantee has to be structural rather than reviewed.
+   */
+  const styled = useMemo(
+    () => (rawModernTpl ? applyStyle(rawModernTpl, designStyle) : null),
+    [rawModernTpl, designStyle],
+  );
+  const styleTone = useMemo(
+    // styled's scheme is what applyStyle resolved, which is what the renderer
+    // will use for its ink. Passing anything else lets the two disagree.
+    () => styleColours(designStyle, brandAccent || accent, styled?.scheme ?? 'dark'),
+    [designStyle, brandAccent, accent, styled?.scheme],
+  );
+  const modernTpl = styled;
+
+  const foundTemplates = useMemo(
+    () => findTemplates(tplQuery, {
+      use: tplUse || undefined,
+      industry: tplIndustry || undefined,
+    }),
+    [tplQuery, tplUse, tplIndustry],
+  );
+
+  /*
+   * How many more there would be without the trade filter.
+   *
+   * Opening filtered to the business's own trade is the right default and it
+   * has one bad failure: somebody searches "menu", the filter quietly excludes
+   * every menu layout because this business is not a restaurant, and the
+   * library appears to contain nothing. Caught in the browser, not by a test —
+   * the search function was behaving exactly as specified.
+   *
+   * So the filter now has to declare what it is hiding rather than just hiding
+   * it. A silent filter is worse than no filter.
+   */
+  const hiddenByIndustry = useMemo(
+    () => (tplIndustry
+      ? findTemplates(tplQuery, { use: tplUse || undefined }).length - foundTemplates.length
+      : 0),
+    [tplQuery, tplUse, tplIndustry, foundTemplates.length],
+  );
 
   // Live Business Canvas — resolves {{tokens}} against the live profile.
   const { resolve, resolveSlots } = useLiveCanvas(business);
@@ -967,8 +1066,10 @@ export default function DesignStudio({
           template={modernTpl}
           width={w}
           height={h}
-          accent={accent}
-          base={bgColor ?? undefined}
+          // From the style, not from the raw picker: the accent is derived to
+          // stay visible against the ground the style produced.
+          accent={styleTone.accent}
+          base={bgColor ?? styleTone.base}
           // The Style tab's background upload did nothing on a modern template
           // — it was never passed down. The tint is thinned so the picture can
           // actually be seen, by the same scheme-aware rule Motion Studio uses.
@@ -1586,9 +1687,87 @@ export default function DesignStudio({
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Modern templates</label>
+            {/* Style before layout, deliberately. Changing the style restyles
+                whatever is already on the canvas, which is the one interaction
+                that makes a template library feel like a design tool rather
+                than a folder of pictures. */}
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Style</label>
+            <div className="grid grid-cols-2 gap-2 mb-1">
+              {DESIGN_STYLES.map((st) => {
+                const on = styleKey === st.key;
+                const tone = styleColours(st, brandAccent || accent);
+                return (
+                  <button key={st.key} onClick={() => setStyleKey(st.key)}
+                    className={`text-left px-3 py-2 rounded-lg text-xs border transition ${on ? 'border-transparent ring-2 ring-purple-500' : 'border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[52px]`}
+                    style={on ? { background: tone.base, color: tone.ink } : undefined}>
+                    <span className="flex items-center gap-1.5">
+                      {/* The swatch is the actual palette this style would
+                          produce from this business's colour, not a stock
+                          gradient — so the picker previews the real thing. */}
+                      <span className="inline-flex shrink-0 rounded-full overflow-hidden border border-black/10" style={{ width: 26, height: 13 }}>
+                        <span style={{ background: tone.base, width: 13 }} />
+                        <span style={{ background: tone.accent, width: 13 }} />
+                      </span>
+                      <span className="font-bold">{st.label}</span>
+                    </span>
+                    <span className={`block mt-0.5 text-[10px] ${on ? 'opacity-75' : 'text-gray-400 dark:text-gray-500'}`}>{st.blurb}</span>
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-gray-400 mb-4">
+              Typography and colour, applied over any layout below. Every style takes your own brand
+              colour and derives a palette that stays readable.
+            </p>
+
+            <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">
+              Layouts
+            </label>
+            <input
+              value={tplQuery}
+              onChange={(e) => setTplQuery(e.target.value)}
+              aria-label="Search layouts"
+              placeholder="menu, hiring, house for sale, opening hours…"
+              className="w-full min-h-[42px] px-3 mb-2 rounded-lg border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white text-sm"
+            />
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              <button onClick={() => setTplUse('')}
+                className={`px-2.5 min-h-[32px] rounded-full text-[11px] font-semibold border ${tplUse === '' ? 'bg-gray-900 text-white border-transparent dark:bg-white dark:text-gray-900' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+                All
+              </button>
+              {TEMPLATE_USES.map((u) => (
+                <button key={u.key} onClick={() => setTplUse(u.key)} title={u.blurb}
+                  className={`px-2.5 min-h-[32px] rounded-full text-[11px] font-semibold border ${tplUse === u.key ? 'bg-gray-900 text-white border-transparent dark:bg-white dark:text-gray-900' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+                  {u.label}
+                </button>
+              ))}
+            </div>
+            {ownIndustry && (
+              <label className="flex items-center gap-2 mb-2 text-[11px] text-gray-600 dark:text-gray-400">
+                <input
+                  type="checkbox"
+                  checked={tplIndustry === ownIndustry}
+                  onChange={(e) => setTplIndustry(e.target.checked ? ownIndustry : '')}
+                />
+                Only layouts that suit {ownIndustry.toLowerCase()}
+              </label>
+            )}
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
+              {foundTemplates.length} of {DESIGN_TEMPLATES.length} layouts
+              {hiddenByIndustry > 0 && (
+                <>
+                  {' · '}
+                  <button onClick={() => setTplIndustry('')}
+                    className="font-semibold text-purple-600 dark:text-purple-400 underline">
+                    {hiddenByIndustry} more in other trades
+                  </button>
+                </>
+              )}
+              {foundTemplates.length === 0 && hiddenByIndustry === 0 && tplQuery
+                && ' — try one word instead of a phrase.'}
+            </p>
             <div className="grid grid-cols-2 gap-2 mb-3">
-              {DESIGN_TEMPLATES.map((t) => {
+              {foundTemplates.map((t) => {
                 const key = `t:${t.key}`;
                 const on = layoutKey === key;
                 return (
@@ -1601,7 +1780,8 @@ export default function DesignStudio({
               })}
             </div>
             <p className="text-[10px] text-gray-400 mb-4">
-              One definition, rendered at any size — and the same definition animates in Motion Studio.
+              One definition, rendered at any size, in any style above — and the same definition
+              animates in Motion Studio, camera move included.
             </p>
 
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Classic layouts</label>

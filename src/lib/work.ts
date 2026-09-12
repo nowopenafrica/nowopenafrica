@@ -147,7 +147,7 @@ export const WORK_SEED: WorkSeedItem[] = [
   { kind: 'task', title: 'August social content calendar', status: 'in_progress', priority: 'medium', department: 'Social Media', assigneeAgentKey: 'social-director', dueOffsetDays: 5, description: 'Calendar, captions and scheduled posts across every NowOpen channel.' },
   { kind: 'project', title: 'Ship the OS work layer', status: 'todo', priority: 'high', department: 'Product & Engineering', assigneeAgentKey: 'product-manager', dueOffsetDays: 21, description: 'Projects, tasks and goals assigned to the team — this board.' },
   { kind: 'task', title: 'Draft Q3 strategy brief', status: 'blocked', priority: 'high', department: 'Strategy & BI', assigneeAgentKey: 'strategy-director', dueOffsetDays: 3, description: 'Blocked on market data from the Research Analyst.' },
-  { kind: 'goal', title: 'Verify 10 new businesses this week', status: 'in_progress', priority: 'high', department: 'Trust & Safety', assigneeAgentKey: 'trust-safety-agent', dueOffsetDays: 7, description: 'Trust metric: verification turnaround stays under 24 hours.' },
+  { kind: 'goal', title: 'Verify 10 new businesses this week', status: 'in_progress', priority: 'high', department: 'Trust & Safety', assigneeAgentKey: 'trust-safety', dueOffsetDays: 7, description: 'Trust metric: verification turnaround stays under 24 hours.' },
   { kind: 'task', title: 'Monthly finance report', status: 'waiting', priority: 'medium', department: 'Finance', assigneeAgentKey: 'finance-analyst', dueOffsetDays: 12, description: 'Revenue, expenses and cash flow summary for human approval.' },
 ];
 

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Shield, Zap, Target, BarChart3, Layers } from 'lucide-react';
+import { ArrowRight, Shield, Zap, Target, BarChart3 , Layers} from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { INDUSTRIES } from '../data/industrySystems';
 import { generateAdverts, generateBusinesses, generateMediaServices } from '../data/populateData';
@@ -19,6 +19,18 @@ export default function Home() {
   const [adverts, setAdverts] = useState<Advertisement[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [mediaServices, setMediaServices] = useState<MediaService[]>([]);
+  /*
+   * Which of the three reads failed. Not a single boolean: the reads are
+   * independent, and claiming all three are unreachable because one is would
+   * be its own inaccuracy.
+   */
+  const [loadFailed, setLoadFailed] = useState<Record<'adverts' | 'businesses' | 'media', boolean>>({
+    adverts: false,
+    businesses: false,
+    media: false,
+  });
+  // Bumped by the retry button, which re-runs the effect.
+  const [reloadNonce, setReloadNonce] = useState(0);
   const [textVisible, setTextVisible] = useState(true);
   // Exact row counts for the stats band. head:true fetches no rows, so this
   // is three cheap COUNT queries rather than three more result sets.
@@ -104,27 +116,91 @@ export default function Home() {
   }, [sliderDrivesText]);
 
   useEffect(() => {
-    // Fetch real data for the sliders; fall back to sample data while the
-    // database is empty so the homepage never looks bare.
+    /*
+     * Fetch the slider data, and REMEMBER WHICH READS FAILED.
+     *
+     * This block used to do `res.data && res.data.length > 0 ? res.data :
+     * generate(30)`, which cannot tell a failed read from an empty table.
+     * Samples are dev-only, so in production `generate(30)` is `[]` and both
+     * paths landed on the same empty state — the homepage then told visitors
+     * "No businesses listed yet — the directory is being built", which is a
+     * claim about the platform made when the truth was that the database was
+     * unreachable.
+     *
+     * That is the worst wrong answer this page can give. The audience is on
+     * connections that drop, the directory genuinely IS nearly empty, and so
+     * the failure mode confirms exactly the conclusion we most need to avoid.
+     *
+     * The `.catch()` below is kept for a genuinely thrown error, but it is not
+     * the path that matters: supabase-js RESOLVES with `{ data: null, error }`
+     * when a read fails, so `error` is what has to be inspected.
+     *
+     * Tracked per type. The three reads are independent, and one table being
+     * unreachable is not evidence about the other two.
+     */
     const fetchSliderData = async () => {
-      const [advertRes, businessRes, mediaRes] = await Promise.all([
+      /*
+       * TWO READS FOR BUSINESSES, and the second one is the point.
+       *
+       * The homepage asked for the newest 30. Measured 2026-09-08: the only
+       * two claimed businesses on the platform were the OLDEST rows in the
+       * table, 451 listings from the top — so the two profiles run by real
+       * people, the ones the whole platform is asking businesses to create,
+       * had never once appeared on the front page.
+       *
+       * Ordering alone cannot fix that: a claimed business a thousand rows
+       * down is not in the 30 rows fetched, so there is nothing to reorder.
+       * They are asked for explicitly.
+       */
+      const [advertRes, businessRes, claimedRes, mediaRes] = await Promise.all([
         supabase.from('advertisements').select('*').order('created_at', { ascending: false }).limit(30),
         supabase.from('businesses').select('*').order('created_at', { ascending: false }).limit(30),
+        supabase.from('businesses').select('*')
+          .or('claim_status.eq.claimed,user_id.not.is.null')
+          .order('listing_score', { ascending: false })
+          .limit(24),
         supabase.from('media_services').select('*').order('created_at', { ascending: false }).limit(30),
       ]);
 
+      setLoadFailed({
+        adverts: !!advertRes.error,
+        businesses: !!businessRes.error,
+        media: !!mediaRes.error,
+      });
+
       setAdverts(advertRes.data && advertRes.data.length > 0 ? advertRes.data : generateAdverts(30));
-      setBusinesses(businessRes.data && businessRes.data.length > 0 ? businessRes.data : generateBusinesses(30));
+
+      /*
+       * Claimed first, then the newest, with duplicates removed — a claimed
+       * business that is ALSO recent must appear once.
+       *
+       * `claimedRes` failing is not treated as an outage: it means the front
+       * page shows the newest, which is what it did before. Only a failed
+       * `businessRes` is reported, because that one is the difference between
+       * an empty directory and an unreachable one.
+       */
+      const claimed = claimedRes.error ? [] : (claimedRes.data ?? []);
+      const newest = businessRes.data ?? [];
+      const seen = new Set<string>();
+      const merged = [...claimed, ...newest].filter((b) => {
+        const id = String((b as { id?: string }).id ?? '');
+        if (!id || seen.has(id)) return false;
+        seen.add(id);
+        return true;
+      });
+
+      setBusinesses(merged.length > 0 ? merged : generateBusinesses(30));
       setMediaServices(mediaRes.data && mediaRes.data.length > 0 ? mediaRes.data : generateMediaServices(30));
     };
 
     fetchSliderData().catch(err => {
-      console.error('Error fetching homepage data, showing sample data:', err);
+      console.error('Error fetching homepage data:', err);
+      setLoadFailed({ adverts: true, businesses: true, media: true });
       setAdverts(generateAdverts(30));
       setBusinesses(generateBusinesses(30));
       setMediaServices(generateMediaServices(30));
     });
-  }, [cacheKey]);
+  }, [cacheKey, reloadNonce]);
 
 
 
@@ -254,7 +330,13 @@ export default function Home() {
       {/* Browse — search, type toggle, category chips and the card grid,
           in one block. Replaces the standalone search band and the separate
           tabbed listings section. */}
-      <ListingExplorer businesses={businesses} adverts={adverts} mediaServices={mediaServices} />
+      <ListingExplorer
+        businesses={businesses}
+        adverts={adverts}
+        mediaServices={mediaServices}
+        loadFailed={loadFailed}
+        onRetry={() => setReloadNonce((n) => n + 1)}
+      />
 
       {/* The directory, honestly.
           This section used to open with "Not a directory. An operating
@@ -297,8 +379,24 @@ export default function Home() {
                   to="/platform"
                   className="group flex flex-col items-center gap-2 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 text-center hover:-translate-y-0.5 hover:shadow-md transition"
                 >
-                  <span className={`w-10 h-10 rounded-xl bg-gradient-to-br ${ind.accent} flex items-center justify-center`}>
-                    <Icon size={20} className="text-white" />
+                  {/* One quiet treatment for all fourteen, not fourteen
+                      gradients.
+                      
+                      Each industry carries its own `accent`, and rendering all
+                      of them at once turned an evidence grid into a colour
+                      chart: fourteen competing gradients, none of which mean
+                      anything to a visitor, all of them louder than the names
+                      underneath — which are the part that actually says what
+                      NowOpen covers.
+                      
+                      The accent is not lost, only held back: it arrives on
+                      hover, where it marks the one thing being pointed at. */}
+                  <span className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center transition-colors group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30">
+                    <Icon
+                      size={19}
+                      strokeWidth={1.75}
+                      className="text-gray-500 dark:text-gray-400 transition-colors group-hover:text-blue-600 dark:group-hover:text-blue-400"
+                    />
                   </span>
                   <span className="text-[11px] sm:text-xs font-semibold text-gray-800 dark:text-gray-100 leading-tight">{ind.name}</span>
                 </Link>
@@ -309,7 +407,7 @@ export default function Home() {
           {/* The action this section should produce. It is a form rather than a
               link to one, because the point is that the owner does not have to
               go anywhere or fill anything in about themselves. */}
-          <SendYourBusiness source="home-directory" className="mt-10 max-w-3xl mx-auto" />
+          <SendYourBusiness fallbackSource="homepage" className="mt-10 max-w-3xl mx-auto" />
 
           <div className="mt-6 flex flex-wrap justify-center gap-3">
             <Link

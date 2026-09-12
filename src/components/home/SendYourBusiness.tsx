@@ -1,9 +1,11 @@
-import { useState, type FormEvent } from 'react';
+import { useMemo, useState, type FormEvent } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCircle2, Loader2, Send } from 'lucide-react';
+import { ArrowRight, CheckCircle2, Loader2, Send } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
 import { track } from '../../lib/telemetry';
+import { readSource, shortReferrer, type Source } from '../../lib/acquisition';
 
 /**
  * "Send us your business name. We'll set up your NowOpen profile."
@@ -31,16 +33,29 @@ import { track } from '../../lib/telemetry';
  */
 
 interface Props {
-  /** Which surface this instance sits on, so we can tell what actually works. */
-  source: string;
+  /**
+   * Where this instance sits, used only when the visit carries no attribution
+   * of its own. A visitor who arrived from Instagram and then used the box on
+   * the homepage came from Instagram — recording "homepage" would credit the
+   * page they happened to land on rather than the thing that worked.
+   */
+  fallbackSource: Source;
   className?: string;
 }
 
-export default function SendYourBusiness({ source, className = '' }: Props) {
+export default function SendYourBusiness({ fallbackSource, className = '' }: Props) {
   const [name, setName] = useState('');
   const [contact, setContact] = useState('');
   const [busy, setBusy] = useState(false);
   const [sent, setSent] = useState(false);
+
+  const attribution = useMemo(() => {
+    const detected = readSource(window.location.search, document.referrer);
+    return {
+      source: detected === 'direct' ? fallbackSource : detected,
+      referrer: shortReferrer(document.referrer),
+    };
+  }, [fallbackSource]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
@@ -58,7 +73,9 @@ export default function SendYourBusiness({ source, className = '' }: Props) {
     const { error } = await supabase.from('profile_requests').insert({
       business_name: businessName.slice(0, 160),
       contact: reach.slice(0, 160),
-      source,
+      kind: 'owner',
+      source: attribution.source,
+      referrer: attribution.referrer,
     });
     setBusy(false);
 
@@ -67,7 +84,7 @@ export default function SendYourBusiness({ source, className = '' }: Props) {
       return;
     }
 
-    track('profile_requested', { source });
+    track('profile_requested', { source: attribution.source, kind: 'owner' });
     setSent(true);
     setName('');
     setContact('');
@@ -99,6 +116,11 @@ export default function SendYourBusiness({ source, className = '' }: Props) {
       </h3>
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
         No account, no forms. We build it, you check it, then it is yours.
+      </p>
+      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+        <Link to="/send-business" className="inline-flex items-center gap-1 font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+          Or let us walk you through it <ArrowRight size={13} />
+        </Link>
       </p>
 
       <form onSubmit={submit} className="mt-4 flex flex-col sm:flex-row gap-3">

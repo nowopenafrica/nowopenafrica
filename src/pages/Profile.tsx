@@ -2,11 +2,13 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { websiteHref, websiteLabel } from '../lib/webLink';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Business, MediaService } from '../types';
 import { ArrowLeft, User as UserIcon, Clock, MapPin, Phone, Mail, Globe, Star, Image } from 'lucide-react';
 import { applySeo } from '../lib/seo';
 import MyKeeps from '../components/MyKeeps';
+import SmartImg from '../components/SmartImg';
 
 export default function Profile() {
   const { user: authUser } = useAuth();
@@ -59,7 +61,8 @@ export default function Profile() {
       const { data: businessData } = await supabase
         .from('businesses')
         .select('*')
-        .eq('user_id', profileId);
+        .eq('user_id', profileId)
+        .limit(50000);
 
       const { data: mediaData } = await supabase
         .from('media_services')
@@ -182,7 +185,7 @@ export default function Profile() {
           {/* Cover Image */}
           <div className="relative h-96 bg-gray-200 dark:bg-gray-700 overflow-hidden">
             {formData.cover_image_url ? (
-              <img
+              <SmartImg
                 src={formData.cover_image_url}
                 alt={formData.name}
                 className="w-full h-full object-cover"
@@ -196,7 +199,7 @@ export default function Profile() {
               <div className="relative">
                 <div className="w-32 h-32 bg-gray-300 rounded-full border-4 border-white shadow-lg flex items-center justify-center">
                   {formData.profile_image_url ? (
-                    <img loading="lazy" decoding="async"
+                    <SmartImg
                       src={formData.profile_image_url}
                       alt={formData.name}
                       className="w-28 h-28 rounded-full object-cover"
@@ -282,14 +285,14 @@ export default function Profile() {
                       </div>
                     </div>
                   )}
-                  {formData.website && (
+                  {websiteHref(formData.website) && (
                     <div className="flex items-start gap-3">
                       <Globe size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
                       <div>
                         <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Website</p>
                         <p className="text-sm text-gray-900 dark:text-white">
-                          <a href={formData.website} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-700">
-                            {formData.website}
+                          <a href={websiteHref(formData.website)!} target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:text-blue-700">
+                            {websiteLabel(formData.website)}
                           </a>
                         </p>
                       </div>
@@ -479,7 +482,7 @@ export default function Profile() {
                 >
                   <div className="h-32 overflow-hidden">
                     {business.image_url ? (
-                      <img loading="lazy" decoding="async"
+                      <SmartImg
                         src={business.image_url}
                         alt={business.name}
                         className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
@@ -490,7 +493,7 @@ export default function Profile() {
                   </div>
                   <div className="p-4">
                     <p className="text-xs text-blue-600 dark:text-blue-400 font-medium mb-1">{business.category}</p>
-                    <h3 className="font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 text-sm">
+                    <h3 className="font-bold text-gray-900 dark:text-white mb-1 truncate text-[13px]">
                       {business.name}
                     </h3>
                     <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">
@@ -520,7 +523,7 @@ export default function Profile() {
                 >
                   <div className="h-32 overflow-hidden">
                     {service.image_url ? (
-                      <img loading="lazy" decoding="async"
+                      <SmartImg
                         src={service.image_url}
                         alt={service.title}
                         className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
@@ -531,7 +534,7 @@ export default function Profile() {
                   </div>
                   <div className="p-4">
                     <p className="text-xs text-pink-600 dark:text-pink-400 font-medium mb-1">{service.service_type}</p>
-                    <h3 className="font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 text-sm">
+                    <h3 className="font-bold text-gray-900 dark:text-white mb-1 truncate text-[13px]">
                       {service.title}
                     </h3>
                     <p className="text-xs text-gray-600 dark:text-gray-400 line-clamp-2 mb-3">

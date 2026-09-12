@@ -18,9 +18,7 @@ export const NEW_INDUSTRY_SPOTLIGHTS: Record<string, any> = {
     email: 'care@pawvet.example.com',
     opening_hours: 'Mon–Sat: 8AM–8PM · Sun: 10AM–4PM',
     image_url: 'https://images.pexels.com/photos/5668473/pexels-photo-5668473.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_70: {
@@ -36,9 +34,7 @@ export const NEW_INDUSTRY_SPOTLIGHTS: Record<string, any> = {
     email: 'hello@zenithspa.example.com',
     opening_hours: 'Mon–Sun: 9AM–9PM',
     image_url: 'https://images.pexels.com/photos/385998/pexels-photo-385998.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_71: {
@@ -54,9 +50,7 @@ export const NEW_INDUSTRY_SPOTLIGHTS: Record<string, any> = {
     email: 'connect@gracecommunity.example.com',
     opening_hours: 'Services: Sun 8AM & 10AM · Midweek Wed 6PM',
     image_url: 'https://images.pexels.com/photos/1181271/pexels-photo-1181271.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 5.0,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_72: {
@@ -72,9 +66,7 @@ export const NEW_INDUSTRY_SPOTLIGHTS: Record<string, any> = {
     email: 'orders@goldencrust.example.com',
     opening_hours: 'Mon–Sat: 6AM–8PM · Sun: 7AM–12PM',
     image_url: 'https://images.pexels.com/photos/8535230/pexels-photo-8535230.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_73: {
@@ -90,9 +82,7 @@ export const NEW_INDUSTRY_SPOTLIGHTS: Record<string, any> = {
     email: 'book@tipsyterrace.example.com',
     opening_hours: 'Tue–Sun: 4PM–2AM',
     image_url: 'https://images.pexels.com/photos/905163/pexels-photo-905163.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.6,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

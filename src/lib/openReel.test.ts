@@ -6,6 +6,7 @@ import {
   applyAutoAdapt, cameraControls, readRange, clampToRange, stepValue, midpointOf,
   zoomStepSupported, isUltraWideLabel, applyTrackValue, applyTrackMode,
   wellExposedness, fuseExposures, bracketStops, applyPointOfInterest, coverCropRect,
+  clampTrimWindow, formatTrimSeconds, MIN_TRIM_SECONDS,
 } from './openReel';
 import {
   REEL_SECONDS_LIMITS, reelLimitForPlan, formatReelLimit, reelLimitAdjective,
@@ -142,6 +143,66 @@ describe('formatRecordingClock', () => {
 
   it('never renders a negative clock', () => {
     expect(formatRecordingClock(-5)).toBe('0:00');
+  });
+});
+
+describe('quick clip trim — clampTrimWindow', () => {
+  it('exports the minimum keep the UI relies on', () => {
+    expect(MIN_TRIM_SECONDS).toBe(0.5);
+  });
+
+  it('passes a full-clip window straight through', () => {
+    expect(clampTrimWindow(0, 65, 65)).toEqual({ start: 0, end: 65 });
+  });
+
+  it('accepts a cut off the start or the end', () => {
+    expect(clampTrimWindow(2, 65, 65)).toEqual({ start: 2, end: 65 });
+    expect(clampTrimWindow(0, 20, 65)).toEqual({ start: 0, end: 20 });
+  });
+
+  it('clamps handles to the clip and keeps start before end', () => {
+    expect(clampTrimWindow(-5, 100, 65)).toEqual({ start: 0, end: 65 });
+    // Huge negative windows clamp in; a stale end just after start is pushed
+    // forward so the kept cut still leaves the recorded minimum behind.
+    expect(clampTrimWindow(0.2, 0.3, 65)).toEqual({ start: 0.2, end: 0.7 });
+  });
+
+  it('never lets a handle collapse the window below the minimum keep', () => {
+    // Dragging the end handle almost onto the start still leaves half a second.
+    expect(clampTrimWindow(10, 10.05, 65)).toEqual({ start: 10, end: 10.5 });
+    const w = clampTrimWindow(10.5, 10, 65);
+    expect(w.end - w.start).toBeGreaterThanOrEqual(0.5);
+    expect(w.end).toBeLessThanOrEqual(65);
+  });
+
+  it('leaves nothing to cut when the clip is shorter than the minimum', () => {
+    expect(clampTrimWindow(0, 0.2, 0.2, 0.5)).toEqual({ start: 0, end: 0.2 });
+  });
+
+  it('survives unknown duration or NaN handles', () => {
+    expect(clampTrimWindow(0, NaN, 65)).toEqual({ start: 0, end: 65 });
+    expect(clampTrimWindow(NaN, 65, 65)).toEqual({ start: 0, end: 65 });
+    expect(clampTrimWindow(0, 0, 0)).toEqual({ start: 0, end: 0 });
+    expect(clampTrimWindow(0, 10, NaN)).toEqual({ start: 0, end: 0 });
+  });
+
+  it('rounds to tenths so the slider value and the label agree', () => {
+    const w = clampTrimWindow(1.234, 10.987, 65);
+    expect(w.start).toBeCloseTo(1.23, 2);
+    expect(w.end).toBeCloseTo(10.99, 2);
+  });
+});
+
+describe('quick clip trim — formatTrimSeconds', () => {
+  it('reads as a time with tenths', () => {
+    expect(formatTrimSeconds(0)).toBe('0:00.0');
+    expect(formatTrimSeconds(0.4)).toBe('0:00.4');
+    expect(formatTrimSeconds(2.6)).toBe('0:02.6');
+    expect(formatTrimSeconds(65)).toBe('1:05.0');
+  });
+
+  it('never renders a negative time', () => {
+    expect(formatTrimSeconds(-3)).toBe('0:00.0');
   });
 });
 

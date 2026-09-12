@@ -54,9 +54,7 @@ export const PHOTO_SPOTLIGHTS: Record<string, any> = {
     email: 'studio@lensluxe.example.com',
     opening_hours: 'By appointment · Mon–Sat',
     image_url: px(1024993),
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

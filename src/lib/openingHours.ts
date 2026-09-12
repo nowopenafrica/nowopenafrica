@@ -1,3 +1,4 @@
+import { holidayOn, localDateInZone, type Holiday } from './holidays.js';
 // Parse the free-text opening hours stored on a business row, so a visitor's
 // "open now" is based on the business's ACTUAL hours.
 //
@@ -406,6 +407,64 @@ export interface OpenStateInput {
   hours?: string | null;
   timezone?: string | null;
   open_status?: 'open' | 'closed' | null;
+  /**
+   * When the manual override was set. An override with no timestamp is treated
+   * as stale — see `overrideStillApplies`.
+   */
+  open_status_set_at?: string | null;
+  /** ISO-3166 alpha-2, for the holiday calendar. Defaults to Nigeria. */
+  country?: string | null;
+  /** The business trades on public holidays and has said so. */
+  opens_on_holidays?: boolean | null;
+  /** Announced lunar / one-off holidays, supplied rather than guessed. */
+  extra_holidays?: Holiday[] | null;
+  /**
+   * Business Intelligence (20260911000000): how the shown hours were produced.
+   * 'default_24_7' means NowOpen's safe default — unclaimed and no hours. A
+   * listing that is never closed is "open", so the public state is open, with
+   * the detail line signalling the platform default rather than an owner.
+   * 'confirmed' together with is_24_hours implies an owner/source confirmed
+   * 24/7, which may also render as open.
+   */
+  availability_mode?: 'derived' | 'confirmed' | 'default_24_7' | 'not_set' | null;
+  /** Whether a default "24/7" has been confirmed by the owner/verified source. */
+  is_24_hours?: boolean | null;
+  is_24_hours_confirmed?: boolean | null;
+}
+
+/**
+ * Does an owner's manual override still count?
+ *
+ * THE BUG THIS FIXES. `open_status === 'closed'` short-circuited the schedule
+ * with no expiry of any kind, so an owner who marked themselves closed once —
+ * for one afternoon, a year ago — appeared closed forever. Neither they nor a
+ * customer got any signal, and it is the single most damaging state a listing
+ * can be stuck in: permanently telling customers not to come.
+ *
+ * The rule is "closed today", not "closed until further notice": an override
+ * applies only on the local day it was set. That is what an owner tapping the
+ * button actually means, it needs no scheduler to clean up, and it heals
+ * itself overnight.
+ *
+ * An override with NO timestamp still applies, and that default was chosen
+ * against the tidier alternative for a measured reason: production has exactly
+ * one business carrying `open_status = 'closed'` and no `open_status_set_at`
+ * column yet. Treating a missing timestamp as expired would have silently
+ * reopened a listing whose owner had deliberately marked it closed — trading a
+ * latent bug for an active one. Nothing in the app writes `open_status` today,
+ * so the permanent-closure risk is not yet live; the migration adds the column
+ * so that every override written from now on expires on its own.
+ */
+export function overrideStillApplies(
+  setAt: string | null | undefined,
+  now: Date,
+  timeZone: string,
+): boolean {
+  if (setAt === undefined || setAt === null) return true;
+  if (!setAt) return true;
+  const when = new Date(setAt);
+  if (Number.isNaN(when.getTime())) return false;
+  return localDateInZone(when, timeZone) === localDateInZone(now, timeZone);
 }
 
 export interface OpenState {
@@ -435,18 +494,52 @@ export function publicOpenState(b: OpenStateInput, now: Date = new Date()): Open
   const hours: OpeningHours | null = parseOpeningHours(text);
   const zone = b.timezone || DEFAULT_BUSINESS_TIMEZONE;
 
-  if (b.open_status === 'closed') {
+  // An override only speaks for the day it was set. See overrideStillApplies.
+  const override = overrideStillApplies(b.open_status_set_at, now, zone) ? b.open_status : null;
+
+  if (override === 'closed') {
     return { kind: 'closed', label: 'Closed', detail: nextOpenDetail(hours, zone, now) };
   }
 
+  /*
+   * A public holiday closes a business that has not said it trades through it.
+   * Checked after the override — an owner who says "we are open today" knows
+   * more than the calendar — and before the schedule, which has no concept of
+   * Christmas.
+   */
+  if (override !== 'open' && !b.opens_on_holidays) {
+    const holiday = holidayOn(now, zone, b.country || 'NG', b.extra_holidays ?? []);
+    if (holiday) {
+      return {
+        kind: 'closed',
+        label: 'Closed',
+        detail: `Closed for ${holiday.name}`,
+      };
+    }
+  }
+
   if (!hours) {
-    if (b.open_status === 'open') return { kind: 'open', label: 'Open now', detail: '' };
+    if (override === 'open') return { kind: 'open', label: 'Open now', detail: '' };
+    /*
+     * The 24/7 DEFAULT: an unclaimed business with no recorded hours never has
+     * a closed state, so the one answer the platform exists to give is "open".
+     * Honesty lives in the detail line — "platform default" calls out that it is
+     * NowOpen's safe default, not something the owner ever said. That is the
+     * whole difference between this label and the confirmed one below.
+     */
+    if (b.availability_mode === 'default_24_7' && !b.is_24_hours_confirmed) {
+      return { kind: 'open', label: 'Open now', detail: 'Open 24 hours · platform default' };
+    }
+    // An owner/source CONFIRMED 24/7 but no hour text exists: safe to render open.
+    if (b.is_24_hours && b.is_24_hours_confirmed) {
+      return { kind: 'open', label: 'Open now', detail: 'Open 24 hours' };
+    }
     return { kind: 'unknown', label: 'Hours not confirmed', detail: '' };
   }
 
   if (hours.alwaysOpen) return { kind: 'open', label: 'Open now', detail: 'Open 24 hours' };
 
-  const open = b.open_status === 'open' || isOpenAtInZone(hours, now, zone);
+  const open = override === 'open' || isOpenAtInZone(hours, now, zone);
   if (!open) return { kind: 'closed', label: 'Closed', detail: nextOpenDetail(hours, zone, now) };
 
   const change = nextChangeInZone(hours, now, zone);

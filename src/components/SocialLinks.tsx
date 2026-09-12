@@ -12,7 +12,7 @@ export function XLogo({ size = 20, className = '' }: { size?: number | string; c
   );
 }
 
-function TikTokLogo({ size = 20, className = '' }: { size?: number | string; className?: string }) {
+export function TikTokLogo({ size = 20, className = '' }: { size?: number | string; className?: string }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className} aria-hidden="true">
       <path d="M16.6 5.82c-.9-.98-1.4-2.26-1.4-3.57h-3.13v13.6c0 1.55-1.26 2.81-2.81 2.81a2.81 2.81 0 0 1 0-5.63c.3 0 .58.05.85.13V9.85a5.94 5.94 0 0 0-.85-.06 5.94 5.94 0 1 0 5.94 5.94V8.4a8.4 8.4 0 0 0 4.9 1.57V6.84c-1.15 0-2.24-.36-3.13-.98a5.87 5.87 0 0 1-.37-.04z" />
@@ -40,7 +40,11 @@ export default function SocialLinks({ className = '' }: { className?: string }) 
           rel="noopener noreferrer"
           aria-label={`NowOpen Africa on ${label}`}
           title={`@nowopenafrica on ${label}`}
-          className="w-9 h-9 flex items-center justify-center rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200 hover:-translate-y-0.5"
+          /* min-w/min-h in px, not w-9/h-9: this app's root font size is under
+             16px, so rem-based Tailwind sizes come out ~10% short — w-9 h-9
+             measured 32x32 on production. Icon-only controls get no inline
+             exemption from the 44px target guideline. */
+          className="min-w-[44px] min-h-[44px] flex items-center justify-center rounded-full bg-white/5 text-gray-400 hover:text-white hover:bg-white/10 transition-all duration-200 hover:-translate-y-0.5"
         >
           <Icon size={16} />
         </a>

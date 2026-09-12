@@ -40,9 +40,7 @@ export const HOTEL_SPOTLIGHTS: Record<string, any> = {
     email: 'reservations@grandsavanna.example.com',
     opening_hours: 'Reception open 24/7',
     image_url: px(258154),
-    rating: 4.6,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

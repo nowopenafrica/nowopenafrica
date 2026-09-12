@@ -589,6 +589,219 @@ export function formatRecordingClock(totalSeconds: number): string {
   return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
 }
 
+// --- Quick clip trims -------------------------------------------------------
+//
+// "Trim the boring part." A reel is only as good as its shortest keepable
+// moment, and on a phone the owner cannot usually re-take that moment — the
+// subject has moved on. So after recording, the review stage offers two
+// handles (start / end) and, when something is actually cut, re-records the
+// chosen window into a fresh clip before upload.
+//
+// Re-recording, not a seek range: the gallery holds one MP4/WebM file with
+// real header and duration. A trimmed file has to exist as a file, and the
+// only way to make one in a browser without shipping a video encoder is to
+// play the original and record what plays, through the same canvas + recorder
+// pipeline the camera already uses.
+
+/** The shortest keep a trim will accept, in seconds. */
+export const MIN_TRIM_SECONDS = 0.5;
+
+export interface TrimWindow { start: number; end: number }
+
+/**
+ * Clamp two trim handles into a valid window.
+ *
+ * Guarantees start and end are inside [0, duration], start < end, and the
+ * window is at least `minKeep` long — clamping against whatever the other
+ * handle was, so dragging one handle never collapses the other. Non-finite or
+ * out-of-range input snaps to a safe default instead of producing NaN.
+ */
+export function clampTrimWindow(
+  start: number,
+  end: number,
+  duration: number,
+  minKeep: number = MIN_TRIM_SECONDS,
+): TrimWindow {
+  const d = Number.isFinite(duration) && duration > 0 ? duration : 0;
+  if (d <= 0) return { start: 0, end: 0 };
+  const keep = Math.min(d, Math.max(0, minKeep));
+  const s = Number.isFinite(start) ? start : 0;
+  const e = Number.isFinite(end) ? end : d;
+  const lo = Math.min(Math.max(s, 0), Math.max(0, d - keep));
+  const hi = Math.max(Math.min(e, d), lo + keep);
+  return { start: Math.round(lo * 100) / 100, end: Math.round(Math.min(hi, d) * 100) / 100 };
+}
+
+/**
+ * Seconds as "m:ss.t" — a tenth of a second, which is the granularity of the
+ * trim handles. Unlike the recording clock this keeps the fraction, because an
+ * owner dragging to 0:02.6 needs to see the difference a tenth makes.
+ */
+export function formatTrimSeconds(totalSeconds: number): string {
+  const t = Math.max(0, Number.isFinite(totalSeconds) ? totalSeconds : 0);
+  const totalTenths = Math.round(t * 10);
+  const m = Math.floor(totalTenths / 600);
+  const rem = totalTenths % 600;
+  return `${m}:${String(Math.floor(rem / 10)).padStart(2, '0')}.${rem % 10}`;
+}
+
+/**
+ * Re-record a portion of a recorded clip into a new clip.
+ *
+ * Plays the original from `start` to `end` and records what plays, using the
+ * same canvas + MediaRecorder pipeline the camera uses for zoomed recording —
+ * `canvas.captureStream` for the picture, and a WebAudio
+ * `createMediaElementSource` for the sound. The element's own `muted` does not
+ * silence the WebAudio capture, so the trim comes out with audio.
+ *
+ * Resolves null on any failure (no canvas captureStream, a codec that will not
+ * decode, MediaRecorder refusing) — a clip that cannot be trimmed is still
+ * saved, just untrimmed.
+ */
+export async function trimVideoBlob(
+  blob: Blob,
+  start: number,
+  end: number,
+): Promise<Blob | null> {
+  if (typeof document === 'undefined' || typeof URL.createObjectURL !== 'function') return null;
+  if (typeof MediaRecorder === 'undefined' || start < 0 || end <= start) return null;
+
+  const url = URL.createObjectURL(blob);
+  const video = document.createElement('video');
+  video.muted = true;
+  video.playsInline = true;
+  video.preload = 'auto';
+
+  let audioCtx: AudioContext | null = null;
+
+  // Re-recording takes real time equal to the keep window, plus an encoder
+  // flush. Time the promise to that, never less than 20 seconds.
+  const capSeconds = Math.max(0, end - start);
+  const timeoutMs = Math.max(20_000, (capSeconds + 5) * 1000);
+
+  const audioTracksRef: MediaStreamTrack[] = [];
+
+  try {
+    const meta = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+      let done = false;
+      const timer = window.setTimeout(() => {
+        if (!done) { done = true; reject(new Error('trim: metadata timeout')); }
+      }, 8_000);
+      video.addEventListener('loadedmetadata', () => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        resolve({ width: video.videoWidth, height: video.videoHeight });
+      }, { once: true });
+      video.addEventListener('error', () => {
+        if (done) return;
+        done = true;
+        window.clearTimeout(timer);
+        reject(new Error('trim: video could not be decoded'));
+      }, { once: true });
+      video.src = url;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = meta.width || 1280;
+    canvas.height = meta.height || 720;
+    const ctx = canvas.getContext('2d');
+    if (!ctx || typeof canvas.captureStream !== 'function') return null;
+
+    const canvasStream = canvas.captureStream(30) as MediaStream;
+    const videoTrack = canvasStream.getVideoTracks()[0];
+
+    const stopPump = driveVideoFrames(video as unknown as FrameSourceVideo, () => {
+      if (meta.width && meta.height) ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    });
+
+    const AudioCtor = (window as { AudioContext?: typeof AudioContext; webkitAudioContext?: typeof AudioContext }).AudioContext
+      ?? (window as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    try {
+      if (AudioCtor) {
+        audioCtx = new AudioCtor();
+        await audioCtx.resume().catch(() => {});
+        const source = audioCtx.createMediaElementSource(video);
+        const dest = audioCtx.createMediaStreamDestination();
+        source.connect(dest);
+        audioTracksRef.push(...dest.stream.getAudioTracks());
+      }
+    } catch {
+      // No audio source node — the trimmed clip is still saved, just silent.
+    }
+
+    const format = pickRecorderMimeType(
+      MediaRecorder.isTypeSupported ? (t) => MediaRecorder.isTypeSupported(t) : undefined,
+    );
+    const stream = new MediaStream([videoTrack, ...audioTracksRef]);
+    const options: MediaRecorderOptions = {
+      videoBitsPerSecond: chooseVideoBitrate(meta.width, meta.height, Math.max(1, Math.ceil(capSeconds))),
+      audioBitsPerSecond: AUDIO_BITRATE,
+    };
+    if (format.mimeType) options.mimeType = format.mimeType;
+
+    let recorder: MediaRecorder;
+    try {
+      recorder = new MediaRecorder(stream, options);
+    } catch {
+      recorder = new MediaRecorder(stream);
+    }
+
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (e) => { if (e.data && e.data.size > 0) chunks.push(e.data); };
+
+    const trimmed = await new Promise<Blob>((resolve, reject) => {
+      let settled = false;
+      const cleanup = () => {
+        stopPump();
+        canvasStream.getTracks().forEach((t) => t.stop());
+        audioTracksRef.forEach((t) => t.stop());
+      };
+      const finish = (b: Blob | null, err?: Error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(timer);
+        cleanup();
+        if (err) { reject(err); return; }
+        if (b && b.size > 0) resolve(b); else reject(new Error('trim: nothing recorded'));
+      };
+      const timer = window.setTimeout(() => finish(null, new Error('trim: recording timeout')), timeoutMs);
+
+      recorder.onstop = () => {
+        const type = formatForMimeType(recorder.mimeType || format.mimeType).contentType;
+        finish(new Blob(chunks, { type }));
+      };
+      recorder.onerror = () => finish(null, new Error('trim: recorder error'));
+
+      const watch = () => {
+        if (recorder.state === 'inactive' || video.currentTime >= end) {
+          if (recorder.state !== 'inactive') recorder.stop();
+          return;
+        }
+        requestAnimationFrame(watch);
+      };
+
+      video.addEventListener('playing', () => {
+        recorder.start(250);
+        watch();
+      }, { once: true });
+      video.addEventListener('error', () => finish(null, new Error('trim: playback error')), { once: true });
+
+      video.currentTime = start;
+      const playPromise = video.play();
+      if (playPromise) playPromise.catch(() => {});
+    });
+
+    return trimmed;
+  } catch {
+    return null;
+  } finally {
+    try { video.pause(); video.removeAttribute('src'); video.load(); } catch { /* already gone */ }
+    URL.revokeObjectURL(url);
+    audioCtx?.close().catch(() => {});
+  }
+}
+
 export interface CropRect { sx: number; sy: number; sw: number; sh: number }
 
 /**

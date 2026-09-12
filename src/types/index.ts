@@ -52,6 +52,23 @@ export interface Business {
   // Owner's DB-persisted open/closed override (see syncOpenStatus). When set it
   // wins over the schedule; null/undefined means "derive from the hours".
   open_status?: 'open' | 'closed' | null;
+  // Business Intelligence (20260911000000): how the shown hours were produced.
+  // 'default_24_7' means NowOpen's safe default — unclaimed and no hours. The
+  // public state renders it as open with the detail "platform default" — never
+  // the confident "Open 24 hours" reserved for an owner-confirmed 24/7.
+  // 'confirmed' means an owner/verified source confirmed availability.
+  availability_mode?: 'derived' | 'confirmed' | 'default_24_7' | 'not_set' | null;
+  is_24_hours?: boolean | null;
+  is_24_hours_confirmed?: boolean | null;
+  availability_confirmation?: 'confirmed' | 'timed' | 'unknown' | null;
+  hours_source?: string | null;
+  hours_source_url?: string | null;
+  hours_last_verified?: string | null;
+  // Enrichment engine lifecycle: draft → ... → published. Default 'published'
+  // preserves legacy behaviour; new import flows can gate publication on it.
+  profile_state?: 'draft' | 'ready_for_review' | 'published' | 'paused' | 'archived' | null;
+  // Soft tombstone, separate from ownership (claim_status).
+  removal_status?: 'none' | 'removal_requested' | 'removal_approved' | 'removed' | null;
   // Owner-selected booking module keys (from categoryFeatures). null/undefined
   // = show all of the category's modules (legacy default).
   enabled_modules?: string[] | null;

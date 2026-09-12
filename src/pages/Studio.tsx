@@ -21,6 +21,7 @@ import CampaignAnalytics from '../components/studio/CampaignAnalytics';
 import InvoicesStudio from '../components/studio/InvoicesStudio';
 import ReceiptStudio from '../components/studio/ReceiptStudio';
 import CustomersPanel from '../components/studio/CustomersPanel';
+import EnrichmentSyncPanel from '../components/studio/EnrichmentSyncPanel';
 import KeepUpdates from '../components/studio/KeepUpdates';
 import LandingPageBuilder from '../components/studio/LandingPageBuilder';
 import ProposalStudio from '../components/studio/ProposalStudio';
@@ -68,6 +69,7 @@ const META: Record<ModuleKey, ModuleMeta> = {
   analytics: { key: 'analytics', label: 'Campaign Analytics', icon: TrendingUp, desc: 'Your Marketing Health Score, weekly activity and rule-based next steps in one dashboard.' },
   media: { key: 'media', label: 'Media Library', icon: ImagePlus, desc: 'Your logo, cover and brand files — cloud synced for every Studio export.' },
   export: { key: 'export', label: 'Export Centre', icon: PackageOpen, desc: 'Download every asset Studio has created for you, all in one place.' },
+  enrichment: { key: 'enrichment', label: 'Enrichment & Sync', icon: Radar, desc: 'What NowOpen\u2019s profile engine may do for this business — enrichment on/off, auto-apply rules and the confidence bar.' },
 
   // Merged into larger tools; reachable by deep link so emailed brand kits and
   // old links keep working.
@@ -133,7 +135,7 @@ export default function Studio() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false })
+    supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50000)
       .then(({ data }) => {
         setBusinesses(data || []);
         if (data && data.length) setSelectedId(String(data[0].id));
@@ -183,6 +185,7 @@ export default function Studio() {
       case 'health': return <HealthDashboard business={business} onNavigate={go} />;
       case 'media': return <MediaLibrary business={business} />;
       case 'export': return <ExportCentre business={business} />;
+      case 'enrichment': return <EnrichmentSyncPanel key={`${business.id}-enrichment`} business={business} />;
       default: return <ComingSoon meta={activeMeta!} />;
     }
   };

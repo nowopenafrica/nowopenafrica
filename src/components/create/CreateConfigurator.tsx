@@ -1,6 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { CheckCircle2, Loader2, X } from 'lucide-react';
+import { CheckCircle2, Copy, FileUp, Loader2, X } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
 import { track } from '../../lib/telemetry';
@@ -9,6 +10,10 @@ import {
   DESIGN_ROUTES, defaultConfiguration, optionGroupsFor, orderVerb,
   quoteFor, specLine, type Configuration,
 } from '../../lib/create/configure';
+import { generateOrderReference, orderTrackPath } from '../../lib/create/reference';
+import {
+  ARTWORK_BUCKET, ARTWORK_TYPES, artworkPath, checkArtwork, safeArtworkName,
+} from '../../lib/create/artwork';
 
 /**
  * Choose → Customise → Price → Order, in one panel.
@@ -41,6 +46,11 @@ export default function CreateConfigurator({
   const [note, setNote] = useState('');
   const [busy, setBusy] = useState(false);
   const [done, setDone] = useState(false);
+  const [file, setFile] = useState<File | null>(null);
+  const fileInput = useRef<HTMLInputElement>(null);
+  // Made once, when the panel opens. The order row declares the artwork path
+  // before the file is sent, and the customer needs the same code afterwards.
+  const [reference] = useState(generateOrderReference);
 
   const groups = useMemo(() => optionGroupsFor(item), [item]);
   const quote = useMemo(() => quoteFor(item, config), [item, config]);
@@ -56,14 +66,26 @@ export default function CreateConfigurator({
   const setOption = (group: string, choice: string) =>
     setConfig((c) => ({ ...c, options: { ...c.options, [group]: choice } }));
 
+  const pickFile = (chosen: File | null) => {
+    if (!chosen) { setFile(null); return; }
+    const check = checkArtwork(chosen);
+    if (!check.ok) { toast.error(check.reason); if (fileInput.current) fileInput.current.value = ''; return; }
+    setFile(chosen);
+  };
+
   const submit = async () => {
     const reach = contact.trim();
     if (!reach) { toast.error('One way to reach you.'); return; }
+
+    // Decided here, not after the upload: the order row is what authorises the
+    // upload, so it has to name the file first. See the migration.
+    const path = file ? artworkPath(reference, file.name) : null;
 
     setBusy(true);
     // No .select() — this table is insert-only to the public, and asking for
     // the row back makes RLS refuse the whole statement.
     const { error } = await supabase.from('create_orders').insert({
+      reference,
       sku: item.sku,
       product: item.name,
       quantity: config.quantity ?? null,
@@ -75,11 +97,25 @@ export default function CreateConfigurator({
       contact: reach.slice(0, 160),
       business_name: business.trim().slice(0, 160) || null,
       note: note.trim().slice(0, 1000) || null,
+      artwork_path: path,
+      artwork_name: file ? safeArtworkName(file.name) : null,
     });
-    setBusy(false);
 
-    if (error) { toast.error('That did not send. Please try again.'); return; }
-    track('create_order_requested', { sku: item.sku, total: quote.total, design: config.design });
+    if (error) { setBusy(false); toast.error('That did not send. Please try again.'); return; }
+
+    // The order is placed either way. If the file fails we say so rather than
+    // losing the order — the customer can send it against the reference.
+    if (file && path) {
+      const { error: upErr } = await supabase.storage
+        .from(ARTWORK_BUCKET)
+        .upload(path, file, { upsert: false, contentType: file.type || undefined });
+      if (upErr) toast.error('Order placed, but the artwork did not upload. We will ask you for it.');
+    }
+
+    setBusy(false);
+    track('create_order_requested', {
+      sku: item.sku, total: quote.total, design: config.design, artwork: Boolean(file),
+    });
     setDone(true);
   };
 
@@ -113,8 +149,39 @@ export default function CreateConfigurator({
                 ? 'We will come back on the contact you gave us with a real price for this exact job, your quantity and your city. Nothing is charged until you accept it.'
                 : 'We will confirm on the contact you gave us and start the work.'}
             </p>
-            <button onClick={onClose} className="mt-4 min-h-[44px] px-5 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold">
-              Done
+
+            {/* This code is the whole receipt. There is no account behind this
+                order, so if the customer loses it they lose the way back in. */}
+            <div className="mt-5 rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">
+              <p className="text-xs font-bold uppercase tracking-wide text-gray-500">Your reference</p>
+              <p className="mt-1 text-2xl font-extrabold tracking-widest text-gray-900 dark:text-white">{reference}</p>
+              <div className="mt-3 flex flex-wrap justify-center gap-2">
+                <button
+                  onClick={() => {
+                    void navigator.clipboard?.writeText(reference)
+                      .then(() => toast.success('Reference copied'))
+                      .catch(() => toast.error('Copy it down — it is your only way back to this order.'));
+                  }}
+                  className="inline-flex items-center gap-1.5 min-h-[42px] px-4 rounded-xl border border-gray-300 dark:border-gray-600 text-sm font-semibold"
+                >
+                  <Copy size={15} /> Copy
+                </button>
+                <Link
+                  to={orderTrackPath(reference)}
+                  onClick={onClose}
+                  className="inline-flex items-center min-h-[42px] px-4 rounded-xl bg-gray-900 dark:bg-white text-white dark:text-gray-900 text-sm font-semibold"
+                >
+                  Track this order
+                </Link>
+              </div>
+              <p className="mt-2 text-xs text-gray-500">
+                Keep it. It is how you check the price and accept it — no account needed.
+                {config.design === 'upload' && !file && ' Send your artwork against this reference when you are ready.'}
+              </p>
+            </div>
+
+            <button onClick={onClose} className="mt-4 min-h-[44px] px-5 text-sm font-semibold text-gray-600 dark:text-gray-400">
+              Close
             </button>
           </div>
         ) : (
@@ -151,6 +218,9 @@ export default function CreateConfigurator({
               </Section>
             ))}
 
+            {/* Hidden where the design is the product: a pack is already a
+                creator doing all of it, so offering to add one is nonsense. */}
+            {!item.designIncluded && (
             <Section label="The artwork">
               <div className="grid gap-2 sm:grid-cols-2">
                 {DESIGN_ROUTES.map((r) => (
@@ -168,7 +238,44 @@ export default function CreateConfigurator({
                   </button>
                 ))}
               </div>
+
+              {/* The customer who already has artwork is the one closest to
+                  paying. Making them place the order and then email the file
+                  separately is exactly where that customer is lost. */}
+              {config.design === 'upload' && (
+                <div className="mt-3 rounded-xl border border-dashed border-gray-300 dark:border-gray-600 p-3">
+                  <input
+                    ref={fileInput}
+                    type="file"
+                    id="create-artwork-file"
+                    accept={[...ARTWORK_TYPES, '.pdf', '.png', '.jpg', '.jpeg', '.webp'].join(',')}
+                    onChange={(e) => pickFile(e.target.files?.[0] ?? null)}
+                    className="sr-only"
+                  />
+                  <label
+                    htmlFor="create-artwork-file"
+                    className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-900 dark:text-white"
+                  >
+                    <FileUp size={17} className="text-pink-600 shrink-0" />
+                    {file ? file.name : 'Attach your print-ready file'}
+                  </label>
+                  <p className="mt-1 text-xs text-gray-500">
+                    {file
+                      ? `${(file.size / 1024 / 1024).toFixed(1)}MB · sent privately, only NowOpen sees it`
+                      : 'PDF, PNG, JPG or WEBP, up to 25MB. Optional — you can send it later against your reference.'}
+                  </p>
+                  {file && (
+                    <button
+                      onClick={() => { setFile(null); if (fileInput.current) fileInput.current.value = ''; }}
+                      className="mt-1 text-xs font-semibold text-gray-500 hover:text-red-600"
+                    >
+                      Remove
+                    </button>
+                  )}
+                </div>
+              )}
             </Section>
+            )}
 
             {/* The price, itemised. */}
             <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-4">

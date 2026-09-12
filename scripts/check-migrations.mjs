@@ -28,8 +28,8 @@ const MIGRATIONS_DIR = join(ROOT, 'supabase', 'migrations');
 const CONSOLIDATED = join(ROOT, 'scripts', 'sql', 'apply_all_migrations.sql');
 
 /**
- * Split SQL on `;`, ignoring separators inside '…' literals, $$…$$ bodies and
- * both comment forms. A naive split reports false failures, because the seed
+ * Split SQL on `;`, ignoring separators inside '…' literals, dollar-quoted
+ * bodies ($$…$$ AND $tag$…$tag$) and both comment forms. A naive split reports false failures, because the seed
  * data in this repo contains semicolons inside prose strings.
  *
  * Block comments matter as much as line comments: an apostrophe in a `/* … *\/`
@@ -43,7 +43,18 @@ function splitStatements(sql) {
   let inString = false;
   let inLineComment = false;
   let inBlockComment = false;
-  let inDollar = false;
+  /*
+   * The dollar-quote tag currently open, or null.
+   *
+   * Tracking the TAG rather than a boolean, because Postgres allows
+   * `$function$ … $function$` and this repo's newer migrations use it. With a
+   * bare-`$$`-only check the splitter cut function bodies at every internal
+   * `;`, so a plpgsql `INSERT INTO businesses` inside `create or replace
+   * function` was read as a top-level seed and reported as unguarded. It was
+   * a false positive on a real migration — and the same blindness would hide
+   * a genuinely unguarded statement that happened to follow a tagged body.
+   */
+  let dollarTag = null;
 
   for (let i = 0; i < sql.length; i += 1) {
     const c = sql[i];
@@ -67,14 +78,28 @@ function splitStatements(sql) {
       }
       continue;
     }
-    if (inDollar) {
+    if (dollarTag) {
+      if (sql.startsWith(dollarTag, i)) {
+        buf += dollarTag;
+        i += dollarTag.length - 1;
+        dollarTag = null;
+        continue;
+      }
       buf += c;
-      if (two === '$$') { buf += '$'; inDollar = false; i += 1; }
       continue;
     }
     if (two === '--') { inLineComment = true; buf += two; i += 1; continue; }
     if (two === '/*') { inBlockComment = true; buf += two; i += 1; continue; }
-    if (two === '$$') { inDollar = true; buf += two; i += 1; continue; }
+    if (c === '$') {
+      // $$ or $tag$ — a tag is letters, digits and underscores.
+      const open = /^\$[A-Za-z_][A-Za-z0-9_]*\$|^\$\$/.exec(sql.slice(i));
+      if (open) {
+        dollarTag = open[0];
+        buf += open[0];
+        i += open[0].length - 1;
+        continue;
+      }
+    }
     if (c === "'") { inString = true; buf += c; continue; }
     if (c === ';') { out.push(buf); buf = ''; continue; }
     buf += c;

@@ -4,6 +4,7 @@ import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import { generateBusinesses, isSampleId } from '../data/populateData';
+import { demoGallery, demoServices } from '../data/demoContent';
 import VerifiedBadge from '../components/VerifiedBadge';
 import TrustBadge from '../components/TrustBadge';
 import BusinessTrustPanel from '../components/BusinessTrustPanel';
@@ -14,6 +15,7 @@ import OpeningHoursPanel from '../components/OpeningHoursPanel';
 import { deriveTier, TIERS } from '../lib/trust';
 import EnquiryModal from '../components/EnquiryModal';
 import BookingModal from '../components/BookingModal';
+import LoadFailure from '../components/LoadFailure';
 import CartModal, { CartLine } from '../components/CartModal';
 import LiveSection from '../components/live/LiveSection';
 import BusinessStatusBadge from '../components/BusinessStatusBadge';
@@ -34,10 +36,12 @@ import {
   orientationOf, type GalleryFilter, type MediaKind,
 } from '../lib/galleryMedia';
 import { shareReel } from '../lib/reelShare';
-import { parseVideoEmbed } from '../lib/videoEmbeds';
+import { firstPublishedUrl, mergePublishedGallery, type MediaAssetLite } from '../lib/mediaIntelligence';
 import VideoEmbedFrame from '../components/VideoEmbedFrame';
 import GalleryThumb from '../components/GalleryThumb';
-import { getActiveFeatures } from '../data/categoryFeatures';
+import EmbedThumb from '../components/EmbedThumb';
+import SmartImg from '../components/SmartImg';
+import { getActiveFeatures, type CategoryFeatureConfig } from '../data/categoryFeatures';
 import { getTabLabel } from '../data/categoryTabLabels';
 import RealEstatePortal from '../components/RealEstatePortal';
 import RestaurantMenu from '../components/RestaurantMenu';
@@ -121,8 +125,9 @@ const EDUCATION_CATEGORIES = ['School & Education', 'Training & Tutoring'];
 // made the header badge contradict the Trust Panel. withDemoTrustAll gives them
 // earned signals; real rows are untouched.
 const SPOTLIGHTS: Record<string, any> = withDemoTrustAll({ ...SPOTLIGHT_BUSINESSES, ...MENU_SPOTLIGHTS, ...HOTEL_SPOTLIGHTS, ...CAR_SPOTLIGHTS, ...PHARMACY_SPOTLIGHTS, ...FITNESS_SPOTLIGHTS, ...BEAUTY_SPOTLIGHTS, ...HEALTH_SPOTLIGHTS, ...FASHION_SPOTLIGHTS, ...EDUCATION_SPOTLIGHTS, ...PHOTO_SPOTLIGHTS, ...TRANSPORT_SPOTLIGHTS, ...EVENT_SPOTLIGHTS, ...RETAIL_SPOTLIGHTS, ...AGRICULTURE_SPOTLIGHTS, ...LEGAL_SPOTLIGHTS, ...SERVICE_PROVIDER_SPOTLIGHTS, ...FINANCE_SPOTLIGHTS, ...MANUFACTURING_SPOTLIGHTS, ...CONSTRUCTION_SPOTLIGHTS, ...TRAVEL_SPOTLIGHTS, ...AUTOMOTIVE_SPOTLIGHTS, ...CHILDCARE_SPOTLIGHTS, ...MUSIC_SPOTLIGHTS, ...DESIGN_SPOTLIGHTS, ...INSURANCE_SPOTLIGHTS, ...ACCOUNTING_SPOTLIGHTS, ...MARKETING_SPOTLIGHTS, ...MONEY_SPOTLIGHTS, ...SOFTWARE_SPOTLIGHTS, ...REPAIR_SPOTLIGHTS, ...NEW_INDUSTRY_SPOTLIGHTS, ...MORE_SPOTLIGHTS });
-import { ArrowLeft, ShoppingBag, Clock, MapPin, Phone, Mail, Globe, Star, Tag, Image, Grid, Package, Users2, Navigation, Loader2, Send, MessageCircle, CalendarCheck, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, Radio, Play, Share2 } from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Clock, MapPin, Phone, Mail, Globe, Star, Tag, Image, Grid, Package, Users2, Navigation, Loader2, Send, MessageCircle, CalendarCheck, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, Radio, Play, Share2 , Info} from 'lucide-react';
 import { telHref, whatsappHref } from '../lib/phone';
+import { websiteHref, websiteLabel } from '../lib/webLink';
 
 interface TabConfig {
   id: string;
@@ -142,29 +147,25 @@ interface TabConfig {
 }
 
 // Sample data for tabs
-const sampleServices = [
-  { id: 1, name: 'Web Development', description: 'Custom websites and web applications', price: '$500-$5000' },
-  { id: 2, name: 'Mobile App Development', description: 'iOS and Android app development', price: '$1000-$10000' },
-  { id: 3, name: 'UI/UX Design', description: 'User interface and experience design', price: '$500-$3000' },
-];
-
-const sampleProducts = [
-  { id: 1, name: 'Premium Widget', description: 'High-quality widget for professionals', price: '$99.99', image: 'https://picsum.photos/seed/product1/300/200.jpg' },
-  { id: 2, name: 'Business Software Suite', description: 'Complete business management solution', price: '$299.99', image: 'https://picsum.photos/seed/product2/300/200.jpg' },
-  { id: 3, name: 'Marketing Template Pack', description: 'Professional marketing templates', price: '$49.99', image: 'https://picsum.photos/seed/product3/300/200.jpg' },
-];
-
-const sampleGallery = [
-  'https://picsum.photos/seed/gallery1/600/400.jpg',
-  'https://picsum.photos/seed/gallery2/600/400.jpg',
-  'https://picsum.photos/seed/gallery3/600/400.jpg',
-];
-
-const sampleReviews = [
-  { id: 1, author: 'John Doe', rating: 5, comment: 'Excellent service! Highly recommend.', date: '2024-01-15' },
-  { id: 2, author: 'Jane Smith', rating: 4, comment: 'Great work, very professional.', date: '2024-01-10' },
-  { id: 3, author: 'Mike Johnson', rating: 5, comment: 'Outstanding results, exceeded expectations!', date: '2024-01-05' },
-];
+/*
+ * The generic demo sets that used to live here are gone.
+ *
+ * They were one list — "Web Development / Mobile App Development / UI/UX
+ * Design", priced in DOLLARS — rendered on every industry without a
+ * purpose-built set: a real estate agency, a pharmacy, a bakery, a farm, a
+ * butchery. Plus three picsum placeholders as the gallery for all forty-five
+ * demo profiles, and three five-star reviews from "John Doe", "Jane Smith" and
+ * "Mike Johnson".
+ *
+ * Services and galleries now come from data/demoContent.ts, per industry.
+ *
+ * THE REVIEWS ARE NOT REPLACED, THEY ARE REMOVED. Invented testimonials and
+ * ratings are on the permanent prohibition list, and they are also the wrong
+ * tool for the job: a well-filled page with no reviews reads as a business that
+ * has just joined, which is credible. The same page carrying 4.8 stars and
+ * three glowing comments from invented people reads as a lie the moment anybody
+ * looks — and it devalues every real review on the platform.
+ */
 
 interface BusinessContent {
   services: any[];
@@ -185,6 +186,22 @@ export default function BusinessDetail() {
   // not hold.
   const foundingNumber = useFoundingNumber(business?.id ? String(business.id) : null);
   const [loading, setLoading] = useState(true);
+  /*
+   * The load FAILED, as distinct from the business not existing.
+   *
+   * This was the worst instance of that confusion in the product. The catch
+   * only logged, `business` stayed null, and a null business renders the 404 —
+   * so a network blink told a customer that a real business is not on NowOpen,
+   * and told the owner their page was gone. On the page that SEO exists to
+   * drive traffic to.
+   *
+   * "Not found" is a claim about the directory, and it cannot be made when we
+   * never managed to ask. Note that supabase-js RESOLVES with
+   * { data: null, error } rather than throwing, so the error has to be read
+   * off the response as well as caught.
+   */
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   /**
    * Tab state lives in the URL, not in useState alone.
    *
@@ -268,9 +285,10 @@ export default function BusinessDetail() {
   const [submittingReview, setSubmittingReview] = useState(false);
 
   useEffect(() => {
+    setLoadError(false);
     if (id || username) fetchBusiness();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, username]);
+  }, [id, username, reloadKey]);
 
   const fetchBusiness = async () => {
     try {
@@ -282,7 +300,10 @@ export default function BusinessDetail() {
           .maybeSingle();
 
         if (error) {
-          console.warn('Supabase fetch failed, falling back to sample data:', error.message);
+          console.warn('Supabase fetch failed:', error.message);
+          // Recorded, not just logged: a null `business` renders the 404, so
+          // without this a failed read claims the business does not exist.
+          setLoadError(true);
         }
         if (data) {
           setBusiness(data);
@@ -319,7 +340,10 @@ export default function BusinessDetail() {
           .maybeSingle();
 
         if (error) {
-          console.warn('Supabase fetch failed, falling back to sample data:', error.message);
+          console.warn('Supabase fetch failed:', error.message);
+          // Recorded, not just logged: a null `business` renders the 404, so
+          // without this a failed read claims the business does not exist.
+          setLoadError(true);
         }
         if (data) {
           setBusiness(data);
@@ -344,6 +368,7 @@ export default function BusinessDetail() {
       }
     } catch (err) {
       console.error('Error fetching business:', err);
+      setLoadError(true);
     } finally {
       setLoading(false);
     }
@@ -353,6 +378,12 @@ export default function BusinessDetail() {
 
   // Per-listing SEO. Real businesses get their own title, description,
   // canonical (friendly username URL when available) and LocalBusiness
+  // Published enrichment assets — a person moderated these, so they are safe
+  // to render as cover/logo fallback or appended gallery. RLS only ever lets
+  // the public see published assets of listable businesses, holding back
+  // every discovery proposal until it reaches that state.
+  const [mediaAssets, setMediaAssets] = useState<MediaAssetLite[]>([]);
+
   // JSON-LD, so each profile ranks as its own entity. Sample and unresolved
   // listings are noindexed — demo data must never appear in search results.
   // Recorded once per listing per mount, and never for the sample fallback —
@@ -383,7 +414,8 @@ export default function BusinessDetail() {
       (business.description ?? '').trim().slice(0, 300) ||
       `${name} — a ${category} on NowOpen Africa.`;
     const path = business.username ? `/${business.username}` : `/businesses/${business.id}`;
-    const image = business.cover_image_url || business.image_url || business.logo_url || '/og-image.png';
+    const image = business.cover_image_url || business.image_url || business.logo_url ||
+      firstPublishedUrl(mediaAssets, 'cover') || firstPublishedUrl(mediaAssets, 'logo') || '/og-image.png';
     const absImage = image.startsWith('http') ? image : `${SITE_URL}${image}`;
     const rating =
       typeof business.rating === 'number' && business.rating > 0 ? business.rating : undefined;
@@ -411,10 +443,18 @@ export default function BusinessDetail() {
           : {}),
       },
     });
-  }, [business, isSample]);
+  }, [business, isSample, mediaAssets]);
 
   // Real businesses: load their services/products/gallery/reviews. Tables may
   // not exist yet on a fresh project — fail soft to empty content.
+  /*
+   * True when any part of the business's own content failed to load, as
+   * distinct from the business genuinely having none yet. Without it, a
+   * dropped request is indistinguishable from an owner who has not filled
+   * their profile in.
+   */
+  const [contentFailed, setContentFailed] = useState(false);
+
   const fetchContent = useCallback(async (businessId: string) => {
     try {
       const [svc, prod, gal, rev] = await Promise.all([
@@ -423,6 +463,20 @@ export default function BusinessDetail() {
         supabase.from('business_gallery').select('*').eq('business_id', businessId).order('created_at'),
         supabase.from('business_reviews').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
       ]);
+
+      /*
+       * `?? []` alone cannot tell an empty catalogue from an unreachable one,
+       * and the catch below never fires for a failed read — supabase-js
+       * RESOLVES with `{ data: null, error }`. So a dropped request used to
+       * empty the whole profile body and the page said "No reviews yet" and
+       * showed nothing where the menu and gallery were.
+       *
+       * One flag, not four: these go out together in a single Promise.all
+       * against one business, so "the gallery loaded but the menu did not"
+       * would claim a precision the failure does not have.
+       */
+      setContentFailed(!!svc.error || !!prod.error || !!gal.error || !!rev.error);
+
       setContent({
         services: svc.data ?? [],
         products: prod.data ?? [],
@@ -431,15 +485,46 @@ export default function BusinessDetail() {
       });
     } catch (err) {
       console.warn('Business content unavailable:', err);
+      setContentFailed(true);
       setContent(EMPTY_CONTENT);
     }
   }, []);
+
+  const retryContent = useCallback(() => {
+    if (!business) return;
+    setContentFailed(false);
+    void fetchContent(String(business.id));
+  }, [business, fetchContent]);
 
   useEffect(() => {
     if (business && !isSampleId(String(business.id))) {
       fetchContent(String(business.id));
     }
   }, [business, fetchContent]);
+
+  // Published enrichment assets — a person moderated these, so they are safe
+  // to render as cover/logo fallback or appended gallery. RLS only ever lets
+  // the public see published assets of listable businesses, holding back
+  // every discovery proposal until it reaches that state. Graceful when the
+  // table is missing on a fresh project: enrichment is an enhancement.
+  useEffect(() => {
+    if (!business || isSampleId(String(business.id))) return;
+    let cancelled = false;
+    void (async () => {
+      try {
+        const { data } = await supabase
+          .from('business_media_assets')
+          .select('asset_type, caption, source_uri, status')
+          .eq('business_id', business.id)
+          .eq('status', 'published');
+        if (cancelled) return;
+        setMediaAssets((data as MediaAssetLite[] | null) ?? []);
+      } catch {
+        if (!cancelled) setMediaAssets([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [business]);
 
   // Lightweight header indicator only — the Live tab itself does its own,
   // more detailed fetch (current viewers, scheduled/replay state, etc.).
@@ -462,8 +547,9 @@ export default function BusinessDetail() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [lightboxIndex]);
 
-  // Demo content (sampleServices/Products/Gallery/Reviews) is only shown for
-  // generated sample listings — real businesses show what they've added.
+  // Demo content (data/demoContent.ts, plus the per-industry SAMPLE_* sets)
+  // is only shown for generated sample listings — a real business shows what
+  // it has actually added, and an empty tab is the honest answer.
   const legacyServices: { id: number | string; name: string; description: string; price: string }[] =
     !isSample && business?.services && content.services.length === 0
       // Older listings stored services as comma-separated text on the business row
@@ -495,7 +581,7 @@ export default function BusinessDetail() {
   const isSoftware = business?.category === 'Software & IT';
   const isRepair = business?.category === 'Gadget & Device Repair';
   const services = isSample
-    ? (isHotel ? SAMPLE_ROOMS : isFitness ? SAMPLE_FITNESS : isBeauty ? SAMPLE_TREATMENTS : isHealth ? SAMPLE_DOCTORS : isEducation ? SAMPLE_COURSES : isPhoto ? SAMPLE_PACKAGES : isTransport ? SAMPLE_ROUTES : isEvents ? SAMPLE_VENDORS : isLegal ? SAMPLE_PRACTICES : isServiceProvider ? SAMPLE_JOBS : isFinance ? SAMPLE_FINANCIAL : isConstruction ? SAMPLE_BUILD_SERVICES : isTravel ? SAMPLE_TRIPS : isAutomotive ? SAMPLE_AUTO_SERVICES : isChildcare ? SAMPLE_CARE_PROGRAMS : isMusic ? SAMPLE_ACTS : isDesign ? SAMPLE_DESIGN_SERVICES : isInsurance ? SAMPLE_POLICIES : isAccounting ? SAMPLE_ACCOUNTING_SERVICES : isMarketing ? SAMPLE_MARKETING_SERVICES : isMoney ? SAMPLE_MONEY_SERVICES : isSoftware ? SAMPLE_SOFTWARE_SERVICES : isRepair ? SAMPLE_REPAIRS : sampleServices)
+    ? (isHotel ? SAMPLE_ROOMS : isFitness ? SAMPLE_FITNESS : isBeauty ? SAMPLE_TREATMENTS : isHealth ? SAMPLE_DOCTORS : isEducation ? SAMPLE_COURSES : isPhoto ? SAMPLE_PACKAGES : isTransport ? SAMPLE_ROUTES : isEvents ? SAMPLE_VENDORS : isLegal ? SAMPLE_PRACTICES : isServiceProvider ? SAMPLE_JOBS : isFinance ? SAMPLE_FINANCIAL : isConstruction ? SAMPLE_BUILD_SERVICES : isTravel ? SAMPLE_TRIPS : isAutomotive ? SAMPLE_AUTO_SERVICES : isChildcare ? SAMPLE_CARE_PROGRAMS : isMusic ? SAMPLE_ACTS : isDesign ? SAMPLE_DESIGN_SERVICES : isInsurance ? SAMPLE_POLICIES : isAccounting ? SAMPLE_ACCOUNTING_SERVICES : isMarketing ? SAMPLE_MARKETING_SERVICES : isMoney ? SAMPLE_MONEY_SERVICES : isSoftware ? SAMPLE_SOFTWARE_SERVICES : isRepair ? SAMPLE_REPAIRS : demoServices(business?.category))
     : content.services.length > 0
     ? content.services.map(s => ({
         id: s.id, name: s.name, description: s.description || '', price: s.price || '',
@@ -530,7 +616,10 @@ export default function BusinessDetail() {
        : isAgriculture ? SAMPLE_PRODUCE
        : isRetail ? SAMPLE_RETAIL
        : isManufacturing ? SAMPLE_MANUFACTURED
-       : sampleProducts)
+       // No generic fallback. "Premium Widget / Business Software Suite /
+       // Marketing Template Pack" is worse than an empty Products tab: an empty
+       // tab reads as a business that has not added stock yet, which is true.
+       : [])
     : content.products.map(p => ({
         id: p.id, name: p.name, description: p.description || '', price: p.price || '',
         image: p.image_url || '', stock: p.stock_quantity ?? null,
@@ -562,6 +651,27 @@ export default function BusinessDetail() {
   // e.g. Real Estate's "Book a Viewing" against one property (productBookingModule).
   const cartModule = features.find(f => f.itemSource === 'product' && f.cart);
   const productBookingModule = features.find(f => f.itemSource === 'product' && !f.cart);
+  /*
+   * Every module the page's own layout does not already reach.
+   *
+   * The industry layouts below each drive ONE service-shaped module: the
+   * chain picks `bookingModule` and renders it as that industry's primary
+   * action. That held while 109 of the 110 mapped categories declared a
+   * single module. They no longer do — an AC engineer takes repairs AND
+   * installations AND a servicing plan; a car dealer sells, values a
+   * trade-in, and books test drives. `find` returns the first and silently
+   * drops the rest, so those modules existed in the data and were dead on
+   * the page.
+   *
+   * BookingModal already renders whatever module `activeBookingModule`
+   * resolves to, so the only thing missing was a way in.
+   */
+  const reachedKeys = new Set(
+    [bookingModule, reservationModule, cartModule, productBookingModule]
+      .filter((f): f is CategoryFeatureConfig => !!f)
+      .map(f => f.key)
+  );
+  const extraModules = features.filter(f => !reachedKeys.has(f.key));
   const activeBookingModule = booking ? features.find(f => f.key === booking.moduleKey) : undefined;
   const bookingItems = activeBookingModule?.itemSource === 'product'
     ? products.map(p => ({ id: String(p.id), name: p.name, price: p.price }))
@@ -629,8 +739,10 @@ export default function BusinessDetail() {
   };
   // `id` is the business_gallery row id, needed to build the /r/<id> share URL.
   // Sample items have none — they aren't real rows, so they aren't shareable.
-  const gallery: { id?: string; url: string; caption?: string; type: MediaKind }[] = isSample
-    ? sampleGallery.map(url => ({ url, type: 'photo' as const }))
+  const baseGallery: { id?: string; url: string; caption?: string; type: MediaKind }[] = isSample
+    // Industry-appropriate photography rather than three identical
+    // placeholders on every demo profile.
+    ? demoGallery(business?.category).map(url => ({ url, type: 'photo' as const }))
     : content.gallery
         // Scheduled reels stay off the profile until their time. RLS enforces
         // this too; filtering here keeps it right even on a database where the
@@ -642,6 +754,20 @@ export default function BusinessDetail() {
           caption: g.caption || undefined,
           type: mediaKindOf(g.image_url),
         }));
+
+  // Enrichment assets a person published APPEND after the owner's own gallery,
+  // never before it and never in place of it.
+  const gallery = mergePublishedGallery(baseGallery, mediaAssets, (asset) => ({
+    url: asset.source_uri as string,
+    caption: asset.caption ?? undefined,
+    type: mediaKindOf(asset.source_uri),
+  }));
+
+  // Cover and logo are photo-shaped slots — a published video can never
+  // masquerade as a still image on the profile header.
+  const photoFirst = (url: string | null) => (url && mediaKindOf(url) === 'photo' ? url : null);
+  const publishedCover = photoFirst(firstPublishedUrl(mediaAssets, 'cover'));
+  const publishedLogo = photoFirst(firstPublishedUrl(mediaAssets, 'logo'));
 
   // Intrinsic size per URL, reported by the browser once each item loads. Only
   // the browser knows it, so the orientation filters populate as the grid
@@ -657,8 +783,12 @@ export default function BusinessDetail() {
     (f) => f.key === 'all' || filterCounts[f.key] > 0,
   );
   const visibleGallery = galleryItems.filter((i) => matchesGalleryFilter(i, galleryFilter));
+  /*
+   * A demo profile shows NO reviews. Not placeholder ones, not anonymised
+   * ones — none. See the note at the top of this file.
+   */
   const reviews = isSample
-    ? sampleReviews
+    ? []
     : content.reviews.map(r => ({
         id: r.id,
         author: r.author_name,
@@ -705,15 +835,26 @@ export default function BusinessDetail() {
     }
   };
 
+  /*
+   * A count of 0 is an ASSERTION: this business has none. When the content
+   * read failed we do not know that, and the visitor lands on Overview where
+   * the tab bar was the first thing they saw — "Services 0 · Menu 0 ·
+   * Gallery 0 · Reviews 0" for a business that may well have all four.
+   *
+   * Caught by rendering the page rather than by reading it: the tab panels
+   * had already been fixed, and the tab BAR still lied.
+   */
+  const tabCount = (n: number) => (contentFailed ? undefined : n);
+
   const tabs: TabConfig[] = [
     { id: 'overview', label: 'Overview', icon: <Grid size={18} /> },
-    { id: 'services', label: getTabLabel(business?.category, 'services', 'Services'), icon: <ShoppingBag size={18} />, count: services.length },
-    { id: 'products', label: getTabLabel(business?.category, 'products', 'Products'), icon: <Package size={18} />, count: products.length },
-    { id: 'gallery', label: getTabLabel(business?.category, 'gallery', 'Gallery'), icon: <Image size={18} />, count: gallery.length },
+    { id: 'services', label: getTabLabel(business?.category, 'services', 'Services'), icon: <ShoppingBag size={18} />, count: tabCount(services.length) },
+    { id: 'products', label: getTabLabel(business?.category, 'products', 'Products'), icon: <Package size={18} />, count: tabCount(products.length) },
+    { id: 'gallery', label: getTabLabel(business?.category, 'gallery', 'Gallery'), icon: <Image size={18} />, count: tabCount(gallery.length) },
     // Premium, verified-only feature — unconfigured/unverified businesses
     // keep the plain tab set.
     ...(business?.verified ? [{ id: 'live', label: '🔴 Live', icon: <Radio size={18} /> }] : []),
-    { id: 'reviews', label: 'Reviews', icon: <Star size={18} />, count: reviews.length },
+    { id: 'reviews', label: 'Reviews', icon: <Star size={18} />, count: tabCount(reviews.length) },
     { id: 'contact', label: 'Contact', icon: <Phone size={18} /> },
   ];
 
@@ -721,6 +862,27 @@ export default function BusinessDetail() {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500"></div>
+      </div>
+    );
+  }
+
+  /*
+   * A failed read is not a missing business.
+   *
+   * Checked before the 404 below: that screen doubles as the site's catch-all,
+   * so without this a dropped connection on a real profile renders "Business
+   * not found" — the single most damaging thing this product can say, to
+   * either side of the marketplace.
+   */
+  if (!business && loadError) {
+    return (
+      <div className="min-h-[70vh] flex items-center justify-center px-4">
+        <div className="w-full max-w-lg">
+          <LoadFailure
+            what="this business"
+            onRetry={() => setReloadKey((k) => k + 1)}
+          />
+        </div>
       </div>
     );
   }
@@ -778,6 +940,33 @@ export default function BusinessDetail() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
+      {/*
+        A DEMO PROFILE SAYS SO, ON THE PAGE.
+
+        Until now the only signal was "(sample)" in the browser tab. That was
+        already thin, and it became indefensible the moment these pages were
+        enriched to look like real businesses and linked from the homepage: a
+        screenshot of one carried nothing at all to say it was a demo.
+
+        Full width, above everything, and it names what is placeholder. It is
+        not dismissible — a demo does not stop being a demo once you scroll.
+      */}
+      {isSample && (
+        <div className="bg-amber-100 dark:bg-amber-900/40 border-b border-amber-300 dark:border-amber-800">
+          <div className="site-container py-2.5 flex items-start gap-2">
+            <Info size={15} className="mt-0.5 shrink-0 text-amber-800 dark:text-amber-300" />
+            <p className="text-xs sm:text-sm text-amber-900 dark:text-amber-200">
+              <strong>This is a demo profile, not a real business.</strong> It shows how a{' '}
+              {(business?.category ?? 'business').toLowerCase()} page works on NowOpen. The name,
+              details, services and photographs are placeholders, nobody is listed here, and there
+              is nothing to contact.{' '}
+              <Link to="/send-business" className="font-semibold underline">
+                Get a real one for your business
+              </Link>
+            </p>
+          </div>
+        </div>
+      )}
       <div className="site-container py-4 sm:py-8">
         <div className="mb-4 sm:mb-8">
           <Link
@@ -794,9 +983,9 @@ export default function BusinessDetail() {
           {/* Cover Image */}
           <div className="relative">
             <div className="h-36 sm:h-72 md:h-96 bg-gray-200 dark:bg-gray-700 overflow-hidden">
-              {business.image_url ? (
-                <img
-                  src={business.image_url}
+              {business.image_url || publishedCover ? (
+                <SmartImg
+                  src={business.image_url || publishedCover}
                   alt={business.name}
                   className="w-full h-full object-cover"
                 />
@@ -809,9 +998,15 @@ export default function BusinessDetail() {
             <div className="absolute -bottom-8 sm:-bottom-16 left-4 sm:left-8">
               <div className="relative">
                 <div className="w-16 h-16 sm:w-32 sm:h-32 bg-gray-300 dark:bg-gray-600 rounded-full border-2 sm:border-4 border-white dark:border-gray-800 shadow-lg flex items-center justify-center overflow-hidden">
-                  {business.logo_url ? (
-                    <img loading="lazy" decoding="async"
-                      src={business.logo_url}
+                  {business.logo_url || publishedLogo ? (
+                    <SmartImg
+                      src={business.logo_url || publishedLogo}
+                      fallback={business.image_url || null}
+                      /* The logo is usually hosted on the business's own CDN,
+                         so this request goes to a third party. no-referrer
+                         stops us handing them the profile URL of every visitor;
+                         the IP is unavoidable when hotlinking. */
+                      referrerPolicy="no-referrer"
                       alt={business.name}
                       className="w-full h-full object-cover"
                     />
@@ -844,24 +1039,45 @@ export default function BusinessDetail() {
                   {hasLiveNow && (
                     <button
                       onClick={() => setActiveTab('live')}
-                      className="inline-flex items-center gap-1 bg-red-600 text-white text-[11px] font-bold px-2 py-0.5 rounded-md hover:bg-red-700 transition"
+                      /* min-h in px: measured 48x20 on a 360px screen, the only
+                          interactive control left on the page below the WCAG 2.2
+                          AA floor of 24px. It joins a live stream, so it is a
+                          real target and gets no inline-text exemption. */
+                      className="inline-flex items-center gap-1 min-h-[32px] bg-red-600 text-white text-[11px] font-bold px-2.5 rounded-md hover:bg-red-700 transition"
                     >
                       <Radio size={10} className="animate-pulse" /> LIVE
                     </button>
                   )}
                 </div>
-                <p className="text-xs sm:text-lg text-gray-600 dark:text-gray-400">{business.description}</p>
+                <p className="mt-3 sm:mt-4 w-full sm:w-3/4 text-sm sm:text-base text-gray-600 dark:text-gray-400 leading-relaxed">{business.description}</p>
               </div>
-              <div className="text-left sm:text-right">
-                <div className="flex items-center gap-1 mb-1">
-                  <Star size={16} className="fill-yellow-400 text-yellow-400 sm:hidden" />
-                  <Star size={18} className="fill-yellow-400 text-yellow-400 hidden sm:block" />
-                  <span className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">
-                    {business.rating ? business.rating.toFixed(1) : '0.0'}
-                  </span>
+              {/*
+                A rating appears only when there IS one.
+
+                This used to fall back to "0.0 Rating" beside a gold star,
+                which is worse than showing nothing: it reads as a business
+                rated zero rather than one nobody has reviewed yet. Every new
+                listing wore it, and every demo profile did too once the
+                invented 4.8s were removed.
+              */}
+              {business.rating ? (
+                <div className="text-left sm:text-right">
+                  <div className="flex items-center gap-1 mb-1">
+                    <Star size={16} className="fill-yellow-400 text-yellow-400 sm:hidden" />
+                    <Star size={18} className="fill-yellow-400 text-yellow-400 hidden sm:block" />
+                    <span className="text-base sm:text-xl font-bold text-gray-900 dark:text-white">
+                      {business.rating.toFixed(1)}
+                    </span>
+                  </div>
+                  <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Rating</p>
                 </div>
-                <p className="text-xs sm:text-sm text-gray-600 dark:text-gray-400">Rating</p>
-              </div>
+              ) : (
+                <div className="text-left sm:text-right">
+                  <p className="text-xs sm:text-sm text-gray-500 dark:text-gray-400">
+                    No reviews yet
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Business Status & Quick Info */}
@@ -894,12 +1110,23 @@ export default function BusinessDetail() {
             {/* Trust & verification — answers "can I trust this business?"
                 before the visitor has to go looking for it. */}
             <div className="mt-4">
-              <BusinessTrustPanel
-                business={business}
-                reviewCount={content.reviews.length}
-                productCount={content.products.length}
-                serviceCount={content.services.length}
-              />
+              {/*
+                A demo profile gets NO trust score.
+
+                It was rendering "Business Trust Score: PLATINUM" — the highest
+                grade the panel awards — on a page with invented details and
+                nobody behind it. A trust signal on a demo is not a small
+                inaccuracy; it is the single most misleading thing the page
+                could say, and it cheapens the score everywhere it is earned.
+              */}
+              {!isSample && (
+                <BusinessTrustPanel
+                  business={business}
+                  reviewCount={content.reviews.length}
+                  productCount={content.products.length}
+                  serviceCount={content.services.length}
+                />
+              )}
 
               <BusinessLocations business={business} />
             </div>
@@ -972,9 +1199,12 @@ export default function BusinessDetail() {
                   {reservationModule.ctaLabel}
                 </button>
               )}
-              {business.website && (
+              {/* websiteHref, not the raw value: `website = 'UNKNOWN'` on 85
+                  live listings rendered as a RELATIVE href, so "Visit Website"
+                  took the visitor to a not-found page inside NowOpen. */}
+              {websiteHref(business.website) && (
                 <a
-                  href={business.website}
+                  href={websiteHref(business.website)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="sm:flex-none inline-flex items-center justify-center gap-1.5 sm:gap-2 px-3 sm:px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-xs sm:text-sm"
@@ -987,6 +1217,31 @@ export default function BusinessDetail() {
             </div>
           </div>
         </div>
+
+        {/* Everything else this trade actually takes.
+            Not a decorative row: each button opens the same BookingModal the
+            primary action uses, on that module's own fields. A category that
+            declares one module renders nothing here. */}
+        {extraModules.length > 0 && (
+          <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl mb-8 p-5 sm:p-6">
+            <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-3">
+              More you can do here
+            </h2>
+            <div className="flex flex-wrap gap-2 sm:gap-3">
+              {extraModules.map(mod => (
+                <button
+                  key={mod.key}
+                  type="button"
+                  onClick={() => setBooking({ moduleKey: mod.key })}
+                  className="inline-flex items-center gap-2 px-4 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-200 font-medium rounded-lg hover:border-purple-500 hover:text-purple-700 dark:hover:text-purple-300 transition text-xs sm:text-sm"
+                >
+                  <CalendarCheck size={15} className="text-purple-600 dark:text-purple-400" />
+                  <span>{mod.ctaLabel}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Tabs Navigation */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl mb-8">
@@ -1048,6 +1303,17 @@ export default function BusinessDetail() {
             {activeTab === 'overview' && (
               <div className="animate-fadeIn">
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">Business Overview</h2>
+
+                {/* Overview is where a visitor lands, and most of what it shows
+                    comes from the business row, which loaded. But the tab bar
+                    above has just dropped its counts, and leaving that
+                    unexplained is its own small confusion — so say once, here,
+                    what happened. The other tabs repeat it in place. */}
+                {contentFailed && (
+                  <div className="mb-6">
+                    <LoadFailure what="this business’s details" onRetry={retryContent} />
+                  </div>
+                )}
 
                 <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-5 mb-6">
                   <BusinessTimeline business={business} config={clockConfig} />
@@ -1133,7 +1399,11 @@ export default function BusinessDetail() {
 
                   <div>
                     <h3 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Opening Hours</h3>
-                    <OpeningHoursPanel hours={business.opening_hours || business.hours} timeZone={business.timezone} />
+                    <OpeningHoursPanel
+                      hours={business.opening_hours || business.hours}
+                      timeZone={business.timezone}
+                      availabilityDefault={business.availability_mode === 'default_24_7'}
+                    />
                   </div>
                 </div>
 
@@ -1412,6 +1682,10 @@ export default function BusinessDetail() {
                     onWhatsApp={(room) => handleWhatsAppOrder(room)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
                   />
+                ) : contentFailed ? (
+                  <div className="py-4">
+                    <LoadFailure what="this business’s details" onRetry={retryContent} />
+                  </div>
                 ) : services.length > 0 ? (
                   <div className="space-y-4">
                     {services.map((service) => (
@@ -1543,12 +1817,16 @@ export default function BusinessDetail() {
                     onWhatsApp={(prop) => handleWhatsAppOrder(prop)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
                   />
+                ) : contentFailed ? (
+                  <div className="py-4">
+                    <LoadFailure what="this business’s details" onRetry={retryContent} />
+                  </div>
                 ) : products.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                     {products.map((product) => (
                       <div key={product.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
                         {product.image ? (
-                          <img loading="lazy" decoding="async"
+                          <SmartImg
                             src={product.image}
                             alt={product.name}
                             className="w-full h-24 sm:h-32 md:h-48 object-cover"
@@ -1655,7 +1933,11 @@ export default function BusinessDetail() {
               <div className="animate-fadeIn">
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">{getTabLabel(business.category, 'gallery', 'OpenReels')}</h2>
 
-                {gallery.length > 0 ? (
+                {contentFailed ? (
+                  <div className="py-4">
+                    <LoadFailure what="this business’s details" onRetry={retryContent} />
+                  </div>
+                ) : gallery.length > 0 ? (
                   <>
                     {/* Filter rail — scrolls sideways on a phone rather than
                         wrapping into rows and pushing the grid down. */}
@@ -1706,14 +1988,26 @@ export default function BusinessDetail() {
                           // Loading a dozen third-party players in a grid would
                           // cost more than the whole rest of the page. The real
                           // player opens in the lightbox.
-                          <div className="w-full h-full bg-gray-900 flex flex-col items-center justify-center gap-2">
-                            <div className="w-10 h-10 rounded-full bg-white/90 flex items-center justify-center shadow-lg">
-                              <Play size={18} className="text-gray-900 ml-0.5" />
-                            </div>
-                            <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-300">
-                              {parseVideoEmbed(item.url)?.label}
-                            </span>
-                          </div>
+                          /*
+                           * A real thumbnail where the platform publishes one.
+                           *
+                           * All four YouTube reels in the gallery showed a grey
+                           * tile with a play icon, because an embed has no
+                           * `-poster.jpg` and is not a video file. YouTube does
+                           * serve a still at a URL derivable from the id our own
+                           * parser already extracts — no API key — and
+                           * i.ytimg.com was ALREADY in the img-src allowlist,
+                           * which is a good sign this was meant to work.
+                           *
+                           * Vimeo/TikTok/Instagram need an API call, so they keep
+                           * the labelled placeholder: saying "TikTok" is honest
+                           * about not having the picture, and a guessed URL that
+                           * 404s is not.
+                           */
+                          <EmbedThumb
+                            url={item.url}
+                            alt={item.caption || `${business.name} reel ${index + 1}`}
+                          />
                         ) : item.type === 'video' ? (
                           // Poster image where one exists, so a grid of reels
                           // doesn't download and decode every clip just to show
@@ -1725,7 +2019,7 @@ export default function BusinessDetail() {
                             onMeasured={(w, h) => noteGalleryDim(item.url, w, h)}
                           />
                         ) : (
-                          <img loading="lazy" decoding="async"
+                          <SmartImg
                             src={item.url}
                             alt={item.caption || `${business.name} gallery ${index + 1}`}
                             className="w-full h-full object-cover group-hover:scale-105 transition duration-300"
@@ -1789,15 +2083,24 @@ export default function BusinessDetail() {
               <div className="animate-fadeIn">
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">Customer Reviews</h2>
-                  <div className="flex items-center gap-1">
-                    <Star size={20} className="fill-yellow-400 text-yellow-400" />
-                    <span className="text-lg font-bold text-gray-900 dark:text-white">
-                      {business.rating ? business.rating.toFixed(1) : '0.0'}
-                    </span>
-                  </div>
+                  {/* The same rule as the header: a score only when there is
+                      one. A gold star beside "0.0" above an empty review list
+                      reads as a business rated zero. */}
+                  {business.rating ? (
+                    <div className="flex items-center gap-1">
+                      <Star size={20} className="fill-yellow-400 text-yellow-400" />
+                      <span className="text-lg font-bold text-gray-900 dark:text-white">
+                        {business.rating.toFixed(1)}
+                      </span>
+                    </div>
+                  ) : null}
                 </div>
                 
-                {reviews.length > 0 ? (
+                {contentFailed ? (
+                  <div className="py-4">
+                    <LoadFailure what="this business’s details" onRetry={retryContent} />
+                  </div>
+                ) : reviews.length > 0 ? (
                   <div className="space-y-6">
                     {reviews.map((review) => (
                       <div key={review.id} className="border-b border-gray-200 dark:border-gray-700 pb-6">
@@ -1956,9 +2259,9 @@ export default function BusinessDetail() {
                           </div>
                         </a>
                       )}
-                      {business.website && (
+                      {websiteHref(business.website) && (
                         <a
-                          href={business.website}
+                          href={websiteHref(business.website)!}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => trackContact('website')}
@@ -1967,7 +2270,7 @@ export default function BusinessDetail() {
                           <Globe size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Website</p>
-                            <p className="text-sm text-blue-600 dark:text-blue-400 break-all">{business.website}</p>
+                            <p className="text-sm text-blue-600 dark:text-blue-400 break-all">{websiteLabel(business.website)}</p>
                           </div>
                         </a>
                       )}
@@ -2133,7 +2436,7 @@ export default function BusinessDetail() {
               className="max-w-full max-h-full object-contain rounded-lg"
             />
           ) : (
-            <img loading="lazy" decoding="async"
+            <SmartImg
               src={visibleGallery[lightboxIndex].url}
               alt={visibleGallery[lightboxIndex].caption || `${business.name} gallery ${lightboxIndex + 1}`}
               onClick={(e) => e.stopPropagation()}

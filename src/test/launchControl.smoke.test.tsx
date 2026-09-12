@@ -11,7 +11,7 @@ if (typeof window.matchMedia !== 'function') {
 vi.mock('../lib/supabase', () => {
   const orgId = '00000000-0000-4000-8000-00000000a001';
   const launches = [
-    { id: 'la-1', org_id: orgId, name: 'AI Video Studio', area: 'Product · Media', target: 'Aug 2026', checklist_done: [true, true, true, true, true, true, true] },
+    { id: 'la-1', org_id: orgId, name: 'AI Video Studio', area: 'Product · Media', target: 'Aug 2026', checklist_done: [true, true, true, true, true, true, true], checklist_evidence: [{ auto: true, source: 'business_media_assets' }, null, null, null, null, null, null] },
     { id: 'la-2', org_id: orgId, name: 'Verified Badge', area: 'Trust & Safety', target: 'Mar 2026', checklist_done: [true, true, true, true, true, true, true] },
     { id: 'la-3', org_id: orgId, name: 'Restaurant Week 2026', area: 'Growth · Campaigns', target: 'Sep 2026', checklist_done: [true, false, false, false, false, false, false] },
   ];
@@ -79,6 +79,13 @@ describe('LaunchControl smoke', () => {
   it('shows the derived board KPIs', async () => {
     render(<LaunchControl />);
     expect(await screen.findByText('3')).toBeInTheDocument();
+  });
+
+  it('labels an automated tick with its evidence source', async () => {
+    render(<LaunchControl />);
+    const badge = await screen.findByTitle(/Automated: proven by business_media_assets/);
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent('auto');
   });
 });
 

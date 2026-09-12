@@ -1,4 +1,5 @@
 import { Business } from '../types';
+import { ensureTypefacesReady } from './design/typefaces';
 
 // qrcode, html-to-image and jspdf are imported DYNAMICALLY, inside the three
 // functions that need them, rather than at the top of this module.
@@ -49,11 +50,19 @@ export async function generateQr(
 // does a throwaway "warm-up" render (which primes html-to-image's image cache)
 // before the real capture. Slightly slower, but the output is reliable.
 async function waitForAssets(node: HTMLElement) {
-  // Fonts (Coolvetica) fully loaded.
-  try {
-    const fonts = (document as unknown as { fonts?: { ready?: Promise<unknown> } }).fonts;
-    if (fonts?.ready) await fonts.ready;
-  } catch { /* older browsers — best effort */ }
+  /*
+   * Every Studio typeface PROVEN loaded, not merely awaited.
+   *
+   * This used to be `await document.fonts.ready`, which settles when no load is
+   * PENDING — including the case where nothing has been requested yet. With
+   * self-hosted display faces that is the exact failure the templates were
+   * written to avoid: the editor shows Playfair Display, html2canvas rasterises
+   * before the face is usable, and the customer downloads a Georgia poster.
+   *
+   * ensureTypefacesReady() calls document.fonts.load() per face and then waits
+   * on ready, so the request is started by us and finished before we capture.
+   */
+  await ensureTypefacesReady();
 
   // Every <img> inside the node fully decoded.
   const imgs = Array.from(node.querySelectorAll('img'));

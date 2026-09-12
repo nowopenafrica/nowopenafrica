@@ -87,7 +87,7 @@ export default function ChildcareCenter({
             </div>
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2 flex-wrap">
-                <h4 className="font-bold text-gray-900 dark:text-white">{p.name}</h4>
+                <h4 className="font-bold text-gray-900 dark:text-white truncate">{p.name}</h4>
                 {p.service_category && <span className="text-[10px] font-semibold text-pink-700 dark:text-pink-400 bg-pink-50 dark:bg-pink-900/30 rounded px-1.5 py-0.5">{p.service_category}</span>}
               </div>
               {p.description && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{p.description}</p>}

@@ -1,0 +1,35 @@
+{
+  /*
+   * The code that runs on Vercel, not in the browser.
+   *
+   * `tsconfig.app.json` includes only `src`, and `tsconfig.node.json` only
+   * `vite.config.ts` — so `api/` (every serverless function: discovery, the
+   * reel share renderer, the onboarding sender, the automation endpoints) and
+   * `middleware.ts` were typechecked by nothing at all. `npm run verify`
+   * passed clean while the deploy log carried real errors in them, because
+   * Vercel bundles with esbuild, which strips types instead of checking them.
+   * A genuine type bug in a serverless function would have shipped in silence.
+   *
+   * moduleResolution is "bundler" because that is the truth about how these
+   * files are built — Vercel resolves extensionless relative imports, which is
+   * why `middleware.ts` works in production despite node16 complaining.
+   */
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2023", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    // vite/client because api/ and middleware.ts import from src/lib, and those
+    // shared modules read import.meta.env. Without it every shared file errors
+    // on a Vite global that is perfectly real at build time.
+    "types": ["node", "vite/client"],
+    "skipLibCheck": true,
+    "allowImportingTsExtensions": true,
+    "isolatedModules": true,
+    "moduleDetection": "force",
+    "noEmit": true,
+    "strict": true,
+    "noFallthroughCasesInSwitch": true
+  },
+  "include": ["api", "middleware.ts"]
+}

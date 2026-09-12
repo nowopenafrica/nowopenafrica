@@ -14,10 +14,24 @@ vi.mock('./supabase', () => ({
   },
 }));
 
+/*
+ * Pretend to be the real host.
+ *
+ * `track` now refuses to send from a development hostname — production
+ * `client_error` rows were carrying `localhost:5175` stack traces for
+ * development typos, which buried real incidents. jsdom reports `localhost`,
+ * so without this every test below would be asserting against a gate that is
+ * deliberately closed. The gate itself is covered in
+ * test/productionIntegrity.test.ts.
+ */
 beforeEach(() => {
   inserted.length = 0;
   __resetTelemetry();
   sessionStorage.clear();
+  Object.defineProperty(window, 'location', {
+    configurable: true,
+    value: { ...window.location, hostname: 'www.nowopenafrica.com', pathname: '/' },
+  });
 });
 
 // The privacy boundary. If these ever pass something through, the platform is

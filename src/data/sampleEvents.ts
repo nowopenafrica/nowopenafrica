@@ -38,9 +38,7 @@ export const EVENT_SPOTLIGHTS: Record<string, any> = {
     email: 'plan@grandcelebration.example.com',
     opening_hours: 'Mon–Sat: 9AM–7PM',
     image_url: px(169193),
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

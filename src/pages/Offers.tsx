@@ -6,6 +6,8 @@ import { supabase } from '../lib/supabase';
 import { applySeo } from '../lib/seo';
 import { businessHref } from '../lib/discover';
 import { runningOffers, byUrgency, endsLabel, isEndingSoon, offerHeadline, type Offer } from '../lib/offers';
+import LoadFailure from '../components/LoadFailure';
+import SmartImg from '../components/SmartImg';
 
 /**
  * What is on right now, across every business.
@@ -29,6 +31,18 @@ interface OfferRow extends Offer {
 export default function Offers() {
   const [rows, setRows] = useState<OfferRow[]>([]);
   const [loading, setLoading] = useState(true);
+  /*
+   * Whether the fetch FAILED, as distinct from returning nothing.
+   *
+   * The catch below used to swallow the error and just stop the spinner, so a
+   * dropped connection rendered the empty state — telling a visitor there is
+   * nothing here when the truth was that we could not ask. On the mobile
+   * connections this audience uses, and on a directory that genuinely is
+   * nearly empty, that is the worst possible confusion to create.
+   */
+  const [loadError, setLoadError] = useState(false);
+  /** Bumped by the retry button to re-run the effect. */
+  const [reloadKey, setReloadKey] = useState(0);
   const [place, setPlace] = useState('');
 
   useEffect(() => applySeo({
@@ -39,21 +53,32 @@ export default function Offers() {
 
   useEffect(() => {
     let cancelled = false;
+    setLoadError(false);
+    setLoading(true);
     (async () => {
       // RLS already hides expired and inactive offers; the client filter below
       // is belt-and-braces for a cached response, not the security boundary.
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('business_offers')
         .select('*, businesses(id,name,username,category,location,image_url,logo_url)')
         .order('ends_at', { ascending: true, nullsFirst: false })
         .limit(200);
       if (!cancelled) {
+        // supabase-js RESOLVES with { data: null, error } on a network
+        // failure rather than throwing, so the catch below never sees it.
+        // Read the error off the response or the page shows "no offers" to
+        // somebody whose connection dropped.
+        if (error) setLoadError(true);
         setRows(((data as unknown as OfferRow[]) || []).filter((r) => r.businesses));
         setLoading(false);
       }
-    })().catch(() => { if (!cancelled) setLoading(false); });
+    })().catch(() => {
+      if (cancelled) return;
+      setLoadError(true);
+      setLoading(false);
+    });
     return () => { cancelled = true; };
-  }, []);
+  }, [reloadKey]);
 
   // Recomputed each minute: "ends in 2 hours" is a claim about right now.
   const [now, setNow] = useState(() => new Date());
@@ -91,7 +116,10 @@ export default function Offers() {
         />
       </div>
 
-      {loading ? (
+      {/* A failed load is shown as a failed load, never as an empty result. */}
+      {loadError ? (
+        <LoadFailure what={'offers'} onRetry={() => setReloadKey((k) => k + 1)} />
+      ) : loading ? (
         <div className="flex items-center gap-2 text-sm text-gray-500 dark:text-gray-400 py-10">
           <Loader2 size={16} className="animate-spin" /> Finding offers…
         </div>
@@ -123,7 +151,7 @@ export default function Offers() {
                 >
                   <div className="relative h-28 overflow-hidden">
                     {(o.image_url || b.image_url) ? (
-                      <img src={o.image_url || b.image_url || ''} alt="" loading="lazy" decoding="async"
+                      <SmartImg src={o.image_url || b.image_url || ''} alt=""
                            className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                     ) : (
                       <div className="w-full h-full bg-gradient-to-br from-rose-500 to-orange-500" />
@@ -148,7 +176,7 @@ export default function Offers() {
 
                     <div className="mt-auto pt-3 flex items-center gap-2 min-w-0">
                       {b.logo_url ? (
-                        <img src={b.logo_url} alt="" loading="lazy" className="w-7 h-7 rounded-md object-cover shrink-0" />
+                        <SmartImg src={b.logo_url} alt="" className="w-7 h-7 rounded-md object-cover shrink-0" />
                       ) : (
                         <span className="w-7 h-7 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 flex items-center justify-center text-[11px] font-bold shrink-0">
                           {b.name.slice(0, 1).toUpperCase()}

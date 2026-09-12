@@ -41,6 +41,7 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
       .from('businesses')
       .select('id, name')
       .eq('user_id', user.id)
+      .limit(50000)
       .then(({ data }) => setBusinesses(data || []));
   }, [user]);
 

@@ -3,6 +3,7 @@ import { Pin, X } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
 import { pinTable, formatPinPrice, pinCtaLabel, type PinPayload, type ResolvedPin } from '../../lib/livePin';
+import SmartImg from '../SmartImg';
 
 /**
  * The item the owner is holding up, on the viewer's screen.
@@ -69,11 +70,9 @@ export default function LivePinCard({ pin, businessId, ctaLabel, isCart, onBook,
     <div className="absolute bottom-28 sm:bottom-32 left-3 right-3 sm:left-4 sm:right-auto sm:max-w-sm animate-fadeIn">
       <div className="flex items-center gap-3 rounded-2xl bg-white/95 dark:bg-gray-900/95 backdrop-blur p-2.5 shadow-2xl ring-1 ring-black/10">
         {item.imageUrl ? (
-          <img
+          <SmartImg
             src={item.imageUrl}
             alt={item.name}
-            loading="lazy"
-            decoding="async"
             className="w-14 h-14 rounded-xl object-cover flex-shrink-0"
           />
         ) : (

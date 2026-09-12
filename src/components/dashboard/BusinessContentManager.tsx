@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
   X, Plus, Trash2, Loader2, Upload, Tag, Package, Image as ImageIcon, Star, Inbox, Mail, Phone,
-  Check, Ban, CalendarClock, ShoppingCart, Camera, Play, Share2, Building2,
+  Check, Ban, CalendarClock, ShoppingCart, Camera, Play, Share2, Building2, Pencil, XCircle,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
@@ -21,6 +21,7 @@ import { parseVideoEmbed, embedRejectionReason } from '../../lib/videoEmbeds';
 import VideoEmbedFrame from '../VideoEmbedFrame';
 import GalleryThumb from '../GalleryThumb';
 import AiGenerateToggle from '../studio/AiGenerateToggle';
+import SmartImg from '../SmartImg';
 
 interface BusinessContentManagerProps {
   businessId: string;
@@ -171,6 +172,7 @@ export default function BusinessContentManager({
   const [showCamera, setShowCamera] = useState(false);
 
   // Add-form state (shared across tabs; reset on tab switch)
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
   const [price, setPrice] = useState('');
@@ -240,6 +242,7 @@ export default function BusinessContentManager({
   const [svcCategory, setSvcCategory] = useState('');
 
   const resetForm = () => {
+    setEditingId(null);
     setName(''); setDescription(''); setPrice(''); setImageUrl(''); setCaption(''); setStock(''); setScheduledFor('');
     setListingType('sale'); setPropertyType(''); setBedrooms(''); setBathrooms('');
     setAreaSqm(''); setPropertyLocation(''); setIsFeatured(false);
@@ -400,8 +403,7 @@ export default function BusinessContentManager({
     try {
       let error;
       if (tab === 'services') {
-        ({ error } = await supabase.from('business_services').insert([{
-          business_id: businessId,
+        const serviceRow: Record<string, unknown> = {
           name: name.trim(),
           description: description.trim() || null,
           price: price.trim() || null,
@@ -462,7 +464,12 @@ export default function BusinessContentManager({
             image_url: imageUrl.trim() || null,
             service_category: svcCategory.trim() || null,        // package type
           } : {}),
-        }]));
+        };
+        if (editingId) {
+          ({ error } = await supabase.from('business_services').update(serviceRow).eq('id', editingId));
+        } else {
+          ({ error } = await supabase.from('business_services').insert([{ business_id: businessId, ...serviceRow }]));
+        }
       } else if (tab === 'products') {
         ({ error } = await supabase.from('business_products').insert([{
           business_id: businessId,
@@ -518,12 +525,12 @@ export default function BusinessContentManager({
         error = await insertGalleryRow(imageUrl.trim(), caption.trim() || null, scheduledFor);
       }
       if (error) throw error;
-      toast.success('Added');
+      toast.success(editingId ? 'Updated' : 'Added');
       resetForm();
       fetchAll();
     } catch (err: any) {
       console.error('Add failed:', err);
-      toast.error(`Could not add: ${err.message || 'unknown error'}`);
+      toast.error(`Could not ${editingId ? 'update' : 'add'}: ${err.message || 'unknown error'}`);
     } finally {
       setSaving(false);
     }
@@ -532,6 +539,41 @@ export default function BusinessContentManager({
   /** Ask first. The delete itself runs from the dialog. */
   const handleDelete = (table: string, id: string, label: string) =>
     setPendingDelete({ table, id, label });
+
+  /** Load a service's values into the Add form so it edits instead of inserts. */
+  const startEdit = (s: any) => {
+    setTab('services');
+    setEditingId(s.id);
+    setName(s.name || '');
+    setDescription(s.description || '');
+    setPrice(s.price || '');
+    setImageUrl(s.image_url || '');
+    setCaption('');
+    setStock('');
+    setScheduledFor('');
+    // Category-specific attributes are stored in the same columns the form
+    // originally wrote from, so map them straight back.
+    setRoomCapacity(s.capacity != null ? String(s.capacity) : '');
+    setRoomAmenities(s.amenities || '');
+    setSessionKind(s.session_kind || 'class');
+    setClassLevel(s.class_level || 'All levels');
+    setClassSchedule(s.class_schedule || '');
+    setInstructor(s.instructor || '');
+    setDurationMin(s.duration_min != null ? String(s.duration_min) : '');
+    setBeautyCategory(s.service_category || '');
+    setHomeService(!!s.home_service);
+    setHealthDepartment(s.service_category || '');
+    setIsTelemedicine(!!s.is_telemedicine);
+    setEduProgramme(s.service_category || '');
+    setIsOnline(!!s.is_online);
+    setPhotoGenre(s.service_category || '');
+    setTransportType(s.service_category || '');
+    setEventVendorType(s.service_category || '');
+    setSvcCategory(s.service_category || '');
+    window.scrollTo?.({ top: document.body.scrollHeight, behavior: 'smooth' });
+  };
+
+  const cancelEdit = () => resetForm();
 
   const confirmDelete = async () => {
     if (!pendingDelete) return;
@@ -801,13 +843,16 @@ export default function BusinessContentManager({
                 ? <p className="text-sm text-gray-500 dark:text-gray-400">No services yet — add your first below. They appear on your public profile's Services tab.</p>
                 : <ul className="divide-y divide-gray-100 dark:divide-gray-700">
                     {services.map(s => (
-                      <li key={s.id} className="flex items-center gap-3 py-2.5">
+                      <li key={s.id} className={`flex items-center gap-3 py-2.5 ${editingId === s.id ? 'bg-blue-50 dark:bg-blue-900/20 rounded px-2 -mx-2' : ''}`}>
                         <Tag size={15} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{s.name}</p>
                           {s.description && <p className="text-xs text-gray-500 dark:text-gray-400 truncate">{s.description}</p>}
                         </div>
                         {s.price && <span className="text-sm text-blue-600 dark:text-blue-400 flex-shrink-0">{s.price}</span>}
+                        <button onClick={() => startEdit(s)} aria-label={`Edit ${s.name}`} className="p-1 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700/40 rounded flex-shrink-0">
+                          <Pencil size={15} />
+                        </button>
                         <button onClick={() => handleDelete('business_services', s.id, s.name)} aria-label={`Delete ${s.name}`} className="p-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded flex-shrink-0">
                           <Trash2 size={15} />
                         </button>
@@ -823,7 +868,7 @@ export default function BusinessContentManager({
                     {products.map(p => (
                       <li key={p.id} className="flex items-center gap-3 p-2.5 border border-gray-200 dark:border-gray-700 rounded-lg">
                         {p.image_url
-                          ? <img loading="lazy" decoding="async" src={p.image_url} alt={p.name} className="w-12 h-12 rounded object-cover flex-shrink-0" />
+                          ? <SmartImg src={p.image_url} alt={p.name} className="w-12 h-12 rounded object-cover flex-shrink-0" />
                           : <div className="w-12 h-12 rounded bg-gray-100 dark:bg-gray-700 flex items-center justify-center flex-shrink-0"><Package size={18} className="text-gray-400" /></div>}
                         <div className="min-w-0 flex-1">
                           <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{p.name}</p>
@@ -879,7 +924,7 @@ export default function BusinessContentManager({
                               </div>
                             </>
                           ) : (
-                            <img loading="lazy" decoding="async" src={g.image_url} alt={g.caption || 'Gallery photo'} className="w-full h-20 object-cover rounded-lg" />
+                            <SmartImg src={g.image_url} alt={g.caption || 'Gallery photo'} className="w-full h-20 object-cover rounded-lg" />
                           )}
                           {/* Always visible, never hover-gated. opacity-0 with
                               group-hover meant that on a phone — where there is
@@ -946,7 +991,7 @@ export default function BusinessContentManager({
             {!activeModule && tab !== 'reviews' && tab !== 'enquiries' && (
               <form onSubmit={handleAdd} className="pt-4 border-t border-gray-200 dark:border-gray-700 space-y-3">
                 <p className="text-xs font-semibold text-gray-700 dark:text-gray-300 uppercase tracking-wide">
-                  Add {tab === 'services' ? (isHotel ? 'a room' : isFitness ? 'a class or plan' : isBeauty ? 'a treatment' : isHealth ? 'a doctor' : isEducation ? 'a programme' : isPhoto ? 'a package' : isTransport ? 'a route' : isEvents ? 'a vendor' : isLegal ? 'a practice area' : isFinance ? 'a product' : 'a service') : tab === 'products' ? (isRealEstate ? 'a property' : isMenu ? 'a menu item' : isCarDealer ? 'a vehicle' : isPharmacy ? 'a medicine' : isFashion ? 'an item' : isAgriculture ? 'produce' : isRetail ? 'a product' : 'a product') : 'an OpenReel'}
+                  {editingId ? 'Edit' : 'Add'} {tab === 'services' ? (isHotel ? 'a room' : isFitness ? 'a class or plan' : isBeauty ? 'a treatment' : isHealth ? 'a doctor' : isEducation ? 'a programme' : isPhoto ? 'a package' : isTransport ? 'a route' : isEvents ? 'a vendor' : isLegal ? 'a practice area' : isFinance ? 'a product' : 'a service') : tab === 'products' ? (isRealEstate ? 'a property' : isMenu ? 'a menu item' : isCarDealer ? 'a vehicle' : isPharmacy ? 'a medicine' : isFashion ? 'an item' : isAgriculture ? 'produce' : isRetail ? 'a product' : 'a product') : 'an OpenReel'}
                 </p>
 
                 {tab !== 'gallery' && (
@@ -1256,11 +1301,10 @@ export default function BusinessContentManager({
                       ) : (
                         <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
                           <p className="text-[11px] font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-2">Image preview</p>
-                          <img loading="lazy" decoding="async"
+                          <SmartImg
                             src={imageUrl.trim()}
                             alt="Preview of the pasted link"
                             className="w-full max-w-xs rounded-lg object-cover"
-                            onError={(e) => { e.currentTarget.style.display = 'none'; }}
                           />
                         </div>
                       )
@@ -1303,14 +1347,26 @@ export default function BusinessContentManager({
                   </>
                 )}
 
-                <button
-                  type="submit"
-                  disabled={saving || uploading}
-                  className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
-                >
-                  {saving ? <Loader2 size={14} className="animate-spin" /> : <Plus size={14} />}
-                  {saving ? 'Adding…' : `Add ${tab === 'services' ? 'Service' : tab === 'products' ? 'Product' : 'OpenReel'}`}
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  {editingId && (
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="inline-flex items-center gap-2 px-5 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700/40 transition text-sm"
+                    >
+                      <XCircle size={14} />
+                      Cancel
+                    </button>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={saving || uploading}
+                    className="inline-flex items-center gap-2 px-5 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition disabled:opacity-50 text-sm"
+                  >
+                    {saving ? <Loader2 size={14} className="animate-spin" /> : editingId ? <Pencil size={14} /> : <Plus size={14} />}
+                    {saving ? (editingId ? 'Saving…' : 'Adding…') : editingId ? 'Save changes' : `Add ${tab === 'services' ? 'Service' : tab === 'products' ? 'Product' : 'OpenReel'}`}
+                  </button>
+                </div>
               </form>
             )}
           </>

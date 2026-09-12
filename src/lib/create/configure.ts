@@ -135,7 +135,9 @@ export function tierFor(item: CatalogueItem, quantity: number): { qty: number; p
 export const defaultConfiguration = (item: CatalogueItem): Configuration => ({
   quantity: item.tiers?.[0]?.qty,
   options: Object.fromEntries(optionGroupsFor(item).map((g) => [g.key, g.choices[0].key])),
-  design: 'ai',
+  // A pack is designed by a creator as part of what it is, so that is what the
+  // order records — and designIncluded stops it being charged for twice.
+  design: item.designIncluded ? 'creator' : 'ai',
 });
 
 /**
@@ -168,7 +170,7 @@ export function quoteFor(item: CatalogueItem, config: Configuration): Quote {
   }
 
   const route = DESIGN_ROUTES.find((r) => r.key === config.design);
-  if (route?.chargeSku) {
+  if (route?.chargeSku && !item.designIncluded) {
     const service = CATALOGUE.find((c) => c.sku === route.chargeSku);
     if (service?.price) {
       lines.push({ label: `Design by a creator (${service.name})`, amount: service.price });
@@ -180,7 +182,7 @@ export function quoteFor(item: CatalogueItem, config: Configuration): Quote {
   const total = lines.reduce((sum, l) => sum + l.amount, 0);
 
   let [min, max] = item.turnaround ?? [0, 0];
-  if (config.design === 'creator') { min += 2; max += 4; }
+  if (config.design === 'creator' && !item.designIncluded) { min += 2; max += 4; }
   if (config.options.speed === 'rush' && max > 1) { min = Math.max(1, Math.round(min / 2)); max = Math.max(min, Math.round(max / 2)); }
 
   return { lines, total, basis, turnaround: [min, max] };

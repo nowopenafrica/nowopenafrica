@@ -10,6 +10,8 @@ import { BUSINESS_CATEGORY_GROUPS, BUSINESS_CATEGORIES } from '../../data/catego
 import { getCategoryFeatures, getModuleByKey, MODULE_LIBRARY } from '../../data/categoryFeatures';
 import { moduleLimitForPlan, getBusinessTier } from '../../data/pricingPlans';
 import { compressImage } from '../../lib/imageCompression';
+import { track } from '../../lib/telemetry';
+import SmartImg from '../SmartImg';
 
 interface BusinessFormProps {
   editingId: string | null;
@@ -42,6 +44,8 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
   const [uploadingField, setUploadingField] = useState<'image_url' | 'logo_url' | null>(null);
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
+  /** The business's owner, once known. Null for an unclaimed listing. */
+  const [ownerId, setOwnerId] = useState<string | null>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [formData, setFormData] = useState({
@@ -93,9 +97,33 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
 
+  /*
+   * The module cap belongs to the BUSINESS's owner, not to whoever has the
+   * form open.
+   *
+   * That distinction only appeared once admins could edit an unclaimed
+   * listing: the lookup was keyed on the signed-in user, so an admin on a paid
+   * plan editing an unclaimed profile would have been offered every module the
+   * ADMIN pays for — switching on features the business is not entitled to and
+   * that its future owner would find already enabled.
+   *
+   * Unclaimed means no owner and therefore no plan, so it takes the free
+   * tier. For an owner editing their own business, `ownerId` is their own id
+   * and nothing changes.
+   */
   useEffect(() => {
     if (!user) return;
-    supabase.from('users').select('plan, plan_status').eq('id', user.id).maybeSingle()
+
+    const planHolder = editingId ? ownerId : user.id;
+
+    if (editingId && !planHolder) {
+      setModuleCap(moduleLimitForPlan('starter'));
+      setPlanName(getBusinessTier('starter')?.name || 'Free Launch');
+      return;
+    }
+    if (!planHolder) return;
+
+    supabase.from('users').select('plan, plan_status').eq('id', planHolder).maybeSingle()
       .then(({ data }) => {
         if (!data) return;
         const d = data as any;
@@ -103,7 +131,7 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
         setModuleCap(moduleLimitForPlan(effective));
         setPlanName(getBusinessTier(effective)?.name || 'Free Launch');
       });
-  }, [user]);
+  }, [user, ownerId, editingId]);
 
   const fetchBusiness = async () => {
     const { data } = await supabase
@@ -117,6 +145,7 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
       // neither key proves the opening-hours migration hasn't been applied here
       // — and that anything the editor saves will be dropped.
       setHoursStorageReady('opening_hours' in data || 'hours' in data);
+      setOwnerId((data.user_id as string) ?? null);
       setFormData({
         name: data.name || '',
         username: data.username || '',
@@ -242,6 +271,28 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
   // Extra booking modules the owner can add on top of the category defaults.
   const addonModules = MODULE_LIBRARY.filter((m) => !categoryKeys.includes(m.key));
 
+  /*
+   * Bring a null selection inside the plan cap.
+   *
+   * A null `enabled_modules` means "the category defaults", and the public
+   * profile reads it the same way — it has no access to the owner's plan, since
+   * `plan` lives on `users` and not on `businesses`. That was harmless while
+   * almost every category defaulted to a single module. It is not any more:
+   * most categories now default to two or three, so a Starter listing left at
+   * null would quietly publish more modules than the plan sells.
+   *
+   * Writing the capped list explicitly makes the form show the owner exactly
+   * what will appear, with the upgrade prompt already beside it.
+   */
+  useEffect(() => {
+    if (formData.enabled_modules !== null) return;
+    if (categoryKeys.length === 0 || categoryKeys.length <= moduleCap) return;
+    setFormData((prev) => (prev.enabled_modules === null
+      ? { ...prev, enabled_modules: categoryKeys.slice(0, moduleCap) }
+      : prev));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [moduleCap, categoryKeys.join('|')]);
+
   const isModuleOn = (key: string) =>
     formData.enabled_modules === null || formData.enabled_modules.includes(key);
   // Add-on modules only count as "on" when explicitly listed — a null selection
@@ -284,6 +335,10 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
 
       const payload = { ...formData, username: formData.username.trim().toLowerCase() };
 
+      // A create, not an edit. Captured before `save` runs so the retry path
+      // below cannot report a second creation for the same business.
+      const isCreate = !editingId;
+
       const save = (body: Record<string, unknown>) =>
         editingId
           ? supabase.from('businesses').update(body).eq('id', editingId)
@@ -306,6 +361,15 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
       }
 
       if (error) throw error;
+      /*
+       * Only on a create. `business_created` was a declared EventName with no
+       * call site, so the step between "account exists" and "business exists"
+       * — the one the whole owner funnel turns on — produced no data at all.
+       *
+       * Fired after the error check, so a failed save cannot report a
+       * business that was never written.
+       */
+      if (isCreate) track('business_created', { category: formData.category || null });
       onSuccess();
     } catch (error: any) {
       console.error('Error saving business:', error);
@@ -666,7 +730,7 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
         <div className="flex items-center gap-4">
           <div className="w-20 h-20 rounded-full border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-hidden flex items-center justify-center flex-shrink-0">
             {formData.logo_url ? (
-              <img loading="lazy" decoding="async" src={formData.logo_url} alt="Business logo" className="w-full h-full object-cover" />
+              <SmartImg src={formData.logo_url} alt="Business logo" className="w-full h-full object-cover" />
             ) : (
               <ImageIcon size={24} className="text-gray-400" />
             )}
@@ -719,7 +783,7 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
         <div className="flex items-center gap-4">
           <div className="w-32 h-20 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-hidden flex items-center justify-center flex-shrink-0">
             {formData.image_url ? (
-              <img loading="lazy" decoding="async" src={formData.image_url} alt="Business cover" className="w-full h-full object-cover" />
+              <SmartImg src={formData.image_url} alt="Business cover" className="w-full h-full object-cover" />
             ) : (
               <ImageIcon size={24} className="text-gray-400" />
             )}

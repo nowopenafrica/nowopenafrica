@@ -43,9 +43,7 @@ export const CHILDCARE_SPOTLIGHTS: Record<string, any> = {
     opening_hours: 'Mon–Fri: 7:30AM–6PM',
     image_url:
       'https://images.pexels.com/photos/8535230/pexels-photo-8535230.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

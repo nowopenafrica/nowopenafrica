@@ -9,6 +9,8 @@ import PlatformEnquiryModal from '../components/PlatformEnquiryModal';
 import { generateMediaServices, isSampleId } from '../data/populateData';
 import { MediaService } from '../types';
 import { applySeo } from '../lib/seo';
+import LoadFailure from '../components/LoadFailure';
+import SmartImg from '../components/SmartImg';
 import {
   ArrowLeft, Star, DollarSign, ShoppingBag, Clock, Users, Tag, Camera, Video, Music, Tv, Radio,
   Image as ImageIcon, CheckCircle, Mail, ExternalLink, X, ChevronLeft, ChevronRight, Loader2,
@@ -30,6 +32,15 @@ export default function MediaDetail() {
   const [service, setService] = useState<MediaService | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  /*
+   * A failed read, as distinct from a service that does not exist. This page
+   * used to log the supabase error and then discard it, so both rendered
+   * "Media service not found".
+   */
+  const [loadFailed, setLoadFailed] = useState(false);
+  /** The reviews are a separate read, so they can fail on their own. */
+  const [reviewsFailed, setReviewsFailed] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [checkoutOpen, setCheckoutOpen] = useState(false);
   const [enquiryOpen, setEnquiryOpen] = useState<'contact' | 'quote' | null>(null);
   const [reviews, setReviews] = useState<MediaReview[]>([]);
@@ -82,7 +93,18 @@ export default function MediaDetail() {
           .maybeSingle();
 
         if (supabaseError) {
-          console.warn('Supabase fetch failed, falling back to mock data:', supabaseError.message);
+          /*
+           * This used to warn and carry on, letting `data` stay null and fall
+           * through to the mock lookup — which returns nothing in production,
+           * because samples are DEV-gated. So a known error became "Media
+           * service not found" one line later.
+           *
+           * `.maybeSingle()` makes the distinction clean: a service that
+           * genuinely does not exist returns `{ data: null, error: null }`.
+           * An error here therefore always means the read failed.
+           */
+          console.warn('Supabase fetch failed:', supabaseError.message);
+          setLoadFailed(true);
         }
         data = dbData;
       }
@@ -100,6 +122,7 @@ export default function MediaDetail() {
       }
     } catch (err) {
       console.error('Error fetching media service:', err);
+      setLoadFailed(true);
       try {
         const mockServices = generateMediaServices(30);
         const mockService = mockServices.find(s => s.id === id);
@@ -114,14 +137,22 @@ export default function MediaDetail() {
     } finally {
       setLoading(false);
     }
-  }, [id]);
+  }, [id, reloadKey]);
 
   const fetchReviews = useCallback(async (serviceId: string) => {
-    const { data } = await supabase
+    const { data, error: reviewsError } = await supabase
       .from('media_reviews')
       .select('*')
       .eq('media_service_id', serviceId)
       .order('created_at', { ascending: false });
+    /*
+     * `data || []` cannot tell an unreviewed service from an unreachable one,
+     * and the page then said "No reviews yet — be the first to share your
+     * experience", inviting somebody to duplicate a review that already
+     * exists. Reviews are a trust signal; claiming there are none is not a
+     * neutral default.
+     */
+    setReviewsFailed(!!reviewsError);
     setReviews(data || []);
   }, []);
 
@@ -246,6 +277,18 @@ export default function MediaDetail() {
     );
   }
 
+  /* Before the not-found branch: both leave `service` null, so order decides
+     which of the two things the visitor is told happened. */
+  if (loadFailed) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900 px-4">
+        <div className="w-full max-w-md">
+          <LoadFailure what="this service" onRetry={() => setReloadKey((k) => k + 1)} />
+        </div>
+      </div>
+    );
+  }
+
   if (error || !service) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
@@ -283,7 +326,7 @@ export default function MediaDetail() {
               {/* Hero Image/Video Preview */}
               <div className="relative h-48 sm:h-72 md:h-96 bg-gray-200 dark:bg-gray-700 overflow-hidden">
                 {service.thumbnail_url || service.image_url ? (
-                  <img
+                  <SmartImg
                     src={service.thumbnail_url || service.image_url}
                     alt={service.title}
                     className="w-full h-full object-cover"
@@ -428,7 +471,7 @@ export default function MediaDetail() {
                               onClick={() => setLightboxIndex(idx)}
                               className="aspect-video bg-gray-200 dark:bg-gray-700 rounded-lg overflow-hidden group"
                             >
-                              <img loading="lazy" decoding="async" src={img} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
+                              <SmartImg loading="lazy" decoding="async" src={img} alt={`Portfolio ${idx + 1}`} className="w-full h-full object-cover group-hover:scale-105 transition duration-300" />
                             </button>
                           ))
                         ) : (
@@ -531,6 +574,10 @@ export default function MediaDetail() {
                         </div>
                       ))}
                     </div>
+                  ) : reviewsFailed ? (
+                    <p className="text-sm text-gray-500 dark:text-gray-400" role="alert">
+                      We could not load the reviews. That is a connection problem — it does not mean there are none.
+                    </p>
                   ) : (
                     <p className="text-sm text-gray-500 dark:text-gray-400">No reviews yet — be the first to share your experience.</p>
                   )}
@@ -550,7 +597,7 @@ export default function MediaDetail() {
                       className="flex gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:border-pink-300 dark:hover:border-pink-700 transition"
                     >
                       <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
-                        {(s.thumbnail_url || s.image_url) && <img loading="lazy" decoding="async" src={s.thumbnail_url || s.image_url} alt={s.title} className="w-full h-full object-cover" />}
+                        {(s.thumbnail_url || s.image_url) && <SmartImg loading="lazy" decoding="async" src={s.thumbnail_url || s.image_url} alt={s.title} className="w-full h-full object-cover" />}
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{s.title}</p>
@@ -708,7 +755,7 @@ export default function MediaDetail() {
               <ChevronLeft size={32} />
             </button>
           )}
-          <img loading="lazy" decoding="async"
+          <SmartImg loading="lazy" decoding="async"
             src={portfolio[lightboxIndex]}
             alt={`Portfolio ${lightboxIndex + 1}`}
             onClick={(e) => e.stopPropagation()}

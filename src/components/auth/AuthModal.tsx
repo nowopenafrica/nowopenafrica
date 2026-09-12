@@ -21,6 +21,17 @@ function friendlyAuthError(message: string): string {
   if (m.includes('invalid login credentials')) {
     return 'That email/phone and password don’t match. Please try again.';
   }
+  /*
+   * Raised when a social provider is not enabled on the Supabase project.
+   * The visitor cannot act on "Unsupported provider", and the thing they
+   * actually want — a way in — is the email form directly above the button.
+   */
+  if (m.includes('unsupported provider') || m.includes('provider is not enabled')) {
+    return 'That sign-in method isn’t available yet — please use your email address to continue.';
+  }
+  if (m.includes('email not confirmed')) {
+    return 'Please confirm your email address first — check your inbox for the link.';
+  }
   return message;
 }
 
@@ -81,7 +92,9 @@ export default function AuthModal({ onClose }: AuthModalProps) {
       }
       onClose();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Social login failed');
+      // Through the same translator as the email path. This branch used to
+      // print the raw Supabase message straight into the modal.
+      setError(err instanceof Error ? friendlyAuthError(err.message) : 'Social login failed');
       setLoading(false);
     }
   };

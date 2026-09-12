@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   LAUNCH_CHECKLIST, LAUNCH_STATUS_LABELS,
   launchStatus, launchProgress, summarizeLaunches, mapLaunchRow, LAUNCHES_SEED,
-  type LaunchItem,
+  type LaunchItem, autoTickCount,
 } from './launches';
 
 const org = '00000000-0000-4000-8000-00000000a001';
@@ -51,6 +51,20 @@ describe('launches lib', () => {
     const row = { id: 'r1', org_id: org, name: 'AI Video Studio', area: 'Product · Media', target: 'Aug 2026', checklist_done: [true, false] as boolean[] };
     expect(mapLaunchRow(row)).toMatchObject({ id: 'r1', name: 'AI Video Studio', done: [true, false] });
     expect(mapLaunchRow({ ...row, checklist_done: null }).done).toEqual([]);
+  });
+
+  it('maps checklist_evidence alongside the ticks and counts auto ticks', () => {
+    const row = {
+      id: 'r2', org_id: org, name: 'Verified Badge', area: 'Trust & Safety', target: 'Mar 2026',
+      checklist_done: [true, true, false, false, false, false, false] as boolean[],
+      checklist_evidence: [{ auto: true, source: 'os_approvals' }, null, null, null, null, null, null],
+    };
+    const row2 = { ...row, checklist_evidence: [{ auto: true, source: 'os_approvals' }, null, { auto: true, source: 'business_media_assets' }, null, null, null, null] };
+    const mapped = mapLaunchRow(row);
+    expect(mapped.evidence).toEqual(row.checklist_evidence);
+    expect(autoTickCount(mapped)).toBe(1);
+    expect(autoTickCount(mapLaunchRow(row2))).toBe(2);
+    expect(autoTickCount(launch({ done: [true] }))).toBe(0);
   });
 
   it('mirrors the three seed launches', () => {

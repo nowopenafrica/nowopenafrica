@@ -42,9 +42,7 @@ export const AUTOMOTIVE_SPOTLIGHTS: Record<string, any> = {
     opening_hours: 'Mon–Sat: 8AM–7PM',
     image_url:
       'https://images.pexels.com/photos/3807386/pexels-photo-3807386.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

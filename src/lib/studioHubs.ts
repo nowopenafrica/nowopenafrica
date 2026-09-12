@@ -28,7 +28,7 @@ export type ModuleKey =
   | 'campaigns' | 'promotions' | 'live-promo' | 'planner' | 'landing'
   | 'quotations' | 'invoices' | 'receipts' | 'catalogues' | 'customers' | 'keeps' | 'loyalty'
   | 'health' | 'analytics' | 'challenges'
-  | 'media' | 'export';
+  | 'media' | 'export' | 'enrichment';
 
 export type HubKey = 'create' | 'promote' | 'manage';
 
@@ -63,7 +63,7 @@ export const HUBS: Hub[] = [
     key: 'manage',
     label: 'Manage',
     blurb: 'Run the business behind it — money, customers, assets and results.',
-    modules: ['quotations', 'invoices', 'receipts', 'catalogues', 'customers', 'keeps', 'loyalty', 'health', 'analytics', 'media', 'export'],
+    modules: ['quotations', 'invoices', 'receipts', 'catalogues', 'customers', 'keeps', 'loyalty', 'health', 'analytics', 'media', 'export', 'enrichment'],
   },
 ];
 

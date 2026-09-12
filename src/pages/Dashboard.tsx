@@ -8,6 +8,7 @@ import { Business, Advert, MediaService } from '../types';
 import { User, ShoppingBag, Award, Film, LogOut, Plus, Shield, LayoutGrid, CalendarCheck, MessageSquare, Inbox, Crown, Check, ArrowUpRight, Sparkles, Activity } from 'lucide-react';
 import { getBusinessTier, getCreativeTier, nextBusinessTier } from '../data/pricingPlans';
 import ProfileCompleteness from '../components/dashboard/ProfileCompleteness';
+import BusinessInsights from '../components/dashboard/BusinessInsights';
 import FoundingPanel from '../components/dashboard/FoundingPanel';
 import BusinessStoryEditor from '../components/dashboard/BusinessStoryEditor';
 import OffersManager from '../components/dashboard/OffersManager';
@@ -140,7 +141,7 @@ export default function Dashboard() {
     if (!user) return;
     try {
       const [businessData, advertData, mediaData] = await Promise.all([
-        supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
+        supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50000),
         supabase.from('advertisements').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('media_services').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
@@ -412,12 +413,23 @@ export default function Dashboard() {
                   on today, before what they might pay for. Shown per business,
                   capped at three so a long tail does not read as a wall. */}
               {businesses.slice(0, 3).map((b) => (
-                <div key={String(b.id)} className="grid gap-4 lg:grid-cols-2 items-start">
+                <div key={String(b.id)} className="space-y-4">
+                  {/* Results before homework.
+                      The dashboard could tell an owner their profile was 86%
+                      complete and nothing about whether it worked — no
+                      component anywhere read business_viewed or
+                      business_contact_clicked for the owner, though the
+                      analytics_owner_read RLS policy had always allowed it.
+                      A business pays for customers, not for tools, so the
+                      answer to "is this helping me?" goes first. */}
+                  <BusinessInsights businessId={String(b.id)} />
+                  <div className="grid gap-4 lg:grid-cols-2 items-start">
                   <ProfileCompleteness business={b} onEdit={() => setStoryFor(b)} />
                   {/* Beside completeness on purpose: the founding checklist is
                       the same work with a deadline attached, and the two read
                       as one task rather than two competing nags. */}
                   <FoundingPanel business={b as unknown as Record<string, unknown>} />
+                  </div>
                 </div>
               ))}
 

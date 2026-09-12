@@ -5,6 +5,7 @@ import { Award, Check, Loader2, ArrowRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { applySeo } from '../lib/seo';
 import { businessHref } from '../lib/discover';
+import SmartImg from '../components/SmartImg';
 import {
   FOUNDING_CAP,
   FOUNDING_INNER_CIRCLE,
@@ -177,7 +178,7 @@ export default function Founding() {
                       #{r.number}
                     </span>
                     {b.logo_url ? (
-                      <img src={b.logo_url} alt="" loading="lazy" className="w-8 h-8 rounded-md object-cover shrink-0" />
+                      <SmartImg src={b.logo_url} alt="" className="w-8 h-8 rounded-md object-cover shrink-0" />
                     ) : (
                       <span className="w-8 h-8 rounded-md bg-gray-100 dark:bg-gray-700 text-gray-500 text-xs font-bold flex items-center justify-center shrink-0">
                         {b.name.slice(0, 1).toUpperCase()}

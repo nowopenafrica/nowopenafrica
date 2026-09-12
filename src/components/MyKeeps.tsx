@@ -7,6 +7,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { keepsSummary, normaliseTopics, topicLabel } from '../lib/keeps';
 import { publicOpenState, type OpenStateInput } from '../lib/openingHours';
 import OpenStateBadge from './OpenStateBadge';
+import SmartImg from './SmartImg';
 
 /**
  * The businesses someone keeps.
@@ -108,11 +109,9 @@ export default function MyKeeps({ now }: { now?: Date }) {
               >
                 <div className="flex items-start gap-3">
                   {b.logo_url || b.image_url ? (
-                    <img
+                    <SmartImg
                       src={b.logo_url || b.image_url || ''}
                       alt=""
-                      loading="lazy"
-                      decoding="async"
                       className="w-11 h-11 rounded-lg object-cover flex-shrink-0"
                     />
                   ) : (

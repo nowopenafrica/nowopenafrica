@@ -46,9 +46,7 @@ export const MARKETING_SPOTLIGHTS: Record<string, any> = {
     opening_hours: 'Mon–Fri: 9AM–6PM',
     image_url:
       'https://images.pexels.com/photos/905163/pexels-photo-905163.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

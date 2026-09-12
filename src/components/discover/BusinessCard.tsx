@@ -8,6 +8,7 @@ import {
   businessHref, directionsHref, secondaryCategories, displayWebsite,
   type DiscoverBusiness,
 } from '../../lib/discover';
+import SmartImg from '../SmartImg';
 
 /**
  * A business as a person sees it.
@@ -39,6 +40,7 @@ export default function BusinessCard({
   const rating = business.rating ?? 0;
   const reviews = business.review_count ?? 0;
   const image = business.image_url || business.logo_url;
+  const imageFallback = business.image_url && business.logo_url ? business.logo_url : null;
   const directions = directionsHref(business);
   const alsoIn = secondaryCategories(business);
   const site = displayWebsite(business.website);
@@ -47,11 +49,10 @@ export default function BusinessCard({
     <div className="group rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-500/50 transition flex flex-col">
       <Link to={href} className="block h-24 overflow-hidden shrink-0">
         {image ? (
-          <img
+          <SmartImg
             src={image}
+            fallback={imageFallback}
             alt={business.name}
-            loading="lazy"
-            decoding="async"
             className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
           />
         ) : (
@@ -69,7 +70,7 @@ export default function BusinessCard({
               + {alsoIn.join(' · ')}
             </p>
           )}
-          <h3 className="font-bold text-gray-900 dark:text-white text-sm line-clamp-2 mt-0.5">
+          <h3 className="font-bold text-gray-900 dark:text-white text-[13px] uppercase truncate mt-0.5">
             {business.name}
             {business.verified && (
               <VerifiedBadge compact size={13} className="inline-block align-text-bottom ml-1" />

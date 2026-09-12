@@ -13,6 +13,7 @@ import { generateAdverts } from '../data/populateData';
 import { ADVERT_CATEGORY_GROUPS, groupForAdvertCategory } from '../data/advertCategories';
 import { Advertisement } from '../types';
 import { applySeo } from '../lib/seo';
+import SmartImg from '../components/SmartImg';
 
 // Static accent classes (Tailwind JIT can't see interpolated class names).
 const ACCENT: Record<string, { grad: string; soft: string; text: string }> = {
@@ -25,7 +26,6 @@ const ACCENT: Record<string, { grad: string; soft: string; text: string }> = {
 };
 
 function AdvertCard({ advert, format }: { advert: Advertisement; format: (n: number) => string }) {
-  const [imageOk, setImageOk] = useState(true);
   return (
     <Link
       to={`/adverts/${advert.id}`}
@@ -38,12 +38,10 @@ function AdvertCard({ advert, format }: { advert: Advertisement; format: (n: num
             across. A missing photograph should look like a plain card, not a
             page that failed to load, and it must not depend on a third party's
             URL staying alive. */}
-        {advert.image_url && imageOk ? (
-          <img
+        {advert.image_url ? (
+          <SmartImg
             src={advert.image_url}
             alt={advert.title}
-            loading="lazy"
-            onError={() => setImageOk(false)}
             className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
           />
         ) : (

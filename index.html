@@ -6,7 +6,24 @@
 
     <title>NowOpen Africa — The Operating System for Business Growth in Africa</title>
     <meta name="description" content="Helping Africa's 100M+ businesses get discovered, advertise effectively, and access creative services from one ecosystem. Verified listings, ad placements and media services across 20+ African markets." />
-    <link rel="canonical" href="https://nowopenafrica.com/" />
+    <!--
+      NO CANONICAL HERE, DELIBERATELY.
+
+      This shell is served for every route that the middleware does not
+      server-render. A canonical baked in here is therefore asserted on all of
+      them, and it said `https://nowopenafrica.com/` — so /businesses,
+      /pricing, /media, /adverts, /contact, /founder, /terms and /privacy each
+      told Google "I am a duplicate of the home page", while the sitemap
+      submitted them for indexing. A contradictory pair of signals on 8 of the
+      14 URLs the site asks to be indexed.
+
+      With no tag, a crawler self-canonicalises to the URL it fetched, which is
+      correct for every one of those pages. The routes that need something
+      different already say so themselves: the middleware emits a real
+      canonical for server-rendered pages (business profiles point at their
+      bare /<username> form), and applySeo sets one client-side for everyone
+      else. See upsertLink('canonical') in src/lib/seo.ts.
+    -->
     <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
     <meta name="author" content="NowOpen Africa" />
     <meta name="keywords" content="African business directory, list your business, advertise in Africa, media services, NowOpen Africa, business operating system, Nigeria, Kenya, Ghana, South Africa" />

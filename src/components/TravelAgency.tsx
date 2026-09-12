@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   Plane, Globe, BedDouble, FileCheck, MapPin, MessageCircle, CalendarCheck, Compass,
 } from 'lucide-react';
+import SmartImg from './SmartImg';
 
 export interface TravelPackage {
   id: string | number;
@@ -86,7 +87,7 @@ export default function TravelAgency({
           <div key={p.id} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden flex flex-col">
             {p.image && (
               <div className="relative aspect-[16/10]">
-                <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-full object-cover" />
+                <SmartImg src={p.image} alt={p.name} className="w-full h-full object-cover" />
                 {p.service_category && (
                   <span className="absolute top-2 left-2 inline-flex items-center gap-1 rounded-full bg-black/60 text-white px-2.5 py-1 text-[11px] font-semibold backdrop-blur">
                     <MapPin size={12} /> {p.service_category}
@@ -95,7 +96,7 @@ export default function TravelAgency({
               </div>
             )}
             <div className="p-4 flex flex-col flex-1">
-              <h4 className="font-bold text-gray-900 dark:text-white">{p.name}</h4>
+              <h4 className="font-bold text-gray-900 dark:text-white truncate">{p.name}</h4>
               {p.description && <p className="mt-1 text-sm text-gray-500 dark:text-gray-400 flex-1">{p.description}</p>}
               <div className="mt-3 flex items-center justify-between gap-2">
                 <span className="text-sm font-extrabold text-sky-600 dark:text-sky-400">{p.price}</span>

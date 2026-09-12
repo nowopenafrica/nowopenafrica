@@ -34,9 +34,7 @@ export const FINANCE_SPOTLIGHTS: Record<string, any> = {
     email: 'hello@zenithmfb.example.com',
     opening_hours: 'Mon–Fri: 8AM–5PM',
     image_url: 'https://images.pexels.com/photos/210574/pexels-photo-210574.jpeg?auto=compress&cs=tinysrgb&w=1000',
-    rating: 4.6,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

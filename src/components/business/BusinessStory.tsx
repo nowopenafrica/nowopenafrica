@@ -1,9 +1,15 @@
-import { Check, HelpCircle, Users, Award, Building2, ShieldCheck } from 'lucide-react';
+import type { ComponentType } from 'react';
+import {
+  Check, HelpCircle, Users, Award, Building2, ShieldCheck,
+  Facebook, Instagram, Youtube, Linkedin, Link2,
+} from 'lucide-react';
 
 import {
   stringList, faqList, teamList, credentialList, policyEntries, yearsInBusiness,
-  type ProfileStory,
+  socialEntries, type ProfileStory,
 } from '../../lib/businessProfile';
+import { XLogo, TikTokLogo } from '../SocialLinks';
+import SmartImg from '../SmartImg';
 
 /**
  * The parts of a business page that answer "why you?" rather than "what are you?".
@@ -32,6 +38,34 @@ function Section({
   );
 }
 
+/**
+ * Icons for a business's own social links.
+ *
+ * `socialEntries` already refuses anything that is not an absolute http(s)
+ * URL, so every entry here is safe to put in an href. An unrecognised key
+ * still renders — with a generic link icon — because a business's Threads or
+ * Snapchat page is worth showing even though NowOpen has no icon for it.
+ */
+const SOCIAL_ICON: Record<string, ComponentType<{ size?: number | string; className?: string }>> = {
+  facebook: Facebook,
+  instagram: Instagram,
+  twitter: XLogo,
+  x: XLogo,
+  tiktok: TikTokLogo,
+  youtube: Youtube,
+  linkedin: Linkedin,
+};
+
+const SOCIAL_LABEL: Record<string, string> = {
+  twitter: 'X',
+  x: 'X',
+  tiktok: 'TikTok',
+  youtube: 'YouTube',
+  linkedin: 'LinkedIn',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+};
+
 const POLICY_LABEL: Record<string, string> = {
   refund: 'Refunds',
   cancellation: 'Cancellations',
@@ -56,6 +90,15 @@ export default function BusinessStory({ business: b, now = new Date() }: Props) 
   const languages = stringList(b.languages);
   const payments = stringList(b.payment_methods);
   const years = yearsInBusiness(b.founded_year, now);
+  /*
+   * The business's own channels.
+   *
+   * `social_links` has been a column, with a reader and a test, and NOTHING
+   * rendered it — so a business that supplied five handles had them stored and
+   * shown to nobody. The importer now carries them, which makes this the last
+   * missing half.
+   */
+  const socials = socialEntries(b.social_links);
 
   const hasStory = about || b.story?.trim() || b.vision?.trim() || b.mission?.trim() || values.length > 0;
   const hasInfo = years !== null || b.business_type || b.service_area || b.employees
@@ -150,7 +193,7 @@ export default function BusinessStory({ business: b, now = new Date() }: Props) 
             {team.map((m) => (
               <div key={m.name} className="text-center">
                 {m.photo_url ? (
-                  <img src={m.photo_url} alt="" loading="lazy" decoding="async"
+                  <SmartImg src={m.photo_url} alt=""
                        className="w-16 h-16 rounded-full object-cover mx-auto mb-2" />
                 ) : (
                   <span className="w-16 h-16 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-300 flex items-center justify-center mx-auto mb-2 font-bold">
@@ -224,6 +267,29 @@ export default function BusinessStory({ business: b, now = new Date() }: Props) 
               </div>
             )}
           </dl>
+        </Section>
+      )}
+
+      {socials.length > 0 && (
+        <Section title="Find them online" icon={Link2}>
+          <div className="flex flex-wrap gap-2">
+            {socials.map(({ key, url }) => {
+              const Icon = SOCIAL_ICON[key] ?? Link2;
+              const label = SOCIAL_LABEL[key] ?? key.replace(/_/g, ' ');
+              return (
+                <a
+                  key={key}
+                  href={url}
+                  target="_blank"
+                  rel="noopener noreferrer nofollow"
+                  className="inline-flex items-center gap-2 px-3 min-h-[40px] rounded-lg border border-gray-200 dark:border-gray-700 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition capitalize"
+                >
+                  <Icon size={16} className="text-blue-600 dark:text-blue-400" />
+                  {label}
+                </a>
+              );
+            })}
+          </div>
         </Section>
       )}
 

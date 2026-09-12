@@ -308,6 +308,16 @@ describe('shapes never cover the headline', () => {
 
       for (const shape of t.shapes ?? []) {
         if ((shape.alpha ?? 1) < OPAQUE) continue;
+        /*
+         * A 'base'-toned shape IS the ground, not something on top of it.
+         *
+         * The half-photo layouts paint a solid block of the surface colour so
+         * that type has a guaranteed background even when somebody drops a
+         * bright photograph behind it — the block is the reason the headline is
+         * readable, and inkFor() is defined against exactly this colour. Every
+         * other tone can genuinely bury type, so every other tone still counts.
+         */
+        if (shape.tone === 'base') continue;
 
         for (const [name, w, h] of FORMATS) {
           const g = shapeGeometry(shape, w, h);

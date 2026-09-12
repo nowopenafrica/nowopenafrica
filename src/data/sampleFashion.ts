@@ -43,9 +43,7 @@ export const FASHION_SPOTLIGHTS: Record<string, any> = {
     email: 'style@zuricouture.example.com',
     opening_hours: 'Mon–Sat: 10AM–8PM',
     image_url: px(1055691),
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   // A second fashion brand — a streetwear boutique store — showing the same
@@ -63,9 +61,7 @@ export const FASHION_SPOTLIGHTS: Record<string, any> = {
     email: 'shop@urbanthread.example.com',
     opening_hours: 'Mon–Sat: 10AM–9PM',
     image_url: px(2955376),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

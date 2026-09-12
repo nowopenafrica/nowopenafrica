@@ -89,7 +89,12 @@ export default function LaunchControl() {
       const targetLaunch = launches.find((l) => l.id === id);
       if (!targetLaunch) return;
       const next = targetLaunch.done.map((d, di) => (di === index ? !d : d));
-      const { error } = await supabase.from('os_launches').update({ checklist_done: next, updated_at: new Date().toISOString() }).eq('id', id);
+      // Un-ticking an automated item also clears its evidence: the board must
+      // never show "auto" for a box a person has since decided is not done.
+      const evidence = targetLaunch.evidence?.map((e, ei) => (ei === index && next[index] !== true ? undefined : e));
+      const patch: Record<string, unknown> = { checklist_done: next, updated_at: new Date().toISOString() };
+      if (evidence) patch.checklist_evidence = evidence;
+      const { error } = await supabase.from('os_launches').update(patch).eq('id', id);
       if (error) throw error;
       void load();
     } catch {
@@ -184,13 +189,22 @@ export default function LaunchControl() {
                 </div>
               </div>
               <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-                {LAUNCH_CHECKLIST.map((c, i) => (
-                  <button key={c} onClick={() => void toggle(l.id, i)}
-                    className={`flex items-center gap-2 px-3 rounded-lg text-xs font-medium border transition ${l.done[i] ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
-                    <CheckSquare size={13} className={l.done[i] ? 'text-emerald-600' : 'text-gray-300 dark:text-gray-600'} />
-                    {c}
-                  </button>
-                ))}
+                {LAUNCH_CHECKLIST.map((c, i) => {
+                  const ev = l.evidence?.[i];
+                  const isAuto = Boolean(ev?.auto);
+                  return (
+                    <button key={c} onClick={() => void toggle(l.id, i)}
+                      className={`flex items-center justify-between gap-2 px-3 rounded-lg text-xs font-medium border transition ${l.done[i] ? 'bg-emerald-50 dark:bg-emerald-900/20 border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300' : 'border-gray-200 dark:border-gray-700 text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
+                      <span className="flex items-center gap-2 min-w-0">
+                        <CheckSquare size={13} className={l.done[i] ? 'text-emerald-600 shrink-0' : 'text-gray-300 dark:text-gray-600 shrink-0'} />
+                        <span className="truncate">{c}</span>
+                      </span>
+                      {isAuto && (
+                        <span title={`Automated: proven by ${ev?.source ?? 'real data'}`} className="shrink-0 px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-300 text-[9px] font-bold uppercase tracking-wide">auto</span>
+                      )}
+                    </button>
+                  );
+                })}
               </div>
             </div>
           ))}

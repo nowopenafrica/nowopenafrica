@@ -45,9 +45,7 @@ export const REPAIR_SPOTLIGHTS: Record<string, any> = {
     opening_hours: 'Mon–Sat: 9AM–7PM',
     image_url:
       'https://images.pexels.com/photos/4792733/pexels-photo-4792733.jpeg?auto=compress&cs=tinysrgb&w=800',
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

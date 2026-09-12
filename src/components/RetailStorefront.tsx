@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import {
   ShoppingBag, Search, Truck, Plus, Minus, ShoppingCart, MessageCircle, Zap,
 } from 'lucide-react';
+import SmartImg from './SmartImg';
 
 export interface RetailItem {
   id: string | number;
@@ -86,7 +87,7 @@ export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhats
             <div key={p.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <div className="relative">
                 {p.image ? (
-                  <img loading="lazy" decoding="async" src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
+                  <SmartImg src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
                 ) : (
                   <div className="w-full h-28 sm:h-36 bg-gradient-to-br from-amber-100 to-orange-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
                     <ShoppingBag size={28} className="text-amber-400 dark:text-gray-400" />
@@ -97,7 +98,7 @@ export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhats
                 )}
               </div>
               <div className="p-2.5 flex flex-col flex-1">
-                <h4 className="font-semibold text-gray-900 dark:text-white text-sm leading-tight line-clamp-2">{p.name}</h4>
+                <h4 className="font-semibold text-gray-900 dark:text-white text-[13px] leading-tight truncate">{p.name}</h4>
                 <div className="mt-0.5 flex items-baseline gap-1">
                   <span className="text-sm font-bold text-blue-600 dark:text-blue-400">{p.price}</span>
                   {p.unit && <span className="text-[11px] text-gray-500 dark:text-gray-400">{p.unit}</span>}

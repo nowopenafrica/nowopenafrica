@@ -42,9 +42,7 @@ export const PHARMACY_SPOTLIGHTS: Record<string, any> = {
     email: 'care@wellcarepharmacy.example.com',
     opening_hours: 'Mon–Sun: 8AM–10PM',
     image_url: px(5910953),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

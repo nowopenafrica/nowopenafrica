@@ -26,7 +26,7 @@
 // ship today without rebuilding the render pipeline.
 
 import { next, rewrite } from '@vercel/edge';
-import { marketingPageFor } from './src/lib/marketingPageRender';
+import { marketingPageFor } from './src/lib/marketingPageRender.js';
 
 export const config = {
   // Only the bare one-segment paths can be usernames. Everything with a known
@@ -57,6 +57,16 @@ const RESERVED = new Set([
   // not be mistaken for a business slug — and a 404 here also kills the
   // WhatsApp link preview, the channel this campaign mostly lives in.
   'campaign', 'founding', 'founding-1000', 'join',
+  // NowOpen Your Business. Same reason as the campaign slugs above, and more
+  // so: this is the link the whole acquisition push points at, and a 404 here
+  // also kills the WhatsApp preview.
+  'send-business', 'send-your-business', 'yourbusiness', 'nominate',
+  // Industry page examples. Reserved so a crawler asking for /example is not
+  // handed the business-profile renderer.
+  'example',
+  // Create order tracking. A reference is a bearer token, so this must never be
+  // handed to the profile renderer and must never be indexed.
+  'order',
 ]);
 
 /**
@@ -88,8 +98,30 @@ export function shouldRenderProfile(pathname: string, userAgent: string | null):
 
   const segments = pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
 
-  // /businesses/<uuid> is the other public profile URL.
-  if (segments.length === 2 && segments[0] === 'businesses') return segments[1];
+  /*
+   * The two-segment profile URLs.
+   *
+   * `/businesses/<uuid>` is the id-addressed form. `/business/<slug>` is the
+   * legacy alias App.tsx still routes for backwards compatibility — and it was
+   * the single worst SEO hole on the site, for two reasons at once:
+   *
+   *   1. All 45 curated demo profiles live at /business/<slug>. BusinessDetail
+   *      sets robots: 'noindex, nofollow' for them, but that runs CLIENT-side,
+   *      so a crawler never saw it. Measured on production: every demo profile
+   *      returned `index, follow`. Forty-five fabricated businesses were
+   *      indexable for a directory with two real ones.
+   *   2. For a REAL business the same path served the home page's title and a
+   *      canonical pointing at `/` — a duplicate-content signal against the
+   *      profile it was aliasing.
+   *
+   * Sending it through the renderer fixes both: an unknown slug 404s with
+   * `noindex` (so the demos leave the index rather than merely stopping being
+   * crawled), and a real one renders properly with its canonical pointing at
+   * the bare `/<username>` form.
+   */
+  if (segments.length === 2 && (segments[0] === 'businesses' || segments[0] === 'business')) {
+    return segments[1];
+  }
 
   // A bare /:username.
   if (segments.length !== 1) return null;

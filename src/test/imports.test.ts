@@ -132,6 +132,61 @@ describe('row validation', () => {
   });
 
   /*
+   * MEASURED ON THE LIVE PLATFORM, 2026-09-08.
+   *
+   * 257 of 271 businesses carried `whatsapp = 'UNKNOWN'` and 85 carried
+   * `website = 'UNKNOWN'`. Nothing checked whatsapp, so it published; then
+   * `listing_score` awarded 25 points for a contact via
+   * COALESCE(phone, whatsapp, email), crediting 195 businesses with a way to
+   * be reached that nobody can use — and pushing 26 of them over the
+   * 40-point indexability bar.
+   *
+   * A cell reading "UNKNOWN" is an empty cell wearing a coat.
+   */
+  it('treats a placeholder as blank rather than as data', () => {
+    const r = row({
+      name: 'Mama Put', category: 'Restaurant & Food', city: 'Lagos',
+      phone: '08031234567', whatsapp: 'UNKNOWN', website: 'UNKNOWN',
+    });
+    expect(r.mapped).not.toHaveProperty('whatsapp');
+    expect(r.mapped).not.toHaveProperty('website');
+    // A note, not a review: nothing here needs a human decision.
+    expect(r.issues.every((i) => i.severity === 'note')).toBe(true);
+    expect(r.status).toBe('valid');
+  });
+
+  it('says which field it dropped and why', () => {
+    // Silently dropping a column an admin believes they supplied is how a
+    // spreadsheet's problems quietly become the platform's.
+    const r = row({ name: 'A', category: 'Technology', city: 'Lagos', whatsapp: 'N/A' });
+    expect(r.issues.map((i) => i.field)).toContain('whatsapp');
+    expect(r.issues.find((i) => i.field === 'whatsapp')?.message).toMatch(/treated as blank/i);
+  });
+
+  it('makes a placeholder in a REQUIRED field blocking, not merely noted', () => {
+    // Publishing a business called "UNKNOWN" is worse than publishing nothing.
+    const r = row({ name: 'UNKNOWN', category: 'Technology', city: 'Lagos' });
+    expect(r.status).toBe('invalid');
+    expect(r.issues.some((i) => i.field === 'name' && i.severity === 'blocking')).toBe(true);
+  });
+
+  it('leaves a real name that merely contains a placeholder word alone', () => {
+    const r = row({ name: 'Unknown Pleasures Records', category: 'Technology', city: 'Lagos' });
+    expect(r.status).toBe('valid');
+    expect(r.mapped.name).toBe('Unknown Pleasures Records');
+  });
+
+  it('does not scrub a numeric zero, which can be a real value', () => {
+    // '0' is a placeholder in a phone field and a price in a price field, so
+    // the scrub is limited to an explicit list of text fields.
+    const r = validateRow(
+      { name: 'A', media_type: 'Photography', service_category: 'Events', city: 'Lagos', price: '0' },
+      1, 'media', ref,
+    );
+    expect(r.mapped.price).toBe('0');
+  });
+
+  /*
    * The judgement that matters most. A real business in a town NowOpen has not
    * listed yet is a gap in the reference data, not a bad record — rejecting it
    * would discard exactly the businesses worth having.

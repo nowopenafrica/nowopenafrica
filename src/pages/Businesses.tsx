@@ -1,6 +1,6 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { supabase } from '../lib/supabase';
+import { fetchAllBusinesses } from '../lib/fetchAllBusinesses';
 import { generateBusinesses } from '../data/populateData';
 import {
   Search, MapPin, Star, Phone, Globe, X, ArrowRight, Store,
@@ -9,8 +9,11 @@ import {
 } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 import IndustryDirectory, { THIN_DIRECTORY } from '../components/home/IndustryDirectory';
+import IndustryExamples from '../components/discover/IndustryExamples';
 import LocationAutocomplete from '../components/LocationAutocomplete';
+import LoadFailure from '../components/LoadFailure';
 import OpenStateBadge from '../components/OpenStateBadge';
+import SmartImg from '../components/SmartImg';
 import { normalize } from '../lib/search';
 import { BUSINESS_CATEGORY_GROUPS, businessCategories, matchesCategory } from '../data/categories';
 import {
@@ -28,6 +31,7 @@ import { parseOpeningHours, publicOpenState, type OpenState } from '../lib/openi
 const openRank = (state: OpenState | undefined): 'open' | 'closed' =>
   state?.kind === 'open' || state?.kind === 'closing-soon' ? 'open' : 'closed';
 import { applySeo } from '../lib/seo';
+import { track } from '../lib/telemetry';
 
 // Icon + accent + one-liner per business category group (keyed by group label).
 const GROUP_META: Record<string, { icon: LucideIcon; accent: string; description: string }> = {
@@ -79,10 +83,42 @@ const h = (s: string): number => {
   return x;
 };
 
+/**
+ * The most rows the directory will ever show, and the walk's safety cap.
+ *
+ * Deliberately explicit. The earlier unbounded `select('*')` was truncated by
+ * PostgREST's own per-request row cap (1000 by default) with no error and no
+ * signal, so the page would confidently show a partial directory and report
+ * "no results" for businesses that exist. Even a huge `.limit()` cannot see
+ * past that cap — only `.range()` paging can, which fetchAllBusinesses does.
+ *
+ * 100,000 is deliberately far above the Discovery run cap (50,000), so every
+ * business published through the review queue is reflected here the moment
+ * it is published — the directory ceiling cannot cut a batch in half. Reaching
+ * it is detected and reported, never silently shown as the whole directory.
+ */
+const DIRECTORY_FETCH_LIMIT = 100_000;
+
 export default function Businesses() {
   const [searchParams] = useSearchParams();
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [truncated, setTruncated] = useState(false);
+  /*
+   * The fetch FAILED, as opposed to the directory being empty.
+   *
+   * The catch below logged and then set the sample list — which is `[]` in
+   * production, because samples are gated to DEV. So a dropped connection
+   * rendered IndustryDirectory: the honest "no businesses listed yet" state,
+   * shown to somebody whose signal had simply gone.
+   *
+   * On this page that is the most damaging version of the mistake. The
+   * directory genuinely is nearly empty, so a network blink produces exactly
+   * the impression the platform most needs to avoid — that it is dead — and a
+   * customer who sees it once does not come back to check.
+   */
+  const [loadError, setLoadError] = useState(false);
+  const [reloadKey, setReloadKey] = useState(0);
   const [search, setSearch] = useState(searchParams.get('search') ?? '');
   const [location, setLocation] = useState(searchParams.get('location') ?? '');
   const [activeGroup, setActiveGroup] = useState<string | null>(null);
@@ -92,9 +128,13 @@ export default function Businesses() {
 
   useEffect(() => {
     return applySeo({
-      title: 'Businesses Directory — Find Verified Businesses Across Africa',
+      title: 'Businesses Directory — Find Businesses Across Africa',
       description:
-        'Search and discover businesses across Africa by category, location and opening status. Verified listings, honest reviews and direct booking.',
+        // "Verified listings, honest reviews" was untrue and the repo's own
+        // marketing-render guard caught it: exactly one business is verified,
+        // and there are no reviews at all. Describe the capability, not a
+        // population the platform does not have yet.
+        'Search and discover businesses across Africa by category, location and opening status. See what is open now and contact a business directly.',
       path: '/businesses',
       image: '/og-image.png',
     });
@@ -108,28 +148,51 @@ export default function Businesses() {
   useEffect(() => {
     const fetchBusinesses = async () => {
       try {
-        const { data, error } = await supabase.from('businesses').select('*')
-          // Filter explicitly, do not lean on RLS alone. The policy also lets
-          // admins and owners see their own unlisted rows, so an admin browsing
-          // the public site would otherwise see 532 listings where a customer
-          // sees 32 — and have no way to tell the difference.
-          .eq('is_listable', true)
-          // Completeness first, then recency. Every prospect listing was
-          // created on the same day, so sorting by date alone would put
-          // 500 empty shells ahead of every real business.
-          .order('listing_score', { ascending: false })
-          .order('created_at', { ascending: false });
+        /*
+         * A bounded fetch, and an honest one.
+         *
+         * This was `select('*')` with no limit and no pagination, and every
+         * filter — category, place, text, open-status — ran in the browser
+         * over the whole set. Invisible at two listings; the failure at
+         * scale is not slowness but SILENCE. PostgREST caps rows, so past
+         * the cap the response is truncated with no error, and the client
+         * then reports "no results" for businesses that demonstrably exist.
+         * A correctness bug wearing the costume of an empty state.
+         *
+         * Even `.limit(DIRECTORY_FETCH_LIMIT)` could not see past that cap —
+         * a single response is truncated server-side at 1000 rows whatever
+         * the requested limit, which is exactly how the admin panel got stuck
+         * at "1–100 of 1000". fetchAllBusinesses pages under the cap instead,
+         * so every review-queue publish is reflected here and the ceiling is
+         * explicit: DIRECTORY_FETCH_LIMIT is the whole-walk cap, reached only
+         * when a page comes back full, and the page says so rather than
+         * quietly pretending it is the whole directory.
+         * `search_businesses()` (migration 20260907182000) is the paged,
+         * indexed replacement for when supply justifies it.
+         *
+         * `is_listable = true` filters explicitly instead of leaning on RLS
+         * alone: the policy also lets admins and owners see their own unlisted
+         * rows, so an admin browsing the public site would otherwise see 532
+         * listings where a customer sees 32 — and have no way to tell the
+         * difference.
+         */
+        const { data, error, truncated } = await fetchAllBusinesses({ isListable: true, cap: DIRECTORY_FETCH_LIMIT });
         if (error) throw error;
+        setTruncated(truncated);
         setBusinesses(data && data.length > 0 ? data : generateBusinesses(30));
       } catch (err) {
-        console.error('Error fetching businesses, showing sample data:', err);
+        console.error('Error fetching businesses:', err);
+        // Say so, rather than falling through to the empty state. In DEV the
+        // sample list still stands in so the page is workable offline.
+        setLoadError(true);
         setBusinesses(generateBusinesses(30));
       } finally {
         setLoading(false);
       }
     };
+    setLoadError(false);
     fetchBusinesses();
-  }, []);
+  }, [reloadKey]);
 
   const groupCounts = useMemo(() => {
     const counts: Record<string, number> = {};
@@ -197,6 +260,22 @@ export default function Businesses() {
     });
   };
 
+  /*
+   * The categories actually represented, in the subtitle's own words.
+   *
+   * It used to read "N businesses across food, retail, tech, health,
+   * professional services and more" — a fixed sentence that was simply false:
+   * production holds two businesses and both are Media & Publishing. Derived
+   * from the data it cannot drift, and it grows into that broader claim
+   * honestly as supply arrives.
+   */
+  const categoriesRepresented = (() => {
+    const names = [...new Set(businesses.map((b) => b.category).filter(Boolean) as string[])];
+    if (names.length === 0) return '';
+    if (names.length <= 3) return names.join(', ');
+    return `${names.slice(0, 3).join(', ')} and ${names.length - 3} more categories`;
+  })();
+
   let filteredBusinesses = businesses;
   if (categoryFilter) filteredBusinesses = filteredBusinesses.filter((b) => matchesCategory(b, categoryFilter));
   if (activeGroupObj) filteredBusinesses = filteredBusinesses.filter((b) => businessCategories(b).some((cat) => activeGroupObj.items.includes(cat)));
@@ -213,6 +292,59 @@ export default function Businesses() {
   if (statusFilter.length > 0) {
     filteredBusinesses = filteredBusinesses.filter(matchStatus);
   }
+
+  /*
+   * What the search actually FOUND — the signal the funnel was missing.
+   *
+   * `search_performed` was emitted from the home hero and the home explorer,
+   * carrying the term but never the outcome, and this page — where a search
+   * actually resolves — had no tracking at all. So the platform could see
+   * that somebody searched and never whether they found anything.
+   *
+   * That matters more here than on a mature marketplace. A zero-result search
+   * is not merely a failed session: it is a customer telling you, in their own
+   * words, which business they wanted and could not find. For a directory with
+   * two listings and a supply problem, "24 hour pharmacy in Lekki" returning
+   * nothing is the most useful sentence anyone can hand this company, because
+   * it names a business to go and recruit.
+   *
+   * Recorded as a `results` count on the existing event rather than as a new
+   * `search_no_results` event, so zero-result searches are a query
+   * (`(props->>'results')::int = 0`) instead of another name in the taxonomy.
+   *
+   * Debounced, and only once the visitor has actually asked for something. An
+   * event per keystroke would recreate the 42,910-row `signin` problem in a
+   * new place, and plain browsing is not a search.
+   */
+  const searchSignature = [
+    search.trim(), location.trim(), categoryFilter, activeGroup ?? '',
+  ].join('|');
+  const resultCount = filteredBusinesses.length;
+  const lastLoggedSearch = useRef<string | null>(null);
+
+  useEffect(() => {
+    if (loading) return;
+    const asked = search.trim() || location.trim() || categoryFilter || activeGroup;
+    if (!asked) return;
+    if (lastLoggedSearch.current === searchSignature) return;
+
+    const timer = setTimeout(() => {
+      lastLoggedSearch.current = searchSignature;
+      track('search_performed', {
+        term: search.trim().slice(0, 80),
+        place: location.trim().slice(0, 80),
+        category: categoryFilter,
+        // The outcome. Zero is the interesting case.
+        results: resultCount,
+        from: 'directory',
+      });
+    }, 1200);
+    return () => clearTimeout(timer);
+    // resultCount is deliberately not a dependency: it is a consequence of the
+    // signature, and depending on it would re-fire as the listing set loads.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchSignature, loading]);
+
 
   // Live-first ranking: open/available/responding/live businesses surface above
   // closed ones, then by rating, then by response speed.
@@ -243,7 +375,7 @@ export default function Businesses() {
               and only when there is one. */}
           <p className="mt-3 text-white/85 max-w-xl text-sm sm:text-base">
             {businesses.length > 0
-              ? `${businesses.length} ${businesses.length === 1 ? 'business' : 'businesses'} across food, retail, tech, health, professional services and more.`
+              ? `${truncated ? 'Showing the first ' : ''}${businesses.length} ${businesses.length === 1 ? 'business' : 'businesses'}${categoriesRepresented ? ` in ${categoriesRepresented}` : ''}${truncated ? ' — search or filter to narrow it down.' : '.'}`
               : 'Businesses are being added one at a time, each one claimed by its owner.'}
           </p>
           {/* Business Pulse — honest rollup of the directory right now: open and
@@ -269,8 +401,14 @@ export default function Businesses() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
             <div className="relative">
               <Search className="absolute left-3 top-3 text-gray-400" size={20} />
+              {/* A placeholder is not an accessible name: it is not reliably
+                  announced, and it vanishes on the first keystroke. The category
+                  select beside this one already had a label; this field and the
+                  location field did not. */}
               <input
-                type="text" placeholder="Search businesses…" value={search}
+                type="text"
+                aria-label="Search businesses"
+                placeholder="Search businesses…" value={search}
                 onChange={(e) => setSearch(e.target.value)}
                 className="w-full pl-10 pr-4 py-2.5 border border-gray-300 dark:border-gray-600 dark:bg-gray-800 dark:text-white rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
               />
@@ -368,7 +506,12 @@ export default function Businesses() {
           )}
         </div>
 
-        {loading ? (
+        {/* Checked before the empty state on purpose: "no businesses listed
+            yet" is a claim about the directory, and we cannot make it when we
+            never managed to read the directory. */}
+        {loadError && businesses.length === 0 ? (
+          <LoadFailure what="businesses" onRetry={() => setReloadKey((k) => k + 1)} />
+        ) : loading ? (
           <div className="text-center py-12"><p className="text-gray-600 dark:text-gray-400">Loading businesses…</p></div>
         ) : businesses.length === 0 ? (
           // Nothing in the directory at all, which is not the same as filters
@@ -382,15 +525,38 @@ export default function Businesses() {
           </div>
         ) : (
           <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-3 md:gap-6">
-            {rankedBusinesses.map((business) => (
+            {rankedBusinesses.map((business, index) => (
               <Link
                 key={business.id}
                 to={business.username ? `/${business.username}` : `/businesses/${business.id}`}
+                onClick={() => {
+                  /*
+                   * The click half of the search-quality loop. `search_performed`
+                   * records what was asked and how many results came back;
+                   * without this, a search that returned thirty useless listings
+                   * is indistinguishable from one that answered the question.
+                   *
+                   * Only when something was actually asked. Browsing the
+                   * directory and clicking a listing is not a search result
+                   * click, and counting it as one would inflate search success
+                   * with traffic that never searched.
+                   */
+                  const asked = search.trim() || location.trim() || categoryFilter || activeGroup;
+                  if (!asked) return;
+                  track('search_result_clicked', {
+                    term: search.trim().slice(0, 80),
+                    place: location.trim().slice(0, 80),
+                    category: categoryFilter,
+                    // 1-based: "first result" should read as 1, not 0.
+                    position: index + 1,
+                    results: rankedBusinesses.length,
+                  }, business.id);
+                }}
                 className="group bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden hover:shadow-lg hover:border-blue-300 transition"
               >
                 <div className="h-24 overflow-hidden">
                   {business.image_url ? (
-                    <img src={business.image_url} alt={business.name} loading="lazy" className="w-full h-full object-cover group-hover:scale-110 transition duration-300" />
+                    <SmartImg src={business.image_url} alt={business.name} className="w-full h-full object-cover group-hover:scale-110 transition duration-300" />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600" />
                   )}
@@ -402,7 +568,7 @@ export default function Businesses() {
                       + {business.secondary_categories.filter(Boolean).join(' · ')}
                     </p>
                   )}
-                  <h3 className="font-bold text-gray-900 dark:text-white mb-1 line-clamp-2 text-sm">
+                  <h3 className="font-bold text-gray-900 dark:text-white mb-1 truncate text-[13px]">
                     {business.name}
                     {business.verified && <VerifiedBadge compact size={14} className="inline-block align-text-bottom ml-1" />}
                   </h3>
@@ -445,9 +611,19 @@ export default function Businesses() {
         )}
 
         {/* A handful of real listings still reads as a broken page. Show them
-            first, then say plainly that more are coming. */}
-        {!loading && businesses.length > 0 && businesses.length < THIN_DIRECTORY && (
-          <IndustryDirectory variant="thin" />
+            first, then say plainly that more are coming.
+
+            The examples go ABOVE the industry grid and BELOW the real cards, in
+            their own labelled block. Two rules decide that placement: an
+            example must never sit in the same grid as a listing, because
+            interleaving is how "example" turns into "listing" in a reader's
+            head and would make the grid contradict the count; and the real
+            businesses, however few, come first. */}
+        {!loading && (
+          <>
+            <IndustryExamples label="businesses" />
+            {businesses.length > 0 && businesses.length < THIN_DIRECTORY && <IndustryDirectory variant="thin" />}
+          </>
         )}
       </div>
     </div>

@@ -21,9 +21,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'taste@amalapalace.example.com',
     opening_hours: 'Mon–Sun: 10AM–10PM',
     image_url: px(3762800),
-    rating: 4.6,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_75: {
@@ -39,9 +37,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'stay@harmonysuites.example.com',
     opening_hours: 'Reception open 24/7',
     image_url: px(1571460),
-    rating: 4.5,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_76: {
@@ -57,9 +53,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'pharmacy@medbridge.example.com',
     opening_hours: 'Mon–Sun: 8AM–10PM',
     image_url: px(3683098),
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_77: {
@@ -75,9 +69,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'train@ironcore.example.com',
     opening_hours: 'Mon–Sat: 6AM–10PM · Sun: 8AM–8PM',
     image_url: px(1552252),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_78: {
@@ -93,9 +85,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'admissions@brightgate.example.com',
     opening_hours: 'Mon–Fri: 8AM–4PM',
     image_url: px(106399),
-    rating: 4.8,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_79: {
@@ -111,9 +101,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'plans@blissfuloccasions.example.com',
     opening_hours: 'Mon–Sat: 9AM–7PM',
     image_url: px(587741),
-    rating: 4.6,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_80: {
@@ -129,9 +117,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'build@solidbuild.example.com',
     opening_hours: 'Mon–Fri: 8AM–6PM · Sat: 9AM–2PM',
     image_url: px(271624),
-    rating: 4.5,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
   business_81: {
@@ -147,9 +133,7 @@ export const MORE_SPOTLIGHTS: Record<string, any> = {
     email: 'sales@primelands.example.com',
     opening_hours: 'Mon–Sun: 9AM–7PM',
     image_url: px(1732414),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

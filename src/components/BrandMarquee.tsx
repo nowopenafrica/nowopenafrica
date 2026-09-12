@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Store } from 'lucide-react';
+import SmartImg from './SmartImg';
 
 export interface Brand {
   name: string;
@@ -29,11 +30,10 @@ export default function BrandMarquee({ brands }: BrandMarqueeProps) {
     const inner = (
       <>
         {brand.logo ? (
-          <img
+          <SmartImg
             src={brand.logo}
             alt={`${brand.name} logo`}
             className="h-10 w-10 rounded-full object-cover flex-shrink-0"
-            loading="lazy"
           />
         ) : (
           <span className="h-10 w-10 rounded-full bg-blue-100 dark:bg-blue-900/30 flex items-center justify-center flex-shrink-0">

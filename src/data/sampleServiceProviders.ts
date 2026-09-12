@@ -33,9 +33,7 @@ export const SERVICE_PROVIDER_SPOTLIGHTS: Record<string, any> = {
     email: 'book@sparkleservices.example.com',
     opening_hours: 'Daily: 7AM–9PM · Emergency 24/7',
     image_url: 'https://images.pexels.com/photos/4239146/pexels-photo-4239146.jpeg?auto=compress&cs=tinysrgb&w=1000',
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

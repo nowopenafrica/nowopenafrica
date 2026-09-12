@@ -18,6 +18,7 @@
 import {
   type DesignTemplate, type SlotSpec, type SurfaceLayer, type ShapeSpec,
   slotBox, typePx, motionAt, settleTime, surfaceSpecLayers, inkFor, hexAlpha, unitOf, fontStack,
+  cameraAt,
   isListRole, listRowBoxes, shapeColor, shapeGeometry,
   type PriceRow,
 } from './designTemplates';
@@ -56,6 +57,15 @@ export interface PaintOptions {
    */
   surfaceOpacity?: number;
   fontFamily?: string;
+  /**
+   * How long this scene runs, in seconds. Required for a camera move and for
+   * nothing else.
+   *
+   * Absent means a still, and a still has no camera: it is one instant, so
+   * there is nothing to move through. That is why this is optional rather than
+   * defaulted — a guessed duration would put a half-finished push on every PNG.
+   */
+  sceneSeconds?: number;
 }
 
 const DEFAULT_FONT = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
@@ -433,6 +443,25 @@ export function drawTemplateFrame(
 
   ctx.save();
   ctx.clearRect(0, 0, w, h);
+
+  /*
+   * The camera, applied to everything that follows.
+   *
+   * This is the difference between a slideshow and something that looks filmed.
+   * A static frame with text arriving on it reads as a slide; the same frame
+   * drifting 4% closer across the scene reads as a shot — and it costs one
+   * transform rather than a per-template rewrite.
+   *
+   * Scaled about the centre so the move has no preferred corner, and every
+   * move keeps scale >= 1 for its whole duration so the frame edges never come
+   * into view.
+   */
+  const cam = cameraAt(tpl.camera, t, opts.sceneSeconds ?? 0, w, h);
+  if (cam.scale !== 1 || cam.dx !== 0 || cam.dy !== 0) {
+    ctx.translate(w / 2 + cam.dx, h / 2 + cam.dy);
+    ctx.scale(cam.scale, cam.scale);
+    ctx.translate(-w / 2, -h / 2);
+  }
   ctx.fillStyle = base;
   ctx.fillRect(0, 0, w, h);
 

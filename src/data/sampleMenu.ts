@@ -42,9 +42,7 @@ export const MENU_SPOTLIGHTS: Record<string, any> = {
     email: 'orders@lagosflavors.example.com',
     opening_hours: 'Mon–Sun: 11AM–11PM',
     image_url: px(67468),
-    rating: 4.7,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

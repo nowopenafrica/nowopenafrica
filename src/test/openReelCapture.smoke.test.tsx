@@ -27,7 +27,13 @@ class FakeRecorder {
   constructor(public stream: unknown, public options?: unknown) { FakeRecorder.last = this; }
   static last: FakeRecorder | null = null;
   start() { this.state = 'recording'; }
-  stop() { this.state = 'inactive'; this.onstop?.(); }
+  stop() {
+    this.state = 'inactive';
+    // Hand the recorder a real chunk so the review stage is reachable — with
+    // nothing recorded, the component refuses to leave the camera.
+    this.ondataavailable?.({ data: new Blob(['recording'], { type: 'video/mp4' }) });
+    this.onstop?.();
+  }
   pause() { this.state = 'paused'; }
   resume() { this.state = 'recording'; }
 }
@@ -134,5 +140,65 @@ describe('OpenReelCapture — pause and resume', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Start recording' }));
     await act(async () => { vi.advanceTimersByTime(6000); });
     expect(FakeRecorder.last!.state).toBe('inactive');
+  });
+});
+
+/**
+ * Temporarily make jsdom's canvas claim we can capture a stream, which decides
+ * whether the trim panel is offered at all. Cleans up afterwards so tests run
+ * in isolation regardless of order.
+ */
+const withCaptureStreamSupport = async (fn: () => Promise<void>) => {
+  const proto = HTMLCanvasElement.prototype as unknown as Record<string, unknown>;
+  const prior = Object.getOwnPropertyDescriptor(proto, 'captureStream');
+  Object.defineProperty(proto, 'captureStream', {
+    configurable: true,
+    value: () => ({ getTracks: () => [], getVideoTracks: () => [], getAudioTracks: () => [] }),
+  });
+  try {
+    await fn();
+  } finally {
+    if (prior) Object.defineProperty(proto, 'captureStream', prior);
+    else delete proto.captureStream;
+  }
+};
+
+describe('OpenReelCapture — quick clip trim', () => {
+  /** Record and stop so the video lands on the review stage. */
+  const reachReview = async () => {
+    await openReelMode();
+    fireEvent.click(screen.getByRole('button', { name: 'Start recording' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Stop recording' }));
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Use This' })).toBeInTheDocument());
+  };
+
+  it('offers the trim panel on a video, and adjusts the cut', async () => {
+    await withCaptureStreamSupport(async () => {
+      await reachReview();
+      // A decoded length, as a working browser would report on loadedmetadata.
+      Object.defineProperty(HTMLVideoElement.prototype, 'duration', { configurable: true, value: 65 });
+      const video = document.querySelector('video')!;
+      fireEvent(video, new Event('loadedmetadata'));
+
+      fireEvent.click(await screen.findByLabelText('Show trim controls'));
+      const start = await screen.findByLabelText('Trim start');
+      fireEvent.change(start, { target: { value: '2' } });
+
+      // The cut stuck: start handle reads 2s, the keep label is derived from it.
+      expect((screen.getByLabelText('Trim start') as HTMLInputElement).value).toBe('2');
+      expect(screen.getByText('1:03.0')).toBeInTheDocument();
+
+      // Cutting something flips the toggle to the "edited" state; reset goes back.
+      fireEvent.click(screen.getByRole('button', { name: 'Reset' }));
+      expect((screen.getByLabelText('Trim start') as HTMLInputElement).value).toBe('0');
+      expect(screen.queryByRole('button', { name: 'Reset' })).toBeNull();
+    });
+  });
+
+  it('hides the trim panel where re-recording is impossible', async () => {
+    // jsdom's canvas reports no captureStream, same as a browser that cannot.
+    await reachReview();
+    expect(screen.getByText(/Quick trim isn't supported in this browser/)).toBeInTheDocument();
+    expect(screen.queryByLabelText('Show trim controls')).toBeNull();
   });
 });

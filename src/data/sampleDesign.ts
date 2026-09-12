@@ -51,9 +51,7 @@ export const DESIGN_SPOTLIGHTS: Record<string, any> = {
     email: 'studio@pixelforge.example.com',
     opening_hours: 'Mon–Fri: 9AM–6PM',
     image_url: px(196644),
-    rating: 4.9,
     status: 'open',
-    verified: true,
     user_id: 'sample',
   },
 };

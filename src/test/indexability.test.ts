@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { isIndexableProfile, type ProfileBusiness } from '../lib/businessPageRender';
+import { isIndexableProfile, MIN_INDEXABLE_SCORE, type ProfileBusiness } from '../lib/businessPageRender';
 
 /**
  * One rule, applied everywhere the platform speaks to a search engine:
@@ -39,8 +39,51 @@ describe('a profile may only be indexed when somebody stands behind it', () => {
     expect(isIndexableProfile({ ...demo, claim_status: 'claimed' })).toBe(true);
   });
 
-  it('allows a record from an authorised source', () => {
-    expect(isIndexableProfile({ ...demo, data_status: 'imported_authorized' })).toBe(true);
+  /*
+   * An authorised source is no longer sufficient on its own — the CONTENT has
+   * to be useful too.
+   *
+   * MEASURED ON PRODUCTION 2026-09-08: 100 businesses were imported that
+   * morning as `imported_authorized`, averaging a listing_score of 30 with no
+   * description, address, hours or phone on any of them. Every one was in the
+   * sitemap, while `discover.ts` excluded all 100 as too thin to show a
+   * visitor — the platform asking Google to judge it on the pages it would not
+   * show its own users.
+   *
+   * Accountability alone justifies SHOWING a profile. Accountability plus
+   * usefulness is what justifies asking Google to index it.
+   */
+  it('refuses an authorised record that is too thin to be useful', () => {
+    expect(isIndexableProfile({
+      ...demo, data_status: 'imported_authorized', listing_score: 30,
+    })).toBe(false);
+  });
+
+  it('allows an authorised record once it clears the usefulness bar', () => {
+    expect(isIndexableProfile({
+      ...demo, data_status: 'imported_authorized', listing_score: MIN_INDEXABLE_SCORE,
+    })).toBe(true);
+  });
+
+  it('treats a missing score as not-yet-useful rather than assuming good', () => {
+    // An unscored record is one we know nothing about, and "unknown" must not
+    // resolve to "index it".
+    expect(isIndexableProfile({ ...demo, data_status: 'imported_authorized' })).toBe(false);
+  });
+
+  it('indexes a claimed profile whatever its score', () => {
+    /*
+     * The owner is accountable and can complete it. De-indexing a brand-new
+     * claimed business for being incomplete would punish precisely the
+     * behaviour the platform exists to cause.
+     */
+    expect(isIndexableProfile({ ...demo, claim_status: 'claimed', listing_score: 5 })).toBe(true);
+  });
+
+  it('uses the same threshold Discover uses, so the two cannot drift', () => {
+    // Two numbers for "is this worth showing" drift, and the drift already
+    // happened once — in the direction of publishing what we would not show.
+    expect(MIN_INDEXABLE_SCORE).toBe(40);
   });
 
   it('refuses a synthetic prospect even if something else looks right', () => {

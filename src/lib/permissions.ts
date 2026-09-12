@@ -39,7 +39,7 @@ export type AdminTabId =
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
   | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
   | 'review-queue' | 'imports' | 'switches' | 'pages' | 'activation'
-  | 'profile-requests' | 'create-orders';
+  | 'profile-requests' | 'create-orders' | 'claimreach';
 
 /**
  * What an editor may open.
@@ -116,3 +116,72 @@ export const canVerify = (role: string | null | undefined): boolean => isAdmin(r
 
 /** The homepage banner and its videos — the editor's actual remit. */
 export const canManageHero = (role: string | null | undefined): boolean => isStaff(role);
+
+/* ---------------------------------------------------------------------------
+ * Editing a business somebody else may one day own
+ * ------------------------------------------------------------------------ */
+
+/** What the rule needs to know about a business. */
+export interface EditableBusiness {
+  claim_status?: string | null;
+  user_id?: string | null;
+}
+
+export interface EditVerdict {
+  allowed: boolean;
+  /** Shown to the admin, so a refusal is never a mystery. */
+  reason: string;
+}
+
+/**
+ * May staff edit this business's profile?
+ *
+ * ONLY UNTIL IT IS CLAIMED, and the boundary is the whole point.
+ *
+ * An unclaimed listing is NowOpen's own work — imported, or built for a
+ * business that has not arrived yet — so somebody has to be able to fix a
+ * wrong phone number, add the hours or replace a bad banner. Nobody could:
+ * the admin console offered verify, status, trust and delete, and no way at
+ * all to change a single detail.
+ *
+ * The moment an owner claims it, the page becomes theirs. An admin editing it
+ * then is a stranger rewriting a business's own words, and the owner would
+ * have no way to know it happened. Support requests are still answerable —
+ * the owner makes the change, or an admin makes it in the SQL editor with
+ * their name on it — but not silently through a console button.
+ *
+ * `user_id` is checked as well as `claim_status` because they can disagree:
+ * a row with an owner and a stale status is claimed in every sense that
+ * matters.
+ */
+export function canEditBusinessProfile(
+  role: string | null | undefined,
+  business: EditableBusiness,
+): EditVerdict {
+  if (!isStaff(role)) {
+    return { allowed: false, reason: 'Only staff can edit a listing from the console.' };
+  }
+  if (!isAdmin(role)) {
+    /*
+     * Editors are deliberately out. An unclaimed profile is a business's
+     * public face before that business has any say in it, and the person
+     * changing it should be the one accountable for the directory.
+     */
+    return { allowed: false, reason: 'Editing a business profile is an admin action.' };
+  }
+  if (business.user_id) {
+    return { allowed: false, reason: 'An owner holds this profile. Only they can change it now.' };
+  }
+  if (business.claim_status === 'claimed') {
+    return { allowed: false, reason: 'This profile has been claimed. Only its owner can change it now.' };
+  }
+  if (business.claim_status === 'claim_pending') {
+    /*
+     * Somebody is waiting on a decision. Editing underneath a pending claim
+     * changes what the claimant is claiming, which is unfair to them and
+     * confusing to whoever reviews it.
+     */
+    return { allowed: false, reason: 'A claim is pending on this profile. Decide the claim first.' };
+  }
+  return { allowed: true, reason: 'Unclaimed — NowOpen maintains this listing until its owner takes it over.' };
+}
