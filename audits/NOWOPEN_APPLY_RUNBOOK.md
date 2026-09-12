@@ -292,6 +292,50 @@ once you trust the proposals in review:
 select cron.schedule('auto-apply-proposals', '0 6 * * *', $$select public.auto_apply_due_proposals()$$);
 ```
 
+**Why the Enrichment Ops panel still says "No endpoint configured" after 8a**
+
+The 8a paste installs the queue, the scheduler cron (`tick_enrichment()` every
+15 min), and the ops console — but deliberately leaves `private_config`
+empty. `tick_enrichment()` posts to `private_config.enrichment_endpoint`, and
+until that key exists the tick `RAISE NOTICE`s and returns, so the pipeline
+is an honest, visible no-op. The banner is the feature, not a bug. Bringing it
+live needs the executor deployed and pointed at — the enrichment twin of 8c:
+
+```bash
+# 1. Deploy the executor (same machine, after 8a committed):
+supabase functions deploy enrich-business
+# 2. Secrets it reads at runtime (functions/*/index.ts):
+supabase secrets set AUTOMATION_SECRET=<the SAME long random string as run-workforce>
+supabase secrets set SUPABASE_URL=https://wvayqqfqqocwjripugnb.supabase.co
+supabase secrets set SUPABASE_SERVICE_ROLE_KEY=<service_role key>
+supabase secrets set GROQ_API_KEY=<optional — enables the AI resolver; without it
+#   the engine still resolves real structured sources, just no LLM pass>
+```
+
+Then, in the SQL editor (same `AUTOMATION_SECRET`, plus the anon key from
+`VITE_SUPABASE_ANON_KEY` in `.env`). **`refill=1` is what makes a cron tick
+refill the queue before draining it; `limit=8` caps one run at eight jobs:**
+
+```sql
+select public.set_private_config(
+  'enrichment_endpoint',
+  'https://wvayqqfqqocwjripugnb.supabase.co/functions/v1/enrich-business?limit=8&refill=1');
+select public.set_private_config('automation_secret', '<the SAME AUTOMATION_SECRET>');
+select public.set_private_config('anon_key', '<the anon key>');
+```
+
+**Verify (as an admin):**
+
+```sql
+select public.enrichment_cron_status();   -- configured: true, queued > 0 within a tick or two
+select count(*) from public.business_enrichment_jobs where status = 'succeeded';
+select jobname, schedule, active from cron.job
+ where jobname in ('nowopen-enrichment', 'auto-apply-proposals');
+```
+
+Until an operator does this, the panel still says "No endpoint configured" —
+and it is right to.
+
 ### 8b · `audits/APPLY_WORKFORCE_AUTOMATION.sql` — the AI workforce engine
 
 The workforce's own cron (`20260901020000` → `20260906030000`) plus
