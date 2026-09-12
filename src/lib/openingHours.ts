@@ -523,12 +523,12 @@ export function publicOpenState(b: OpenStateInput, now: Date = new Date()): Open
     /*
      * The 24/7 DEFAULT: an unclaimed business with no recorded hours never has
      * a closed state, so the one answer the platform exists to give is "open".
-     * Honesty lives in the detail line — "platform default" calls out that it is
-     * NowOpen's safe default, not something the owner ever said. That is the
-     * whole difference between this label and the confirmed one below.
-     */
+* Honesty lives in the detail line — "default" calls out that it is
+      * NowOpen's safe default, not something the owner ever said. That is the
+      * whole difference between this label and the confirmed one below.
+      */
     if (b.availability_mode === 'default_24_7' && !b.is_24_hours_confirmed) {
-      return { kind: 'open', label: 'Open now', detail: 'Open 24 hours · platform default' };
+      return { kind: 'open', label: 'Open now', detail: 'Open 24 hours · default' };
     }
     // An owner/source CONFIRMED 24/7 but no hour text exists: safe to render open.
     if (b.is_24_hours && b.is_24_hours_confirmed) {

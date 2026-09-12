@@ -295,7 +295,7 @@ describe('time input conversion', () => {
 describe('publicOpenState — the 24/7 default vs confirmed 24/7', () => {
   const noon = new Date('2026-08-10T12:00:00Z'); // Monday midday
 
-  it('a default_24_7 row is open, honestly marked as the platform default', () => {
+  it('a default_24_7 row is open, honestly marked as the default', () => {
     // Unclaimed, no hours: a listing that is never closed is open. The detail
     // line keeps the honesty — it says the answer comes from the platform
     // default, not from anything the owner ever said.
@@ -305,7 +305,7 @@ describe('publicOpenState — the 24/7 default vs confirmed 24/7', () => {
     );
     expect(s.kind).toBe('open');
     expect(s.label).toBe('Open now');
-    expect(s.detail).toBe('Open 24 hours · platform default');
+    expect(s.detail).toBe('Open 24 hours · default');
     expect(s.detail).not.toBe('Open 24 hours');
   });
 

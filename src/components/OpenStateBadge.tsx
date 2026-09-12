@@ -20,7 +20,7 @@ import { publicOpenState, type OpenStateInput, type OpenState } from '../lib/ope
  *
  * The one exception is the 24/7 default for unclaimed businesses: a listing
  * that is never closed is open, so it renders green, with the detail saying
- * "platform default" so the honesty is not hidden.
+ * "default" so the honesty is not hidden.
  *
  * The same publicOpenState powers the server-rendered profile, so the badge a
  * customer sees and the line Google indexes cannot drift apart.

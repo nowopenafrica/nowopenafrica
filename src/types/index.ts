@@ -54,7 +54,7 @@ export interface Business {
   open_status?: 'open' | 'closed' | null;
   // Business Intelligence (20260911000000): how the shown hours were produced.
   // 'default_24_7' means NowOpen's safe default — unclaimed and no hours. The
-  // public state renders it as open with the detail "platform default" — never
+  // public state renders it as open with the detail "default" — never
   // the confident "Open 24 hours" reserved for an owner-confirmed 24/7.
   // 'confirmed' means an owner/verified source confirmed availability.
   availability_mode?: 'derived' | 'confirmed' | 'default_24_7' | 'not_set' | null;

@@ -279,7 +279,7 @@ ops functions, and auto-apply. What the founder asked for here:
   first migration's honest UPDATE: unclaimed businesses with no hours get
   `availability_mode='default_24_7'`, `is_24_hours=true`, but
   `is_24_hours_confirmed=false`. Their listing now reads **Open now** with the
-  detail "Open 24 hours · platform default" — the platform never claims the
+  detail "Open 24 hours · default" — the platform never claims the
   owner said it.
 
 After this paste, `npm run check:drift` reports the live schema matches the

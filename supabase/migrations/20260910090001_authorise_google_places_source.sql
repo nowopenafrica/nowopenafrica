@@ -20,7 +20,10 @@
 --
 -- THE KEY IS THE OPERATIONAL SWITCH
 --
--- `active: true` records the position (the founder authorises the channel).
+-- `active: false` records the authorisation without switching the channel on.
+-- The live gate radar_sources_active_requires_rights (radar.sql) only allows a
+-- source to be active when every right is 'permitted'; Google Maps honestly
+-- prohibits bulk extraction, so the row stays OFF until the gate is revisited.
 -- GUIDING ACCESS is the API key: api/acquire/google.ts returns 503 until
 -- GOOGLE_PLACES_API_KEY exists in the server environment. The radar_sources
 -- row says "this MAY run"; the key decides whether it CAN today.
@@ -33,7 +36,7 @@ insert into public.radar_sources (
   'google',
   'Google Maps (Places API)',
   'licensed_directory',
-  true,
+  false,
   'permitted', 'prohibited', 'permitted', 'unknown',
   'Google Maps Platform terms — Maps content used under licence, attribution required; see https://about.google/brand-resource-center/products-and-services/geography-guidelines/',
   'Founder, NowOpen Africa (2026-09-10) — official Places (New) Text Search API, keyed by GOOGLE_PLACES_API_KEY; governed by, not scraped from, maps.google.com',
@@ -41,7 +44,8 @@ insert into public.radar_sources (
   'One keyed request channel (Text Search, max 100 candidates per run), paged through the official API. Field-masked to the fields we actually store, which is also the cheaper billing. '
   'NO EMAILS: the Places API does not return email addresses, so email is always null for this source. '
   'Candidates land in the review queue; nothing publishes without a person. '
-  'Bulk extraction recorded as PROHIBITED because Google Places content may not be copied wholesale, and cached content is subject to Google''s caching rules.'
+  'Bulk extraction recorded as PROHIBITED because Google Places content may not be copied wholesale, and cached content is subject to Google''s caching rules. '
+  'Recorded active=false on 2026-09-13: the radar rights gate demands every right be permitted for an active source, and bulk extraction is honestly prohibited here; authorisation stands, the switch stays OFF.'
 )
 on conflict (key) do update set
   name = excluded.name,
