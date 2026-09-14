@@ -102,37 +102,62 @@ export const hasListingImage = (b: Pick<DiscoverBusiness, 'logo_url' | 'image_ur
  * the ones a visitor can actually use come first, and the order is stable.
  */
 /**
- * The same primary rule, for a grid whose rows have already been flattened,
- * with the logo/cover tier folded in between claim and verification.
+ * The rule for a grid whose rows have already been flattened, and the same
+ * order the homepage explorer and the featured rails follow: businesses that
+ * LOOK finished come first.
  *
- * The homepage explorer reshapes businesses, adverts and services into one Row
- * type, so it cannot use `claimedFirst` — but it must not answer the question
- * differently. Exported so there is one place to read "claimed comes first",
- * and so a test can hold both to it.
+ * THE ORDER CHANGED, 2026-09-13. The old rule ranked claimed listings above
+ * everything else and folded the image tier in between claim and verification.
+ * The enrichment pipeline now attaches licensed covers to unclaimed listings,
+ * and the owner wants the front pages to lead with finished-looking cards, so
+ * a business that shows an image leads whatever its claim state. Claim is now
+ * the second tier, verification the third.
  *
- * A finished card is impossible without a logo or cover — the image slot on
- * every surface renders that or a placeholder. Image-complete listings sort
- * above image-less ones WITHIN a claim tier, so a photo never surfaces a
- * guessed import above a profile a real person runs; it only keeps the
- * front pages from leading with broken-image shells.
+ * Exported so there is one place to read "what the front pages lead with",
+ * and so a test can hold every surface to it.
  */
-export interface ClaimedImageVerifiedRow {
-  /** A real person runs this one. Businesses only — see claimedFirst. */
-  claimed?: boolean;
+export interface ImageClaimedVerifiedRow {
   /** Has a logo or cover photo to show. Businesses only. */
   hasImage?: boolean;
+  /** A real person runs this one. Businesses only — see claimedFirst. */
+  claimed?: boolean;
   verified?: boolean;
 }
 
-export function byClaimedThenImageThenVerified(
-  a: ClaimedImageVerifiedRow,
-  b: ClaimedImageVerifiedRow,
+export function byImageThenClaimedThenVerified(
+  a: ImageClaimedVerifiedRow,
+  b: ImageClaimedVerifiedRow,
 ): number {
-  const claim = Number(b.claimed ?? false) - Number(a.claimed ?? false);
-  if (claim !== 0) return claim;
   const image = Number(b.hasImage ?? false) - Number(a.hasImage ?? false);
   if (image !== 0) return image;
+  const claim = Number(b.claimed ?? false) - Number(a.claimed ?? false);
+  if (claim !== 0) return claim;
   return Number(b.verified ?? false) - Number(a.verified ?? false);
+}
+
+/**
+ * Fisher–Yates shuffle on a copy — the random slice the front pages lead with.
+ *
+ * Kept next to the tier comparators because "random" on these pages always
+ * means random WITHIN a priority tier: `shuffle` supplies the chance, and a
+ * later STABLE tier sort rescues the priority (image, then claimed, then
+ * verified). Shuffling first is what makes the rescuing sort stable-true.
+ */
+export function shuffle<T>(list: readonly T[]): T[] {
+  const out = [...list];
+  for (let i = out.length - 1; i > 0; i -= 1) {
+    const j = Math.floor(Math.random() * (i + 1));
+    const tmp = out[i];
+    out[i] = out[j];
+    out[j] = tmp;
+  }
+  return out;
+}
+
+/** Shuffle, then a stable sort — chance decides within each tier, the
+ *  comparator decides between tiers. */
+export function shuffledSort<T>(list: readonly T[], cmp: (a: T, b: T) => number): T[] {
+  return shuffle(list).sort(cmp);
 }
 
 export function claimedFirst<T extends Pick<DiscoverBusiness, 'claim_status' | 'user_id' | 'listing_score' | 'created_at'>>(
@@ -149,8 +174,9 @@ export function claimedFirst<T extends Pick<DiscoverBusiness, 'claim_status' | '
 
 /**
  * The tier every featured rail shares, for rows that are still full
- * business objects: claimed first, then logo/cover, then verified — the same
- * primary rule the homepage grid applies to its flattened rows.
+ * business objects: logo/cover first, then claimed, then verified — the same
+ * primary rule the homepage grid applies to its flattened rows. See
+ * `byImageThenClaimedThenVerified` for why image leads.
  *
  * STABLE. A rail arrives ordered by its own meaning (rating, recency, …) and
  * the sort only lifts businesses within each tier, so "Top rated" still ranks
@@ -160,10 +186,10 @@ export function featuredFirst<T extends Pick<DiscoverBusiness, 'claim_status' | 
   list: T[],
 ): T[] {
   return [...list].sort((a, b) => {
-    const claim = Number(isClaimed(b)) - Number(isClaimed(a));
-    if (claim !== 0) return claim;
     const image = Number(hasListingImage(b)) - Number(hasListingImage(a));
     if (image !== 0) return image;
+    const claim = Number(isClaimed(b)) - Number(isClaimed(a));
+    if (claim !== 0) return claim;
     return Number(b.verified === true) - Number(a.verified === true);
   });
 }

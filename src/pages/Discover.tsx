@@ -218,7 +218,9 @@ export default function Discover() {
         key: 'results',
         title: 'Matches',
         blurb: `${scope.length} ${scope.length === 1 ? 'business' : 'businesses'}`,
-        icon: Search, items: scope,
+        // Same image-first lift as the themed rails, so a filtered search
+        // opens on the cards that look finished.
+        icon: Search, items: featuredFirst(scope),
       });
     }
     list.push({

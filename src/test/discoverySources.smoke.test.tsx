@@ -122,7 +122,7 @@ describe('DiscoveryPanel sources', () => {
     expect(screen.getByText('Wikidata (CC0)')).toBeInTheDocument();
     expect(screen.getByText('BusinessList.com.ng')).toBeInTheDocument();
     expect(screen.getByText('Waitlist signups')).toBeInTheDocument();
-    expect(screen.getByText('Google Business Profile')).toBeInTheDocument();
+    expect(screen.getByText('Google Places')).toBeInTheDocument();
   });
 
   it('shows the first-party note for internal sources and hides Wikidata-only filters', async () => {
@@ -133,7 +133,7 @@ describe('DiscoveryPanel sources', () => {
     expect(screen.queryByText(/Only ones with a phone number/)).not.toBeInTheDocument();
   });
 
-  it('states honestly when Google Business Profile cannot run yet', async () => {
+  it('states honestly when Google Places cannot run yet', async () => {
     render(<DiscoveryPanel />);
     const select = screen.getByLabelText(/Source/);
     fireEvent.change(select, { target: { value: 'google' } });

@@ -84,7 +84,8 @@ describe('the operator-facing copy', () => {
     // Drift here means a flag exists that no console can turn off.
     expect(Object.keys(FALLBACK).sort()).toEqual([
       'adverts', 'ai_director', 'bookings', 'campaigns', 'keeps', 'live',
-      'offers', 'ordering', 'outbound_email', 'outbound_whatsapp', 'payments', 'studio_video',
+      'offers', 'ordering', 'outbound_email', 'outbound_instagram', 'outbound_sms', 'outbound_whatsapp',
+      'payments', 'studio_video',
     ]);
   });
 });

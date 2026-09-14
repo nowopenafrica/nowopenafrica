@@ -46,6 +46,7 @@ const DiscoveryPage = lazyRoute(() => import('./pages/DiscoveryPage'));
 const Dashboard = lazyRoute(() => import('./pages/Dashboard'));
 const AdminDashboard = lazyRoute(() => import('./pages/AdminDashboard'));
 const AdminCreator = lazyRoute(() => import('./pages/AdminCreator'));
+const BusinessIntelligence = lazyRoute(() => import('./pages/BusinessIntelligence'));
 const DigitalForms = lazyRoute(() => import('./pages/DigitalForms'));
 const Pricing = lazyRoute(() => import('./pages/Pricing'));
 const Waitlist = lazyRoute(() => import('./pages/Waitlist'));
@@ -231,10 +232,17 @@ function App() {
                   <AdminDashboard />
                 </AdminRoute>
               } />
-              {/* Internal growth operating system — same role gating + preview. */}
+              {/* Internal growth operating system — same role gating + preview,
+                  but admins only: the 32 creation sections have no per-role
+                  boundary the way the console tabs do. */}
               <Route path="/admin-creator" element={
-                <AdminRoute>
+                <AdminRoute adminOnly>
                   <AdminCreator />
+                </AdminRoute>
+              } />
+              <Route path="/admin/business-intelligence" element={
+                <AdminRoute adminOnly>
+                  <BusinessIntelligence />
                 </AdminRoute>
               } />
               {/* Multi-segment unknown URLs land here. Single-segment unknowns

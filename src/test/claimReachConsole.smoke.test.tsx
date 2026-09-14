@@ -25,6 +25,7 @@ const state: {
   businessesError: { message: string } | null;
   evidence: unknown[];
   outreach: unknown[];
+  flags: string[];
   suppressed: { contact: string }[] | null;
   suppressionError: { message: string } | null;
 } = {
@@ -32,6 +33,7 @@ const state: {
   businessesError: null,
   evidence: [],
   outreach: [],
+  flags: [],
   suppressed: [],
   suppressionError: null,
 };
@@ -63,6 +65,7 @@ vi.mock('../lib/supabase', () => {
         if (table === 'businesses') return q(state.businesses, state.businessesError);
         if (table === 'business_evidence') return q(state.evidence);
         if (table === 'claimreach_outreach') return q(state.outreach);
+        if (table === 'feature_flags') return q(state.flags.map((key) => ({ key, enabled: true })));
         return q([]);
       }),
       rpc: vi.fn(async () => (state.suppressionError
@@ -90,6 +93,7 @@ beforeEach(() => {
   state.businessesError = null;
   state.evidence = [];
   state.outreach = [];
+  state.flags = [];
   state.suppressed = [];
   state.suppressionError = null;
 });
@@ -160,5 +164,36 @@ describe('ClaimReach console', () => {
     whatIf.click();
 
     await waitFor(() => expect(screen.getByText(/Would contact/i)).toBeInTheDocument());
+  });
+
+  it('reads confidence from recorded evidence, not the stale row value', async () => {
+    /*
+     * Live reality: every business row carries `unconfirmed` (nothing backfills
+     * the column) while business_evidence records source_confirmed observations.
+     * §7 already accepts the number's origin, so §28 must not refuse the same
+     * business on confidence — the dry run reads the evidence.
+     */
+    state.businesses = [business({ data_confidence: 'unconfirmed' })];
+    state.evidence = [{ business_id: 'b1', field_name: 'phone', status: 'source_confirmed' }];
+
+    render(<ClaimReachConsole />);
+
+    // Still blocked — but on the provider, which is the honest remaining reason.
+    await waitFor(() => expect(screen.getByText(/No sms provider is configured/i)).toBeInTheDocument());
+    expect(screen.queryByText(/this campaign requires source_confirmed/i)).not.toBeInTheDocument();
+  });
+
+  it('takes configured channels from feature_flags, so the sms refusal reflects reality', async () => {
+    state.flags = ['outbound_sms'];
+    state.businesses = [business({ data_confidence: 'unconfirmed' })];
+    state.evidence = [{ business_id: 'b1', field_name: 'phone', status: 'source_confirmed' }];
+
+    render(<ClaimReachConsole />);
+
+    // SMS is configured now, so the row's reason is approval, not a missing
+    // provider — and the caption names what feature_flags supplied.
+    await waitFor(() => expect(screen.getByText(/this one has none/i)).toBeInTheDocument());
+    expect(screen.queryByText(/No sms provider is configured/i)).not.toBeInTheDocument();
+    expect(screen.getByText(/from feature_flags: sms/i)).toBeInTheDocument();
   });
 });

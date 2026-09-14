@@ -131,3 +131,39 @@ describe('owner sync preferences close the loop', () => {
     expect(autoApply).toContain('PERFORM public._apply_proposal_write(v.id);');
   });
 });
+
+describe('platform-authorised images for unclaimed businesses (20260913040000)', () => {
+  const unclaimed = readFileSync('supabase/migrations/20260913040000_unclaimed_image_auto_apply.sql', 'utf8');
+
+  it('replaces the same signature so no function overload creeps in', () => {
+    expect(unclaimed).toContain('CREATE OR REPLACE FUNCTION public.auto_apply_due_proposals(p_business uuid)');
+    expect(unclaimed).toContain('GRANT EXECUTE ON FUNCTION public.auto_apply_due_proposals(uuid) TO service_role');
+  });
+
+  it('applies image-family proposals for unclaimed businesses at the platform bar of 60', () => {
+    expect(unclaimed).toContain("IF v.field_name IN ('logo_url','image_url') AND v_claim = 'unclaimed' THEN");
+    expect(unclaimed).toContain('IF v.confidence < 60 THEN CONTINUE; END IF;');
+  });
+
+  it('keeps claimed businesses on the owner\'s stored approval bar', () => {
+    expect(unclaimed).toContain('IF v.confidence < v_pref.approval_threshold THEN CONTINUE; END IF;');
+  });
+
+  it('treats a rowless unclaimed business as platform-authorised, and a rowless claimed one as nothing', () => {
+    expect(unclaimed).toContain("v_claim = 'unclaimed'");
+    expect(unclaimed).toContain("v_pref.auto_apply_source_images := true;");
+    expect(unclaimed).toContain("v_pref.approval_threshold := 60;");
+  });
+
+  it('still honours the evidence rule and the single write core', () => {
+    expect(unclaimed).toContain('IF v.evidence_id IS NULL THEN CONTINUE; END IF;');
+    expect(unclaimed).toContain('PERFORM public._apply_proposal_write(v.id);');
+  });
+
+  it('still requires the executor to call it only outside dry runs', () => {
+    const exec = readFileSync('supabase/functions/enrich-business/index.ts', 'utf8');
+    const marker = exec.indexOf('db.rpc("auto_apply_due_proposals"');
+    const blockStart = exec.indexOf('summary.matched && !dryRun');
+    expect(marker).toBeGreaterThan(blockStart);
+  });
+});

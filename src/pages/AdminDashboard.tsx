@@ -11,11 +11,12 @@ import ActivationPanel from '../components/admin/ActivationPanel';
 import ProfileRequests from '../components/admin/ProfileRequests';
 import CreateOrders from '../components/admin/CreateOrders';
 import ClaimReachConsole from '../components/admin/ClaimReachConsole';
+import OnboardingMessagingPanel from '../components/admin/OnboardingMessagingPanel';
 import AdminBusinessEditor from '../components/admin/AdminBusinessEditor';
 import {
-  canAccessTab, canDelete, canEditBusinessProfile, canManageRoles, canManagePlans,
+  canAccessTab, canCreateBusiness, canDelete, canEditBusinessProfile, canManageRoles, canManagePlans,
   isStaff, isEditor,
-  ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, type AdminTabId,
+  ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_CAPABILITIES, type AdminTabId,
 } from '../lib/permissions';
 import { loadHeroSettings, saveHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
 import { makeSlide } from '../lib/heroSlides';
@@ -25,7 +26,7 @@ import { Business, Advertisement, MediaService, User as UserProfile } from '../t
 import {
   Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
   CalendarCheck, CreditCard, ListChecks, FileText, MessageSquare, Upload, Video, LayoutGrid, ShieldCheck,
-  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare, Target, Send, Radio, Pencil, Lock, CheckSquare, Square, Copy, ChevronLeft, ChevronRight } from 'lucide-react';
+  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare, Target, Send, Radio, Pencil, Lock, CheckSquare, Square, Copy, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
 import { APPLICATION_STATUS_LABELS, hubRelationshipById } from '../lib/formsEngine';
 import { NOWOPEN_ORG_ID } from '../lib/workforce';
 import TrustPanel from '../components/dashboard/TrustPanel';
@@ -96,6 +97,8 @@ export default function AdminDashboard() {
   const [trustReviewBiz, setTrustReviewBiz] = useState<{ id: string; name: string } | null>(null);
   /** The unclaimed listing an admin is editing, if any. */
   const [editBizId, setEditBizId] = useState<string | null>(null);
+  /** Admin is creating a fresh unclaimed business. */
+  const [creatingBiz, setCreatingBiz] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<{ table: DeletableTable; id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState('');
@@ -737,7 +740,9 @@ export default function AdminDashboard() {
     { id: 'create-orders', label: 'Create Orders', icon: ShoppingBag, count: 0 },
     // Outreach, and only ever as a plan: the console cannot send.
     { id: 'claimreach', label: 'ClaimReach', icon: Radio, count: 0 },
+    { id: 'onboarding', label: 'Onboarding', icon: MessageCircle, count: 0 },
     { id: 'users', label: 'Users', icon: Users, count: users.length },
+    { id: 'roles', label: 'Roles', icon: Lock, count: 0 },
     { id: 'businesses', label: 'Businesses', icon: ShoppingBag, count: businesses.length },
     { id: 'verification', label: 'Verification', icon: ShieldCheck, count: verificationDocs.filter((d: any) => (d.status || 'pending') === 'pending').length },
     { id: 'subscriptions', label: 'Subscriptions', icon: Crown, count: subscriptions.filter((s: any) => s.status === 'active').length },
@@ -785,7 +790,7 @@ export default function AdminDashboard() {
                   from missing tabs — absence reads as a bug, not a boundary. */}
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 {isEditor(role)
-                  ? 'Homepage and listing content. Accounts, payments, verification and deletion are admin-only.'
+                  ? 'Adds and edits unclaimed listings, plus homepage and page content. Accounts, payments, verification, moderation and deletion are admin-only.'
                   : 'Manage all platform data'}
               </p>
             </div>
@@ -1051,6 +1056,56 @@ export default function AdminDashboard() {
                 </table>
               )}
 
+              {/* Roles — what each platform role may do. */}
+              {activeTab === 'roles' && (
+                <div>
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-800 p-6 bg-white dark:bg-gray-800 mb-6">
+                    <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-1">Roles</h2>
+                    <p className="text-sm text-gray-600 dark:text-gray-400">
+                      What each platform role may do. Roles are assigned from the Users tab.
+                      The enforced boundary is the database — this screen only defines it honestly.
+                    </p>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                    {ASSIGNABLE_ROLES.map(r => (
+                      <div key={r} className="rounded-xl border border-gray-200 dark:border-gray-800 p-5 bg-white dark:bg-gray-800">
+                        <div className="flex items-center justify-between mb-1">
+                          <h3 className="font-bold text-gray-900 dark:text-white">{ROLE_LABELS[r]}</h3>
+                          <span className={`px-2 py-0.5 rounded text-xs font-semibold ${
+                            r === 'admin'
+                              ? 'bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300'
+                              : r === 'editor'
+                                ? 'bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300'
+                                : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-300'
+                          }`}>
+                            {r === 'admin' ? 'Full console' : r === 'editor' ? 'Staff' : 'Member'}
+                          </span>
+                        </div>
+                        <p className="text-xs text-gray-600 dark:text-gray-400 mb-3">{ROLE_DESCRIPTIONS[r]}</p>
+                        <ul className="space-y-1.5">
+                          {ROLE_CAPABILITIES[r].map(c => {
+                            const restricted = c.startsWith('Cannot');
+                            return (
+                              <li key={c} className={`flex items-start gap-2 text-sm ${restricted ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
+                                {restricted
+                                  ? <Square size={14} className="shrink-0 mt-0.5 text-gray-400 dark:text-gray-500" />
+                                  : <CheckSquare size={14} className="shrink-0 mt-0.5 text-emerald-600 dark:text-emerald-400" />}
+                                {c}
+                              </li>
+                            );
+                          })}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-4">
+                    The claim boundary: editors create and maintain listings only until an owner
+                    claims them — a claimed business belongs to its owner. The database enforces
+                    this; the console simply shows what the role may do.
+                  </p>
+                </div>
+              )}
+
               {/* Businesses */}
               {activeTab === 'businesses' && (
                 <div>
@@ -1115,6 +1170,16 @@ export default function AdminDashboard() {
                         className="px-3 min-h-[40px] rounded-lg text-sm font-medium text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
                       >
                         Reset
+                      </button>
+                    )}
+                    {canCreateBusiness(role) && (
+                      <button
+                        onClick={() => setCreatingBiz(true)}
+                        title="Add a business NowOpen maintains as an unclaimed listing"
+                        className="ml-auto inline-flex items-center gap-1.5 px-3 min-h-[40px] rounded-lg text-sm font-medium bg-blue-600 hover:bg-blue-700 text-white transition"
+                      >
+                        <Plus size={15} />
+                        Add business
                       </button>
                     )}
                   </div>
@@ -1450,6 +1515,7 @@ export default function AdminDashboard() {
               {activeTab === 'profile-requests' && <ProfileRequests />}
               {activeTab === 'create-orders' && <CreateOrders />}
               {activeTab === 'claimreach' && <ClaimReachConsole />}
+              {activeTab === 'onboarding' && <OnboardingMessagingPanel />}
               {activeTab === 'pages' && <PageEditor />}
               {activeTab === 'switches' && <FeatureFlagPanel />}
 
@@ -2238,15 +2304,17 @@ export default function AdminDashboard() {
         </p>
       </div>
 
-      {editBizId && (
+      {(editBizId || creatingBiz) && (
 
         <AdminBusinessEditor
 
-          businessId={editBizId}
+          businessId={editBizId ?? undefined}
+
+          creating={creatingBiz}
 
           role={role}
 
-          onClose={() => setEditBizId(null)}
+          onClose={() => { setEditBizId(null); setCreatingBiz(false); }}
 
           onSaved={fetchAll}
 

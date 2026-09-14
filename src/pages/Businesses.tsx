@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { fetchAllBusinesses } from '../lib/fetchAllBusinesses';
 import { generateBusinesses } from '../data/populateData';
+import type { Business } from '../types';
 import {
   Search, MapPin, Star, Phone, Globe, X, ArrowRight, Store,
   UtensilsCrossed, ShoppingBag, Laptop, HeartPulse, Briefcase, Wrench, GraduationCap, Palette,
@@ -20,6 +21,7 @@ import {
   isOrderingCategory, buildBusinessPulse, statusSortRank,
 } from '../lib/businessStatus';
 import { parseOpeningHours, publicOpenState, type OpenState } from '../lib/openingHours';
+import { shuffle, isClaimed } from '../lib/discover';
 
 /**
  * Collapse the four-state open model onto the two the sort ranks by.
@@ -179,13 +181,17 @@ export default function Businesses() {
         const { data, error, truncated } = await fetchAllBusinesses({ isListable: true, cap: DIRECTORY_FETCH_LIMIT });
         if (error) throw error;
         setTruncated(truncated);
-        setBusinesses(data && data.length > 0 ? data : generateBusinesses(30));
+        // Shuffled once at fetch, so each visit opens on a different slice of
+        // the same tiers — the ranking below is a stable sort, which keeps the
+        // wash random WITHIN a tier and never scrambles the priority order.
+        const entries = data && data.length > 0 ? data : generateBusinesses(30);
+        setBusinesses(shuffle<Business>(entries));
       } catch (err) {
         console.error('Error fetching businesses:', err);
         // Say so, rather than falling through to the empty state. In DEV the
         // sample list still stands in so the page is workable offline.
         setLoadError(true);
-        setBusinesses(generateBusinesses(30));
+        setBusinesses(shuffle(generateBusinesses(30)));
       } finally {
         setLoading(false);
       }
@@ -346,9 +352,16 @@ export default function Businesses() {
   }, [searchSignature, loading]);
 
 
-  // Live-first ranking: open/available/responding/live businesses surface above
-  // closed ones, then by rating, then by response speed.
+  // Card-ready first: businesses that show a cover lead, so the directory
+  // opens on finished-looking cards, then claimed profiles, then the
+  // live-status ranking (open above closed, then rating, then response
+  // speed). The sort is stable over the shuffled fetch, so chance decides the
+  // order WITHIN each tier — a different slice every visit.
   const rankedBusinesses = [...filteredBusinesses].sort((a, b) => {
+    const img = Number(Boolean(b.image_url)) - Number(Boolean(a.image_url));
+    if (img !== 0) return img;
+    const claim = Number(isClaimed(a)) - Number(isClaimed(b));
+    if (claim !== 0) return claim;
     // Open first, then closing soon, then everything else — someone browsing
     // now wants what they can still get to.
     const sa = statusSortRank(openRank(statusMap.get(a.id)));

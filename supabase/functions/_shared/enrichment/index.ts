@@ -26,6 +26,7 @@ import { normalizeSocialLinks } from './text.ts';
 import { decideImageRights, decideAssetAction, classifyAsset } from './image.ts';
 import {
   buildDeliverables,
+  liftLicensedMediaToFields,
   type Deliverables,
   type PolicyBusiness,
   type PolicyPrefs,
@@ -48,6 +49,8 @@ export interface ImageCandidate {
   hint?: 'logo' | 'cover' | 'gallery' | null;
   /** Name/domain/phone signal provenance for the page that referenced it. */
   signals: string[];
+  /** Stock placeholders (searched for, not verified on the page) say so. */
+  exact?: boolean;
   licence?: string | null;
   attribution?: string | null;
   sourceCountry?: string | null;
@@ -154,6 +157,15 @@ export function runEnrichment(opts: RunEnrichmentOptions): EnrichmentSummary {
     business, source, hours, observations, social, pendingFields, prefs, now,
   });
   deliverables.media = media;
+
+  if (media.length) {
+    const lifted = liftLicensedMediaToFields({
+      business, media, sourceType: source.sourceType, pendingFields, now,
+    });
+    deliverables.evidence.push(...lifted.evidence);
+    deliverables.proposals.push(...lifted.proposals);
+    deliverables.notes.push(...lifted.notes);
+  }
 
   const notes = [
     `identity: ${identity.score} (${identity.signals.join(', ')}).`,

@@ -11,12 +11,20 @@ import { getCategoryFeatures, getModuleByKey, MODULE_LIBRARY } from '../../data/
 import { moduleLimitForPlan, getBusinessTier } from '../../data/pricingPlans';
 import { compressImage } from '../../lib/imageCompression';
 import { track } from '../../lib/telemetry';
+import { sendWelcomePack } from '../../lib/onboarding';
 import SmartImg from '../SmartImg';
 
 interface BusinessFormProps {
   editingId: string | null;
   onSuccess: () => void;
   onCancel: () => void;
+  /**
+   * Admin path: save the row as an UNCLAIMED listing NowOpen maintains,
+   * with no owner, so the first person to claim it takes it over. RLS lets
+   * staff insert businesses (admin FOR ALL policy); only this flag decides
+   * whether the row is created owned or unowned.
+   */
+  asUnclaimed?: boolean;
 }
 
 const USERNAME_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
@@ -38,7 +46,7 @@ export const slugify = (value: string) =>
 
 type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 
-export default function BusinessForm({ editingId, onSuccess, onCancel }: BusinessFormProps) {
+export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaimed }: BusinessFormProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [uploadingField, setUploadingField] = useState<'image_url' | 'logo_url' | null>(null);
@@ -339,10 +347,21 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
       // below cannot report a second creation for the same business.
       const isCreate = !editingId;
 
-      const save = (body: Record<string, unknown>) =>
-        editingId
-          ? supabase.from('businesses').update(body).eq('id', editingId)
-          : supabase.from('businesses').insert([{ ...body, user_id: user.id }]);
+      const save = (body: Record<string, unknown>) => {
+        if (editingId) return supabase.from('businesses').update(body).eq('id', editingId);
+        if (asUnclaimed) {
+          // A listing NowOpen maintains: no owner yet. Provenance says the
+          // record was curated by staff rather than created in the product,
+          // and it is listable from the moment it exists.
+          return supabase.from('businesses').insert([{
+            ...body,
+            user_id: null,
+            claim_status: 'unclaimed',
+            data_status: 'admin_curated',
+          }]);
+        }
+        return supabase.from('businesses').insert([{ ...body, user_id: user.id }]);
+      };
 
       let { error } = await save(payload);
       // Gracefully degrade if a new column's migration hasn't been applied
@@ -370,6 +389,18 @@ export default function BusinessForm({ editingId, onSuccess, onCancel }: Busines
        * business that was never written.
        */
       if (isCreate) track('business_created', { category: formData.category || null });
+      // Best-effort: immediately trigger the welcome pack (email + profile
+      // education WhatsApp) for owner-created businesses. The DB trigger
+      // already enqueued the intent, so this just accelerates delivery.
+      if (isCreate && !asUnclaimed) {
+        void (async () => {
+          try {
+            const { data: sess } = await supabase.auth.getSession();
+            const token = sess?.session?.access_token;
+            sendWelcomePack({ userId: user.id, accessToken: token, businessName: formData.name, username: formData.username });
+          } catch { /* best-effort, non-blocking */ }
+        })();
+      }
       onSuccess();
     } catch (error: any) {
       console.error('Error saving business:', error);

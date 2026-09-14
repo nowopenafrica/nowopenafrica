@@ -32,12 +32,14 @@ vi.mock('../lib/supabase', () => {
   let currentError: { message: string } | null = null;
   const result = () => ({ data: rows, error: currentError });
   let updateSpy: ((patch: unknown) => void) | undefined;
+  let inSpy: ((ids: string[]) => void) | undefined;
   const chain = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),
     order: vi.fn(() => chain),
     limit: vi.fn(() => chain),
     update: (patch: unknown) => { updateSpy?.(patch); return chain; },
+    in: (_col: string, vals: string[]) => { inSpy?.(vals); return chain; },
     then: (onF?: any, onR?: any) => Promise.resolve(result()).then(onF, onR),
     catch: (onR?: any) => Promise.resolve(result()).catch(onR),
     finally: (onF?: any) => Promise.resolve(result()).finally(onF),
@@ -45,6 +47,7 @@ vi.mock('../lib/supabase', () => {
   return {
     __setReadError: (m: string | null) => { currentError = m ? { message: m } : null; },
     __setUpdateSpy: (spy: (patch: unknown) => void) => { updateSpy = spy; },
+    __setInSpy: (spy: (ids: string[]) => void) => { inSpy = spy; },
     supabase: {
       from: vi.fn(() => chain),
     },
@@ -67,12 +70,14 @@ const sb = supabaseModule as unknown as {
   supabase: { from: ReturnType<typeof vi.fn> };
   __setReadError: (m: string | null) => void;
   __setUpdateSpy: (spy: (patch: unknown) => void) => void;
+  __setInSpy: (spy: (ids: string[]) => void) => void;
 };
 
 describe('MediaIntelligencePanel smoke', () => {
   beforeEach(() => {
     sb.__setReadError(null);
     sb.__setUpdateSpy(() => undefined);
+    sb.__setInSpy(() => undefined);
   });
 
   it('queues discoveries for a human and keeps published assets out of that queue', async () => {
@@ -97,6 +102,26 @@ describe('MediaIntelligencePanel smoke', () => {
     expect(sb.supabase.from).toHaveBeenCalledWith('business_media_assets');
     expect(patch).toMatchObject({ status: 'published', moderation_status: 'approved', reviewed_by: 'u-admin' });
     expect(await screen.findByText(/Published — it now renders on the profile\./)).toBeInTheDocument();
+  });
+
+  it('publishes every queued asset with one click, in a single update', async () => {
+    let patch: unknown = null;
+    let ids: string[] = [];
+    sb.__setUpdateSpy((p) => { patch = p; });
+    sb.__setInSpy((vals) => { ids = vals; });
+    render(
+      <>
+        <MediaIntelligencePanel />
+        <Toaster />
+      </>,
+    );
+    await screen.findByText(/Meat Club Lagos/);
+    await userEvent.click(screen.getByRole('button', { name: /Publish all \(1\)/ }));
+    await waitFor(() => expect(patch).not.toBeNull());
+    expect(sb.supabase.from).toHaveBeenCalledWith('business_media_assets');
+    expect(patch).toMatchObject({ status: 'published', moderation_status: 'approved', reviewed_by: 'u-admin' });
+    expect(ids).toEqual(['a1']);
+    expect(await screen.findByText(/Published 1 asset/)).toBeInTheDocument();
   });
 
   it('honours a takedown on a published asset', async () => {

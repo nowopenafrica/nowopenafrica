@@ -45,7 +45,10 @@ import type { Business } from '../../types';
 type Tab = 'details' | 'story' | 'content';
 
 interface Props {
-  businessId: string;
+  /** The listing to open. Omitted in `creating` mode. */
+  businessId?: string;
+  /** Create mode: opens the Details form fresh and saves an UNCLAIMED row. */
+  creating?: boolean;
   /** The admin's role, from the console that opened this. */
   role: string | null | undefined;
   onClose: () => void;
@@ -53,7 +56,7 @@ interface Props {
   onSaved?: () => void;
 }
 
-export default function AdminBusinessEditor({ businessId, role, onClose, onSaved }: Props) {
+export default function AdminBusinessEditor({ businessId, creating, role, onClose, onSaved }: Props) {
   const { user } = useAuth();
   const [business, setBusiness] = useState<Business | null>(null);
   const [loading, setLoading] = useState(true);
@@ -61,6 +64,7 @@ export default function AdminBusinessEditor({ businessId, role, onClose, onSaved
   const [tab, setTab] = useState<Tab>('details');
 
   const load = useCallback(async () => {
+    if (!businessId) return;
     setLoading(true);
     // `error`, not a catch: supabase-js resolves with { error } on failure, so
     // a try/catch here would render "not found" for every failed read.
@@ -96,6 +100,36 @@ export default function AdminBusinessEditor({ businessId, role, onClose, onSaved
     await load();
     onSaved?.();
   };
+
+  const handleCreateSuccess = async () => {
+    toast.success('Business created — it is now in the directory.');
+    onSaved?.();
+    onClose();
+  };
+
+  /*
+   * Create mode has nothing to read back and nothing to refuse: the form saves
+   * straight to a new unclaimed row and the listing list behind the modal
+   * refreshes to show it. Story and content tabs need a saved row to attach
+   * to, so only Details is offered.
+   */
+  if (creating) {
+    return (
+      <Shell
+        onClose={onClose}
+        title="Add a new business"
+        ariaLabel="Add a new business"
+        subtitle="Saved as an unclaimed listing NowOpen maintains — the first person to claim it owns it."
+      >
+        <BusinessForm
+          editingId={null}
+          asUnclaimed
+          onSuccess={() => { void handleCreateSuccess(); }}
+          onCancel={onClose}
+        />
+      </Shell>
+    );
+  }
 
   if (loading) {
     return (
@@ -172,7 +206,7 @@ export default function AdminBusinessEditor({ businessId, role, onClose, onSaved
 
       {tab === 'details' && (
         <BusinessForm
-          editingId={businessId}
+          editingId={businessId ?? null}
           onSuccess={() => { void afterSave('details'); }}
           onCancel={onClose}
         />
@@ -210,11 +244,12 @@ export default function AdminBusinessEditor({ businessId, role, onClose, onSaved
 
 /** The modal frame, so every state above looks the same. */
 function Shell({
-  title, subtitle, href, onClose, children,
+  title, subtitle, href, onClose, children, ariaLabel,
 }: {
   title: string;
   subtitle?: string;
   href?: string;
+  ariaLabel?: string;
   onClose: () => void;
   children: React.ReactNode;
 }) {
@@ -223,7 +258,7 @@ function Shell({
       className="fixed inset-0 z-50 bg-black/50 flex items-start justify-center p-4 overflow-y-auto"
       role="dialog"
       aria-modal="true"
-      aria-label={`Edit ${title}`}
+      aria-label={ariaLabel ?? `Edit ${title}`}
     >
       <div className="w-full max-w-4xl my-8 rounded-2xl bg-white dark:bg-gray-800 shadow-2xl">
         <div className="sticky top-0 z-10 flex items-start justify-between gap-3 px-5 py-4 border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-t-2xl">

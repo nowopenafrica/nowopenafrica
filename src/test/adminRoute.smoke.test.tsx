@@ -19,11 +19,11 @@ const mockedUseRole = vi.mocked(useRole);
 
 const adminContent = <div>admin content</div>;
 
-function renderAtAdmin() {
+function renderAtAdmin(adminOnly = false) {
   return render(
     <MemoryRouter initialEntries={['/admin']}>
       <Routes>
-        <Route path="/admin" element={<AdminRoute>{adminContent}</AdminRoute>} />
+        <Route path="/admin" element={<AdminRoute adminOnly={adminOnly}>{adminContent}</AdminRoute>} />
         <Route path="/login" element={<div>login page</div>} />
         <Route path="/dashboard" element={<div>dashboard page</div>} />
       </Routes>
@@ -67,5 +67,29 @@ describe('AdminRoute', () => {
     renderAtAdmin();
     expect(screen.getByText('dashboard page')).toBeInTheDocument();
     expect(screen.queryByText('admin content')).not.toBeInTheDocument();
+  });
+
+  it('admits a signed-in editor to the admin console', () => {
+    mockedUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false } as never);
+    mockedUseRole.mockReturnValue({ role: 'editor', checking: false });
+    renderAtAdmin();
+    expect(screen.getByText('admin content')).toBeInTheDocument();
+    expect(screen.queryByText('dashboard page')).not.toBeInTheDocument();
+  });
+
+  it('keeps the Admin Creator admin-only even for an editor', () => {
+    mockedUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false } as never);
+    mockedUseRole.mockReturnValue({ role: 'editor', checking: false });
+    renderAtAdmin(true);
+    expect(screen.getByText('dashboard page')).toBeInTheDocument();
+    expect(screen.queryByText('admin content')).not.toBeInTheDocument();
+  });
+
+  it('admits an admin through the Admin Creator gate', () => {
+    mockedUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false } as never);
+    mockedUseRole.mockReturnValue({ role: 'admin', checking: false });
+    renderAtAdmin(true);
+    expect(screen.getByText('admin content')).toBeInTheDocument();
+    expect(screen.queryByText('dashboard page')).not.toBeInTheDocument();
   });
 });

@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { buildDeliverables, isEmpty, PROPOSE_FLOOR } from './proposals';
+import {
+  buildDeliverables,
+  isEmpty,
+  PROPOSE_FLOOR,
+  STOCK_PLACEHOLDER_CONFIDENCE,
+  liftLicensedMediaToFields,
+  type MediaDraft,
+} from './proposals';
 
 const business = {
   id: 'b1',
@@ -11,6 +18,77 @@ const business = {
 };
 
 const source = { key: 'openstreetmap', url: 'https://nominatim.openstreetmap.org/search?q=green+gardens', sourceType: 'api' };
+
+describe('liftLicensedMediaToFields', () => {
+  const licensed: MediaDraft = {
+    asset_type: 'cover',
+    source_id: 'pexels',
+    source_url: 'https://www.pexels.com/search/lagos-cafe/',
+    source_uri: 'https://images.pexels.com/photos/123/cover.jpg',
+    match_confidence: 40,
+    matching_signal: { fields: ['name:x', 'category:food'], exact: false },
+    rights_decision: 'licensed',
+    licence: 'Pexels License',
+    rights_owner: null,
+    jurisdiction: 'US',
+    criticality: 'non_critical',
+    moderation_status: 'pending',
+    keep_url_only: true,
+    status: 'discovered',
+  };
+
+  it('lifts a licensed cover into an image_url proposal backed by evidence', () => {
+    const out = liftLicensedMediaToFields({ business, media: [licensed] });
+    expect(out.proposals).toHaveLength(1);
+    expect(out.proposals[0].field_name).toBe('image_url');
+    expect(out.proposals[0].proposed_value).toBe(licensed.source_uri);
+    expect(out.proposals[0].confidence).toBe(STOCK_PLACEHOLDER_CONFIDENCE);
+    expect(out.evidence).toHaveLength(1);
+    expect(out.evidence[0].field_name).toBe('image_url');
+    expect(out.evidence[0].extraction_method).toBe('api');
+    expect(out.evidence[0].status).toBe('source_confirmed');
+    expect(out.evidence[0].generated_by_ai).toBe(false);
+    expect(out.proposals[0].reason).toMatch(/licensed stock placeholder/i);
+  });
+
+  it('maps a licensed logo to logo_url instead', () => {
+    const out = liftLicensedMediaToFields({ business, media: [{ ...licensed, asset_type: 'logo' }] });
+    expect(out.proposals[0].field_name).toBe('logo_url');
+  });
+
+  it('does not lift when the business already has the field', () => {
+    const out = liftLicensedMediaToFields({
+      business: { ...business, fields: { ...business.fields, image_url: 'https://x/cover.png' } },
+      media: [licensed],
+    });
+    expect(out.proposals).toHaveLength(0);
+    expect(out.notes.some((n) => n.includes('already has a value'))).toBe(true);
+  });
+
+  it('keeps gallery items registry-only', () => {
+    const out = liftLicensedMediaToFields({ business, media: [{ ...licensed, asset_type: 'gallery' }] });
+    expect(out.proposals).toHaveLength(0);
+  });
+
+  it('never lifts unlicensed (conservative) media', () => {
+    const out = liftLicensedMediaToFields({
+      business,
+      media: [{ ...licensed, rights_decision: 'conservative_default', licence: null }],
+    });
+    expect(out.proposals).toHaveLength(0);
+    expect(out.notes.some((n) => n.includes('registry only'))).toBe(true);
+  });
+
+  it('never duplicates a field that is already pending', () => {
+    const out = liftLicensedMediaToFields({
+      business,
+      media: [licensed],
+      pendingFields: new Set(['image_url']),
+    });
+    expect(out.proposals).toHaveLength(0);
+    expect(out.notes.some((n) => n.includes('already pending'))).toBe(true);
+  });
+});
 
 describe('buildDeliverables', () => {
   it('creates evidence + proposal for concrete hours', () => {

@@ -12,17 +12,18 @@
 // result whether or not the tab is hidden. Hiding the tab is honesty about what
 // they can do; the policy is what makes it true.
 
-export type AppRole = 'business' | 'media_service' | 'editor' | 'admin';
+export type AppRole = 'business' | 'media_service' | 'personal' | 'editor' | 'admin';
 
 /** Roles that may open the Admin Console at all. */
 export const STAFF_ROLES: AppRole[] = ['admin', 'editor'];
 
 /** Assignable from the Users panel. Order is the order shown in the dropdown. */
-export const ASSIGNABLE_ROLES: AppRole[] = ['business', 'media_service', 'editor', 'admin'];
+export const ASSIGNABLE_ROLES: AppRole[] = ['business', 'media_service', 'personal', 'editor', 'admin'];
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   business: 'Business',
   media_service: 'Media service',
+  personal: 'Personal',
   editor: 'Editor',
   admin: 'Admin',
 };
@@ -30,16 +31,35 @@ export const ROLE_LABELS: Record<AppRole, string> = {
 export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   business: 'Owns business listings. No admin access.',
   media_service: 'Offers creative services. No admin access.',
-  editor: 'Homepage and listing content. Cannot see users, payments or verification, and cannot delete.',
-  admin: 'Full access, including roles, billing and deletion.',
+  personal: 'Personal profile. No business listing, no admin access.',
+  editor: 'Creates and edits UNCLAIMED business listings, plus homepage and page content. Cannot see users, payments or verification, and cannot delete or touch moderation.',
+  admin: 'Full access, including roles, billing, verification and deletion.',
+};
+
+/**
+ * What each role is trusted to do, shown in the Roles definition section of
+ * the Admin Console. Descriptive — the enforced boundary is RLS.
+ */
+export const ROLE_CAPABILITIES: Record<AppRole, string[]> = {
+  business: ['Owns and updates its claimed listing', 'Dashboard, bookings and trust tools', 'No admin access'],
+  media_service: ['Offers creative services', 'Dashboard tools', 'No admin access'],
+  personal: ['Personal profile', 'No business listing', 'No admin access'],
+  editor: [
+    'Admin Console (limited to content tabs)',
+    'Add new unclaimed businesses',
+    'Edit unclaimed businesses until an owner claims them',
+    'Homepage and page content',
+    'Cannot edit claimed listings, users, payments, verification, moderation or deletion',
+  ],
+  admin: ['Full Admin Console', 'Roles, plans, billing and verification', 'Moderation and deletion'],
 };
 
 export type AdminTabId =
-  | 'overview' | 'users' | 'businesses' | 'verification' | 'subscriptions'
+  | 'overview' | 'users' | 'roles' | 'businesses' | 'verification' | 'subscriptions'
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
   | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
   | 'review-queue' | 'imports' | 'switches' | 'pages' | 'activation'
-  | 'profile-requests' | 'create-orders' | 'claimreach';
+  | 'profile-requests' | 'create-orders' | 'claimreach' | 'onboarding';
 
 /**
  * What an editor may open.
@@ -114,6 +134,12 @@ export const canManagePlans = (role: string | null | undefined): boolean => isAd
 /** Approving a verification badge is a trust claim to the public. Admin only. */
 export const canVerify = (role: string | null | undefined): boolean => isAdmin(role);
 
+/**
+ * Creating a listing from the console is content work until the business is
+ * claimed — any staff member may open the "Add business" flow.
+ */
+export const canCreateBusiness = (role: string | null | undefined): boolean => isStaff(role);
+
 /** The homepage banner and its videos — the editor's actual remit. */
 export const canManageHero = (role: string | null | undefined): boolean => isStaff(role);
 
@@ -140,9 +166,10 @@ export interface EditVerdict {
  *
  * An unclaimed listing is NowOpen's own work — imported, or built for a
  * business that has not arrived yet — so somebody has to be able to fix a
- * wrong phone number, add the hours or replace a bad banner. Nobody could:
- * the admin console offered verify, status, trust and delete, and no way at
- * all to change a single detail.
+ * wrong phone number, add the hours or replace a bad banner. Editors are
+ * trusted with exactly this: the Businesses tab is their remit, and the
+ * migration backing this (20260913020000) lets them create and maintain
+ * unclaimed rows while blocking every moderation column.
  *
  * The moment an owner claims it, the page becomes theirs. An admin editing it
  * then is a stranger rewriting a business's own words, and the owner would
@@ -160,14 +187,6 @@ export function canEditBusinessProfile(
 ): EditVerdict {
   if (!isStaff(role)) {
     return { allowed: false, reason: 'Only staff can edit a listing from the console.' };
-  }
-  if (!isAdmin(role)) {
-    /*
-     * Editors are deliberately out. An unclaimed profile is a business's
-     * public face before that business has any say in it, and the person
-     * changing it should be the one accountable for the directory.
-     */
-    return { allowed: false, reason: 'Editing a business profile is an admin action.' };
   }
   if (business.user_id) {
     return { allowed: false, reason: 'An owner holds this profile. Only they can change it now.' };

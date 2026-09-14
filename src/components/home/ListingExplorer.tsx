@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
 import BusinessCard from '../discover/BusinessCard';
-import { isClaimed, hasListingImage, byClaimedThenImageThenVerified } from '../../lib/discover';
+import { isClaimed, hasListingImage, byImageThenClaimedThenVerified, shuffle } from '../../lib/discover';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
@@ -184,6 +184,17 @@ export default function ListingExplorer({
   }, [type, businesses, adverts, mediaServices]);
 
   /**
+   * The random wash the homepage leads with.
+   *
+   * Businesses alone, and only once per data arrival — not per keystroke —
+   * so Recommended changes between visits without shuffling the grid while
+   * somebody is reading it. The tier sort below stays stable over this base,
+   * which is what turns the wash into "random WITHIN each priority tier"
+   * rather than a scramble.
+   */
+  const shuffledRows = useMemo(() => shuffle(rows), [rows]);
+
+  /**
    * Chips come from the data, not a fixed list.
    *
    * A hardcoded category list would show chips that match nothing — the worst
@@ -213,7 +224,9 @@ export default function ListingExplorer({
   const visible = useMemo(() => {
     const q = query.trim().toLowerCase();
     const loc = location.trim().toLowerCase();
-    let out = rows;
+    // Only "Recommended businesses" gets the random wash; adverts and the
+    // media services keep the order they arrived in.
+    let out = sort === 'recommended' && type === 'businesses' ? shuffledRows : rows;
 
     if (category !== 'all') out = out.filter(r => (r.category || '') === category);
     if (loc) out = out.filter(r => (r.location || '').toLowerCase().includes(loc));
@@ -230,27 +243,27 @@ export default function ListingExplorer({
       out = [...out].sort((a, b) => String(b.created_at ?? '').localeCompare(String(a.created_at ?? '')));
     } else if (type === 'businesses') {
       /*
-       * "Recommended" means claimed first.
+       * "Recommended" leads with the businesses that look finished.
        *
-       * A claimed profile is a business that turned up and maintains what its
-       * page says; an imported one is our guess at a business that has never
-       * heard of us. Leading with the guesses is worse for the visitor and
-       * backwards as an incentive.
+       * A card with a logo or cover is one a visitor can recognise; the
+       * enrichment pipeline keeps attaching those to unclaimed listings, and
+       * the owner wants the front page to lead with them. Within an image
+       * tier, a profile a real person claims outranks an imported guess, and
+       * a verified one outranks an unverified one.
        *
-       * Within a claim tier, businesses with a logo or cover photo lead — the
-       * card has something to show instead of a placeholder. Never across
-       * tiers: a photo is not more real than an owner.
+       * The sort is stable over `shuffledRows`, so chance alone decides which
+       * image-bearing businesses open the page — a fresh slice every visit.
        *
        * Deliberately independent of open/closed. A business that shuts at six
        * is still the one somebody wants to find at seven, and ranking on the
-       * clock would drop every claimed listing out of view for most of the
-       * day — including under the "All" chip, where everything is supposed to
-       * be on show.
+       * clock would drop every image-bearing listing out of view for most of
+       * the day — including under the "All" chip, where everything is supposed
+       * to be on show.
        */
-      out = [...out].sort(byClaimedThenImageThenVerified);
+      out = [...out].sort(byImageThenClaimedThenVerified);
     }
     return out;
-  }, [rows, query, category, location, sort, type]);
+  }, [shuffledRows, rows, query, category, location, sort, type]);
 
   const onSubmit = (e: React.FormEvent) => {
     e.preventDefault();

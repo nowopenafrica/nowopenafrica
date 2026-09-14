@@ -14,7 +14,8 @@
 export type FlagKey =
   | 'offers' | 'keeps' | 'live' | 'bookings' | 'ordering'
   | 'studio_video' | 'ai_director' | 'campaigns' | 'adverts'
-  | 'outbound_email' | 'outbound_whatsapp' | 'payments';
+  | 'outbound_email' | 'outbound_whatsapp' | 'outbound_sms' | 'outbound_instagram'
+  | 'payments';
 
 export interface FeatureFlag {
   key: FlagKey;
@@ -49,6 +50,8 @@ export const FALLBACK: Record<FlagKey, boolean> = {
   adverts: true,
   outbound_email: false,
   outbound_whatsapp: false,
+  outbound_sms: false,
+  outbound_instagram: false,
   payments: false,
 };
 
@@ -83,7 +86,7 @@ export function isEnabled(flags: FlagMap | null | undefined, key: FlagKey | stri
 
 /** The flags an operator would reach for first, in the order they matter. */
 export const KILL_SWITCH_ORDER: FlagKey[] = [
-  'payments', 'outbound_email', 'outbound_whatsapp',
+  'payments', 'outbound_email', 'outbound_whatsapp', 'outbound_sms', 'outbound_instagram',
   'ordering', 'bookings', 'live',
   'ai_director', 'studio_video', 'adverts', 'offers', 'campaigns', 'keeps',
 ];
@@ -107,5 +110,7 @@ export const CONSEQUENCE: Record<FlagKey, string> = {
   adverts: 'The ad placements marketplace disappears.',
   outbound_email: 'No automated email leaves the platform. Reminders and nudges silently stop.',
   outbound_whatsapp: 'No automated WhatsApp leaves the platform.',
+  outbound_sms: 'No automated SMS leaves the platform.',
+  outbound_instagram: 'No automated Instagram message leaves the platform.',
   payments: 'Checkout stops. Nobody can pay, and no subscription renews.',
 };

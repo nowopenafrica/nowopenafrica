@@ -141,7 +141,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       track('signup', { role, method: 'phone' });
       // Fire the onboarding welcome pack (best-effort, backgrounded). For phone
       // signups the follow-up WhatsApp lands on the same number.
-      if (data.user) sendWelcomePack({ userId: data.user.id, phone: ph, role });
+      if (data.user) sendWelcomePack({ userId: data.user.id, phone: ph, role, accessToken: data.session?.access_token });
       return;
     }
 
@@ -178,11 +178,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     }
 
-    // Fire the onboarding welcome pack (best-effort, backgrounded): a branded
-    // email now, plus a follow-up WhatsApp if a contact number was provided.
-    if (data.user) {
-      sendWelcomePack({ userId: data.user.id, email, phone: phone?.trim() || undefined, role });
-    }
+      // Fire the onboarding welcome pack (best-effort, backgrounded): a branded
+      // email now, plus a follow-up WhatsApp if a contact number was provided.
+      if (data.user) {
+        sendWelcomePack({ userId: data.user.id, email, phone: phone?.trim() || undefined, role, accessToken: data.session?.access_token });
+      }
   };
 
   const signIn = async (identifier: string, password: string) => {

@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import {
   openNow, newest, topRated, hiddenGems, near,
   affinityCategories, recommended, businessHref,
-  isClaimed, hasListingImage, claimedFirst, byClaimedThenImageThenVerified, featuredFirst, DISCOVER_SELECT,
+  isClaimed, hasListingImage, claimedFirst, byImageThenClaimedThenVerified, featuredFirst,
+  shuffle, shuffledSort, DISCOVER_SELECT,
   type DiscoverBusiness,
 } from '../lib/discover';
 
@@ -444,7 +445,7 @@ describe('category carousel', () => {
   });
 });
 
-describe('claimed businesses come first', () => {
+describe('business card ordering', () => {
   /*
    * MEASURED 2026-09-08: the only two claimed businesses on the platform were
    * the OLDEST rows in the table, with 451 newer listings between them and the
@@ -502,23 +503,23 @@ describe('claimed businesses come first', () => {
     // The explorer flattens businesses, adverts and services into one Row and
     // so cannot use claimedFirst — but it must not answer differently.
     const rows = [
-      { id: 'unclaimed-verified', claimed: false, hasImage: false, verified: true },
-      { id: 'claimed-plain', claimed: true, hasImage: false, verified: false },
+      { id: 'claim-plain', claimed: true, hasImage: false, verified: false },
+      { id: 'import-with-logo', claimed: false, hasImage: true, verified: false },
     ];
-    expect([...rows].sort(byClaimedThenImageThenVerified).map((r) => r.id))
-      .toEqual(['claimed-plain', 'unclaimed-verified']);
+    expect([...rows].sort(byImageThenClaimedThenVerified).map((r) => r.id))
+      .toEqual(['import-with-logo', 'claim-plain']);
   });
 
-  it('lifts image-complete businesses within each claim tier', () => {
-    // A photo is never more real than an owner: claimed-no-image still leads,
-    // and among imports the ones with a logo/cover come before the shells.
+  it('lifts image-complete businesses above claimed shells', () => {
+    // Image is the first tier — a card that shows something leads, whatever
+    // its claim state; a real owner is the second tier, verification third.
     const rows = [
       { id: 'import-with-logo', claimed: false, hasImage: true, verified: false },
       { id: 'claimed-no-image', claimed: true, hasImage: false, verified: true },
       { id: 'import-no-image', claimed: false, hasImage: false, verified: true },
     ];
-    expect([...rows].sort(byClaimedThenImageThenVerified).map((r) => r.id))
-      .toEqual(['claimed-no-image', 'import-with-logo', 'import-no-image']);
+    expect([...rows].sort(byImageThenClaimedThenVerified).map((r) => r.id))
+      .toEqual(['import-with-logo', 'claimed-no-image', 'import-no-image']);
   });
 
   it('asks the database for the columns the rule needs', () => {
@@ -543,14 +544,14 @@ describe('hasListingImage', () => {
 });
 
 describe('featuredFirst', () => {
-  it('puts image-complete businesses on top within claim tiers', () => {
+  it('puts image-complete businesses first, then claimed, then verified', () => {
     const list = [
       b({ id: 'import-no-image', logo_url: null, image_url: null }),
       b({ id: 'import-with-logo', logo_url: 'https://x/logo.png' }),
       b({ id: 'claimed-no-image', claim_status: 'claimed' }),
     ];
     expect(featuredFirst(list).map((x) => x.id))
-      .toEqual(['claimed-no-image', 'import-with-logo', 'import-no-image']);
+      .toEqual(['import-with-logo', 'claimed-no-image', 'import-no-image']);
   });
 
   it('preserves the rail order within an image tier', () => {
@@ -567,5 +568,52 @@ describe('featuredFirst', () => {
     const list = [b({ id: 'a' }), b({ id: 'b', claim_status: 'claimed' })];
     featuredFirst(list);
     expect(list.map((x) => x.id)).toEqual(['a', 'b']);
+  });
+});
+
+describe('shuffle / shuffledSort', () => {
+  it('shuffles a copy and leaves the input untouched', () => {
+    const list = [1, 2, 3, 4, 5];
+    const before = [...list];
+    const out = shuffle(list);
+    expect(out).toHaveLength(list.length);
+    expect([...out].sort((x, y) => x - y)).toEqual(before);
+    expect(list).toEqual(before);
+  });
+
+  it('is deterministic when Math.random is pinned', () => {
+    const spy = vi.spyOn(Math, 'random').mockReturnValue(0);
+    try {
+      // With j always 0, each pass rotates the current tail element to the
+      // front one position at a time — a pure rotation by one.
+      expect(shuffle(['a', 'b', 'c', 'd'])).toEqual(['b', 'c', 'd', 'a']);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('keeps the priority tiers first no matter the shuffle', () => {
+    const rows = [
+      { id: 'verified', verified: true },
+      { id: 'claimed', claimed: true },
+      { id: 'image', hasImage: true },
+      { id: 'shell', hasImage: false, claimed: false, verified: false },
+    ];
+    for (let n = 0; n < 30; n += 1) {
+      const sorted = shuffledSort(rows, byImageThenClaimedThenVerified);
+      expect(sorted.map((r) => r.id)).toEqual(['image', 'claimed', 'verified', 'shell']);
+      expect(sorted.length).toBe(rows.length);
+    }
+  });
+
+  it('changes the order within a tier between runs', () => {
+    // Six image-bearing rows in one tier; thirty trials of a real shuffle
+    // will not all land on the same permutation.
+    const rows = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id, hasImage: true }));
+    const seen = new Set<string>();
+    for (let n = 0; n < 30; n += 1) {
+      seen.add(shuffledSort(rows, byImageThenClaimedThenVerified).map((r) => r.id).join(','));
+    }
+    expect(seen.size).toBeGreaterThan(1);
   });
 });

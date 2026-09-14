@@ -97,6 +97,25 @@ const WRITABLE = new Set([
 /** The floor below which we record evidence but never propose. */
 export const PROPOSE_FLOOR = 30;
 
+/** Fixed placement confidence for a licensed stock placeholder (Pexels): the
+ *  asset is plausibly on-topic because we searched for it and its licence is
+ *  solid, but it does not verifiably depict the business. 60 is high enough
+ *  that the platform's unclaimed bar (60) applies it, and low enough that an
+ *  owner's default bar (80) holds it for review. This is placement confidence,
+ *  deliberately independent of the registry's match score. */
+export const STOCK_PLACEHOLDER_CONFIDENCE = 60;
+
+/** The floor below which licensed media never becomes a field proposal. */
+export const IMAGE_PROPOSE_FLOOR = 50;
+
+/** Registry asset types that map to a writable business field (gallery has no
+ *  field — it stays registry-only). */
+const MEDIA_TO_FIELD: Record<string, string | undefined> = {
+  logo: 'logo_url',
+  cover: 'image_url',
+  gallery: undefined,
+};
+
 export function buildDeliverables(input: {
   business: PolicyBusiness;
   source: PolicySource;
@@ -216,6 +235,77 @@ export function buildDeliverables(input: {
   }
 
   return { evidence, proposals, media: [], notes };
+}
+
+/**
+ * Turn LICENSED media from this run into field proposals. This is what lets a
+ * licensed stock cover (Pexels) reach the business's image_url/logo_url slot
+ * without a person in the loop WHILE staying honest: the proposal is clearly
+ * labelled a licensed placeholder, the registry row records the weak match,
+ * and whether it ever APPLIES is decided elsewhere — the platform's unclaimed
+ * bar for businesses nobody owns, or the owner's stored bar for claimed ones.
+ * unlicensed (conservative_default) media never lifts: that is the recorded
+ * "we cannot verify who owns this" boundary.
+ */
+export function liftLicensedMediaToFields(input: {
+  business: PolicyBusiness;
+  media: MediaDraft[];
+  /** Source type recorded on the evidence rows (mirrors PolicySource.sourceType). */
+  sourceType?: string;
+  pendingFields?: Set<string>;
+  now?: string;
+}): Pick<Deliverables, 'evidence' | 'proposals' | 'notes'> {
+  const { business, media, sourceType = 'api', pendingFields = new Set<string>(), now = new Date().toISOString() } = input;
+
+  const evidence: EvidenceDraft[] = [];
+  const proposals: ProposalDraft[] = [];
+  const notes: string[] = [];
+
+  for (const draft of media) {
+    const want = MEDIA_TO_FIELD[draft.asset_type];
+    if (!want || STOCK_PLACEHOLDER_CONFIDENCE < IMAGE_PROPOSE_FLOOR) continue;
+
+    if (draft.rights_decision !== 'licensed' || !draft.licence) {
+      notes.push(`${draft.asset_type}: rights not placeable (${draft.rights_decision}); registry only.`);
+      continue;
+    }
+
+    const current = business.fields[want] ?? null;
+    if (current) {
+      notes.push(`${want}: business already has a value; media recorded only.`);
+      continue;
+    }
+    if (pendingFields.has(want)) {
+      notes.push(`${want}: already pending, not duplicated.`);
+      continue;
+    }
+
+    evidence.push({
+      field_name: want,
+      field_value: draft.source_uri,
+      source_id: draft.source_id,
+      source_url: draft.source_url,
+      source_type: sourceType,
+      confidence: STOCK_PLACEHOLDER_CONFIDENCE,
+      observed_at: now,
+      extraction_method: 'api',
+      generated_by_ai: false,
+      status: 'source_confirmed',
+    });
+    proposals.push({
+      field_name: want,
+      current_value: current,
+      proposed_value: draft.source_uri,
+      source_id: draft.source_id,
+      source_url: draft.source_url,
+      confidence: STOCK_PLACEHOLDER_CONFIDENCE,
+      extraction_method: 'api',
+      reason: `Licensed stock placeholder (${draft.licence}) for the ${draft.asset_type} slot; replace it with the real ${draft.asset_type} when you claim or upload.`,
+    });
+    notes.push(`${want}: lifted licensed ${draft.asset_type} to a proposal (${draft.source_uri}).`);
+  }
+
+  return { evidence, proposals, notes };
 }
 
 /** Surface-only helper: a shutoff for empty runs. */

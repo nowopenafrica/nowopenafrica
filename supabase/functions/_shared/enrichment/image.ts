@@ -22,6 +22,11 @@ export const PERMISSIVE_LICENCES: Record<string, { owned: boolean; attributionRe
   'cc by 4.0': { owned: true, attributionRequired: true },
   'cc by-sa 3.0': { owned: true, attributionRequired: true },
   'cc by-sa 4.0': { owned: true, attributionRequired: true },
+  // Pexels: every photo is licensed for use without attribution. "Pexels
+  // License" is the text the API's meta carries; "pexels" covers the short
+  // form the executor passes.
+  'pexels license': { owned: true, attributionRequired: false },
+  'pexels': { owned: true, attributionRequired: false },
 };
 
 /**

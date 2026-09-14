@@ -92,4 +92,45 @@ describe('runEnrichment', () => {
       expect(s.deliverables.media[0].rights_decision).toBe('conservative_default');
     }
   });
+
+  it('lifts a licensed stock cover into an image_url proposal when the business has none', () => {
+    const s = runEnrichment({
+      business,
+      source,
+      report: {
+        name: 'Green Gardens Restaurant',
+        domain: 'greengardens.ng',
+        images: [{
+          url: 'https://images.pexels.com/photos/1/cover.jpg',
+          hint: 'cover',
+          exact: false,
+          signals: ['name:Green Gardens', 'category:food'],
+          licence: 'Pexels License',
+        }],
+      },
+    });
+    expect(s.deliverables.media).toHaveLength(1);
+    expect(s.deliverables.media[0].rights_decision).toBe('licensed');
+    expect(s.deliverables.media[0].status).toBe('discovered');
+    const p = s.deliverables.proposals.find((x) => x.field_name === 'image_url');
+    expect(p?.proposed_value).toBe('https://images.pexels.com/photos/1/cover.jpg');
+    expect(p?.confidence).toBe(60);
+    const ev = s.deliverables.evidence.find((e) => e.field_name === 'image_url');
+    expect(ev?.status).toBe('source_confirmed');
+    expect(ev?.extraction_method).toBe('api');
+  });
+
+  it('keeps an unlicensed og:image registry-only, never lifting it to the business field', () => {
+    const s = runEnrichment({
+      business,
+      source,
+      report: {
+        name: 'Green Gardens Restaurant',
+        domain: 'greengardens.ng',
+        images: [{ url: 'https://greengardens.ng/og.png', hint: 'cover', signals: ['url_reference'], licence: null }],
+      },
+    });
+    expect(s.deliverables.media[0].rights_decision).toBe('conservative_default');
+    expect(s.deliverables.proposals.find((x) => x.field_name === 'image_url')).toBeUndefined();
+  });
 });

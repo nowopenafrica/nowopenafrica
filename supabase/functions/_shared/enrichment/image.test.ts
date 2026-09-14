@@ -25,6 +25,12 @@ describe('decideImageRights', () => {
     expect(r.rights_owner).toBeNull();
   });
 
+  it('licenses the Pexels license without attribution', () => {
+    const r = decideImageRights({ licence: 'Pexels License', attribution: 'P. Photographer' });
+    expect(r.rights_decision).toBe('licensed');
+    expect(r.rights_owner).toBeNull();
+  });
+
   it('defaults to conservative when no verifiable licence', () => {
     const r = decideImageRights({ licence: null });
     expect(r.rights_decision).toBe('conservative_default');

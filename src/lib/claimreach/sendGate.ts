@@ -159,6 +159,59 @@ const CONFIDENCE_RANK: Record<string, number> = {
   admin_verified: 4,
 };
 
+/**
+ * §7 evidence statuses → the §28 confidence tier they honestly support.
+ *
+ * `single_source` and `multiple_sources` are the evidence ledger's vocabulary,
+ * not values `businesses.data_confidence` stores. Each sits on the same tier
+ * as the DataConfidence value of its rank (see CONFIDENCE_RANK above).
+ */
+const EVIDENCE_TO_CONFIDENCE: Record<string, DataConfidence> = {
+  single_source: 'partially_confirmed',
+  source_confirmed: 'source_confirmed',
+  multiple_sources: 'source_confirmed',
+  owner_confirmed: 'owner_confirmed',
+  admin_verified: 'admin_verified',
+};
+
+/**
+ * The highest confidence the recorded evidence supports, or null when no
+ * status is recognised — so a caller can keep the stored value rather than
+ * ever downgrade it.
+ */
+export function confidenceFromEvidence(statuses: readonly string[]): DataConfidence | null {
+  let best: { rank: number; value: DataConfidence } | null = null;
+  for (const status of statuses) {
+    const value = EVIDENCE_TO_CONFIDENCE[status];
+    if (!value) continue;
+    const rank = CONFIDENCE_RANK[value] ?? 0;
+    if (!best || rank > best.rank) best = { rank, value };
+  }
+  return best?.value ?? null;
+}
+
+/**
+ * The confidence a business may claim: what the evidence ledger (§7) supports,
+ * upgraded only over a weaker stored value.
+ *
+ * This is what connects the dry run to the evidence model. On NowOpen every
+ * business row carries `unconfirmed` because nothing backfilled the column,
+ * yet business_evidence holds source_confirmed observations for nearly all
+ * businesses' contact fields. Reporting the stale stored value alone would
+ * block those businesses on §28 for identical evidence that §7 already
+ * accepts.
+ */
+export function effectiveDataConfidence(
+  row: string | null | undefined,
+  statuses: readonly string[],
+): DataConfidence {
+  const stored = (row ?? 'unconfirmed') as DataConfidence;
+  const storedRank = CONFIDENCE_RANK[stored] ?? 0;
+  const fromEvidence = confidenceFromEvidence(statuses);
+  if (fromEvidence && (CONFIDENCE_RANK[fromEvidence] ?? 0) > storedRank) return fromEvidence;
+  return stored;
+}
+
 /** Minimum gap before the same contact is messaged again, per channel. */
 const MIN_HOURS_SAME_CHANNEL = 48;
 

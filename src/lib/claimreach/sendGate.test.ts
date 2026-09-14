@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 
 import {
   evaluateSend, inQuietHours, verdictSummary,
+  confidenceFromEvidence, effectiveDataConfidence,
   type GateRequest, type BlockerCode,
 } from './sendGate';
 
@@ -175,6 +176,44 @@ describe('data confidence — §28', () => {
     }));
     expect(v.allowed).toBe(false);
     expect(v.blockers.map((b) => b.detail).join(' ')).toMatch(/requires source_confirmed/);
+  });
+});
+
+describe('evidence-backed confidence — §7 into §28', () => {
+  it('promotes a business whose fields carry source_confirmed evidence', () => {
+    expect(effectiveDataConfidence('unconfirmed', ['source_confirmed'])).toBe('source_confirmed');
+  });
+
+  it('treats multiple_sources as the source_confirmed tier', () => {
+    expect(effectiveDataConfidence('unconfirmed', ['multiple_sources'])).toBe('source_confirmed');
+  });
+
+  it('treats single_source as the partially_confirmed tier, below a source_confirmed campaign', () => {
+    expect(effectiveDataConfidence('unconfirmed', ['single_source'])).toBe('partially_confirmed');
+    const v = evaluateSend(ok({
+      business: { ...ok().business, dataConfidence: effectiveDataConfidence('unconfirmed', ['single_source']) },
+    }));
+    expect(v.blockers.map((b) => b.code)).toContain('confidence_below_threshold');
+  });
+
+  it('takes the highest tier the evidence supports', () => {
+    expect(effectiveDataConfidence('unconfirmed', ['single_source', 'admin_verified'])).toBe('admin_verified');
+  });
+
+  it('never downgrades a stronger stored value', () => {
+    expect(effectiveDataConfidence('admin_verified', ['single_source'])).toBe('admin_verified');
+  });
+
+  it('keeps the stored value when no status is recognised', () => {
+    expect(effectiveDataConfidence('unconfirmed', ['pending', 'bogus'])).toBe('unconfirmed');
+    expect(effectiveDataConfidence('source_confirmed', [])).toBe('source_confirmed');
+    expect(effectiveDataConfidence(undefined, [])).toBe('unconfirmed');
+  });
+
+  it('confidenceFromEvidence returns null when nothing is recognised', () => {
+    expect(confidenceFromEvidence([])).toBeNull();
+    expect(confidenceFromEvidence(['pending'])).toBeNull();
+    expect(confidenceFromEvidence(['source_confirmed'])).toBe('source_confirmed');
   });
 });
 

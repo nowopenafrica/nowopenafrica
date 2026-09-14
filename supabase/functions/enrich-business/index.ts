@@ -30,7 +30,7 @@
  */
 
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { runEnrichment, type SourceReport } from "../_shared/enrichment/index.ts";
+import { runEnrichment, type ImageCandidate, type SourceReport } from "../_shared/enrichment/index.ts";
 import { parseOsmHours, type SourceHoursEntry } from "../_shared/enrichment/osmHours.ts";
 import { EXTRACTION_PROMPT } from "../_shared/enrichment/text.ts";
 import { runAgent, type AgentTurn } from "../_shared/llm.ts";
@@ -41,6 +41,7 @@ const corsHeaders = {
 };
 
 const AUTOMATION_SECRET = Deno.env.get("AUTOMATION_SECRET") ?? "";
+const PEXELS_API_KEY = Deno.env.get("PEXELS_API_KEY") ?? "";
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -64,12 +65,20 @@ function waitOnSourceLock(key: string): Promise<void> {
   return new Promise((r) => setTimeout(r, Math.max(0, next.getTime() - Date.now())));
 }
 
+function hostOf(url: string | null): string | null {
+  if (!url) return null;
+  try { return new URL(url).hostname; } catch { return null; }
+}
+
 interface BusinessRow {
   id: string;
   name: string;
   website: string | null;
   phone: string | null;
   domain: string | null;
+  category: string | null;
+  logo_url: string | null;
+  image_url: string | null;
   claim_status: string | null;
   data_confidence: string | null;
   availability_mode: string | null;
@@ -81,12 +90,13 @@ interface BusinessRow {
 async function loadBusiness(db: any, id: string): Promise<BusinessRow | null> {
   const { data, error } = await db
     .from("businesses")
-    .select("id, name, website, phone, domain, claim_status, data_confidence, availability_mode, opening_hours, hours, social_links")
+    .select(`id, name, website, phone, category, logo_url, image_url, claim_status, data_confidence, availability_mode, opening_hours, hours, social_links`)
     .eq("id", id)
     .maybeSingle();
   if (error) throw new Error(error.message);
   if (!data) return null;
-  return data as BusinessRow;
+  const row = data as BusinessRow;
+  return { ...row, domain: hostOf(row.website) };
 }
 
 /** Nominatim: the open, no-key way to ask OSM for a business's hours record. */
@@ -129,6 +139,55 @@ async function fetchPageText(url: string): Promise<string> {
 const FIELD_EXTRACT_TURNS: AgentTurn[] = [
   { role: "user", content: "Extract the facts below as strict JSON and nothing else." },
 ];
+
+/**
+ * A licensed stock cover from Pexels for a business with no image of its own.
+ * Honesty is carried in the candidate itself: `exact:false` and two
+ * self-attested signals tell the engine this is a search result, not a photo
+ * verified to depict the business — the registry records it as a weak
+ * automatic match, and the engine labels any field proposal it makes a
+ * licensed placeholder.
+ */
+async function fetchPexelsCover(business: { name: string; category?: string | null }): Promise<ImageCandidate | null> {
+  if (!PEXELS_API_KEY) return null;
+  const q = encodeURIComponent([business.name, business.category].filter(Boolean).join(" "));
+  const res = await fetch(`https://api.pexels.com/v1/search?query=${q}&per_page=5&orientation=landscape`, {
+    headers: { Authorization: PEXELS_API_KEY },
+  });
+  if (!res.ok) return null;
+  const body = await res.json();
+  const photos = Array.isArray(body?.photos) ? body.photos : [];
+  const photo = photos[0];
+  if (!photo?.src) return null;
+  const signals = ["pexels:stock-placeholder", `name:${business.name}`];
+  if (business.category) signals.push(`category:${business.category}`);
+  return {
+    url: photo.src.large2x ?? photo.src.original ?? photo.src.large ?? photo.src.medium,
+    hint: "cover",
+    signals,
+    exact: false,
+    licence: "Pexels License",
+    attribution: photo.photographer ?? null,
+  };
+}
+
+/**
+ * The business's own og:image as a last result. An og:image's licence cannot
+ * be verified, so its candidate carries no licence and the engine caps it at
+ * registry-only (conservative_default) — it reaches the media table for review
+ * but never the business card.
+ */
+async function fetchOgImage(url: string | null): Promise<ImageCandidate | null> {
+  if (!url) return null;
+  const res = await fetch(url, { headers: { "User-Agent": "NowOpenAfricaBusinessIntelligence/0.1" } });
+  if (!res.ok) return null;
+  const html = await res.text();
+  const found =
+    /<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']/i.exec(html)
+    ?? /<meta[^>]+content=["']([^"']+)["'][^>]*property=["']og:image["']/i.exec(html);
+  if (!found) return null;
+  return { url: found[1], hint: "cover", signals: ["url_reference"], licence: null };
+}
 
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 200, headers: corsHeaders });
@@ -206,6 +265,14 @@ Deno.serve(async (req: Request) => {
 
       const report: SourceReport = { ...(job.payload.source_report as SourceReport ?? {}) };
 
+      // Cron payloads never carry a source_report; the business row is the
+      // executor's own ground truth for who we are. Without this backfill the
+      // identity gate fails on facts the executor gathered itself (OSM, Pexels,
+      // the business's own website) and nothing records at all.
+      report.name = report.name ?? business.name;
+      report.domain = report.domain ?? business.domain;
+      report.phone = report.phone ?? business.phone;
+
       // Hydrate structured observations from an actual source, when asked.
       if (osmActive && !report.hours) {
         const hours = await fetchOsmHours(business, "openstreetmap");
@@ -236,6 +303,21 @@ Deno.serve(async (req: Request) => {
         }
       }
 
+      // Unclaimed businesses without a logo or cover get a licensed stock cover
+      // (Pexels) and, failing that, their own website's og:image. Pexels lifts
+      // to the image field via engine policy; an og:image's licence cannot be
+      // verified so it is recorded registry-only. Claimed businesses are never
+      // touched — images arrive for them only through their own uploads.
+      const wantsImage = business.claim_status === "unclaimed"
+        && !business.image_url
+        && !business.logo_url;
+      if (wantsImage) {
+        const pexels = await fetchPexelsCover(business);
+        const og = pexels ? null : await fetchOgImage(business.website);
+        const images = [pexels, og].filter((i): i is ImageCandidate => Boolean(i));
+        if (images.length) report.images = images;
+      }
+
       const { data: pendingRows } = await db
         .from("business_change_proposals")
         .select("field_name")
@@ -255,6 +337,8 @@ Deno.serve(async (req: Request) => {
             hours: business.hours,
             website: business.website,
             phone: business.phone,
+            logo_url: business.logo_url,
+            image_url: business.image_url,
           },
           social_links: business.social_links ?? undefined,
         },

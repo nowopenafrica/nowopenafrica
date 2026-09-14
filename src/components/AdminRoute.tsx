@@ -2,6 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useRole } from '../hooks/useRole';
+import { isStaff } from '../lib/permissions';
 
 // Route-level gate for the admin console and Admin Creator OS. Keeps the same
 // dev-only ?preview flag as the pages themselves (compiled out of production
@@ -12,15 +13,22 @@ import { useRole } from '../hooks/useRole';
 // elsewhere. The pages still re-check the role and Supabase RLS backs every
 // read — this is defence in depth, so /admin and /admin-creator are never
 // reachable without a session in production.
+//
+// By default the gate admits staff (admin OR editor): the console is sets of
+// tabs, each gated independently, and editors use the Businesses, Page Editor
+// and Hero tabs. `adminOnly` closes it to admins — used for /admin-creator,
+// the creator OS, which has no role metadata anywhere and is admin business.
 const DEV_PREVIEW =
   import.meta.env.MODE === 'development' ||
   (import.meta.env.DEV && new URLSearchParams(window.location.search).has('preview'));
 
 interface AdminRouteProps {
   children: React.ReactNode;
+  /** Require the admin role instead of admitting any staff (default false). */
+  adminOnly?: boolean;
 }
 
-export default function AdminRoute({ children }: AdminRouteProps) {
+export default function AdminRoute({ children, adminOnly = false }: AdminRouteProps) {
   const { user, loading } = useAuth();
   const { role, checking } = useRole();
   const location = useLocation();
@@ -41,7 +49,7 @@ export default function AdminRoute({ children }: AdminRouteProps) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (role !== 'admin') {
+  if (adminOnly ? role !== 'admin' : !isStaff(role)) {
     return <Navigate to="/dashboard" replace />;
   }
 

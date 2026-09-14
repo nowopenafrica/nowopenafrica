@@ -67,7 +67,7 @@ const SOURCE_OPTIONS: { key: DiscoverySourceKey; label: string }[] = [
   { key: 'openstreetmap', label: 'OpenStreetMap (ODbL)' },
   { key: 'business_registration', label: 'Digital Forms registrations' },
   { key: 'waitlist', label: 'Waitlist signups' },
-  { key: 'google', label: 'Google Business Profile' },
+  { key: 'google', label: 'Google Places' },
   { key: 'businesslist_ng', label: 'BusinessList.com.ng' },
 ];
 
@@ -800,7 +800,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
           <ShieldAlert size={17} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
           <div className="text-xs">
             <p className="text-amber-900 dark:text-amber-100">
-              Google Business Profile needs a Google Places API key made available to the server. Set
+              Google Places needs its API key available to the server. Set
               GOOGLE_PLACES_API_KEY (Vercel env for this function — and .env for local dev) and this source
               turns on with no code change. Until then Search will say it plainly rather than pretend.
             </p>

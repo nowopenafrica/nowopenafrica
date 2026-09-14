@@ -44,6 +44,7 @@ export default function MediaIntelligencePanel() {
   const [tab, setTab] = useState<Tab>('review');
   const [working, setWorking] = useState<string | null>(null);
   const [reasonFor, setReasonFor] = useState<Record<string, string>>({});
+  const [publishingAll, setPublishingAll] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +104,31 @@ export default function MediaIntelligencePanel() {
     void load();
   };
 
+  /*
+   * Publish every pending asset in one click. Still a person's decision — the
+   * button is the moderation act — it just means one keypress instead of one
+   * per card. A single UPDATE with an id list, so it is one transaction rather
+   * than a loop that can stop halfway.
+   */
+  const publishReviewable = async () => {
+    const targets = rows.filter((r) => r.status !== 'published' && r.status !== 'removed');
+    if (targets.length === 0) return;
+    setPublishingAll(true);
+    try {
+      const patch = mediaReviewPatch('publish', 'approved', new Date().toISOString(), user?.id ?? null, null);
+      if (!patch) return;
+      const { error } = await supabase
+        .from('business_media_assets')
+        .update(patch)
+        .in('id', targets.map((r) => r.id));
+      if (error) { toast.error(error.message); return; }
+      toast.success(`Published ${targets.length} asset${targets.length === 1 ? '' : 's'} — they now render on the profiles.`);
+      void load();
+    } finally {
+      setPublishingAll(false);
+    }
+  };
+
   return (
     <div className="p-4 sm:p-6 max-w-7xl mx-auto space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
@@ -113,13 +139,26 @@ export default function MediaIntelligencePanel() {
             taking one down is final. Moderator actions are recorded on the row.
           </p>
         </div>
-        <button
-          onClick={() => void load()}
-          className="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
-        >
-          <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
-          Refresh
-        </button>
+        <div className="flex items-center gap-2">
+          {counts.review > 0 && (
+            <button
+              onClick={() => void publishReviewable()}
+              disabled={publishingAll || loading}
+              className="inline-flex items-center gap-2 rounded-lg bg-green-600 hover:bg-green-700 text-white px-3 py-2 text-sm font-medium disabled:opacity-50"
+              title="Publish every pending asset to its profile in one click"
+            >
+              {publishingAll ? <Loader2 size={16} className="animate-spin" /> : <ShieldCheck size={16} />}
+              Publish all ({counts.review})
+            </button>
+          )}
+          <button
+            onClick={() => void load()}
+            className="inline-flex items-center gap-2 rounded-lg border border-gray-300 dark:border-gray-600 px-3 py-2 text-sm font-medium text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+          >
+            <RefreshCw size={16} className={loading ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">
@@ -249,7 +288,7 @@ export default function MediaIntelligencePanel() {
                       {row.status === 'published' ? (
                         <button
                           onClick={() => void act(row, 'takedown')}
-                          disabled={working === row.id}
+                          disabled={working === row.id || publishingAll}
                           className="inline-flex items-center gap-1.5 rounded-lg bg-red-600 hover:bg-red-700 text-white px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                         >
                           {working === row.id ? <Loader2 className="animate-spin" size={14} /> : <Trash2 size={14} />}
@@ -259,7 +298,7 @@ export default function MediaIntelligencePanel() {
                         <>
                           <button
                             onClick={() => void act(row, 'approve')}
-                            disabled={working === row.id}
+                            disabled={working === row.id || publishingAll}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-1.5 text-sm font-medium hover:bg-gray-200 dark:hover:bg-gray-600 disabled:opacity-50"
                           >
                             {working === row.id ? <Loader2 className="animate-spin" size={14} /> : <Check size={14} />}
@@ -267,7 +306,7 @@ export default function MediaIntelligencePanel() {
                           </button>
                           <button
                             onClick={() => void act(row, 'publish')}
-                            disabled={working === row.id}
+                            disabled={working === row.id || publishingAll}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-green-600 hover:bg-green-700 text-white px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                           >
                             {working === row.id ? <Loader2 className="animate-spin" size={14} /> : <ShieldCheck size={14} />}
@@ -275,7 +314,7 @@ export default function MediaIntelligencePanel() {
                           </button>
                           <button
                             onClick={() => void act(row, 'reject')}
-                            disabled={working === row.id}
+                            disabled={working === row.id || publishingAll}
                             className="inline-flex items-center gap-1.5 rounded-lg bg-amber-500 hover:bg-amber-600 text-white px-3 py-1.5 text-sm font-medium disabled:opacity-50"
                           >
                             {working === row.id ? <Loader2 className="animate-spin" size={14} /> : <X size={14} />}

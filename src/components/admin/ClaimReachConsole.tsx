@@ -6,7 +6,7 @@ import {
   plan, planHeadline, biggestObstacles, BLOCKER_LABELS, SENDING_NOT_IMPLEMENTED,
   type Candidate, type PlanSettings, type PlanRow,
 } from '../../lib/claimreach/dryRun';
-import type { Channel, DataConfidence } from '../../lib/claimreach/sendGate';
+import { effectiveDataConfidence, type Channel, type DataConfidence } from '../../lib/claimreach/sendGate';
 
 /**
  * ClaimReach §26 — the dry run, as a screen.
@@ -37,7 +37,14 @@ import type { Channel, DataConfidence } from '../../lib/claimreach/sendGate';
  * screen cannot afford.
  */
 
-const CHANNELS: Channel[] = ['whatsapp', 'sms', 'email'];
+const CHANNELS: Exclude<Channel, 'social'>[] = ['whatsapp', 'sms', 'email'];
+
+/** The feature_flags key that says a channel is set up (operator-controlled). */
+const CHANNEL_FLAGS: Record<Exclude<Channel, 'social'>, string> = {
+  whatsapp: 'outbound_whatsapp',
+  sms: 'outbound_sms',
+  email: 'outbound_email',
+};
 
 const CONFIDENCES: DataConfidence[] = [
   'unconfirmed', 'partially_confirmed', 'source_confirmed', 'owner_confirmed', 'admin_verified',
@@ -81,8 +88,10 @@ const OUTCOME_LABEL: Record<PlanRow['outcome'], string> = {
 export default function ClaimReachConsole() {
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [provenance, setProvenance] = useState<Map<string, Set<string>>>(new Map());
+  const [evidenceStatuses, setEvidenceStatuses] = useState<Map<string, Set<string>>>(new Map());
   const [suppressed, setSuppressed] = useState<Set<string> | null>(null);
   const [outreach, setOutreach] = useState<OutreachRow[]>([]);
+  const [configuredFlags, setConfiguredFlags] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   /*
@@ -141,17 +150,22 @@ export default function ClaimReachConsole() {
       .select('business_id,field_name,status')
       .in('field_name', ['phone', 'whatsapp', 'email'])
       .in('status', SOURCED_STATUSES)
-      .limit(5000);
+      .limit(20000);
 
     const byBusiness = new Map<string, Set<string>>();
+    const statusesByBusiness = new Map<string, Set<string>>();
     if (!ev.error) {
-      for (const r of (ev.data as { business_id: string; field_name: string }[]) ?? []) {
+      for (const r of (ev.data as { business_id: string; field_name: string; status: string }[]) ?? []) {
         const set = byBusiness.get(r.business_id) ?? new Set<string>();
         set.add(r.field_name);
         byBusiness.set(r.business_id, set);
+        const st = statusesByBusiness.get(r.business_id) ?? new Set<string>();
+        st.add(r.status);
+        statusesByBusiness.set(r.business_id, st);
       }
     }
     setProvenance(byBusiness);
+    setEvidenceStatuses(statusesByBusiness);
 
     // Prior attempts, so the frequency rules are answered from the record.
     const out = await supabase
@@ -159,6 +173,17 @@ export default function ClaimReachConsole() {
       .select('business_id,channel,created_at')
       .limit(5000);
     setOutreach(out.error ? [] : ((out.data as OutreachRow[]) ?? []));
+
+    /*
+     * Which channels the platform says are set up. Absent means NOT configured,
+     * deliberately unlike the platform-wide isEnabled() default (unknown → on):
+     * an outbound channel must fail silent, not read as ready.
+     */
+    const fl = await supabase
+      .from('feature_flags')
+      .select('key')
+      .eq('enabled', true);
+    setConfiguredFlags(new Set((fl.data as { key: string }[] ?? []).map((r) => r.key)));
 
     /*
      * Suppression, batched, asked of the database.
@@ -208,12 +233,18 @@ export default function ClaimReachConsole() {
       quietHours: { fromHour: quietFrom, toHour: quietTo },
     },
     killSwitch: { all: false, channels: {} },
-    // Honestly empty unless the operator asks the what-if question.
+    // The truth unless the operator asks the what-if question. Read from
+    // feature_flags, so "no provider is configured" is a statement about the
+    // platform's actual configuration, not a hardcoded empty map.
     configuredChannels: assumeProviders
       ? { whatsapp: true, sms: true, email: true }
-      : {},
+      : {
+          whatsapp: configuredFlags.has(CHANNEL_FLAGS.whatsapp),
+          sms: configuredFlags.has(CHANNEL_FLAGS.sms),
+          email: configuredFlags.has(CHANNEL_FLAGS.email),
+        },
     messageVariables: [{ name: 'business_name', evidenceBacked: true }],
-  }), [channels, minConfidence, dailyCap, quietFrom, quietTo, approved, assumeProviders, assumeAutomatic]);
+  }), [channels, minConfidence, dailyCap, quietFrom, quietTo, approved, assumeProviders, assumeAutomatic, configuredFlags]);
 
   const candidates: Candidate[] = useMemo(() => {
     const localHour = new Date().getHours();
@@ -226,6 +257,7 @@ export default function ClaimReachConsole() {
 
     return businesses.map((b) => {
       const sourced = provenance.get(b.id) ?? new Set<string>();
+      const statuses = [...(evidenceStatuses.get(b.id) ?? [])];
       const contactFor = (channel: Channel, raw: string | null, field: string) => ({
         channel,
         normalized: raw?.trim() || null,
@@ -244,7 +276,7 @@ export default function ClaimReachConsole() {
           id: b.id,
           name: b.name,
           claimStatus: b.claim_status,
-          dataConfidence: b.data_confidence,
+          dataConfidence: effectiveDataConfidence(b.data_confidence, statuses),
         },
         contacts: [
           /*
@@ -266,7 +298,7 @@ export default function ClaimReachConsole() {
         localHour,
       };
     });
-  }, [businesses, provenance, suppressed, outreach]);
+  }, [businesses, provenance, evidenceStatuses, suppressed, outreach]);
 
   const result = useMemo(() => plan(candidates, settings), [candidates, settings]);
   const obstacles = useMemo(() => biggestObstacles(result), [result]);
@@ -380,9 +412,16 @@ export default function ClaimReachConsole() {
           </label>
           <label className="inline-flex items-center gap-2 text-amber-800 dark:text-amber-200">
             <input type="checkbox" checked={assumeProviders} onChange={(e) => setAssumeProviders(e.target.checked)} />
-            What if: providers were configured — none is
+            What if: providers were configured for every channel (currently read from feature_flags)
           </label>
         </div>
+
+        {!assumeProviders && (
+          <p className="text-[12px] text-gray-500 dark:text-gray-400 pt-1">
+            Channels counted as configured, from feature_flags:{' '}
+            {CHANNELS.filter((c) => configuredFlags.has(CHANNEL_FLAGS[c])).join(', ') || 'none'}
+          </p>
+        )}
       </div>
 
       {unavailable ? (

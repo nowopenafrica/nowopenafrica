@@ -133,8 +133,8 @@ describe('editing a business profile', () => {
     expect(v.reason).toMatch(/pending/i);
   });
 
-  it('is admin-only — an editor cannot rewrite a business', () => {
-    expect(canEditBusinessProfile('editor', unclaimed).allowed).toBe(false);
+  it('is staff-only — an editor can maintain an unclaimed listing, members cannot', () => {
+    expect(canEditBusinessProfile('editor', unclaimed).allowed).toBe(true);
     expect(canEditBusinessProfile('business', unclaimed).allowed).toBe(false);
     expect(canEditBusinessProfile(null, unclaimed).allowed).toBe(false);
   });
@@ -150,6 +150,44 @@ describe('editing a business profile', () => {
       for (const role of ['admin', 'editor', null]) {
         expect(canEditBusinessProfile(role, business).reason.length).toBeGreaterThan(15);
       }
+    }
+  });
+});
+
+describe('the editor boundary is a database boundary too', () => {
+  /*
+   * canEditBusinessProfile now admits an editor on unclaimed listings. The
+   * policy file is UX; the actual boundary is the migration: editors must be
+   * able to create and maintain unclaimed rows, and structurally unable to
+   * touch claimed ones or any moderation column.
+   */
+  const sql = readFileSync(
+    'supabase/migrations/20260913020000_editor_business_permissions.sql',
+    'utf8',
+  );
+
+  it('restores `editor` to the users_role_check allowlist', () => {
+    expect(sql).toMatch(/role IN \('business', 'media_service', 'personal', 'editor', 'admin'\)/);
+  });
+
+  it('gives editors INSERT and UPDATE on businesses, never DELETE', () => {
+    expect(sql).toContain('Editors can create unclaimed businesses');
+    expect(sql).toContain('Editors can edit unclaimed businesses');
+    expect(sql).not.toContain('FOR DELETE');
+  });
+
+  it('constrains editors to unclaimed, ownerless rows', () => {
+    expect(sql).toMatch(/claim_status = 'unclaimed'/);
+    expect(sql).toMatch(/user_id IS NULL/);
+  });
+
+  it('freezes moderation columns from editors by trigger', () => {
+    expect(sql).toContain('guard_editor_business_moderation');
+    for (const column of [
+      'verified', 'verification_status', 'lifecycle_status', 'profile_state',
+      'removal_status', 'data_status', 'trust_score', 'claim_status',
+    ]) {
+      expect(sql, column).toContain(`NEW.${column}`);
     }
   });
 });

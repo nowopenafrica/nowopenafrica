@@ -1,8 +1,8 @@
 // Shared notification senders for edge functions — email (Resend), WhatsApp
-// (Meta Cloud API) and in-app dashboard notifications. Every channel is
-// env-gated and best-effort: a missing provider config just skips that channel
-// rather than throwing, so an automation run never fails because (say) WhatsApp
-// isn't configured yet.
+// (Meta Cloud API), Instagram DM (Meta business messaging) and in-app
+// dashboard notifications. Every channel is env-gated and best-effort: a
+// missing provider config just skips that channel rather than throwing, so an
+// automation run never fails because (say) WhatsApp isn't configured yet.
 //
 // deno-lint-ignore-file no-explicit-any
 
@@ -10,6 +10,8 @@ const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
 const RESEND_FROM = Deno.env.get("RESEND_FROM") ?? "NowOpen Africa <hello@nowopenafrica.com>";
 const WHATSAPP_TOKEN = Deno.env.get("WHATSAPP_TOKEN");
 const WHATSAPP_PHONE_ID = Deno.env.get("WHATSAPP_PHONE_ID");
+const INSTAGRAM_TOKEN = Deno.env.get("INSTAGRAM_TOKEN");
+const INSTAGRAM_BUSINESS_ID = Deno.env.get("INSTAGRAM_BUSINESS_ID");
 
 export const BRAND_ORIGIN = Deno.env.get("BRAND_ORIGIN") ?? "https://nowopenafrica.com";
 
@@ -69,6 +71,70 @@ export async function sendWhatsAppText(to: string, body: string): Promise<SendRe
       body: JSON.stringify({ messaging_product: "whatsapp", to: num, type: "text", text: { body, preview_url: true } }),
     });
     if (!res.ok) return { ok: false, error: `whatsapp ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
+ * Pre-approved template message — the only kind Meta delivers to a cold
+ * contact (fresh business owner, no open 24h session). Body parameters must
+ * match the {{1}}/{{2}}/... slots of the approved template.
+ */
+export async function sendWhatsAppTemplate(
+  to: string,
+  input: { template: string; lang?: string; params: string[] },
+): Promise<SendResult> {
+  if (!WHATSAPP_TOKEN || !WHATSAPP_PHONE_ID) return { ok: false, skipped: true };
+  const num = waNumber(to);
+  if (!num) return { ok: false, skipped: true };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v20.0/${WHATSAPP_PHONE_ID}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: num,
+        type: "template",
+        template: {
+          name: input.template,
+          language: { code: input.lang ?? "en" },
+          components: [{ type: "body", parameters: input.params.map((p) => ({ type: "text", text: p })) }],
+        },
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `whatsapp ${res.status}` };
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: String(e) };
+  }
+}
+
+/**
+ * Instagram DM — the Instagram Messaging API's send shape (graph.facebook.com
+ * against the business's IG user ID, recipient id + message text). Only legal
+ * inside an open conversation (the 24h window since the recipient's last
+ * inbound DM, or an approved messaging tag); the caller's instagramGate is
+ * what refuses cold outreach — this function never decides policy, it can
+ * only send.
+ */
+export async function sendInstagramText(
+  contactId: string,
+  body: string,
+): Promise<SendResult> {
+  if (!INSTAGRAM_TOKEN || !INSTAGRAM_BUSINESS_ID) return { ok: false, skipped: true };
+  if (!contactId) return { ok: false, skipped: true };
+  try {
+    const res = await fetch(`https://graph.facebook.com/v20.0/${INSTAGRAM_BUSINESS_ID}/messages`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${INSTAGRAM_TOKEN}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        recipient: { id: contactId },
+        message: { text: body },
+      }),
+    });
+    if (!res.ok) return { ok: false, error: `instagram ${res.status}` };
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
