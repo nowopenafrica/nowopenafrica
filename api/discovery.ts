@@ -21,8 +21,14 @@ import {
   type DiscoveryPage, type DiscoveryListing,
 } from '../src/lib/discoveryPageRender.js';
 import { publicOpenState } from '../src/lib/openingHours.js';
+/*
+ * The SAME constant the sitemap's page set is built from. Internal links and
+ * submitted URLs must agree by construction: a link to a page the site then
+ * answers with `noindex` spends crawl budget to say "never mind".
+ */
+import { relatedPlaces } from '../src/lib/discoveryPages.js';
 
-const SITE_URL = process.env.APP_BASE_URL || 'https://nowopenafrica.com';
+const SITE_URL = process.env.APP_BASE_URL || 'https://www.nowopenafrica.com';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const SUPABASE_ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
@@ -66,6 +72,29 @@ async function rest<T>(path: string): Promise<T[]> {
   } catch {
     return [];
   }
+}
+
+/**
+ * PostgREST's server-side row cap. Measured at 1000 on this project.
+ *
+ * `limit` sets what you ASK for; this is what you GET, and the difference is
+ * silent — no error, no header anybody reads, just a shorter array. See
+ * api/sitemap.xml.ts, where the same cap kept two thirds of the directory out
+ * of search for as long as the sitemap existed.
+ */
+const PAGE_SIZE = 1000;
+
+/** Every row up to `cap`, paged. `path` supplies its own select and order. */
+async function restAll<T>(path: string, cap: number): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; offset < cap; offset += PAGE_SIZE) {
+    const size = Math.min(PAGE_SIZE, cap - offset);
+    const sep = path.includes('?') ? '&' : '?';
+    const page = await rest<T>(`${path}${sep}limit=${size}&offset=${offset}`);
+    out.push(...page);
+    if (page.length < size) break;
+  }
+  return out;
 }
 
 const one = (v: string | string[] | undefined): string =>
@@ -127,16 +156,55 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
   // PostgREST filters. `is_listable` is the public-visibility rule; never drop
   // it, or the 500 hidden synthetic prospects reach search.
-  const filters = ['is_listable=eq.true'];
+  // `profile_state` keeps submissions awaiting review out of the pages a
+  // crawler is served, the same rule the browser-side directory applies.
+  const filters = ['is_listable=eq.true', 'profile_state=eq.published'];
   if (placeSlug) filters.push(`location=ilike.*${encodeURIComponent(unslugify(placeSlug))}*`);
-  if (categorySlug) filters.push(`category=ilike.*${encodeURIComponent(unslugify(categorySlug))}*`);
 
+  /*
+   * THE CATEGORY IS MATCHED ON THE SLUG, NOT ON A RECONSTRUCTED LABEL.
+   *
+   * This filter used to be `category=ilike.*${unslugify(categorySlug)}*`, and
+   * that round trip is lossy in a way that silently emptied most of the site:
+   *
+   *   slugify('Hospital & Clinic')      -> 'hospital-and-clinic'   (& becomes " and ")
+   *   unslugify('hospital-and-clinic')  -> 'Hospital And Clinic'   (the word "and")
+   *   category ILIKE '%Hospital And Clinic%'  ->  matches NOTHING
+   *
+   * MEASURED 2026-09-15: 25 categories contain "&", and they hold 2,657 of the
+   * 3,118 businesses on the platform — 85% of the directory. Every
+   * category-in-place page for all of them rendered "No businesses listed here
+   * yet." /businesses/hospital-and-clinic/in/lagos — the largest category in
+   * the largest city, 1,669 hospitals behind it — was an empty page served to
+   * crawlers and to people.
+   *
+   * Reversing a lossy transform cannot be made reliable, so this stops trying.
+   * The place narrows the query in SQL (the largest place holds 503 rows, so one
+   * page covers it), and the category is then matched by comparing slugs, which
+   * is exactly the comparison discoveryPages() used to mint the URL in the first
+   * place. Same function both ends, so the two cannot disagree.
+   */
   // claim_status and data_status decide whether a listing may earn a ranking —
   // see isIndexable. Selected, not inferred.
   const select = 'id,name,username,category,location,description,opening_hours,hours,timezone,open_status,claim_status,data_status';
-  const rows = await rest<Row>(
-    `businesses?select=${select}&${filters.join('&')}&order=listing_score.desc,created_at.desc&limit=60`,
+  const fetched = await restAll<Row>(
+    `businesses?select=${select}&${filters.join('&')}&order=listing_score.desc,created_at.desc,id.asc`,
+    // Generous: the largest place holds 503. The cap exists so a future
+    // mis-slugged place cannot walk the whole table.
+    5000,
   );
+
+  const matched = categorySlug
+    ? fetched.filter((r) => slugify(r.category ?? '') === categorySlug)
+    : fetched;
+
+  /*
+   * How many the page really holds, before the display cap. `total` is what the
+   * heading and the description quote, so taking it from the capped array made
+   * a city with 300 listings announce 60.
+   */
+  const matchedTotal = matched.length;
+  const rows = matched.slice(0, 60);
 
   const now = new Date();
   const listings: DiscoveryListing[] = rows.map((r) => ({
@@ -183,25 +251,50 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         .map((c) => ({ label: c, path: `/businesses/${slugify(c)}/in/${placeSlug}` }))
     : [];
 
-  const allPlaces = await rest<{ location: string | null }>(
-    'businesses?select=location&is_listable=eq.true&limit=500',
+  /*
+   * WHERE ELSE TO GO — and it has to be somewhere that exists.
+   *
+   * This read used to be `limit=500` with no ORDER BY, and then took the first
+   * eight distinct places out of whatever came back. Two things followed, both
+   * measured on /businesses/in/lagos on 2026-09-14:
+   *
+   *   /businesses/in/3-lekki-road  — a street address, filed as a place because
+   *                                  it is what sits before the first comma in
+   *                                  one listing's location. One listing, so the
+   *                                  page renders `noindex`, and it reads to a
+   *                                  person like the directory does not know the
+   *                                  difference between a city and a doorway.
+   *   /businesses/in/ikotun        — a real town, but below the density
+   *                                  threshold, so also `noindex`.
+   *
+   * Two of the eight links on the most important city page in the directory
+   * pointed at pages the site itself asks not to be indexed. Unordered also
+   * means unstable: PostgREST returns rows in whatever order it likes, so the
+   * eight changed between cache refreshes and no link ever accumulated value.
+   *
+   * Counting fixes all of it at once. A place with enough listings behind it is
+   * a real place almost by definition — a street address has one — so ranking
+   * by density filters the junk without a list of banned words to maintain, and
+   * the densest neighbours are also the best pages to send a reader to.
+   */
+  const allPlaces = await restAll<{ location: string | null }>(
+    'businesses?select=location,id&is_listable=eq.true&profile_state=eq.published&order=id.asc',
+    20000,
   );
-  const relatedPlaces = [...new Set(
-    allPlaces.map((r) => r.location?.split(',')[0]?.trim()).filter(Boolean) as string[],
-  )]
-    .filter((c) => slugify(c) !== placeSlug)
-    .slice(0, 8)
-    .map((c) => ({ label: c, path: `/businesses/in/${slugify(c)}` }));
+
+  // Ranked and thresholded in discoveryPages.ts, which is also where the
+  // sitemap's page set comes from — one rule, one place, tested once.
+  const related = relatedPlaces(allPlaces, placeSlug);
 
   const page: DiscoveryPage = {
     siteUrl: SITE_URL,
     path,
     place,
     category,
-    total: listings.length,
+    total: matchedTotal,
     listings,
     relatedCategories,
-    relatedPlaces,
+    relatedPlaces: related.map(({ label, path }) => ({ label, path })),
   };
 
   const html = renderDiscoveryPage(page, MIN_INDEXABLE);

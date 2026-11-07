@@ -5,6 +5,7 @@ import {
   OSM_CATEGORY_MAP,
   AFRICA_BBOX,
   OSM_SOURCE_KEY,
+  socialHandle,
 } from '../acquire/openstreetmap';
 
 /**
@@ -173,5 +174,58 @@ describe('foldOsmElements', () => {
     ];
     const result = foldOsmElements(elements, 50);
     expect(result[0].phone).toBe('08012345678');
+  });
+});
+
+describe('social accounts a business put on its own OSM entry', () => {
+  it('accepts every form a mapper writes', () => {
+    /*
+     * Measured against Overpass on 2026-10-09: the 25 Nigerian entries with
+     * contact:instagram used a full URL, a bare handle and an @handle — all
+     * three in the same dataset.
+     */
+    for (const v of [
+      'https://www.instagram.com/honeytenny9454/',
+      'instagram.com/honeytenny9454',
+      'honeytenny9454',
+      '@honeytenny9454',
+    ]) {
+      expect(socialHandle('instagram', v), v).toBe('https://instagram.com/honeytenny9454');
+    }
+  });
+
+  it('REJECTS a website mis-tagged as a handle', () => {
+    /*
+     * A real row: contact:instagram = "regalflowers.com.ng". Publishing that
+     * as a social link gives a business a profile link that goes nowhere. A
+     * dot means a domain — no network allows one in a username.
+     */
+    expect(socialHandle('instagram', 'regalflowers.com.ng')).toBeNull();
+    expect(socialHandle('instagram', 'example.co.uk')).toBeNull();
+  });
+
+  it('refuses a URL pointing at a different network', () => {
+    // A facebook URL in the instagram tag is a mapper error, not a handle.
+    expect(socialHandle('instagram', 'https://facebook.com/someone')).toBeNull();
+    expect(socialHandle('facebook', 'https://facebook.com/someone')).toBe('https://facebook.com/someone');
+  });
+
+  it('normalises so two spellings of one account are one value', () => {
+    expect(socialHandle('instagram', 'https://www.instagram.com/ada/'))
+      .toBe(socialHandle('instagram', 'ada'));
+  });
+
+  it('maps twitter to x.com, which is where the link now goes', () => {
+    expect(socialHandle('twitter', 'ada')).toBe('https://x.com/ada');
+  });
+
+  it('returns null for an unknown network rather than inventing a host', () => {
+    expect(socialHandle('myspace', 'ada')).toBeNull();
+  });
+
+  it('ignores blanks', () => {
+    for (const v of ['', '   ', null, undefined]) {
+      expect(socialHandle('instagram', v as string | null)).toBeNull();
+    }
   });
 });

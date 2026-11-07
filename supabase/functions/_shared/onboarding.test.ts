@@ -190,10 +190,27 @@ describe("whatsAppGate", () => {
   });
 
   it("refuses when no approved template is set — cold messages need one", () => {
-    expect(whatsAppGate({ ...ready, templateConfigured: false })).toEqual({
-      status: "needs_template",
-      reason: "WHATSAPP_WELCOME_TEMPLATE env not set (required for out-of-session messages).",
+    const gate = whatsAppGate({ ...ready, templateConfigured: false });
+    expect(gate?.status).toBe("needs_template");
+    /*
+     * The refusal is the guarantee; the wording is not. It used to be the
+     * fixed sentence "WHATSAPP_WELCOME_TEMPLATE env not set", which named a
+     * cause that is usually wrong — far more often a template IS submitted and
+     * Meta has not approved it yet. An operator reading that would go and set
+     * the env var while approval was pending, which is precisely the wrong
+     * move: a pending template sends nothing.
+     */
+    expect(gate?.reason).toMatch(/approved WhatsApp template/i);
+  });
+
+  it("carries Meta's own reason when there is one", () => {
+    const gate = whatsAppGate({
+      ...ready,
+      templateConfigured: false,
+      templateNote: "nowopen_listing_live_v2 is submitted but Meta has not approved it yet.",
     });
+    expect(gate?.status).toBe("needs_template");
+    expect(gate?.reason).toMatch(/has not approved it yet/);
   });
 
   it("fires gates in order — the kill switch outranks everything", () => {

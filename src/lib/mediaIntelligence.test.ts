@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   firstPublishedUrl, mergePublishedGallery, mediaReviewPatch, canReview,
+  sortMediaNewestFirst,
   MEDIA_STATUS_FLOW, MEDIA_STATUS_TERMINAL, ALLOWED_ASSET_TYPES,
   type MediaAssetRow,
 } from './mediaIntelligence';
@@ -95,5 +96,37 @@ describe('mediaIntelligence — public rendering', () => {
       asset({ source_uri: 'https://c/reject.png', asset_type: 'gallery', status: 'rejected' }),
     ];
     expect(mergePublishedGallery([], list, (a) => ({ url: a.source_uri! }))).toEqual([]);
+  });
+});
+
+describe('sortMediaNewestFirst', () => {
+  it('puts the most recent post at the top', () => {
+    const items = [
+      { url: 'a', created_at: '2026-09-01T00:00:00.000Z' },
+      { url: 'b', created_at: '2026-09-11T00:00:00.000Z' },
+      { url: 'c', created_at: '2026-08-20T00:00:00.000Z' },
+    ];
+    expect(sortMediaNewestFirst(items).map((i) => i.url)).toEqual(['b', 'a', 'c']);
+  });
+
+  it('interleaves owner posts and published assets by date, not by source', () => {
+    const owner = [
+      { url: 'own-old', created_at: '2026-09-01T00:00:00.000Z' },
+      { url: 'own-new', created_at: '2026-09-10T00:00:00.000Z' },
+    ];
+    const extras = [
+      asset({ source_uri: 'extra-mid', asset_type: 'gallery', status: 'published', created_at: '2026-09-05T00:00:00.000Z' }),
+    ];
+    const merged = mergePublishedGallery(owner, extras, (a) => ({ url: a.source_uri!, created_at: a.created_at }));
+    expect(sortMediaNewestFirst(merged).map((i) => i.url)).toEqual(['own-new', 'extra-mid', 'own-old']);
+  });
+
+  it('keeps undated items in their given order at the end', () => {
+    const items = [
+      { url: 'dated', created_at: '2026-09-01T00:00:00.000Z' },
+      { url: 'demo-1' },
+      { url: 'demo-2' },
+    ];
+    expect(sortMediaNewestFirst(items).map((i) => i.url)).toEqual(['dated', 'demo-1', 'demo-2']);
   });
 });

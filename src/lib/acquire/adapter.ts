@@ -43,11 +43,38 @@ export interface SourcePolicy {
   redistribution: 'permitted' | 'prohibited' | 'unknown' | string;
   /** May the result compete with the source's own product? */
   competingDataset?: 'permitted' | 'prohibited' | 'unknown' | string | null;
+  /**
+   * May images from this source be republished on a profile?
+   *
+   * Separate from `redistribution` because media is licensed separately from
+   * data: Wikidata is CC0, and the photographs it links to on Commons are
+   * licensed per file.
+   */
+  imageReuse?: 'permitted' | 'prohibited' | 'unknown' | string | null;
+  /** May this source's phone numbers and emails be STORED, not just shown? */
+  contactStorage?: 'permitted' | 'prohibited' | 'unknown' | string | null;
+  /** Where the source stands in review. `active` is a switch; this is the decision. */
+  complianceStatus?: string | null;
   licence: string | null;
   authorisedBy: string | null;
 }
 
-export type SourceOperation = 'discover' | 'fetch' | 'bulk' | 'publish';
+/**
+ * What an adapter wants to do with a source.
+ *
+ * `reuse_image` and `store_contact` were added on 2026-09-17 because the
+ * registry could not answer either question, and both had already gone wrong
+ * in practice: 1,176 profiles carried images whose reuse rights lived only in
+ * one adapter's source comments, and nothing anywhere recorded whether a
+ * source's phone numbers could be kept as opposed to displayed.
+ *
+ * They are separate operations rather than part of `publish` because they are
+ * separately licensed. Wikidata is the case that proves it — CC0 data with
+ * photographs that are not CC0.
+ */
+export type SourceOperation =
+  | 'discover' | 'fetch' | 'bulk' | 'publish'
+  | 'reuse_image' | 'store_contact';
 
 export interface PolicyVerdict {
   permitted: boolean;
@@ -86,6 +113,8 @@ export function sourcePermits(policy: SourcePolicy, op: SourceOperation): Policy
     fetch: 'automatedAccess',
     bulk: 'bulkExtraction',
     publish: 'redistribution',
+    reuse_image: 'imageReuse',
+    store_contact: 'contactStorage',
   };
 
   const field = needs[op];

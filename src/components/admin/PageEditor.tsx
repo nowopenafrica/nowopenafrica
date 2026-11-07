@@ -5,6 +5,14 @@ import {
 } from 'lucide-react';
 
 import About from '../../pages/About';
+import Home from '../../pages/Home';
+import Contact from '../../pages/Contact';
+import DigitalForms from '../../pages/DigitalForms';
+import Founder from '../../pages/Founder';
+import NowOpenOs from '../../pages/NowOpenOs';
+import Platform from '../../pages/Platform';
+import Pricing from '../../pages/Pricing';
+import Waitlist from '../../pages/Waitlist';
 import { EditorSessionContext } from '../editor/PageContent';
 import { EDITABLE_PAGES, LINK_TARGETS, slotsForPage } from '../../lib/visualEditor/registry';
 import { isSafeHref } from '../../lib/visualEditor/resolve';
@@ -30,9 +38,17 @@ import {
  * writes a version row and an audit entry in the same transaction.
  */
 
-/** Only pages that have been adopted can be previewed here. */
+/** Pages that have been adopted can be previewed here — the real component. */
 const PAGE_COMPONENTS: Record<string, () => JSX.Element> = {
   about: About,
+  home: Home,
+  contact: Contact,
+  'digital-forms': DigitalForms,
+  founder: Founder,
+  os: NowOpenOs,
+  platform: Platform,
+  pricing: Pricing,
+  waitlist: Waitlist,
 };
 
 const ALIGN_ICON = { left: AlignLeft, center: AlignCenter, right: AlignRight } as const;

@@ -80,7 +80,18 @@ export interface WhatsAppGateInput {
   killSwitchOn: boolean; // feature_flags.outbound_whatsapp enabled
   suppressed: boolean; // ClaimReach §22 opt-out
   providerConfigured: boolean; // WHATSAPP_TOKEN + WHATSAPP_PHONE_ID present
-  templateConfigured: boolean; // WHATSAPP_WELCOME_TEMPLATE present
+  templateConfigured: boolean; // an APPROVED template is available to send
+  /*
+   * Why there is no template, in Meta's terms rather than ours.
+   *
+   * The reason used to be the fixed sentence "WHATSAPP_WELCOME_TEMPLATE env
+   * not set", which named a cause that is usually not the real one: far more
+   * often a template IS submitted and Meta has not approved it yet, or the
+   * only approved one is MARKETING and must not be sent without opt-in. An
+   * operator reading the old sentence would go and set an env var, which is
+   * precisely the wrong thing to do while approval is pending.
+   */
+  templateNote?: string | null;
 }
 
 export type WhatsAppGateStatus =
@@ -110,7 +121,8 @@ export function whatsAppGate(input: WhatsAppGateInput): WhatsAppGateResult | nul
   if (!input.templateConfigured) {
     return {
       status: "needs_template",
-      reason: "WHATSAPP_WELCOME_TEMPLATE env not set (required for out-of-session messages).",
+      reason: input.templateNote
+        ?? "No approved WhatsApp template is available (required for out-of-session messages).",
     };
   }
   return null;

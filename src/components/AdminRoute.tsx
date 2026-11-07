@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useRole } from '../hooks/useRole';
-import { isStaff } from '../lib/permissions';
+import { isStaff, isAdmin, isEditor } from '../lib/permissions';
 
 // Route-level gate for the admin console and Admin Creator OS. Keeps the same
 // dev-only ?preview flag as the pages themselves (compiled out of production
@@ -26,9 +26,15 @@ interface AdminRouteProps {
   children: React.ReactNode;
   /** Require the admin role instead of admitting any staff (default false). */
   adminOnly?: boolean;
+  /**
+   * Admit exactly admin + editor (staff minus business_curator). Used by
+   * Business Intelligence, whose tables are `is_staff()`-gated in the database
+   * but whose narrowest staff role still has no RLS beyond `businesses`.
+   */
+  editorPlus?: boolean;
 }
 
-export default function AdminRoute({ children, adminOnly = false }: AdminRouteProps) {
+export default function AdminRoute({ children, adminOnly = false, editorPlus = false }: AdminRouteProps) {
   const { user, loading } = useAuth();
   const { role, checking } = useRole();
   const location = useLocation();
@@ -49,7 +55,7 @@ export default function AdminRoute({ children, adminOnly = false }: AdminRoutePr
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (adminOnly ? role !== 'admin' : !isStaff(role)) {
+  if (editorPlus ? !(isAdmin(role) || isEditor(role)) : adminOnly ? role !== 'admin' : !isStaff(role)) {
     return <Navigate to="/dashboard" replace />;
   }
 

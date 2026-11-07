@@ -18,7 +18,21 @@ import {
 export default function LaunchControl() {
   const [launches, setLaunches] = useState<LaunchItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [usingFallback, setUsingFallback] = useState(false);
+  /*
+   * ── THREE STATES, NOT TWO ──────────────────────────────────────────────
+   *
+   * MEASURED 2026-10-06 against production: os_launches EXISTS, its migration
+   * is recorded, RLS is on with four admin policies — and it holds 0 rows.
+   *
+   * The loader treated `rows.length === 0` as "unavailable", so an empty board
+   * showed demo launches under the words "the os_launches migration isn't
+   * applied in this project yet". Both halves were wrong: the migration IS
+   * applied, and an admin ticking those checkboxes was writing to nothing.
+   *
+   * A table that is empty and a table that is missing are different facts and
+   * now say different things. `null` means the read has not finished.
+   */
+  const [tableState, setTableState] = useState<'ok' | 'empty' | 'unavailable' | null>(null);
   const [name, setName] = useState('');
   const [area, setArea] = useState('');
   const [target, setTarget] = useState('');
@@ -29,14 +43,25 @@ export default function LaunchControl() {
       const { data, error } = await supabase
         .from('os_launches')
         .select('*')
-        .eq('org_id', NOWOPEN_ORG_ID);
+        .eq('org_id', NOWOPEN_ORG_ID)
+        .order('created_at', { ascending: false });
+
+      if (error) {
+        /*
+         * A real failure: the table is missing, or this account cannot read
+         * it. Only here is the seed shown, and only because an empty board
+         * with a broken explanation is less useful than an example with an
+         * accurate one.
+         */
+        setLaunches(LAUNCHES_SEED);
+        setTableState('unavailable');
+        return;
+      }
+
       const rows = (data ?? []) as unknown[];
-      if (error || rows.length === 0) throw new Error('os_launches unavailable');
       setLaunches(rows.map((r) => mapLaunchRow(r as Parameters<typeof mapLaunchRow>[0])));
-      setUsingFallback(false);
-    } catch {
-      setLaunches(LAUNCHES_SEED);
-      setUsingFallback(true);
+      // Empty is a real, correct answer: nobody has opened a launch yet.
+      setTableState(rows.length === 0 ? 'empty' : 'ok');
     } finally {
       setLoading(false);
     }
@@ -49,7 +74,7 @@ export default function LaunchControl() {
   const add = async () => {
     if (!name.trim()) { toast.error('Give the launch a name.'); return; }
     const fresh: LaunchItem = {
-      id: usingFallback ? `seed-local-${Date.now()}` : 'pending',
+      id: tableState === 'unavailable' ? `seed-local-${Date.now()}` : 'pending',
       org_id: NOWOPEN_ORG_ID,
       name: name.trim(),
       area: area.trim() || 'Unassigned',
@@ -57,10 +82,13 @@ export default function LaunchControl() {
       done: LAUNCH_CHECKLIST.map(() => false),
       created_at: new Date().toISOString(),
     };
-    if (usingFallback) {
+    if (tableState === 'unavailable') {
       setLaunches((list) => [fresh, ...list]);
       setName(''); setArea(''); setTarget('');
-      toast.success(`Launch "${fresh.name}" added for this session. Apply the os_launches migration to persist.`);
+      // Says plainly that nothing was saved, and does not blame a migration
+      // that may well be applied — the board could equally be unreadable
+      // because this account is not an admin.
+      toast(`"${fresh.name}" is on screen only — the board could not be read, so nothing was saved.`);
       return;
     }
     try {
@@ -81,7 +109,7 @@ export default function LaunchControl() {
   };
 
   const toggle = async (id: string, index: number) => {
-    if (usingFallback) {
+    if (tableState === 'unavailable') {
       setLaunches((list) => list.map((l) => (l.id === id ? { ...l, done: l.done.map((d, di) => (di === index ? !d : d)) } : l)));
       return;
     }
@@ -103,7 +131,7 @@ export default function LaunchControl() {
   };
 
   const remove = async (id: string) => {
-    if (usingFallback) {
+    if (tableState === 'unavailable') {
       setLaunches((list) => list.filter((l) => l.id !== id));
       return;
     }
@@ -139,10 +167,24 @@ export default function LaunchControl() {
         ))}
       </div>
 
-      {usingFallback && (
+      {tableState === 'unavailable' && (
         <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 px-4 py-3 text-xs text-amber-700 dark:text-amber-300">
-          Demo launch board — the os_launches migration isn't applied in this project yet. Changes are kept for this
-          session; once it runs, launches come from the database and ticks persist.
+          Example launches — the board could not be read. Either os_launches is missing in this
+          project, or this account is not an admin. Anything ticked here is not saved.
+        </div>
+      )}
+
+      {tableState === 'empty' && (
+        <div className="rounded-xl border border-dashed border-gray-300 dark:border-gray-700 px-4 py-6 text-center">
+          <p className="text-sm text-gray-700 dark:text-gray-200 font-semibold">No launches on the board yet.</p>
+          {/*
+            * Says the board is WORKING and empty. The previous message told an
+            * operator the migration was missing when it was applied, which
+            * sends them to fix a database that is fine.
+            */}
+          <p className="text-xs text-gray-500 mt-1">
+            The board is live and saving — open your first launch below and the ticks will persist.
+          </p>
         </div>
       )}
 

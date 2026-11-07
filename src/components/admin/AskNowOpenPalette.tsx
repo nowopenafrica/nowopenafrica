@@ -58,7 +58,19 @@ export default function AskNowOpenPalette({
           supabase.from('os_snapshots').select('health, snapshot_date').eq('org_id', NOWOPEN_ORG_ID).order('snapshot_date', { ascending: false }),
         ]);
         const rows = (wf.data ?? []) as WorkforceMember[];
-        if (wf.error || rows.length === 0) throw new Error('os_workforce unavailable');
+      /*
+       * `error` only — an empty table is NOT a missing one.
+       *
+       * MEASURED 2026-10-06: every os_ table exists live with its policies,
+       * and Launch Control was telling operators "the os_launches migration
+       * isn't applied in this project yet" about a database that was fine,
+       * while showing invented rows whose edits saved nowhere. The cause was
+       * `rows.length === 0` being treated as a failure.
+       *
+       * An empty table is a correct answer to a correct question. Only a real
+       * error falls through to the labelled seed below.
+       */
+        if (wf.error) throw new Error('os_workforce unavailable');
         if (cancelled) return;
         setData({
           members: rows,

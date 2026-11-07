@@ -43,7 +43,7 @@ const MAX_LIMIT = 200;
 const TIMEOUT_MS = 30_000;
 const MAX_BYTES = 4 * 1024 * 1024;
 const USER_AGENT =
-  'NowOpenAfrica/1.0 (https://nowopenafrica.com; tech@nowopenafrica.com) AutoAcquire/BusinessList';
+  'NowOpenAfrica/1.0 (https://www.nowopenafrica.com; tech@nowopenafrica.com) AutoAcquire/BusinessList';
 
 const one = (v: string | string[] | undefined): string =>
   (Array.isArray(v) ? v[0] : v) ?? '';

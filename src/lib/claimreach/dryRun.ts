@@ -60,9 +60,97 @@ import {
  * will reasonably assume something is about to go out, and correcting that
  * assumption is worth more than the space it takes.
  */
-export const SENDING_NOT_IMPLEMENTED =
-  'ClaimReach can plan and explain outreach. It cannot send: no messaging provider is '
-  + 'configured, and no code in this repository delivers a message.';
+/*
+ * UPDATED 2026-09-23, because the old wording had become false.
+ *
+ * It read: "no messaging provider is configured, and no code in this
+ * repository delivers a message." The second half is no longer true — the
+ * claimreach-send function exists, re-checks every rule against the database
+ * under a row lock, and sends by email.
+ *
+ * A notice that overstates a limit is not the harmless direction it looks. An
+ * operator reading "no code delivers a message" concludes nothing can escape
+ * this screen and stops treating the controls as live. The truthful statement
+ * is narrower and more useful: the sender exists, it is switched off, and
+ * these are the two switches.
+ */
+/*
+ * UPDATED AGAIN 2026-10-06, for the same reason as last time.
+ *
+ * The constant said "...and no email provider key is configured". A key was
+ * set this session and the sentence carried on asserting the opposite, with
+ * nothing in the system able to notice. That is the third time on this
+ * platform a hardcoded claim has outlived the fact it described — the pricing
+ * page's AI credits and Launch Control's "migration isn't applied" were the
+ * others.
+ *
+ * So it is no longer a constant. `senderStatusNote()` composes the sentence
+ * from what is actually true, and the console asks claimreach-send (which is
+ * the only thing that can see its own secret) for the provider half.
+ */
+
+/** What the console has managed to learn about the sender. */
+export interface SenderStatus {
+  /** RESEND_API_KEY present in the function's environment. */
+  providerConfigured: boolean;
+  claimOutreach: boolean;
+  emailOutreachEnabled: boolean;
+}
+
+/**
+ * The fallback used before the status call returns, or when it fails.
+ *
+ * Deliberately says only what is certain without asking anything: this screen
+ * plans, and a send needs switches somewhere else. It claims nothing about
+ * which specific switch is off, because that is the part that goes stale.
+ */
+export const SENDING_STATUS_UNKNOWN =
+  'This is a plan, not a send. A sender exists (claimreach-send) and is gated behind '
+  + 'feature flags and a provider key — checking which of those are set. Nothing leaves this screen.';
+
+/**
+ * The honest sentence for a known state.
+ *
+ * Lists what is still missing, in the order an operator would fix it, and
+ * says plainly when nothing is missing — because "ready" is a state this
+ * screen has never been able to describe, and the moment it arrives somebody
+ * needs to know that pressing send will now send.
+ */
+export function senderStatusNote(s: SenderStatus): string {
+  const missing: string[] = [];
+  if (!s.providerConfigured) missing.push('an email provider key');
+  if (!s.claimOutreach) missing.push('the claim_outreach flag');
+  if (!s.emailOutreachEnabled) missing.push('the email_outreach_enabled flag');
+
+  if (missing.length === 0) {
+    /*
+     * "Nothing here is switched off" is NOT the same as "mail will arrive",
+     * and this sentence used to conflate them.
+     *
+     * Measured on 2026-10-08: with a valid key set, a real send came back
+     * `resend 403 — The nowopenafrica.com domain is not verified`. A key and
+     * the flags are everything THIS screen can see; the sending domain is
+     * verified at the provider, where it cannot. Say so rather than promise
+     * delivery we cannot vouch for.
+     */
+    return 'Every switch this screen controls is on: a provider key is configured and both '
+      + 'outreach flags are set. A run with dryRun:false WILL attempt real email to real '
+      + 'businesses. Delivery also needs the sending domain verified at the provider, which '
+      + 'is checked with the email self-test in Onboarding messaging, not here.';
+  }
+
+  const list = missing.length === 1
+    ? missing[0]
+    : `${missing.slice(0, -1).join(', ')} and ${missing[missing.length - 1]}`;
+  return `This is a plan, not a send. A sender exists (claimreach-send) but is switched off: `
+    + `${list} ${missing.length === 1 ? 'is' : 'are'} still missing. Nothing leaves this screen.`;
+}
+
+/**
+ * Kept for the plan object, which is produced without a network call.
+ * Prefer senderStatusNote() anywhere the real state is available.
+ */
+export const SENDING_NOT_IMPLEMENTED = SENDING_STATUS_UNKNOWN;
 
 /** One business as the planner sees it. */
 export interface Candidate {
@@ -294,12 +382,38 @@ export function planHeadline(p: Plan): string {
   if (p.wouldSend > 0) {
     return `${p.wouldSend} of ${p.rows.length} would be contacted`
       + (p.deferredByCap ? `, ${p.deferredByCap} more wait for tomorrow's cap.` : '.')
-      + ' Nothing is sent: ClaimReach has no messaging provider.';
+      + ' Nothing is sent from here — this is a plan.';
   }
   const worst = biggestObstacles(p)[0];
-  return worst
-    ? `Nothing can be sent. The largest obstacle is ${worst.code}, affecting ${worst.count} of ${p.rows.length} businesses.`
-    : 'Nothing can be sent.';
+  if (!worst) return 'Nothing can be sent.';
+
+  /*
+   * ── AN UNTICKED BOX IS NOT AN OBSTACLE ───────────────────────────────
+   *
+   * MEASURED 2026-09-23: opening the console reported "Nothing can be sent.
+   * The largest obstacle is approval_required, affecting 3168 of 3168
+   * businesses." Every word true, and the whole sentence misleading — it reads
+   * as a data problem with the directory when it is a checkbox on the same
+   * screen that nobody has ticked yet.
+   *
+   * The distinction matters because the two need opposite responses. A data
+   * blocker is work: find sources, normalise numbers, wait for evidence. An
+   * operator control is one click. Reporting them in the same voice is how a
+   * working tool gets written off as broken, which is exactly what happened.
+   *
+   * Same for `campaign_inactive`: a campaign nobody has started is not a
+   * campaign that cannot run.
+   */
+  const OPERATOR_ACTIONS: Record<string, string> = {
+    approval_required: 'Tick “this batch has been approved by a person” to see who would be contacted.',
+    campaign_inactive: 'This campaign is not active. Activate it to see who would be contacted.',
+  };
+  const action = OPERATOR_ACTIONS[worst.code];
+  if (action && worst.count === p.rows.length) {
+    return `${action} ${worst.count} businesses are waiting on that, and nothing else has been ruled out yet.`;
+  }
+
+  return `Nothing can be sent. The largest obstacle is ${worst.code}, affecting ${worst.count} of ${p.rows.length} businesses.`;
 }
 
 /** Human wording for a blocker code, for the console's summary table. */

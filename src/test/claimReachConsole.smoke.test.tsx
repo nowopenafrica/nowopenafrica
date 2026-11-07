@@ -49,6 +49,15 @@ vi.mock('../lib/supabase', () => {
       neq: vi.fn(() => chain),
       order: vi.fn(() => chain),
       limit: vi.fn(() => chain),
+      /*
+       * The console pages every read with .range() — PostgREST caps responses
+       * at 1,000 rows silently, so a bare .limit() hid two thirds of the
+       * directory. The fake client has to speak it or nothing renders.
+       *
+       * Returning the same rows for any range is fine here: the loop stops on
+       * the first short page, and these fixtures are far under one page.
+       */
+      range: vi.fn(() => chain),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       then: (onF?: any, onR?: any) => Promise.resolve(result).then(onF, onR),
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -103,7 +112,21 @@ describe('ClaimReach console', () => {
     render(<ClaimReachConsole />);
     await waitFor(() => expect(screen.getByText(/ClaimReach dry run/i)).toBeInTheDocument());
 
-    expect(screen.getByText(/It cannot send/i)).toBeInTheDocument();
+    /*
+     * The wording changed on 2026-09-23: a sender (claimreach-send) now
+     * exists, so "no code delivers a message" had become false. What must stay
+     * true is that NOTHING LEAVES THIS SCREEN — asserted on that, plus the
+     * named switches, rather than on a sentence that has to age.
+     */
+    expect(screen.getByText(/not a send|nothing leaves this screen/i)).toBeInTheDocument();
+    /*
+     * The banner's job is to stop an operator believing a send is imminent.
+     * Before the status call returns it says it is checking rather than
+     * naming a switch it has not read — so this asserts the promise that
+     * holds in every state.
+     */
+    expect(screen.getByText(/not a send/i)).toBeInTheDocument();
+    expect(screen.getByText(/nothing leaves this screen/i)).toBeInTheDocument();
 
     // No control anywhere that reads as dispatching a message.
     for (const button of screen.getAllByRole('button')) {
@@ -118,7 +141,13 @@ describe('ClaimReach console', () => {
      */
     render(<ClaimReachConsole />);
     await waitFor(() => expect(screen.getByText(/No recorded source for this contact/i)).toBeInTheDocument());
-    expect(screen.getByText(/Nothing can be sent/i)).toBeInTheDocument();
+    /*
+     * The headline no longer says "Nothing can be sent" when the top blocker
+     * is the unticked approval box — that framed an operator control as a data
+     * problem. Either wording is correct here; what matters is that zero would
+     * be contacted, which the count states.
+     */
+    expect(screen.getByText(/waiting on that|Nothing can be sent/i)).toBeInTheDocument();
   });
 
   it('treats a failed suppression check as "nobody is contactable"', async () => {
@@ -178,9 +207,17 @@ describe('ClaimReach console', () => {
 
     render(<ClaimReachConsole />);
 
-    // Still blocked — but on the provider, which is the honest remaining reason.
-    await waitFor(() => expect(screen.getByText(/No sms provider is configured/i)).toBeInTheDocument());
+    /*
+     * `sms` is no longer a default channel — it has no provider on this
+     * platform, and preselecting it refused 2,606 businesses for a reason the
+     * operator could not act on. The point of THIS test is the confidence
+     * upgrade, so it asserts that: the row is no longer refused on confidence,
+     * because the evidence says source_confirmed even though the stored column
+     * still says unconfirmed.
+     */
+    await waitFor(() => expect(screen.getByText(/ClaimReach dry run/i)).toBeInTheDocument());
     expect(screen.queryByText(/this campaign requires source_confirmed/i)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Data confidence below what the campaign requires/i)).not.toBeInTheDocument();
   });
 
   it('takes configured channels from feature_flags, so the sms refusal reflects reality', async () => {

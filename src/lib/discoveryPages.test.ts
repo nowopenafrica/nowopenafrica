@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   discoveryPages, discoveryTitle, matchesPage, placeOf, slugify,
-  MIN_LISTINGS_PER_PAGE,
+  relatedPlaces, MIN_LISTINGS_PER_PAGE,
 } from './discoveryPages';
 
 // These pages ARE the organic growth surface, so the rule that creates them is
@@ -84,5 +84,97 @@ describe('discoveryPages', () => {
     expect(matchesPage(l, 'nairobi', 'salon-barber')).toBe(true);
     expect(matchesPage(l, 'nairobi', 'restaurant')).toBe(false);
     expect(matchesPage(l, 'lagos')).toBe(false);
+  });
+});
+
+describe('relatedPlaces — where else a discovery page sends you', () => {
+  /*
+   * Rebuilt from what /businesses/in/lagos actually linked to on 2026-09-14,
+   * including the two links that pointed at pages the site answers `noindex`.
+   */
+  const at = (place: string, n: number) =>
+    Array.from({ length: n }, () => ({ location: `${place}, Nigeria` }));
+
+  const directory = [
+    ...at('Lagos', 40),
+    ...at('Abuja', 12),
+    ...at('Kaduna', 7),
+    ...at('Calabar', 4),
+    // Below MIN_LISTINGS_PER_PAGE: a real town, but its page is thin.
+    ...at('Ikotun', 2),
+    // A street address that reached the place taxonomy through
+    // location.split(',')[0]. One listing, because a doorway has one.
+    ...at('3, Lekki Road', 1),
+  ];
+
+  it('never links to a place too thin to have a page', () => {
+    const out = relatedPlaces(directory, 'lagos');
+    const paths = out.map((p) => p.path);
+    // The two measured failures, by name.
+    expect(paths).not.toContain('/businesses/in/ikotun');
+    expect(paths).not.toContain('/businesses/in/3-lekki-road');
+  });
+
+  it('uses the same threshold the sitemap builds pages from', () => {
+    /*
+     * The invariant that matters: every place linked to must also be a place
+     * discoveryPages() would create. A link to an unsubmitted, noindex page
+     * spends crawl budget to say "never mind".
+     */
+    const pages = new Set(
+      discoveryPages(directory.map((l) => ({ ...l, category: 'Restaurants' })))
+        .filter((p) => p.kind === 'place')
+        .map((p) => `/${p.path}`),
+    );
+    for (const p of relatedPlaces(directory, 'lagos')) {
+      expect(pages, p.path).toContain(p.path);
+    }
+  });
+
+  it('puts the densest place first', () => {
+    // The best destination, and the one whose link is worth the most.
+    const out = relatedPlaces(directory, 'lagos');
+    expect(out[0].path).toBe('/businesses/in/abuja');
+    expect(out.map((p) => p.count)).toEqual([...out.map((p) => p.count)].sort((a, b) => b - a));
+  });
+
+  it('never links a page to itself', () => {
+    expect(relatedPlaces(directory, 'lagos').map((p) => p.path))
+      .not.toContain('/businesses/in/lagos');
+  });
+
+  it('is stable — the same input gives the same order every time', () => {
+    /*
+     * The read behind this was unordered, so the eight links changed between
+     * cache refreshes and none of them ever accumulated value. Ties break on
+     * the slug for exactly this reason.
+     */
+    const tied = [...at('Kano', 5), ...at('Ibadan', 5), ...at('Enugu', 5)];
+    const once = relatedPlaces(tied, 'lagos').map((p) => p.path);
+    const again = relatedPlaces([...tied].reverse(), 'lagos').map((p) => p.path);
+    expect(again).toEqual(once);
+    expect(once).toEqual([
+      '/businesses/in/enugu', '/businesses/in/ibadan', '/businesses/in/kano',
+    ]);
+  });
+
+  it('honours the limit', () => {
+    const many = Array.from({ length: 20 }, (_, i) => at(`Town${i}`, 5)).flat();
+    expect(relatedPlaces(many, 'lagos')).toHaveLength(8);
+    expect(relatedPlaces(many, 'lagos', 3)).toHaveLength(3);
+  });
+
+  it('ignores listings with no usable place', () => {
+    const messy = [
+      ...at('Abuja', 5),
+      { location: null }, { location: '' }, { location: '   ' }, { location: ',,,' },
+    ];
+    expect(relatedPlaces(messy, 'lagos').map((p) => p.path)).toEqual(['/businesses/in/abuja']);
+  });
+
+  it('returns nothing rather than something thin', () => {
+    // An empty directory links nowhere. Eight links to nothing is worse.
+    expect(relatedPlaces([], 'lagos')).toEqual([]);
+    expect(relatedPlaces(at('Jos', MIN_LISTINGS_PER_PAGE - 1), 'lagos')).toEqual([]);
   });
 });

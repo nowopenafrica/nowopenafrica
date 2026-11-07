@@ -90,18 +90,49 @@ vi.mock('../lib/supabase', () => {
   const q = (table: string) => {
     const data = tableData[table] ?? [];
     const result = { data, error: null };
+    const state = { head: false };
     const chain: any = {
-      select: vi.fn(() => chain),
+      /*
+       * `select` also answers a head:true count, because both screens now ask
+       * the database how many rows exist rather than counting what arrived.
+       */
+      select: vi.fn((_cols?: string, opts?: { count?: string; head?: boolean }) => {
+        // Sticky, because the client accumulates on the builder: a count asked
+        // for here must survive the `.in()` and `.order()` that follow it.
+        if (opts?.head) state.head = true;
+        return chain;
+      }),
       eq: vi.fn(() => chain),
       in: vi.fn(() => chain),
+      not: vi.fn(() => chain),
       order: vi.fn(() => chain),
       limit: vi.fn(() => chain),
+      /*
+       * `range` must actually slice. A mock that returns every row for every
+       * page turns a paging loop into an infinite one — and a mock that cannot
+       * express paging is how the 1,000-row cap went unnoticed in the first
+       * place. Both screens page now, so the mock has to page too.
+       */
+      range: vi.fn((from: number, to: number) => {
+        const page = Array.isArray(data) ? data.slice(from, to + 1) : data;
+        const paged = { data: page, error: null };
+        return {
+          ...chain,
+          then: (onF?: any, onR?: any) => Promise.resolve(paged).then(onF, onR),
+          catch: (onR?: any) => Promise.resolve(paged).catch(onR),
+          finally: (onF?: any) => Promise.resolve(paged).finally(onF),
+        };
+      }),
       maybeSingle: vi.fn(async () => ({
         data: Array.isArray(data) ? data[0] ?? null : data ?? null,
         error: null,
       })),
       insert: vi.fn(async () => ({ error: null })),
-      then: (onF?: any, onR?: any) => Promise.resolve(result).then(onF, onR),
+      then: (onF?: any, onR?: any) => Promise.resolve(
+        state.head
+          ? { data: null, error: null, count: Array.isArray(data) ? data.length : 0 }
+          : result,
+      ).then(onF, onR),
       catch: (onR?: any) => Promise.resolve(result).catch(onR),
       finally: (onF?: any) => Promise.resolve(result).finally(onF),
     };

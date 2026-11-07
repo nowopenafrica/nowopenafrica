@@ -32,9 +32,11 @@ const raw: CommandRaw = {
 };
 
 describe('adminCreator — section map', () => {
-  it('covers all 32 roadmap sections across the seven groups', () => {
-    expect(ADMIN_SECTIONS).toHaveLength(32);
-    expect(new Set(ADMIN_SECTIONS.map((s) => s.id)).size).toBe(32);
+  it('covers all 35 roadmap sections across the seven groups', () => {
+    expect(ADMIN_SECTIONS).toHaveLength(35);
+    /* Unique ids: the shell resolves the active module by id, so a
+       duplicate would silently render the wrong department. */
+    expect(new Set(ADMIN_SECTIONS.map((s) => s.id)).size).toBe(35);
     ADMIN_GROUPS.forEach((g) => expect(ADMIN_SECTIONS.some((s) => s.group === g)).toBe(true));
   });
 

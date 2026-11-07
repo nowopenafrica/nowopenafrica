@@ -214,7 +214,19 @@ describe('the plan is reproducible', () => {
 describe('what the console shows an operator', () => {
   it('always carries the note that nothing can be sent', () => {
     expect(plan([], settings()).note).toBe(SENDING_NOT_IMPLEMENTED);
-    expect(SENDING_NOT_IMPLEMENTED).toMatch(/cannot send/);
+    /*
+     * Assert the GUARANTEE, not the wording.
+     *
+     * This previously required the phrase "switched off", which pinned a
+     * sentence that had already gone stale once ("no email provider key is
+     * configured", after a key was set). The note is now composed from the
+     * real state, so what must hold is its meaning: this screen plans, and
+     * nothing leaves it.
+     */
+    expect(SENDING_NOT_IMPLEMENTED).toMatch(/not a send/i);
+    expect(SENDING_NOT_IMPLEMENTED).toMatch(/nothing leaves this screen/i);
+    // And it must not assert a specific switch it has not checked.
+    expect(SENDING_NOT_IMPLEMENTED).not.toMatch(/no email provider key is configured/i);
   });
 
   it('names the largest obstacle rather than reporting a bare zero', () => {
@@ -226,8 +238,42 @@ describe('what the console shows an operator', () => {
   });
 
   it('says plainly that nothing is sent even when the plan is full', () => {
+    /*
+     * Asserted on the MEANING, not the old sentence. The wording changed on
+     * 2026-09-23 when a sender was actually built: claiming "no code delivers
+     * a message" had become false, and a notice that overstates a limit makes
+     * an operator stop treating the controls as live.
+     */
     expect(planHeadline(plan([candidate('b1')], settings())))
-      .toMatch(/no messaging provider/);
+      .toMatch(/nothing is sent|not a send|this is a plan/i);
+  });
+
+  it('tells the operator to tick the box rather than blaming the data', () => {
+    /*
+     * MEASURED 2026-09-23: the console opened with "Nothing can be sent. The
+     * largest obstacle is approval_required, affecting 3168 of 3168
+     * businesses." True, and read as a broken directory — when it was an
+     * unticked checkbox on the same screen.
+     *
+     * A data blocker is work; an operator control is one click. Reporting both
+     * in the same voice is how a working tool gets written off.
+     */
+    // The console's real default: a campaign that requires a human to approve
+    // each batch, with nobody having approved yet.
+    const base = settings();
+    const p = plan([candidate('b1'), candidate('b2')], {
+      ...base,
+      campaign: { ...base.campaign, approvalMode: 'manual', approved: false },
+    });
+    const head = planHeadline(p);
+    expect(head).toMatch(/tick/i);
+    expect(head).not.toMatch(/Nothing can be sent/);
+  });
+
+  it('still says nothing can be sent for a real data obstacle', () => {
+    // The softer wording applies ONLY to controls the operator can flip.
+    const p = plan([candidate('b1', { contacts: [] }), candidate('b2', { contacts: [] })], settings());
+    expect(planHeadline(p)).toMatch(/Nothing can be sent/);
   });
 
   it('ranks obstacles by how many businesses they stop', () => {

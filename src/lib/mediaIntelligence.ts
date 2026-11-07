@@ -95,7 +95,17 @@ export function mediaReviewPatch(
 
 /** The only fields the public profile page needs from the registry — RLS lets
  *  it read published rows, and this is exactly the shape its query asks for. */
-export type MediaAssetLite = Pick<MediaAssetRow, 'asset_type' | 'caption' | 'source_uri' | 'status'>;
+export type MediaAssetLite = Pick<MediaAssetRow, 'asset_type' | 'caption' | 'source_uri' | 'status' | 'created_at'>;
+
+/** Newest first, by the row's created_at.
+ *
+ *  A gallery is a timeline, and posts belong on it in the order they were
+ *  added — the newest at the top. Items without a timestamp (demo placeholder
+ *  tiles) compare equal and keep their relative order at the end, because a
+ *  stable sort leaves them exactly where the caller put them. */
+export function sortMediaNewestFirst<T extends { created_at?: string | null }>(items: readonly T[]): T[] {
+  return [...items].sort((a, b) => (b.created_at ?? '').localeCompare(a.created_at ?? ''));
+}
 
 /** First published URL for a type, owner content still wins where it exists.
  *  Callers decide how the URL renders; e.g. only treat it as a cover/logo when

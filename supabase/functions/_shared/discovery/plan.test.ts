@@ -1,4 +1,24 @@
 import { describe, it, expect } from 'vitest';
+/*
+ * ── WHY THESE ASSERT AGAINST THE MAP, NOT AGAINST LITERALS ──────────────
+ *
+ * This file used to hardcode the ids: `['Q8673', 'Q1700']` for Lagos+Abuja,
+ * `['Q8673', 'Q15624']` for Lagos+Port Harcourt, `['Q3719']` for Dakar.
+ *
+ * Every one of those was WRONG, and the tests passed for months because they
+ * asserted the same wrong constant the source held. Q1700 is Münsterland in
+ * Germany; Q15624 is Molins de Rei in Catalonia; Q3719 is the US National
+ * Register of Historic Places. A campaign scoped to Port Harcourt harvested
+ * Catalan buildings, fifteen of which reached the live directory.
+ *
+ * A test that repeats a constant proves only that the constant has not
+ * changed. Whether an id names the place it claims to is a question for
+ * Wikidata, and it is asked by `npm run check:place-qids` — which is why that
+ * script exists rather than more assertions here. These now check the PLUMBING
+ * (that the named city resolves to whatever the map holds) and leave the
+ * correctness of the map to the thing that can actually verify it.
+ */
+import { PLACE_QIDS } from './plan.ts';
 import { buildPlan, recordMatchesFilters, PLACE_QIDS, COUNTRY_QIDS, DEFAULT_RUN_BUDGET, MAX_RUN_BUDGET } from './plan';
 
 const request = (over: Partial<Parameters<typeof buildPlan>[0]> = {}): Parameters<typeof buildPlan>[0] => ({
@@ -22,7 +42,7 @@ describe('buildPlan geography', () => {
 
   it('maps known cities to place scopes and known countries to the fallback scope', () => {
     const p = buildPlan(request({ cities: ['Lagos', 'Abuja'], countries: ['Ghana'] }));
-    expect(p.placeQids).toEqual(['Q8673', 'Q1700']);
+    expect(p.placeQids).toEqual(['Q8673', PLACE_QIDS.Abuja]);
     // countryQid is always resolved from a known country so a run that falls
     // back (e.g. only unknown cities later) lands somewhere truthful.
     expect(p.countryQid).toBe('Q117');
@@ -35,14 +55,14 @@ describe('buildPlan geography', () => {
 
   it('never guesses a QID that is not on the map', () => {
     const p = buildPlan(request({ cities: ['Dakar', 'Unknown Town'] }));
-    expect(p.placeQids).toEqual(['Q3719']);
+    expect(p.placeQids).toEqual([PLACE_QIDS.Dakar]);
     expect(p.countryQid).toBe('Q1033');
   });
 
   it('carries the names alongside the QIDs so OSM scopes resolve', () => {
     const p = buildPlan(request({ cities: ['Lagos', 'Port Harcourt'], countries: ['Ghana'] }));
     expect(p.placeNames).toEqual(['Lagos', 'Port Harcourt']);
-    expect(p.placeQids).toEqual(['Q8673', 'Q15624']);
+    expect(p.placeQids).toEqual(['Q8673', PLACE_QIDS['Port Harcourt']]);
     expect(p.countryName).toBe('Ghana');
     expect(p.countryQid).toBe('Q117');
   });
@@ -153,5 +173,49 @@ describe('recordMatchesFilters', () => {
     // min_confidence is deferring to the review queue — the worker must NOT
     // drop records on it here.
     expect(recordMatchesFilters(record, { min_confidence: 99 }).keep).toBe(true);
+  });
+});
+/*
+ * ── A COUNTRY NAMED AND NOT UNDERSTOOD ───────────────────────────────────
+ *
+ * MEASURED 2026-10-06: the live campaign stored `countries: ['NG']` while
+ * COUNTRY_QIDS is keyed by full names. Nothing matched, the fallback made it
+ * Nigeria, and the campaign swept the right country entirely by luck.
+ *
+ * The same campaign scoped to Ghana as ['GH'] would have swept NIGERIA and
+ * staged Nigerian businesses under a Ghanaian campaign — reporting success
+ * throughout. Same shape as the Wikidata id that turned Port Harcourt into a
+ * town in Catalonia.
+ */
+describe('an unresolved country is reported, not silently swapped', () => {
+  it('reports a country code it cannot resolve', () => {
+    const plan = buildPlan({
+      sourceKeys: ['wikidata'], cities: [], regions: [], countries: ['GH'],
+      categories: [], filters: {}, maxRecords: 10, dailyLimit: 10,
+    });
+    expect(plan.unmatchedCountries).toEqual(['GH']);
+  });
+
+  it('resolves a full country name and reports nothing unmatched', () => {
+    const plan = buildPlan({
+      sourceKeys: ['wikidata'], cities: [], regions: [], countries: ['Ghana'],
+      categories: [], filters: {}, maxRecords: 10, dailyLimit: 10,
+    });
+    expect(plan.unmatchedCountries).toEqual([]);
+    expect(plan.countryName).toBe('Ghana');
+    // And it is actually Ghana, not the Nigeria fallback wearing the name.
+    expect(plan.countryQid).toBe(COUNTRY_QIDS['Ghana']);
+  });
+
+  it('does not treat "no country named" as an error', () => {
+    // Nigeria is the launch market and a legitimate default when nobody asked
+    // for anywhere. It is only wrong as a substitute for a country that WAS
+    // asked for.
+    const plan = buildPlan({
+      sourceKeys: ['wikidata'], cities: ['Lagos'], regions: [], countries: [],
+      categories: [], filters: {}, maxRecords: 10, dailyLimit: 10,
+    });
+    expect(plan.unmatchedCountries).toEqual([]);
+    expect(plan.countryName).toBe('Nigeria');
   });
 });

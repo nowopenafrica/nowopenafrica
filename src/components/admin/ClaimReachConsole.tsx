@@ -3,7 +3,8 @@ import { RefreshCw, ShieldAlert, Radio } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
 import {
-  plan, planHeadline, biggestObstacles, BLOCKER_LABELS, SENDING_NOT_IMPLEMENTED,
+  plan, planHeadline, biggestObstacles, BLOCKER_LABELS,
+  SENDING_STATUS_UNKNOWN, senderStatusNote, type SenderStatus,
   type Candidate, type PlanSettings, type PlanRow,
 } from '../../lib/claimreach/dryRun';
 import { effectiveDataConfidence, type Channel, type DataConfidence } from '../../lib/claimreach/sendGate';
@@ -51,6 +52,18 @@ const CONFIDENCES: DataConfidence[] = [
 ];
 
 /** Evidence statuses that count as "this field has a source" (§7). */
+/**
+ * PostgREST returns at most 1,000 rows per request, silently.
+ *
+ * Every read below therefore pages with `.range()` rather than trusting a
+ * `.limit()` — a larger limit does not raise the ceiling, it just hides it.
+ */
+const PAGE = 1000;
+/** Safety stops, so a runaway loop cannot walk a table for ever. */
+const MAX_BUSINESSES = 20000;
+const MAX_EVIDENCE = 60000;
+const MAX_OUTREACH = 20000;
+
 const SOURCED_STATUSES = [
   'owner_confirmed', 'admin_verified', 'source_confirmed', 'multiple_sources', 'single_source',
 ];
@@ -86,6 +99,54 @@ const OUTCOME_LABEL: Record<PlanRow['outcome'], string> = {
 };
 
 export default function ClaimReachConsole() {
+  /*
+   * ── ASK THE SENDER WHETHER IT CAN SEND ─────────────────────────────────
+   *
+   * This banner used to be a constant ending "...and no email provider key is
+   * configured". A key was set and the sentence kept asserting the opposite,
+   * because nothing could notice: a browser cannot read an edge-function
+   * secret.
+   *
+   * So the function that holds the secret reports on itself. `?status=1` is
+   * admin-authenticated, returns booleans only, and has no path to sending.
+   * `null` means the answer has not arrived — the banner then says it is
+   * checking rather than guessing.
+   */
+  const [senderStatus, setSenderStatus] = useState<SenderStatus | null>(null);
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      /*
+       * The WHOLE body is guarded, not just the fetch.
+       *
+       * The first version wrapped only the network call, so a failure in
+       * getSession() escaped as an unhandled rejection — caught by the test
+       * run, and in production it would be an auth hiccup taking out a
+       * console that was merely trying to read a status line. A status check
+       * must never be able to break the screen it annotates.
+       */
+      try {
+        const { data } = await supabase.auth.getSession();
+        const session = data?.session;
+        if (!session?.access_token) return;
+        const res = await fetch(
+          `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/claimreach-send?status=1`,
+          { headers: { Authorization: `Bearer ${session.access_token}` } },
+        );
+        const body = await res.json();
+        if (!alive || !body?.ok) return;
+        setSenderStatus({
+          providerConfigured: Boolean(body.providerConfigured),
+          claimOutreach: Boolean(body.flags?.claim_outreach),
+          emailOutreachEnabled: Boolean(body.flags?.email_outreach_enabled),
+        });
+      } catch {
+        /* Leave it unknown — the banner says so rather than inventing a state. */
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
   const [businesses, setBusinesses] = useState<BusinessRow[]>([]);
   const [provenance, setProvenance] = useState<Map<string, Set<string>>>(new Map());
   const [evidenceStatuses, setEvidenceStatuses] = useState<Map<string, Set<string>>>(new Map());
@@ -106,8 +167,37 @@ export default function ClaimReachConsole() {
   const [unavailable, setUnavailable] = useState(false);
 
   // The hypothetical campaign.
-  const [channels, setChannels] = useState<Channel[]>(['whatsapp', 'sms']);
-  const [minConfidence, setMinConfidence] = useState<DataConfidence>('source_confirmed');
+  /*
+   * ── DEFAULTS THAT DESCRIBE THIS PLATFORM, NOT A HYPOTHETICAL ONE ───────
+   *
+   * MEASURED 2026-09-23. Opening this console produced:
+   *
+   *   "Nothing can be sent. The largest obstacle is confidence_below_threshold,
+   *    affecting 3168 of 3168 businesses."
+   *
+   * Nothing was broken. The defaults were simply wrong for the data:
+   *
+   *   · `email` was NOT preselected — the one channel with both a configured
+   *     provider and real reach (436 businesses hold a sourced address).
+   *   · `sms` WAS preselected, and has no provider at all, so every business
+   *     whose best channel resolved to sms was refused.
+   *   · minimum confidence defaulted to `source_confirmed`, while the evidence
+   *     ledger holds `single_source` rows — which support `partially_confirmed`
+   *     and nothing higher. So every business on file failed the threshold.
+   *
+   * Correcting only those three, the same data reports 200 contactable now and
+   * 273 more waiting on the daily cap. The tool worked; it opened describing a
+   * platform we do not have, and read as broken.
+   *
+   * These remain defaults, not decisions — every one is still adjustable above.
+   */
+  const [channels, setChannels] = useState<Channel[]>(['whatsapp', 'email']);
+  /*
+   * `partially_confirmed` is the highest tier `single_source` evidence honestly
+   * supports (see EVIDENCE_TO_CONFIDENCE in sendGate). Defaulting above it
+   * refuses everything and blames the data rather than the setting.
+   */
+  const [minConfidence, setMinConfidence] = useState<DataConfidence>('partially_confirmed');
   const [dailyCap, setDailyCap] = useState(200);
   const [quietFrom, setQuietFrom] = useState(20);
   const [quietTo, setQuietTo] = useState(8);
@@ -127,35 +217,78 @@ export default function ClaimReachConsole() {
      * read is checked. A .catch() here would never fire and the screen would
      * render an empty plan as though the platform had no businesses.
      */
-    const biz = await supabase
-      .from('businesses')
-      .select('id,name,claim_status,data_confidence,phone,whatsapp,email')
-      .order('name')
-      .limit(1000);
+    /*
+     * ── PAGED, AND UNCLAIMED ONLY ────────────────────────────────────────
+     *
+     * MEASURED 2026-09-23: 3,168 unclaimed businesses. This read `.limit(1000)`
+     * — and PostgREST caps every response at 1,000 rows ANYWAY, silently, so
+     * even raising the number would have changed nothing. Two thirds of the
+     * directory was invisible to the console that decides who gets contacted.
+     *
+     * Filtered to unclaimed in the query too: ClaimReach exists to reach
+     * businesses that have not claimed their profile, and a claimed one is
+     * blocked by the gate a moment later regardless. Fetching them was work
+     * done to throw away.
+     */
+    const rows: BusinessRow[] = [];
+    let bizFailed: string | null = null;
+    for (let from = 0; from < MAX_BUSINESSES; from += PAGE) {
+      const biz = await supabase
+        .from('businesses')
+        .select('id,name,claim_status,data_confidence,phone,whatsapp,email')
+        .neq('claim_status', 'claimed')
+        .order('id')
+        .range(from, from + PAGE - 1);
+      if (biz.error) { bizFailed = biz.error.message; break; }
+      const batch = (biz.data as BusinessRow[]) ?? [];
+      rows.push(...batch);
+      // A short page is the last page.
+      if (batch.length < PAGE) break;
+    }
 
-    if (biz.error) {
-      setProblem(`Could not read businesses: ${biz.error.message}`);
+    if (bizFailed) {
+      setProblem(`Could not read businesses: ${bizFailed}`);
       setBusinesses([]);
       setUnavailable(true);
       setLoading(false);
       return;
     }
-    const rows = (biz.data as BusinessRow[]) ?? [];
     setBusinesses(rows);
 
     // Field-level provenance. A missing table is a real answer — no evidence
     // has been recorded — so it is reported, not treated as an outage.
-    const ev = await supabase
-      .from('business_evidence')
-      .select('business_id,field_name,status')
-      .in('field_name', ['phone', 'whatsapp', 'email'])
-      .in('status', SOURCED_STATUSES)
-      .limit(20000);
+    /*
+     * ── THE READ THAT BLOCKED EVERYBODY ──────────────────────────────────
+     *
+     * MEASURED 2026-09-23: 3,487 evidence rows match this filter. The query
+     * asked for `.limit(20000)` and received 1,000 — PostgREST's ceiling,
+     * applied silently and with no error. So ~2,500 businesses that DO have a
+     * sourced phone number looked to the gate as though they had none, and
+     * were refused with `contact_no_provenance`.
+     *
+     * The gate was right; the data it was given was wrong. That is the worst
+     * shape this can take, because the refusal reads as careful compliance.
+     */
+    const evidenceRows: { business_id: string; field_name: string; status: string }[] = [];
+    let evFailed = false;
+    for (let from = 0; from < MAX_EVIDENCE; from += PAGE) {
+      const ev = await supabase
+        .from('business_evidence')
+        .select('business_id,field_name,status')
+        .in('field_name', ['phone', 'whatsapp', 'email'])
+        .in('status', SOURCED_STATUSES)
+        .order('id')
+        .range(from, from + PAGE - 1);
+      if (ev.error) { evFailed = true; break; }
+      const batch = (ev.data as { business_id: string; field_name: string; status: string }[]) ?? [];
+      evidenceRows.push(...batch);
+      if (batch.length < PAGE) break;
+    }
 
     const byBusiness = new Map<string, Set<string>>();
     const statusesByBusiness = new Map<string, Set<string>>();
-    if (!ev.error) {
-      for (const r of (ev.data as { business_id: string; field_name: string; status: string }[]) ?? []) {
+    if (!evFailed) {
+      for (const r of evidenceRows) {
         const set = byBusiness.get(r.business_id) ?? new Set<string>();
         set.add(r.field_name);
         byBusiness.set(r.business_id, set);
@@ -168,11 +301,24 @@ export default function ClaimReachConsole() {
     setEvidenceStatuses(statusesByBusiness);
 
     // Prior attempts, so the frequency rules are answered from the record.
-    const out = await supabase
-      .from('claimreach_outreach')
-      .select('business_id,channel,created_at')
-      .limit(5000);
-    setOutreach(out.error ? [] : ((out.data as OutreachRow[]) ?? []));
+    /*
+     * Prior attempts, paged for the same reason. Under-reading these is the
+     * dangerous direction: an unseen attempt means the frequency rules pass
+     * and somebody is contacted twice.
+     */
+    const attempts: OutreachRow[] = [];
+    for (let from = 0; from < MAX_OUTREACH; from += PAGE) {
+      const out = await supabase
+        .from('claimreach_outreach')
+        .select('business_id,channel,created_at')
+        .order('created_at', { ascending: false })
+        .range(from, from + PAGE - 1);
+      if (out.error) break;
+      const batch = (out.data as OutreachRow[]) ?? [];
+      attempts.push(...batch);
+      if (batch.length < PAGE) break;
+    }
+    setOutreach(attempts);
 
     /*
      * Which channels the platform says are set up. Absent means NOT configured,
@@ -328,7 +474,9 @@ export default function ClaimReachConsole() {
       {/* Said first, and unmissable. */}
       <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:bg-amber-900/20 dark:border-amber-700 p-3">
         <ShieldAlert size={18} className="text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
-        <p className="text-sm text-amber-900 dark:text-amber-100">{SENDING_NOT_IMPLEMENTED}</p>
+        <p className="text-sm text-amber-900 dark:text-amber-100">
+          {senderStatus ? senderStatusNote(senderStatus) : SENDING_STATUS_UNKNOWN}
+        </p>
       </div>
 
       {problem && (

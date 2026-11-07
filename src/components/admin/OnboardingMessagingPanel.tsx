@@ -30,7 +30,7 @@ import { invokeSendOnboarding } from '../../lib/onboarding';
  * function rejects non-admins with 403) and the tab is hidden from editors.
  */
 
-type Channel = 'whatsapp' | 'instagram';
+type Channel = 'whatsapp' | 'instagram' | 'email';
 
 type SendStatus =
   | 'sent' | 'no_phone' | 'blocked' | 'suppressed' | 'needs_provider'
@@ -76,6 +76,27 @@ interface ManualRow {
   error: string | null;
   created_at: string;
   sent_at: string | null;
+  /*
+   * What Meta said AFTER accepting. NULL means genuinely unknown — either the
+   * send predates delivery tracking, or no webhook has arrived yet. It must
+   * never render as "delivered".
+   */
+  email: string | null;
+  delivery_status: string | null;
+  failure_detail: string | null;
+  /** Our next step, for failure codes we recognise. NULL otherwise — we do not guess. */
+  failure_advice: string | null;
+}
+
+interface InboundReply {
+  id: string;
+  from_phone: string;
+  sender_name: string | null;
+  body: string | null;
+  reference: string | null;
+  business_id: string | null;
+  business_name: string | null;
+  received_at: string;
 }
 
 interface PipelineStatus {
@@ -107,6 +128,12 @@ interface ChannelPreview {
 interface PreviewInfo {
   whatsapp: ChannelPreview;
   instagram: Pick<ChannelPreview, 'text' | 'providerConfigured'>;
+  /*
+   * The brand-kit email. Missing from the preview entirely until 2026-10-10,
+   * so the panel promised "exactly what this recipient receives" and showed
+   * nothing for the one channel that can currently deliver.
+   */
+  email?: { subject: string; html: string; providerConfigured: boolean };
 }
 
 const RETRYABLE = new Set(['queued', 'needs_provider', 'needs_template']);
@@ -127,7 +154,41 @@ const STATUS_TONE: Record<string, string> = {
 const CHANNEL_LABEL: Record<string, string> = {
   whatsapp: 'WA',
   instagram: 'IG',
+  email: 'EMAIL',
 };
+
+/*
+ * Delivery is a different fact from sending.
+ *
+ * `sent` means the Cloud API accepted the request — nothing more. A manual
+ * send to a number with no country code was recorded `sent` on 2026-10-10 and
+ * could never have arrived. This chip reports Meta's own later verdict, and
+ * says "unconfirmed" when there is none rather than letting `sent` imply one.
+ */
+const DELIVERY_TONE: Record<string, string> = {
+  delivered: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-200',
+  read: 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-100',
+  failed: 'bg-rose-100 text-rose-700 dark:bg-rose-900/40 dark:text-rose-200',
+  accepted: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200',
+};
+
+function DeliveryChip({ status, sent }: { status: string | null; sent: boolean }) {
+  if (!sent) return null;
+  const label = status ?? 'unconfirmed';
+  const tone = status
+    ? DELIVERY_TONE[status] ?? 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'
+    : 'bg-gray-100 text-gray-500 dark:bg-gray-700 dark:text-gray-400';
+  return (
+    <span
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-medium ${tone}`}
+      title={status
+        ? `Meta reports this message as ${status}.`
+        : 'Meta has not reported on this message. "Sent" only means the API accepted it.'}
+    >
+      {label}
+    </span>
+  );
+}
 
 function StatusChip({ status }: { status: string }) {
   return (
@@ -135,6 +196,58 @@ function StatusChip({ status }: { status: string }) {
       {status}
     </span>
   );
+}
+
+/** What the probe found, or that it could not be reached. */
+type EmailProbe =
+  | { unreachable: true; configured?: undefined; from?: undefined; canSendTo?: undefined }
+  | { unreachable?: false; configured: boolean; from: string | null; canSendTo: string | null };
+
+/** What Meta says about the WhatsApp token. Read-only: this never sends. */
+interface WhatsAppProbe {
+  unreachable?: boolean;
+  missing?: string[];
+  warnings?: string[];
+  readyToSend?: boolean;
+  productionReady?: boolean;
+  /** Caps the account without stopping it — shown, but does not make it 'not ready'. */
+  advisories?: string[];
+  deliveryWebhook?: {
+    appSecretSet: boolean;
+    verifyTokenSet: boolean;
+    /** null means the subscription list could not be read — NOT that it is missing. */
+    wabaSubscribed: boolean | null;
+    note: string;
+  };
+  token?: { hoursLeft: number | null; neverExpires: boolean; type: string | null };
+}
+
+/** What Meta says about the Instagram token. Read-only: this never DMs. */
+interface InstagramProbe {
+  unreachable?: boolean;
+  /**
+   * false when Meta refused the token outright.
+   *
+   * Carried because this screen had no way to say it: a refused token
+   * rendered as "unknown token" above empty lists, which looks like nothing
+   * much rather than like Instagram being off.
+   */
+  ok?: boolean;
+  reason?: string;
+  warnings?: string[];
+  token?: { type: string | null; scopes?: string[] };
+  discovery?: string[];
+  dm?: { missingScopes?: string[]; repliesPossible?: boolean };
+  extractor?: { missingScopes?: string[]; thisTokenCouldPowerIt?: boolean; proof?: { detail: string } };
+}
+
+/** The outcome of an actual send. `providerMessage` is Resend's own sentence. */
+interface EmailTestResult {
+  ok: boolean;
+  reason?: string;
+  to?: string;
+  from?: string;
+  providerMessage?: string | null;
 }
 
 function SetupRow({ title, detail, ok, unknown }: { title: string; detail: string; ok?: boolean; unknown?: boolean }) {
@@ -165,7 +278,8 @@ export default function OnboardingMessagingPanel() {
   const [businessName, setBusinessName] = useState('');
   const [phone, setPhone] = useState('');
   const [handle, setHandle] = useState('');
-  const [selection, setSelection] = useState<'whatsapp' | 'instagram' | 'both'>('whatsapp');
+  const [selection, setSelection] = useState<'whatsapp' | 'instagram' | 'both' | 'email'>('whatsapp');
+  const [sendEmailTo, setSendEmailTo] = useState('');
   const [ownerName, setOwnerName] = useState('');
   const [profileUrl, setProfileUrl] = useState('');
   const [sending, setSending] = useState(false);
@@ -174,6 +288,13 @@ export default function OnboardingMessagingPanel() {
   const [pipeline, setPipeline] = useState<PipelineStatus | null>(null);
   const [autoRows, setAutoRows] = useState<AutoRow[] | null>(null);
   const [manualRows, setManualRows] = useState<ManualRow[] | null>(null);
+  const [replies, setReplies] = useState<InboundReply[] | null>(null);
+  /*
+   * Kept separate from `problem`. An unreadable replies list must not blank
+   * the send ledger beside it, and an EMPTY list is not an error — this
+   * codebase has reported "no rows" as "missing migration" eleven times.
+   */
+  const [repliesProblem, setRepliesProblem] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [problem, setProblem] = useState<string | null>(null);
   const [requeueing, setRequeueing] = useState<string | null>(null);
@@ -181,8 +302,104 @@ export default function OnboardingMessagingPanel() {
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewLoading, setPreviewLoading] = useState(false);
 
-  const includesWhatsapp = selection !== 'instagram';
-  const includesInstagram = selection !== 'whatsapp';
+  /*
+   * Email configuration, ASKED rather than assumed.
+   *
+   * This row used to be hardcoded to "not configured". That was true the day
+   * it was written and false from the day a key was set, with nothing watching
+   * for the change. The probe costs one call and cannot go stale.
+   */
+  const [emailProbe, setEmailProbe] = useState<EmailProbe | null>(null);
+  const [emailTest, setEmailTest] = useState<EmailTestResult | null>(null);
+  const [emailTesting, setEmailTesting] = useState(false);
+
+  useEffect(() => {
+    let alive = true;
+    // The whole body is guarded, not just the invoke: an unguarded promise
+    // here becomes an unhandled rejection on the admin screen.
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('selftest-email', { body: { probe: true } });
+        if (!alive) return;
+        if (error) { setEmailProbe({ unreachable: true }); return; }
+        const d = data as { providerConfigured?: boolean; from?: string; canSendTo?: string | null };
+        setEmailProbe({
+          configured: Boolean(d?.providerConfigured),
+          from: d?.from ?? null,
+          canSendTo: d?.canSendTo ?? null,
+        });
+      } catch {
+        if (alive) setEmailProbe({ unreachable: true });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  /*
+   * WhatsApp, asked of Meta rather than inferred from which secrets exist.
+   * A token can be set, valid, and still be an hour from expiry on a sandbox
+   * number — which is what "configured" would otherwise have meant.
+   */
+  const [waProbe, setWaProbe] = useState<WhatsAppProbe | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('selftest-whatsapp', { body: {} });
+        if (!alive) return;
+        if (error) { setWaProbe({ unreachable: true }); return; }
+        setWaProbe(data as WhatsAppProbe);
+      } catch {
+        if (alive) setWaProbe({ unreachable: true });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const [igProbe, setIgProbe] = useState<InstagramProbe | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const { data, error } = await supabase.functions.invoke('selftest-instagram', { body: {} });
+        if (!alive) return;
+        setIgProbe(error ? { unreachable: true } : (data as InstagramProbe));
+      } catch {
+        if (alive) setIgProbe({ unreachable: true });
+      }
+    })();
+    return () => { alive = false; };
+  }, []);
+
+  const runEmailTest = useCallback(async () => {
+    setEmailTesting(true);
+    setEmailTest(null);
+    try {
+      const { data, error } = await supabase.functions.invoke('selftest-email', { body: {} });
+      if (error) {
+        setEmailTest({ ok: false, reason: error.message || 'The self-test could not be reached.' });
+      } else {
+        setEmailTest(data as EmailTestResult);
+      }
+    } catch (e) {
+      setEmailTest({ ok: false, reason: e instanceof Error ? e.message : 'The self-test failed.' });
+    } finally {
+      setEmailTesting(false);
+    }
+  }, []);
+
+  /*
+   * Email is its own choice, not part of "both".
+   *
+   * It is also the only channel that currently reaches anybody: WhatsApp
+   * cannot deliver at all while the account has no payment method (Meta code
+   * 131042), so the brand-kit email had to stop being signup-only.
+   */
+  const includesEmail = selection === 'email';
+  const includesWhatsapp = selection === 'whatsapp' || selection === 'both';
+  const includesInstagram = selection === 'instagram' || selection === 'both';
 
   const fetchPreview = useCallback(async () => {
     setPreviewLoading(true);
@@ -223,10 +440,11 @@ export default function OnboardingMessagingPanel() {
   const load = useCallback(async () => {
     setLoading(true);
     setProblem(null);
-    const [st, auto, manual] = await Promise.all([
+    const [st, auto, manual, inbound] = await Promise.all([
       supabase.rpc('onboarding_welcome_status'),
       supabase.rpc('onboarding_messages_list', { p_limit: 20, p_offset: 0 }),
       supabase.rpc('onboarding_manual_sends_list', { p_limit: 20, p_offset: 0 }),
+      supabase.rpc('whatsapp_inbound_list', { p_limit: 20, p_offset: 0 }),
     ]);
     if (st.error || auto.error || manual.error) {
       const msg = [
@@ -240,6 +458,13 @@ export default function OnboardingMessagingPanel() {
       setAutoRows((auto.data as AutoRow[] | null) ?? []);
       setManualRows((manual.data as ManualRow[] | null) ?? []);
     }
+    if (inbound.error) {
+      setReplies(null);
+      setRepliesProblem(inbound.error.message);
+    } else {
+      setReplies((inbound.data as InboundReply[] | null) ?? []);
+      setRepliesProblem(null);
+    }
     setLoading(false);
   }, []);
 
@@ -252,11 +477,38 @@ export default function OnboardingMessagingPanel() {
     return () => clearTimeout(t);
   }, [fetchPreview]);
 
-  const channels = () => (selection === 'both' ? (['whatsapp', 'instagram'] as Channel[]) : [selection] as Channel[]);
+  const channels = (): Channel[] => (selection === 'both' ? ['whatsapp', 'instagram'] : [selection as Channel]);
 
   const sendManual = async () => {
     if (!businessName.trim()) {
-      setResult({ ok: false, status: 'no_phone', results: [] });
+      /*
+       * Say WHY, like the two guards below already do.
+       *
+       * This returned `results: []`, and the results list is what renders the
+       * explanation — so a missing business name produced a status chip with
+       * no sentence beside it and no row in either ledger, because the request
+       * never left the browser. On 2026-10-10 that looked exactly like a
+       * welcome that had been sent and vanished.
+       */
+      setResult({
+        ok: false,
+        status: 'no_phone',
+        results: [{
+          channel: includesWhatsapp ? 'whatsapp' : 'instagram',
+          ok: false,
+          status: 'no_phone',
+          reason: 'Business name is required — it is the name the template puts in the message, so nothing was sent.',
+          error: null,
+        }],
+      });
+      return;
+    }
+    if (includesEmail && !sendEmailTo.trim()) {
+      setResult({
+        ok: false,
+        status: 'no_phone',
+        results: [{ channel: 'email', ok: false, status: 'no_phone', reason: 'Enter the email address to send the brand kit to.', error: null }],
+      });
       return;
     }
     if (includesWhatsapp && !phone.trim()) {
@@ -284,6 +536,7 @@ export default function OnboardingMessagingPanel() {
         channels: chans,
         businessName: businessName.trim(),
         phone: includesWhatsapp ? phone.trim() : null,
+        email: includesEmail ? sendEmailTo.trim() : null,
         handle: includesInstagram ? handle.trim() : null,
         ownerName: ownerName.trim() || null,
         profileUrl: profileUrl.trim() || null,
@@ -378,8 +631,8 @@ export default function OnboardingMessagingPanel() {
             <div className="p-5 space-y-4">
               <div>
                 <span className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">Channel</span>
-                <div className="grid grid-cols-3 gap-1 p-1 rounded-lg bg-gray-100 dark:bg-gray-900">
-                  {(['whatsapp', 'instagram', 'both'] as const).map((opt) => (
+                <div className="grid grid-cols-4 gap-1 p-1 rounded-lg bg-gray-100 dark:bg-gray-900">
+                  {(['email', 'whatsapp', 'instagram', 'both'] as const).map((opt) => (
                     <button
                       key={opt}
                       onClick={() => setSelection(opt)}
@@ -389,11 +642,29 @@ export default function OnboardingMessagingPanel() {
                           : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
                       }`}
                     >
-                      {opt === 'both' ? 'Both' : selectedLabel(opt)}
+                      {opt === 'both' ? 'WA + IG' : opt === 'email' ? 'Email' : selectedLabel(opt)}
                     </button>
                   ))}
                 </div>
               </div>
+              {includesEmail && (
+                <div>
+                  <label htmlFor="onb-email" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">
+                    Send the brand kit to
+                  </label>
+                  <input
+                    id="onb-email"
+                    type="email"
+                    value={sendEmailTo}
+                    onChange={(e) => setSendEmailTo(e.target.value)}
+                    placeholder="owner@example.com"
+                    className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
+                  />
+                  <p className="mt-1 text-[10px] text-gray-400">
+                    Exactly the document new owners receive on signup — same subject, same content.
+                  </p>
+                </div>
+              )}
               <div>
                 <label htmlFor="onb-biz-name" className="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1.5">Business name</label>
                 <input
@@ -411,7 +682,7 @@ export default function OnboardingMessagingPanel() {
                     id="onb-phone"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="e.g. 0803 000 0000 or +2348030000000"
+                    placeholder="+234 803 000 0000 (country code required)"
                     inputMode="tel"
                     className="w-full px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm text-gray-900 dark:text-white focus:ring-2 focus:ring-violet-500 focus:border-violet-500 outline-none"
                   />
@@ -478,7 +749,20 @@ export default function OnboardingMessagingPanel() {
                         <p className="font-medium">{selectedLabel(r.channel)}: {r.ok ? 'Sent.' : `Not sent — ${r.reason ?? r.status}.`}</p>
                         {(r.status === 'needs_provider' || r.status === 'needs_template') && (
                           <p className="mt-1 opacity-90">
-                            Recorded in the ledger; it will go out automatically once the {selectedLabel(r.channel)} provider{r.status === 'needs_template' ? ' template' : ''} is configured.
+                            {/*
+                              * "once it is configured" was wrong for the
+                              * commonest case. A needs_template row is almost
+                              * never waiting on configuration — the template
+                              * is submitted and Meta has not approved it yet,
+                              * and nothing an operator sets changes that.
+                              * Worse, it invites the one action that breaks
+                              * things: naming a pending template, which sends
+                              * nothing and turns honest refusals into failures.
+                              */}
+                            Recorded in the ledger; it will go out automatically{' '}
+                            {r.status === 'needs_template'
+                              ? 'once Meta approves the template — nothing to configure here.'
+                              : `once the ${selectedLabel(r.channel)} provider is configured.`}
                           </p>
                         )}
                         {r.status === 'needs_conversation' && (
@@ -505,6 +789,36 @@ export default function OnboardingMessagingPanel() {
                     <p className="text-xs text-gray-400 dark:text-gray-500">{previewLoading ? 'Rendering…' : '…'}</p>
                   ) : (
                     <>
+                      {includesEmail && preview.email && (
+                        <div>
+                          <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1">Email</p>
+                          <p className="text-[11px] text-gray-600 dark:text-gray-300">
+                            <span className="text-gray-400">Subject:</span> {preview.email.subject}
+                          </p>
+                          {/*
+                            * Rendered, not described — it is an HTML document
+                            * and a paraphrase would not show what lands in the
+                            * inbox.
+                            *
+                            * sandbox="" with no allow-scripts: the document
+                            * interpolates a business name that came from a
+                            * form, so it is treated as untrusted even though
+                            * we generated it.
+                            */}
+                          <iframe
+                            title="Brand kit email preview"
+                            srcDoc={preview.email.html}
+                            sandbox=""
+                            className="mt-1.5 w-full h-80 rounded-lg border border-gray-200 dark:border-gray-700 bg-white"
+                          />
+                          {!preview.email.providerConfigured && (
+                            <p className="mt-1 text-[11px] text-amber-700 dark:text-amber-300">
+                              No email provider is configured, so this would not send.
+                            </p>
+                          )}
+                        </div>
+                      )}
+
                       {includesWhatsapp && (
                         <div>
                           <p className="text-[10px] uppercase tracking-wide text-gray-400 dark:text-gray-500 mb-1">WhatsApp</p>
@@ -569,12 +883,218 @@ export default function OnboardingMessagingPanel() {
                 ok={false}
                 detail={'Meta only lets you DM inside an open conversation (the 24h window since their last inbound message). Cold DMs to a handle are never attempted — they record needs_conversation until you send to the recipient\'s numeric IG user ID from your inbox.'}
               />
+              {/*
+                * Instagram, as Meta describes it. The row above reports which
+                * secrets exist; this reports what the token can actually do —
+                * and a token named for Instagram may carry no Instagram
+                * scopes at all.
+                */}
+              {/*
+                * A REJECTED token is the state this screen most needs to show,
+                * and it showed nothing.
+                *
+                * It rendered "Meta reports: unknown token" above three empty
+                * lists, which reads as a quiet, uninteresting state rather
+                * than as Instagram being off. Measured 2026-10-08: the page
+                * token expired mid-session and this panel gave no sign of it.
+                */}
+              {igProbe && !igProbe.unreachable && igProbe.ok === false && (
+                <div className="rounded-xl border border-rose-300 dark:border-rose-700 bg-rose-50 dark:bg-rose-900/20 p-3.5 ml-8">
+                  <p className="text-[11px] font-semibold text-rose-900 dark:text-rose-100">
+                    Instagram is not working — Meta refused the token
+                  </p>
+                  <p className="mt-1 text-[11px] text-rose-800 dark:text-rose-200">{igProbe.reason}</p>
+                  <p className="mt-1.5 text-[11px] text-rose-700 dark:text-rose-300">
+                    {/*
+                      * Named precisely, because the obvious fix is the one
+                      * that already failed: a token minted in the Graph API
+                      * Explorer dies with the session that made it, whatever
+                      * its reported expiry says.
+                      */}
+                    Issue the replacement from a <strong>System User</strong> in Business Settings — not from
+                    the Graph API Explorer, whose tokens die with the session that made them.
+                  </p>
+                </div>
+              )}
+
+              {igProbe && !igProbe.unreachable && igProbe.ok !== false && (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5 ml-8">
+                  <p className="text-[11px] font-semibold text-gray-700 dark:text-gray-300">
+                    Meta reports: {igProbe.token?.type ?? 'unknown'} token
+                    {igProbe.extractor?.thisTokenCouldPowerIt ? ' · can also power the manual extractor' : ''}
+                  </p>
+                  <ul className="mt-1.5 space-y-1">
+                    {(igProbe.discovery ?? []).map((x) => (
+                      <li key={x} className="text-[11px] text-gray-500 dark:text-gray-400">• {x}</li>
+                    ))}
+                    {(igProbe.dm?.missingScopes ?? []).length > 0 && (
+                      <li className="text-[11px] text-amber-700 dark:text-amber-300">
+                        • Missing for DMs: {(igProbe.dm?.missingScopes ?? []).join(', ')}
+                      </li>
+                    )}
+                    {(igProbe.extractor?.missingScopes ?? []).length > 0 && (
+                      <li className="text-[11px] text-amber-700 dark:text-amber-300">
+                        • Missing for the manual extractor: {(igProbe.extractor?.missingScopes ?? []).join(', ')} (needs App Review)
+                      </li>
+                    )}
+                  </ul>
+                </div>
+              )}
+
+              {/*
+                * What Meta actually says about the WhatsApp setup. The two
+                * rows above report whether SECRETS exist; these report whether
+                * the thing behind them is fit to point at a business owner.
+                */}
+              {waProbe && !waProbe.unreachable && (waProbe.missing?.length || waProbe.warnings?.length) ? (
+                <div className="rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3.5 ml-8">
+                  <p className="text-xs font-semibold text-amber-900 dark:text-amber-100">
+                    Meta reports this WhatsApp setup is not ready for real businesses
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {(waProbe.missing ?? []).map((m) => (
+                      <li key={m} className="text-[11px] text-amber-800 dark:text-amber-200">• {m}</li>
+                    ))}
+                    {(waProbe.warnings ?? []).map((w) => (
+                      <li key={w} className="text-[11px] text-amber-800 dark:text-amber-200">• {w}</li>
+                    ))}
+                  </ul>
+                  <p className="mt-2 text-[11px] text-amber-700 dark:text-amber-300">
+                    Checked live against Meta. Nothing was sent to anybody to find this out.
+                  </p>
+                </div>
+              ) : null}
+
+              {/*
+                * Can this platform ever learn whether a message arrived?
+                *
+                * `sent` means the Cloud API accepted the request, nothing
+                * more. Until the delivery webhook is wired, that is the last
+                * thing we ever hear, and the table below would show a green
+                * "sent" for a message that was silently dropped.
+                */}
+              {waProbe?.deliveryWebhook && (
+                <div className={`rounded-xl border p-3.5 ml-8 ${
+                  waProbe.deliveryWebhook.appSecretSet
+                    && waProbe.deliveryWebhook.verifyTokenSet
+                    && waProbe.deliveryWebhook.wabaSubscribed === true
+                    ? 'border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20'
+                    : 'border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40'
+                }`}>
+                  <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                    Delivery reporting
+                  </p>
+                  <p className="mt-1 text-[11px] text-gray-700 dark:text-gray-300">
+                    {waProbe.deliveryWebhook.note}
+                  </p>
+                  <ul className="mt-2 space-y-0.5 text-[11px] text-gray-600 dark:text-gray-400">
+                    <li>• App secret: {waProbe.deliveryWebhook.appSecretSet ? 'set' : 'not set'}</li>
+                    <li>• Verify token: {waProbe.deliveryWebhook.verifyTokenSet ? 'set' : 'not set'}</li>
+                    <li>
+                      {/* Three states, not two: unknown is not "no". */}
+                      • WhatsApp account subscribed to the app: {
+                        waProbe.deliveryWebhook.wabaSubscribed === null
+                          ? 'could not check'
+                          : waProbe.deliveryWebhook.wabaSubscribed ? 'yes' : 'no'
+                      }
+                    </li>
+                  </ul>
+                </div>
+              )}
+
+              {/*
+                * Capped, not broken.
+                *
+                * Business verification pending limits the messaging tier and
+                * nothing else: the number is verified, the template approved,
+                * and a real welcome was accepted by Meta on 2026-10-09 while
+                * this was outstanding. It used to be filed as a warning, which
+                * made the amber box above announce the setup was "not ready
+                * for real businesses" directly over body text reading
+                * "nothing to do but wait". Same claim-outlives-fact shape this
+                * panel exists to catch, so it is reported in its own voice.
+                */}
+              {waProbe && !waProbe.unreachable && (waProbe.advisories?.length ?? 0) > 0 ? (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900/40 p-3.5 ml-8">
+                  <p className="text-xs font-semibold text-gray-900 dark:text-gray-100">
+                    Sending works — Meta is still capping how far it reaches
+                  </p>
+                  <ul className="mt-2 space-y-1.5">
+                    {(waProbe.advisories ?? []).map((a) => (
+                      <li key={a} className="text-[11px] text-gray-700 dark:text-gray-300">• {a}</li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+
+              {/*
+                * Email, checked rather than declared. This row read
+                * "not configured" unconditionally for as long as it existed,
+                * including after the key was set — so it told an operator to
+                * fix something that was already done.
+                */}
               <SetupRow
                 title="Brand-kit email"
-                ok={false}
-                unknown={false}
-                detail="Optional — RESEND_API_KEY + RESEND_FROM powers the full welcome email. The WhatsApp and Instagram welcomes work without it."
+                ok={emailProbe?.configured}
+                unknown={!emailProbe || emailProbe.unreachable}
+                detail={
+                  !emailProbe
+                    ? 'Checking whether a provider key is set…'
+                    : emailProbe.unreachable
+                      ? 'Could not reach the self-test, so the state of email is unknown. It is not safe to assume either way.'
+                      : emailProbe.configured
+                        ? `A provider key is set and mail would be sent from ${emailProbe.from}. A key alone does not prove delivery — send the test below to prove it end to end.`
+                        : 'Optional — RESEND_API_KEY + RESEND_FROM powers the full welcome email. The WhatsApp and Instagram welcomes work without it.'
+                }
               />
+
+              {emailProbe?.configured && (
+                <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5 ml-8">
+                  <div className="flex items-center justify-between gap-3 flex-wrap">
+                    <p className="text-xs text-gray-500 dark:text-gray-400">
+                      {/* Stated before the click: this sends real mail, and only to you. */}
+                      Sends one real email to <strong className="text-gray-700 dark:text-gray-300">{emailProbe.canSendTo ?? 'your own address'}</strong>.
+                      It can only send to you — no other recipient is possible.
+                    </p>
+                    <button
+                      onClick={() => void runEmailTest()}
+                      disabled={emailTesting}
+                      className="inline-flex items-center gap-2 rounded-lg bg-violet-600 px-3.5 py-2 text-xs font-semibold text-white hover:bg-violet-700 disabled:opacity-50 min-h-[44px]"
+                    >
+                      {emailTesting ? <RefreshCw size={13} className="animate-spin" /> : <Send size={13} />}
+                      {emailTesting ? 'Sending…' : 'Send test email'}
+                    </button>
+                  </div>
+
+                  {emailTest && (
+                    <div className={`mt-3 rounded-lg p-3 text-xs ${
+                      emailTest.ok
+                        ? 'bg-green-50 dark:bg-green-900/20 text-green-900 dark:text-green-100'
+                        : 'bg-amber-50 dark:bg-amber-900/20 text-amber-900 dark:text-amber-100'
+                    }`}>
+                      <p className="font-semibold">
+                        {emailTest.ok ? 'Accepted by the provider' : 'The provider refused it'}
+                      </p>
+                      <p className="mt-1">{emailTest.reason}</p>
+                      {/*
+                        * The provider's own words. `resend 403` is not
+                        * actionable; "the domain is not verified" is, and it
+                        * names a five-minute DNS fix.
+                        */}
+                      {emailTest.providerMessage && (
+                        <p className="mt-1.5 font-mono text-[11px] opacity-80 break-words">
+                          {emailTest.providerMessage}
+                        </p>
+                      )}
+                      {emailTest.ok && (
+                        <p className="mt-1.5 opacity-80">
+                          Accepted is not the same as delivered — check the inbox to close the loop.
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -708,9 +1228,26 @@ export default function OnboardingMessagingPanel() {
                             </div>
                             {r.owner_name && <div className="mt-0.5 pl-8 text-xs text-gray-400 dark:text-gray-500">{r.owner_name}</div>}
                           </td>
-                          <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{r.phone ?? (r.handle ? `@${r.handle}` : '—')}</td>
-                          <td className="py-2 pr-3"><StatusChip status={r.status} /></td>
-                          <td className="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400 max-w-[220px] truncate">{r.reason ?? r.error ?? ''}</td>
+                          <td className="py-2 pr-3 text-gray-700 dark:text-gray-300">{r.email ?? r.phone ?? (r.handle ? `@${r.handle}` : '—')}</td>
+                          <td className="py-2 pr-3">
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <StatusChip status={r.status} />
+                              <DeliveryChip status={r.delivery_status} sent={r.status === 'sent'} />
+                            </div>
+                          </td>
+                          <td className="py-2 pr-3 text-xs text-gray-500 dark:text-gray-400 max-w-[280px]">
+                            <div className="truncate">{r.failure_detail ?? r.reason ?? r.error ?? ''}</div>
+                            {/*
+                              * Meta's sentence says what happened; this says
+                              * what to do. 131042 reads like a suspension and
+                              * is a missing payment method.
+                              */}
+                            {r.failure_advice && (
+                              <div className="mt-0.5 text-[11px] text-amber-700 dark:text-amber-300 whitespace-normal">
+                                {r.failure_advice}
+                              </div>
+                            )}
+                          </td>
                           <td className="py-2 text-xs text-gray-400 dark:text-gray-500">{new Date(r.sent_at ?? r.created_at).toLocaleString()}</td>
                         </tr>
                       ))}
@@ -718,6 +1255,69 @@ export default function OnboardingMessagingPanel() {
                   </table>
                 </div>
               )}
+
+            {/*
+              * Replies from owners, via the wa.me links.
+              *
+              * The table and the webhook that fills it existed before this
+              * did, which is how the claim funnel once looked dead for weeks:
+              * every part of the chain worked and nothing rendered the result.
+              *
+              * Outbound templates are blocked by billing (Meta code 131042),
+              * so for now this is the ONLY WhatsApp direction that reaches
+              * anybody — which makes it the more important of the two lists.
+              */}
+            <div className="mt-6">
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">Replies from owners</h3>
+              <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+                Messages people sent us from a “Message us on WhatsApp” link. Free to receive, and they open a window we can answer in.
+              </p>
+
+              {repliesProblem && (
+                <p className="mt-2 rounded-xl border border-amber-200 dark:border-amber-800 bg-amber-50 dark:bg-amber-900/20 p-3 text-[12px] text-amber-800 dark:text-amber-200">
+                  Could not read the replies: {repliesProblem}
+                </p>
+              )}
+
+              {/* Empty is a fact, not a failure. Say which. */}
+              {!repliesProblem && replies?.length === 0 && (
+                <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                  Nobody has written in yet. The links are live on the claim dialog and in the welcome email.
+                </p>
+              )}
+
+              {!repliesProblem && replies && replies.length > 0 && (
+                <ul className="mt-2 space-y-2">
+                  {replies.map((r) => (
+                    <li key={r.id} className="rounded-xl border border-gray-200 dark:border-gray-700 p-3">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-800 dark:text-gray-200">
+                          {r.sender_name ?? r.from_phone}
+                          {r.sender_name && <span className="ml-1.5 font-normal text-gray-400">{r.from_phone}</span>}
+                        </span>
+                        <span className="text-[11px] text-gray-400">{new Date(r.received_at).toLocaleString()}</span>
+                      </div>
+                      {r.body && <p className="mt-1 text-[12px] text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{r.body}</p>}
+                      <div className="mt-1.5 text-[11px]">
+                        {r.business_name ? (
+                          <span className="text-emerald-700 dark:text-emerald-300">About {r.business_name}</span>
+                        ) : (
+                          /*
+                           * The row most worth seeing: somebody wrote in and
+                           * we could not tell which listing they meant.
+                           */
+                          <span className="text-amber-700 dark:text-amber-300">
+                            {r.reference
+                              ? `Reference ${r.reference} did not match a listing`
+                              : 'No listing reference in this message'}
+                          </span>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
             </div>
           </div>
         </div>

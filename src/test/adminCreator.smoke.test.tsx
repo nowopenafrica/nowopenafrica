@@ -30,8 +30,28 @@ vi.mock('../lib/supabase', () => {
     const chain: any = {
       select: vi.fn(() => chain),
       eq: vi.fn(() => chain),
+      // `.in()` is used by the enrichment workspace to count pending
+      // suggestions for a page of businesses. Without it the chain returns
+      // undefined and the component throws an unhandled rejection that shows
+      // up attributed to whichever test happened to be running.
+      in: vi.fn(() => chain),
       order: vi.fn(() => chain),
+      // `.range()` pages the enrichment workspace. Like `.in()` above, a chain
+      // method the mock omits returns undefined and the component throws an
+      // unhandled rejection blamed on whichever test was running at the time.
+      range: vi.fn(() => chain),
       limit: vi.fn(() => chain),
+      // `.not()` guards a filter in the ad-surface editor ("has an image").
+      // A chain method the mock omits returns undefined and the component
+      // throws an unhandled rejection blamed on whichever test was running.
+      not: vi.fn(() => chain),
+      is: vi.fn(() => chain),
+      neq: vi.fn(() => chain),
+      or: vi.fn(() => chain),
+      single: vi.fn(async () => ({
+        data: Array.isArray(data) ? data[0] ?? null : data ?? null,
+        error: null,
+      })),
       maybeSingle: vi.fn(async () => ({
         data: Array.isArray(data) ? data[0] ?? null : data ?? null,
         error: null,
@@ -82,6 +102,22 @@ describe('AdminCreatorShell smoke', () => {
     expect(screen.getByText('Platform uptime')).toBeInTheDocument();
   });
 
+  /*
+   * ── A LONGER BUDGET, WITH A REASON ───────────────────────────────────
+   *
+   * This renders the whole admin shell and then opens EVERY roadmap section
+   * in one test, which is the point of it — a smoke test that stops short of
+   * some sections would not smoke out much.
+   *
+   * MEASURED: the file passes in 23s on an idle machine with its slowest
+   * sibling at 10.2s, and times out against the 20s default whenever the
+   * suite runs in parallel with anything else (a dev server, in this case).
+   * Three runs in four failed.
+   *
+   * The work is genuinely this size, so the budget is raised rather than the
+   * test weakened. A test that fails half the time is worse than no test: it
+   * teaches everyone to press re-run, and the one real failure goes with it.
+   */
   it('opens every roadmap section without crashing', async () => {
     render(
       <MemoryRouter>
@@ -93,7 +129,7 @@ describe('AdminCreatorShell smoke', () => {
       fireEvent.click(sidebarButton);
       expect(screen.getAllByRole('heading', { name: s.label }).length).toBeGreaterThan(0);
     }
-  });
+  }, 45_000);
 
   it('loads the live modules with their embedded Studio tools', async () => {
     render(

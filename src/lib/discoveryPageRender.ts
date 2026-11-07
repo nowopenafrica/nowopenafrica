@@ -18,6 +18,8 @@
  * imports it stays a thin data-fetching shell.
  */
 
+import { slugify } from './discoveryPages.js';
+
 /**
  * How many listable businesses a discovery page needs before it asks to be
  * indexed.
@@ -99,14 +101,48 @@ export function embedJson(value: unknown): string {
  * row is the fix, and it is the same rule the trust claims and the prospect
  * seed already follow.
  *
- * Then, among those, at least one must be able to say whether it is open — a
- * page where nothing answers that is thin for the query it would rank for, and
- * this product is named after the question.
+ * WHAT THIS DELIBERATELY NO LONGER REQUIRES, AND WHY — CHANGED 2026-09-15
+ *
+ * It used to also require that at least one accountable listing had opening
+ * hours, on the reasoning that "this product is named after the question".
+ *
+ * MEASURED IN PRODUCTION: 3 of 3,118 businesses have any opening-hours text.
+ * The consequence was arithmetic rather than editorial — of the 220 discovery
+ * pages the sitemap submitted, exactly ONE passed this function. The other 219
+ * were served `noindex`, so the platform spent crawl budget asking Google to
+ * look at pages and then telling it not to. 148 of them would otherwise have
+ * qualified on accountability alone.
+ *
+ * The requirement was gating the wrong thing. A page listing sixty accountable
+ * hospitals in Lagos with names, addresses, categories and phone numbers is a
+ * genuinely useful answer to "hospitals in Lagos". Hours make it better; their
+ * absence does not make it thin. The page that must not exist without hours is
+ * /open-now, which is the surface actually named after the question, and which
+ * has its own rule.
+ *
+ * Hours have therefore become a PRIORITY signal rather than an existence gate
+ * — see hoursCoverage below and the sitemap's use of it. If a future decision
+ * reverses this, it is one condition in one function, and the cost of doing so
+ * is 148 pages.
+ *
+ * ACCOUNTABILITY IS UNCHANGED. That is the condition protecting the index from
+ * fabricated records, and nothing here relaxes it.
  */
 export function isIndexable(p: DiscoveryPage, min: number = MIN_INDEXABLE): boolean {
+  return p.listings.filter((l) => l.hasProvenance).length >= min;
+}
+
+/**
+ * What share of the accountable listings can say whether they are open.
+ *
+ * Not a gate — a quality measure. The sitemap uses it to rank a page's
+ * priority, so a city where businesses have published hours is crawled sooner
+ * than one where none have, without either page being hidden.
+ */
+export function hoursCoverage(p: DiscoveryPage): number {
   const accountable = p.listings.filter((l) => l.hasProvenance);
-  if (accountable.length < min) return false;
-  return accountable.some((l) => l.hasHours);
+  if (accountable.length === 0) return 0;
+  return accountable.filter((l) => l.hasHours).length / accountable.length;
 }
 
 /**
@@ -135,7 +171,20 @@ export function discoveryDescription(p: DiscoveryPage): string {
   const openCount = p.listings.filter((l) => l.openLabel).length;
   const parts = [`Discover ${p.total} ${what}${where} on NowOpen Africa.`];
   if (openCount > 0) parts.push(`${openCount} open right now.`);
-  parts.push('See opening hours, contact details and offers.');
+  /*
+   * Promise only what the page can show.
+   *
+   * This line used to read "See opening hours, contact details and offers."
+   * unconditionally. MEASURED 2026-09-15: 3 of 3,118 businesses have any
+   * opening-hours text, so on virtually every page it was a meta description
+   * offering something the page does not contain — the kind of small overclaim
+   * that costs a click's worth of trust and teaches a search engine that the
+   * description does not describe the page.
+   */
+  const withHours = p.listings.filter((l) => l.hasHours).length;
+  parts.push(withHours > 0
+    ? 'See opening hours and contact details.'
+    : 'See contact details and location.');
   return parts.join(' ');
 }
 
@@ -188,11 +237,31 @@ export function breadcrumbJsonLd(p: DiscoveryPage): unknown {
   };
 }
 
-export function slugify(value: string): string {
-  return String(value).toLowerCase().trim()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '');
-}
+/*
+ * ONE slugify, re-exported from where the URLs are minted.
+ *
+ * THE DEFECT THIS ENDS, MEASURED ON PRODUCTION 2026-09-15
+ *
+ * There were two. discoveryPages.ts turned "&" into the word "and"; this file
+ * stripped it. So the same category produced two different addresses depending
+ * on which module was asked:
+ *
+ *   sitemap (discoveryPages)      /businesses/hospital-and-clinic/in/lagos
+ *   renderer + SPA (this file)    /businesses/hospital-clinic/in/lagos
+ *
+ * Consequences, all at once: the sitemap submitted URLs the renderer could not
+ * resolve, so it answered them with an empty page; the SPA's own category links
+ * pointed at a third-party of URLs nothing else used; and the two spellings are
+ * duplicate content for any that did resolve.
+ *
+ * 25 categories contain "&" and they hold 2,657 of 3,118 businesses — 85% of
+ * the directory, including Hospital & Clinic with 1,669.
+ *
+ * The "and" spelling wins because it is the one already submitted to search
+ * engines, and because "hospital-and-clinic" reads as the phrase a person would
+ * type. Re-exported rather than copied: a second copy is what caused this.
+ */
+export { slugify };
 
 /** Title-case a slug back into something readable: "port-harcourt" → "Port Harcourt". */
 export function unslugify(value: string): string {

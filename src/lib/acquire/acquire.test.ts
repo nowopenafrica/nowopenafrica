@@ -327,3 +327,65 @@ describe('the review queue can see what is weak', () => {
     expect(weak).toContain('digital');
   });
 });
+
+describe('the two rights the registry could not answer', () => {
+  /*
+   * ADDED 2026-09-17. Both questions had already gone wrong in practice:
+   *
+   *   images   — 1,176 published profiles carried a cover whose reuse rights
+   *              lived only inside one adapter's source comments
+   *   contacts — nothing recorded whether a source's phone numbers could be
+   *              STORED, as opposed to displayed, which is the question
+   *              ClaimReach asks before anything is ever sent
+   *
+   * They are separate operations because they are separately licensed.
+   * Wikidata is the case that proves it: CC0 data, photographs that are not.
+   */
+  const wikidata = {
+    key: 'wikidata',
+    name: 'Wikidata',
+    active: true,
+    automatedAccess: 'permitted',
+    bulkExtraction: 'permitted',
+    redistribution: 'permitted',
+    competingDataset: 'permitted',
+    imageReuse: 'prohibited',
+    contactStorage: 'permitted',
+    licence: 'CC0 1.0',
+    authorisedBy: 'Founder, NowOpen Africa',
+  };
+
+  it('permits everything CC0 grants, and refuses the images it does not', () => {
+    for (const op of ['discover', 'fetch', 'bulk', 'publish', 'store_contact'] as const) {
+      expect(sourcePermits(wikidata, op).permitted, op).toBe(true);
+    }
+    const images = sourcePermits(wikidata, 'reuse_image');
+    expect(images.permitted).toBe(false);
+    expect(images.reason).toMatch(/forbid|prohibited/i);
+  });
+
+  it('refuses an unreviewed source on both new questions', () => {
+    // UNKNOWN IS A REFUSAL, the same rule as every other right here.
+    const unreviewed = { ...wikidata, imageReuse: 'unknown', contactStorage: 'unknown' };
+    expect(sourcePermits(unreviewed, 'reuse_image').permitted).toBe(false);
+    expect(sourcePermits(unreviewed, 'store_contact').permitted).toBe(false);
+    // And says it is silence rather than a prohibition.
+    expect(sourcePermits(unreviewed, 'reuse_image').reason).toMatch(/Nothing has recorded/i);
+  });
+
+  it('refuses when the field is absent entirely', () => {
+    // A policy object built before these columns existed must not pass.
+    const legacy = { ...wikidata } as Record<string, unknown>;
+    delete legacy.imageReuse;
+    delete legacy.contactStorage;
+    expect(sourcePermits(legacy as never, 'reuse_image').permitted).toBe(false);
+    expect(sourcePermits(legacy as never, 'store_contact').permitted).toBe(false);
+  });
+
+  it('still refuses everything when nobody authorised the source', () => {
+    const unauthorised = { ...wikidata, authorisedBy: null };
+    for (const op of ['reuse_image', 'store_contact'] as const) {
+      expect(sourcePermits(unauthorised, op).permitted, op).toBe(false);
+    }
+  });
+});

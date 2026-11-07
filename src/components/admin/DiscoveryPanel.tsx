@@ -1,11 +1,35 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import toast from 'react-hot-toast';
-import { Radar, Loader2, Plus, ShieldCheck, ShieldAlert, ExternalLink } from 'lucide-react';
+import { Radar, Loader2, Plus, ShieldCheck, ShieldAlert, ExternalLink, Clock } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
+import { fetchAllBusinesses } from '../../lib/fetchAllBusinesses';
 import { normalizeName, normalizePhone, normalizeDomain, normalizePlace } from '../../lib/radar/normalize';
 import { sourcePermits, type SourcePolicy } from '../../lib/acquire/adapter';
 import { WIKIDATA_SOURCE_KEY, type WikidataCandidate } from '../../lib/acquire/wikidata';
+
+/**
+ * Rows per INSERT when sending a run to the review queue.
+ *
+ * 200 keeps each request comfortably inside PostgREST's limits while turning
+ * 1,326 sequential writes into seven. Larger chunks buy little and make a
+ * single failure more expensive, since Postgres aborts the whole statement.
+ */
+const STAGE_CHUNK = 200;
+
+/** Result rows drawn at once. The rest are one click away. */
+const RESULTS_PAGE = 100;
+
+/** The fields that decide whether a candidate is already on NowOpen. */
+const DEDUPE_COLUMNS = 'name,location,phone,website,external_id';
+
+interface DedupeRow {
+  name: string | null;
+  location: string | null;
+  phone: string | null;
+  website: string | null;
+  external_id: string | null;
+}
 import { parseServices, parseServicesJson, parseFoundedYear, formatWeekHours } from '../../lib/imports/profileFields';
 import SmartImg from '../SmartImg';
 
@@ -238,6 +262,23 @@ interface DiscoveryCandidate extends WikidataCandidate {
 const cid = (c: DiscoveryCandidate): string =>
   c.qid || `${c.sourceKey}:${c.sourceRecordId}`;
 
+/**
+ * One row of `discovery_campaign_status` — a campaign and the reason it is or
+ * is not running, as the database sees it.
+ */
+interface CampaignStatus {
+  id: string;
+  name: string;
+  status: string;
+  why: string;
+  next_due_at: string | null;
+  last_finished_at: string | null;
+  discovered_today: number;
+  daily_limit: number | null;
+  max_records: number | null;
+  records_discovered: number | null;
+}
+
 export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) {
   const [policy, setPolicy] = useState<SourcePolicy | null>(null);
   const [policyProblem, setPolicyProblem] = useState<string | null>(null);
@@ -246,11 +287,21 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
   const [contactOnly, setContactOnly] = useState(true);
   const [limit, setLimit] = useState(50);
   const [running, setRunning] = useState(false);
+  /*
+   * Progress for a bulk stage. 1,326 records is long enough that a disabled
+   * button with no feedback reads as a hang — which is how the old version was
+   * described, and that description was fair.
+   */
+  const [stageProgress, setStageProgress] = useState<{ done: number; total: number } | null>(null);
+  /** How many result rows are drawn. Grows on demand; see the Load more note. */
+  const [visibleCount, setVisibleCount] = useState(RESULTS_PAGE);
   const [retryMessage, setRetryMessage] = useState('');
   const [results, setResults] = useState<DiscoveryCandidate[]>([]);
   const [staged, setStaged] = useState<Set<string>>(new Set());
   const [existing, setExisting] = useState<ExistingKey | null>(null);
   const [stagedBySource, setStagedBySource] = useState<Record<string, Set<string>>>({});
+  /** What the scheduled, unattended half of discovery is doing. */
+  const [campaigns, setCampaigns] = useState<CampaignStatus[] | null>(null);
   const [existingWikidata, setExistingWikidata] = useState<Set<string>>(new Set());
   const [seen, setSeen] = useState<Set<string>>(readSeen);
   const [skipped, setSkipped] = useState(0);
@@ -265,7 +316,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
   const loadPolicy = useCallback(async () => {
     const { data, error } = await supabase
       .from('radar_sources')
-      .select('key,name,active,automated_access,bulk_extraction,redistribution,competing_dataset,licence,authorised_by')
+      .select('key,name,active,automated_access,bulk_extraction,redistribution,competing_dataset,licence,authorised_by,image_reuse_allowed,contact_storage_allowed,compliance_status,license_type')
       .eq('key', WIKIDATA_SOURCE_KEY)
       .maybeSingle();
 
@@ -283,23 +334,52 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
       competingDataset: (row.competing_dataset as string) ?? null,
       licence: (row.licence as string) ?? null,
       authorisedBy: (row.authorised_by as string) ?? null,
+      /*
+       * The two rights the registry could not answer until 20260917010000.
+       * Read here so the panel's verdict covers them: a source may permit
+       * discovery and still forbid keeping its images or its phone numbers.
+       */
+      imageReuse: (row.image_reuse_allowed as string) ?? 'unknown',
+      contactStorage: (row.contact_storage_allowed as string) ?? 'unknown',
+      complianceStatus: (row.compliance_status as string) ?? null,
     });
     setPolicyProblem(null);
   }, []);
 
   /** What NowOpen already lists, so nothing is offered twice. */
   const loadExisting = useCallback(async () => {
-    const { data, error } = await supabase
-      .from('businesses')
-      .select('name,location,phone,website,external_id')
-      .limit(50000);
-    if (error || !data) return;
+    /*
+     * The WHOLE table, paged.
+     *
+     * This asked for `.limit(50000)` and was handed 1000 — PostgREST truncates
+     * one request at its row cap with no error and no signal. MEASURED
+     * 2026-10-09: 4,010 businesses, every one carrying a phone, website or
+     * external_id, so three quarters of the directory was invisible here and
+     * discovery could offer back businesses NowOpen already lists. A dedupe
+     * check against a quarter of the data is worse than none, because it
+     * reads as authoritative.
+     */
+    const { data, error, truncated } = await fetchAllBusinesses<DedupeRow>({ columns: DEDUPE_COLUMNS });
+
+    /*
+     * And say so when it fails. Returning quietly left all four sets empty —
+     * which does not mean "nothing matched", it means nothing was compared,
+     * and every candidate then looks new.
+     */
+    if (error) {
+      setPolicyProblem(`Could not read existing listings, so nothing can be de-duplicated: ${error}`);
+      toast.error('Could not load existing listings to de-duplicate against');
+      return;
+    }
+    if (truncated) {
+      setPolicyProblem(`Only the first ${data.length} listings were read — de-duplication is incomplete.`);
+    }
 
     const phones = new Set<string>();
     const domains = new Set<string>();
     const nameCity = new Set<string>();
     const wikidata = new Set<string>();
-    for (const b of data as unknown as Record<string, string | null>[]) {
+    for (const b of data) {
       const p = normalizePhone(b.phone ?? '');
       if (p) phones.add(p);
       const d = normalizeDomain(b.website ?? '');
@@ -319,17 +399,88 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
     setExistingWikidata(wikidata);
   }, []);
 
-  /** Candidates already waiting in the queue, by source record id. */
+  /*
+   * ── WHY THE SCHEDULED HALF IS SHOWN HERE ─────────────────────────
+   *
+   * REPORTED 2026-09-24: "the autonomous automatic data discovery into review
+   * queue doesn't seem to be working anymore — only when I search manually."
+   *
+   * It had run twice in 46 hours and then stopped, because its one campaign
+   * had reached its 200-record ceiling. Every part of that was true and
+   * correct; none of it was visible. The cron tick answered ok:true, the queue
+   * was empty, and the only reasonable conclusion from the outside was that
+   * something was broken.
+   *
+   * So the reason now sits above the manual Search button, where somebody
+   * reaching for the manual button will read it. It states what the database
+   * says and nothing else — a panel that claimed "autonomous discovery: on"
+   * while nothing was scheduled would be worse than the silence it replaces.
+   */
+  const loadCampaigns = useCallback(async () => {
+    const { data, error } = await supabase
+      .from('discovery_campaign_status')
+      .select('id,name,status,why,next_due_at,last_finished_at,discovered_today,daily_limit,max_records,records_discovered')
+      .order('name')
+      .range(0, 49);
+    // Silent on error: this is context, and a failed read must not look like
+    // a statement that discovery has stopped.
+    if (!error) setCampaigns((data as CampaignStatus[]) ?? []);
+  }, []);
+
+  /**
+   * Everything this panel has ever staged, by source record id — the index
+   * behind "already seen, skipped" and behind `skipQids`, which is sent to the
+   * source as an exclusion list.
+   *
+   * ── WHY IT PAGES ───────────────────────────────────────────
+   *
+   * MEASURED 2026-09-24: radar_candidates held 3,705 rows and this asked for
+   * `.limit(50000)`. PostgREST caps every response at 1,000 and says nothing,
+   * so the index knew about 1,000 of them — and every one of the other 2,705
+   * was offered again as "new".
+   *
+   * The damage was not cosmetic. A run would report "1,326 new results",
+   * "Send all" would pre-check each against the database, find most of them
+   * already on file, and add almost nothing — having spent a long time doing
+   * it. That is the reported symptom: it looks like a long load that quietly
+   * achieves nothing, because that is exactly what it was.
+   */
   const loadStaged = useCallback(async () => {
-    const { data } = await supabase
-      .from('radar_candidates')
-      .select('source_key,source_record_id')
-      .in('source_key', ['wikidata', 'business_registration', 'waitlist', 'openstreetmap'])
-      .limit(50000);
     const map: Record<string, Set<string>> = {};
-    for (const r of (data as { source_key: string; source_record_id: string }[]) ?? []) {
-      if (!r.source_record_id) continue;
-      (map[r.source_key] ??= new Set()).add(r.source_record_id);
+    const PAGE = 1000;
+    /*
+     * A ceiling so this cannot become an unbounded fetch as the table grows.
+     * If it is ever hit the panel says so rather than quietly under-reporting
+     * again — an index that is silently incomplete is what caused this bug.
+     */
+    const MAX = 60000;
+    let from = 0;
+    let truncated = false;
+
+    for (;;) {
+      const { data, error } = await supabase
+        .from('radar_candidates')
+        .select('source_key,source_record_id')
+        .in('source_key', ['wikidata', 'business_registration', 'waitlist', 'openstreetmap'])
+        .not('source_record_id', 'is', null)
+        // `id` because source_record_id is not unique across source keys, and
+        // an unstable order across pages loses rows.
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+
+      if (error) { toast.error(`Could not read what is already staged: ${error.message}`); break; }
+      const batch = (data as { source_key: string; source_record_id: string }[]) ?? [];
+      for (const r of batch) {
+        if (!r.source_record_id) continue;
+        (map[r.source_key] ??= new Set()).add(r.source_record_id);
+      }
+      if (batch.length < PAGE) break;
+      from += PAGE;
+      if (from >= MAX) { truncated = true; break; }
+    }
+
+    if (truncated) {
+      toast.error(`Only the first ${MAX.toLocaleString()} staged records were read — "already seen" may be understated.`);
     }
     setStagedBySource(map);
   }, []);
@@ -338,7 +489,8 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
     void loadPolicy();
     void loadExisting();
     void loadStaged();
-  }, [loadPolicy, loadExisting, loadStaged]);
+    void loadCampaigns();
+  }, [loadPolicy, loadExisting, loadStaged, loadCampaigns]);
 
   const verdict = policy ? sourcePermits(policy, 'discover') : null;
 
@@ -372,7 +524,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
 
   const run = async () => {
     setRunning(true);
-    setResults([]);
+    setResults([]); setVisibleCount(RESULTS_PAGE);
     setSkipped(0);
     try {
       if (source === 'google') {
@@ -415,7 +567,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
         if (res.ok) {
           const returned = (body?.candidates as DiscoveryCandidate[] | undefined) ?? [];
           const fresh = returned.filter((c) => !skipQids.has(c.qid) && !matchOf(c));
-          setResults(fresh);
+          setResults(fresh); setVisibleCount(RESULTS_PAGE);
           setSkipped(returned.length - fresh.length);
           // Remember every returned QID now, so the next search asks the source
           // for something else instead of re-serving these rows.
@@ -462,7 +614,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
         if (res.ok) {
           const returned = (body?.candidates as DiscoveryCandidate[] | undefined) ?? [];
           const fresh = returned.filter((c) => !matchOf(c) && !isStaged(c));
-          setResults(fresh);
+          setResults(fresh); setVisibleCount(RESULTS_PAGE);
           setSkipped(returned.length - fresh.length);
           if (fresh.length === 0) {
             toast(returned.length
@@ -499,7 +651,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
         if (res.ok) {
           const returned = (body?.candidates as DiscoveryCandidate[] | undefined) ?? [];
           const fresh = returned.filter((c) => !matchOf(c) && !isStaged(c));
-          setResults(fresh);
+          setResults(fresh); setVisibleCount(RESULTS_PAGE);
           setSkipped(returned.length - fresh.length);
           if (fresh.length === 0) {
             toast(returned.length
@@ -533,7 +685,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
         if (res.ok) {
           const returned = (body?.candidates as DiscoveryCandidate[] | undefined) ?? [];
           const fresh = returned.filter((c) => !matchOf(c) && !isStaged(c));
-          setResults(fresh);
+          setResults(fresh); setVisibleCount(RESULTS_PAGE);
           setSkipped(returned.length - fresh.length);
           if (fresh.length === 0) {
             toast(returned.length
@@ -685,7 +837,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
     });
 
     const fresh = mapped.filter((c) => !matchOf(c) && !isStaged(c));
-    setResults(fresh);
+    setResults(fresh); setVisibleCount(RESULTS_PAGE);
     setSkipped(mapped.length - fresh.length);
     if (fresh.length === 0) {
       toast(mapped.length
@@ -696,44 +848,66 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
     }
   };
 
+/**
+    * Stage one candidate for review.
+    *
+    * Written with the admin's own session, so RLS applies exactly as it does to
+    * every other write in the console. `source_record_id` is the Wikidata QID.
+    * A second click on an already-staged candidate would hit the unique index
+    * on (source_key, source_record_id), so Postgres' 23505 is treated the way
+    * the queue treats it: the row is already there, staging did its job.
+    */
   /**
-   * Stage one candidate for review.
+   * One candidate as a `radar_candidates` row.
    *
-   * Written with the admin's own session, so RLS applies exactly as it does to
-   * every other write in the console. `source_record_id` is the Wikidata QID
-   * and the table's unique index on (source_key, source_record_id) makes a
-   * second click harmless.
+   * Extracted so the single-row and bulk paths cannot drift. They used to hold
+   * two copies of this mapping, which is how a column gets added to one and
+   * not the other.
    */
-  const stage = async (c: DiscoveryCandidate) => {
+  const candidateRow = (c: DiscoveryCandidate) => ({
+    source_key: c.sourceKey ?? WIKIDATA_SOURCE_KEY,
+    source_record_id: c.qid || c.sourceRecordId || cid(c),
+    source_url: c.sourceUrl || null,
+    name: c.name,
+    category: c.category,
+    city: c.city,
+    address: c.address,
+    phone: c.phone,
+    whatsapp: c.whatsapp ?? null,
+    email: c.email,
+    website: c.website,
+    description: c.description,
+    latitude: c.latitude ?? null,
+    longitude: c.longitude ?? null,
+    name_key: normalizeName(c.name),
+    city_key: normalizePlace(c.city ?? ''),
+    phone_e164: normalizePhone(c.phone ?? ''),
+    domain: normalizeDomain(c.website ?? ''),
+    status: 'review',
+    confidence: c.confidence ?? 70,
+    profile: c.profile,
+  });
+
+  const stage = async (
+    c: DiscoveryCandidate,
+    opts: { silent?: boolean; notify?: boolean } = {},
+  ): Promise<boolean> => {
+    const { silent = false, notify = true } = opts;
     const key = c.sourceKey ?? WIKIDATA_SOURCE_KEY;
     const recordId = c.qid || c.sourceRecordId || cid(c);
-    const { error } = await supabase.from('radar_candidates').insert({
-      source_key: key,
-      source_record_id: recordId,
-      source_url: c.sourceUrl || null,
-      name: c.name,
-      category: c.category,
-      city: c.city,
-      address: c.address,
-      phone: c.phone,
-      whatsapp: c.whatsapp ?? null,
-      email: c.email,
-      website: c.website,
-      description: c.description,
-      latitude: c.latitude ?? null,
-      longitude: c.longitude ?? null,
-      name_key: normalizeName(c.name),
-      city_key: normalizePlace(c.city ?? ''),
-      phone_e164: normalizePhone(c.phone ?? ''),
-      domain: normalizeDomain(c.website ?? ''),
-      status: 'review',
-      confidence: c.confidence ?? 70,
-      profile: c.profile,
-    });
+    let result;
+    try {
+      result = await supabase.from('radar_candidates').insert(candidateRow(c));
+    } catch (e) {
+      if (!silent) toast.error(`Network error: ${(e as Error)?.message ?? 'could not reach the database'}`);
+      return false;
+    }
 
-    if (error) {
-      toast.error(error.message);
-      return;
+    const { error } = result;
+    if (error && error.code !== '23505') {
+      // Silenced during a bulk run: 1,326 toasts is not an error report.
+      if (!silent) toast.error(error.message);
+      return false;
     }
     setStaged((prev) => new Set(prev).add(cid(c)));
     setStagedBySource((prev) => {
@@ -741,16 +915,141 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
       next[key].add(recordId);
       return next;
     });
-    onStaged?.();
+    if (notify) onStaged?.();
+    return true;
   };
 
+  /**
+   * Send every new result to the review queue.
+   *
+   * ── WHY THIS IS NOT A LOOP ANY MORE ──────────────────────────────────
+   *
+   * MEASURED 2026-09-23: a discovery run returned 1,326 new results. The
+   * previous version awaited one INSERT per candidate — 1,326 sequential
+   * round trips — and called `onStaged?.()` after every one, so the parent
+   * reloaded the whole review queue 1,326 times. At a couple of hundred
+   * milliseconds each that is minutes of staring at a disabled button, and
+   * most of the wait was the reloads, not the writes.
+   *
+   * Now: one query to find what is already on file, then chunked inserts, then
+   * ONE reload at the end. 1,326 candidates go from ~1,300 requests to about
+   * eight.
+   *
+   * ── WHY NOT UPSERT ───────────────────────────────────────────────────
+   *
+   * The unique index is PARTIAL — (source_key, source_record_id) WHERE
+   * source_record_id IS NOT NULL — and PostgREST's `onConflict` cannot express
+   * the predicate, so an upsert against it is unreliable. Asking first is
+   * plainer and costs one request.
+   */
   const stageAllNew = async () => {
     const fresh = results.filter((c) => !isStaged(c) && !matchOf(c));
     if (!fresh.length) { toast('Nothing new to add.'); return; }
+
     setRunning(true);
-    for (const c of fresh) await stage(c);
-    setRunning(false);
-    toast.success(`${fresh.length} sent to the review queue`);
+    setStageProgress({ done: 0, total: fresh.length });
+    let sent = 0;
+    let failed = 0;
+    let duplicates = 0;
+
+    try {
+      /*
+       * What is already on file, asked once.
+       *
+       * Without this the first duplicate in a chunk fails the WHOLE chunk —
+       * Postgres aborts the statement — so a single already-seen record would
+       * cost 200 good ones.
+       */
+      const byKey = new Map<string, DiscoveryCandidate[]>();
+      for (const c of fresh) {
+        const key = c.sourceKey ?? WIKIDATA_SOURCE_KEY;
+        (byKey.get(key) ?? byKey.set(key, []).get(key)!).push(c);
+      }
+
+      /*
+       * Progress is counted across ALL source keys, and counts an
+       * already-on-file record as processed.
+       *
+       * It used to report `done` within one key's insert list against a `total`
+       * of every fresh row, so with more than one source the bar restarted, and
+       * when most rows turned out to be duplicates it stopped partway and never
+       * moved again — the panel looked frozen at, say, 40 of 1,326 while in
+       * fact it had finished. Same symptom as the bug above, different cause.
+       */
+      let processed = 0;
+
+      for (const [key, list] of byKey) {
+        const ids = list.map((c) => c.qid || c.sourceRecordId || cid(c));
+        const existing = new Set<string>();
+
+        // Chunked so the `in` list never grows past what a URL can carry.
+        for (let i = 0; i < ids.length; i += 300) {
+          const { data } = await supabase
+            .from('radar_candidates')
+            .select('source_record_id')
+            .eq('source_key', key)
+            .in('source_record_id', ids.slice(i, i + 300));
+          for (const r of (data ?? []) as Array<{ source_record_id: string }>) {
+            existing.add(r.source_record_id);
+          }
+        }
+
+        const toInsert = list.filter((c) => !existing.has(c.qid || c.sourceRecordId || cid(c)));
+        const alreadyOnFile = list.length - toInsert.length;
+        duplicates += alreadyOnFile;
+        // Duplicates are dealt with, so the bar must move for them too.
+        processed += alreadyOnFile;
+        setStageProgress({ done: processed, total: fresh.length });
+
+        for (let i = 0; i < toInsert.length; i += STAGE_CHUNK) {
+          const chunk = toInsert.slice(i, i + STAGE_CHUNK);
+          const { error } = await supabase.from('radar_candidates').insert(chunk.map(candidateRow));
+
+          if (error) {
+            /*
+             * A chunk can still fail on a race — something staged between our
+             * check and our insert. Fall back to one at a time for THAT chunk
+             * only, so one bad row costs one row rather than two hundred.
+             */
+            for (const c of chunk) {
+              const ok = await stage(c, { silent: true, notify: false });
+              if (ok) sent += 1; else failed += 1;
+            }
+          } else {
+            sent += chunk.length;
+            setStaged((prev) => {
+              const next = new Set(prev);
+              for (const c of chunk) next.add(cid(c));
+              return next;
+            });
+            setStagedBySource((prev) => {
+              const nextSet = new Set(prev[key] ?? []);
+              for (const c of chunk) nextSet.add(c.qid || c.sourceRecordId || cid(c));
+              return { ...prev, [key]: nextSet };
+            });
+          }
+          processed += chunk.length;
+          setStageProgress({ done: processed, total: fresh.length });
+        }
+      }
+    } finally {
+      setRunning(false);
+      setStageProgress(null);
+      // ONCE, not per row. This is the reload that made the old version slow.
+      onStaged?.();
+    }
+
+    /*
+     * Re-read the staged index from the database rather than trusting the
+     * optimistic updates above. The row-by-row fallback path does not update
+     * it, so without this a partially-failed run leaves the panel offering
+     * rows it has already sent.
+     */
+    void loadStaged();
+
+    if (sent > 0) toast.success(`${sent} sent to the review queue`);
+    if (duplicates > 0) toast(`${duplicates} were already on file`);
+    if (failed > 0) toast.error(`${failed} could not be sent`);
   };
 
   return (
@@ -765,6 +1064,53 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
           </p>
         </div>
       </div>
+
+      {/*
+        * The scheduled half, in the words of the database.
+        *
+        * `campaigns === null` means the read has not returned yet, which is
+        * not the same as "there are none" — so it renders nothing rather than
+        * flashing a claim it cannot support.
+        */}
+      {campaigns !== null && (
+        <div className="rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800/50 p-3">
+          <p className="text-[11px] font-bold uppercase tracking-wide text-gray-500 flex items-center gap-1.5">
+            <Clock size={12} /> Scheduled discovery
+          </p>
+
+          {campaigns.length === 0 ? (
+            <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+              No campaigns exist, so nothing runs on its own. Everything in the queue got there
+              because somebody pressed Search.
+            </p>
+          ) : (
+            <ul className="mt-1.5 space-y-1.5">
+              {campaigns.map((c) => (
+                <li key={c.id} className="text-xs">
+                  <span className="font-semibold text-gray-900 dark:text-white">{c.name}</span>
+                  <span className="text-gray-400"> — </span>
+                  <span className={c.status === 'active'
+                    ? 'text-gray-600 dark:text-gray-400'
+                    : 'text-amber-700 dark:text-amber-300'}>
+                    {c.why}
+                  </span>
+                  <span className="block text-[11px] text-gray-500 mt-0.5">
+                    {c.max_records != null && (
+                      <>{(c.records_discovered ?? 0).toLocaleString()} of {c.max_records.toLocaleString()} found</>
+                    )}
+                    {c.max_records == null && <>{(c.records_discovered ?? 0).toLocaleString()} found, no total ceiling</>}
+                    {c.daily_limit != null && <> · {c.discovered_today} of {c.daily_limit} today</>}
+                    {c.status === 'active' && c.next_due_at && (
+                      <> · next run {new Date(c.next_due_at).toLocaleString()}</>
+                    )}
+                    {!c.next_due_at && c.status === 'active' && <> · has never run</>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {/* The rights, stated rather than assumed. External sources carry the
           full radar_sources verdict; internal sources are first-party data, so
@@ -790,6 +1136,22 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
             </p>
             {policy?.licence && (
               <p className="text-gray-600 dark:text-gray-400 mt-0.5">Licence: {policy.licence}</p>
+            )}
+            {/*
+              * What this source permits BEYOND being searched.
+              *
+              * A source can permit discovery and still forbid keeping its
+              * images or its phone numbers — Wikidata is exactly that case,
+              * CC0 data with photographs on Commons that are licensed per
+              * file. An operator staging candidates needs to see it here
+              * rather than discover it downstream.
+              */}
+            {policy && (
+              <p className="text-gray-600 dark:text-gray-400 mt-0.5">
+                Review: <strong>{(policy.complianceStatus ?? 'review_required').replace(/_/g, ' ')}</strong>
+                {' · '}Images: {policy.imageReuse === 'permitted' ? 'may be reused' : 'not reusable'}
+                {' · '}Contacts: {policy.contactStorage === 'permitted' ? 'may be stored' : 'not storable'}
+              </p>
             )}
           </div>
         </div>
@@ -924,7 +1286,21 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
           <p className="text-[12px] text-gray-500 mb-1">
             {results.length} new result{results.length === 1 ? '' : 's'}
             {skipped > 0 && <> — {skipped} already seen, skipped</>}
+            {results.length > visibleCount && (
+              <> · showing the first {visibleCount}</>
+            )}
           </p>
+
+          {stageProgress && (
+            /*
+             * A long job needs to say where it is. Without this the button is
+             * simply disabled for minutes, which is indistinguishable from a
+             * hang — and was reported as one.
+             */
+            <p className="text-[12px] text-blue-700 dark:text-blue-300 mb-2" role="status">
+              Sending to the review queue… {stageProgress.done} of {stageProgress.total}
+            </p>
+          )}
           <table className="min-w-full text-sm">
             <thead className="text-xs uppercase text-gray-500 border-b border-gray-200 dark:border-gray-700">
               <tr>
@@ -936,7 +1312,7 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
               </tr>
             </thead>
             <tbody>
-              {results.map((c) => {
+              {results.slice(0, visibleCount).map((c) => {
                 const done = isStaged(c);
                 const thumb = c.profile?.logo_url ?? c.profile?.image_url;
                 const isInternal = Boolean(c.sourceKey);
@@ -1005,6 +1381,23 @@ export default function DiscoveryPanel({ onStaged }: { onStaged?: () => void }) 
               })}
             </tbody>
           </table>
+
+          {results.length > visibleCount && (
+            /*
+             * MEASURED: a run returned 1,326 results and the table rendered
+             * every one — each with an image and five cells. That is the page
+             * being slow, separately from the staging being slow, and the
+             * reviewer reads the first screenful either way.
+             */
+            <button
+              type="button"
+              onClick={() => setVisibleCount((n) => n + RESULTS_PAGE)}
+              className="mt-3 inline-flex items-center gap-2 px-4 min-h-[40px] rounded-lg border border-gray-300 dark:border-gray-600 text-sm font-semibold"
+            >
+              Show {Math.min(RESULTS_PAGE, results.length - visibleCount)} more
+              <span className="text-gray-500">({results.length - visibleCount} left)</span>
+            </button>
+          )}
         </div>
       )}
     </div>

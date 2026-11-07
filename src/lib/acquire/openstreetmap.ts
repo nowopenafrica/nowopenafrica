@@ -33,6 +33,78 @@
 
 import type { RawCandidate } from './adapter.js';
 
+/**
+ * OSM's social tags, mapped to the keys `radar_publish_candidate` projects
+ * onto `businesses.social_links`.
+ */
+export const OSM_SOCIAL_TAGS: Record<string, string> = {
+  instagram: 'contact:instagram',
+  facebook: 'contact:facebook',
+  twitter: 'contact:twitter',
+  youtube: 'contact:youtube',
+  tiktok: 'contact:tiktok',
+  linkedin: 'contact:linkedin',
+};
+
+/** Hosts a social URL may legitimately use, per network. */
+const SOCIAL_HOSTS: Record<string, RegExp> = {
+  instagram: /(^|\.)instagram\.com$/i,
+  facebook: /(^|\.)(facebook\.com|fb\.com|fb\.me)$/i,
+  twitter: /(^|\.)(twitter\.com|x\.com)$/i,
+  youtube: /(^|\.)(youtube\.com|youtu\.be)$/i,
+  tiktok: /(^|\.)tiktok\.com$/i,
+  linkedin: /(^|\.)linkedin\.com$/i,
+};
+
+/**
+ * A profile URL from whatever a mapper typed, or null.
+ *
+ * OSM is crowd-entered, so the same tag holds a full URL, a bare handle and
+ * an `@handle` — all three were present in the Nigerian data. It also holds
+ * mistakes: one `contact:instagram` was `regalflowers.com.ng`, a website.
+ * A bare value containing a dot is treated as a domain rather than a handle
+ * for exactly that reason; no social network allows a dot-separated TLD in a
+ * username, so nothing legitimate is lost.
+ */
+export function socialHandle(network: string, raw: string | null | undefined): string | null {
+  const v = (raw ?? '').trim();
+  if (!v) return null;
+
+  const host = SOCIAL_HOSTS[network];
+  if (!host) return null;
+
+  /*
+   * A URL: keep it only when it points at the right network.
+   *
+   * The slash test matters — OSM holds bare `instagram.com/name` with no
+   * scheme and no www, which would otherwise fall to the handle branch and be
+   * rejected by the dot rule meant for mis-tagged websites.
+   */
+  if (/^https?:\/\//i.test(v) || /^www\./i.test(v) || v.includes('/')) {
+    try {
+      const u = new URL(v.startsWith('http') ? v : `https://${v}`);
+      if (!host.test(u.hostname)) return null;
+      // Normalised, so two spellings of one account are one value.
+      return `https://${u.hostname.replace(/^www\./i, '')}${u.pathname.replace(/\/+$/, '')}`;
+    } catch {
+      return null;
+    }
+  }
+
+  const handle = v.replace(/^@/, '').replace(/\/+$/, '');
+  /*
+   * A dot means a domain, not a username — this is the mis-tagged-website
+   * case. Everything else must look like a handle.
+   */
+  if (handle.includes('.') || !/^[A-Za-z0-9._-]{1,40}$/.test(handle.replace(/\./g, 'x'))) return null;
+  if (!/^[A-Za-z0-9_-]{1,40}$/.test(handle)) return null;
+
+  const base = network === 'twitter' ? 'x.com'
+    : network === 'youtube' ? 'youtube.com'
+    : `${network}.com`;
+  return `https://${base}/${handle}`;
+}
+
 /** The source key in `radar_sources`. */
 export const OSM_SOURCE_KEY = 'openstreetmap';
 
@@ -396,7 +468,30 @@ export function foldOsmElements(
       }
     }
 
+    /*
+     * SOCIAL ACCOUNTS THE BUSINESS PUT ON ITS OWN OSM ENTRY.
+     *
+     * These were read and thrown away. For a directory trying to reach small
+     * owner-run businesses that is the most valuable tag on the node: a
+     * hairdresser with an Instagram account is exactly the business that
+     * would claim a listing, and a hospital from Wikidata never will.
+     *
+     * Measured against Overpass on 2026-10-09: 25 Nigerian entries carry
+     * `contact:instagram`, written three different ways — a full URL, a bare
+     * handle, and an `@handle`. One ("regalflowers.com.ng") was a WEBSITE
+     * mis-tagged as a handle, which is why every value is validated rather
+     * than trusted.
+     *
+     * Keys match the publish whitelist (profile->>'instagram' becomes
+     * social_links.instagram), so a value outside it would be staged, shown
+     * to a reviewer, and silently dropped at publication.
+     */
     const profile: Record<string, string> = {};
+    for (const [network, tag] of Object.entries(OSM_SOCIAL_TAGS)) {
+      const handle = socialHandle(network, tags[tag] ?? tags[`contact:${network}`]);
+      if (handle) profile[network] = handle;
+    }
+
     if (openingHours) profile.opening_hours = openingHours;
     if (tags['addr:postcode']) profile.postcode = tags['addr:postcode'];
     if (tags.cuisine) profile.cuisine = tags.cuisine;

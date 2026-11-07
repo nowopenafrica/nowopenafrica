@@ -1,9 +1,11 @@
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, BarChart3, Filter, Layers, ScrollText, ToggleLeft } from 'lucide-react';
+import { ArrowLeft, BarChart3, Filter, GitCompareArrows, Layers, ScrollText, SearchCode, ToggleLeft } from 'lucide-react';
 import OverviewTab from './businessIntelligence/OverviewTab';
 import CampaignsTab from './businessIntelligence/CampaignsTab';
 import SourcesTab from './businessIntelligence/SourcesTab';
 import ReviewTab from './businessIntelligence/ReviewTab';
+import ConflictsTab from './businessIntelligence/ConflictsTab';
+import ManualExtractTab from './businessIntelligence/ManualExtractTab';
 import ComplianceTab from './businessIntelligence/ComplianceTab';
 
 const TABS = [
@@ -11,12 +13,24 @@ const TABS = [
   { key: 'campaigns', label: 'Campaigns', icon: Layers },
   { key: 'sources', label: 'Sources', icon: Filter },
   { key: 'review', label: 'Review', icon: ScrollText },
+  { key: 'conflicts', label: 'Conflicts', icon: GitCompareArrows },
+  { key: 'extract', label: 'Manual extract', icon: SearchCode },
   { key: 'compliance', label: 'Compliance', icon: ToggleLeft },
 ] as const;
 
-export default function BusinessIntelligencePanel() {
+interface BusinessIntelligencePanelProps {
+  /**
+   * The query param that drives the internal tab switcher. The standalone page
+   * uses `tab`; embedded in the Admin Dashboard it must keep distance from the
+   * outer `?tab=` that selects the console tab, so the dashboard passes
+   * `busintel` and the two never clobber each other.
+   */
+  paramKey?: string;
+}
+
+export default function BusinessIntelligencePanel({ paramKey = 'tab' }: BusinessIntelligencePanelProps) {
   const [params, setParams] = useSearchParams();
-  const tab = params.get('tab') ?? 'overview';
+  const tab = params.get(paramKey) ?? 'overview';
   const active = TABS.some((t) => t.key === tab) ? tab : 'overview';
 
   return (
@@ -46,7 +60,13 @@ export default function BusinessIntelligencePanel() {
           return (
             <button
               key={t.key}
-              onClick={() => setParams({ tab: t.key })}
+              onClick={() =>
+                setParams(prev => {
+                  const next = new URLSearchParams(prev);
+                  next.set(paramKey, t.key);
+                  return next;
+                })
+              }
               className={`inline-flex items-center gap-1.5 rounded-lg px-3.5 py-2 text-[13px] font-semibold transition ${
                 active === t.key
                   ? 'bg-nowopen-500 text-white'
@@ -64,6 +84,8 @@ export default function BusinessIntelligencePanel() {
       {active === 'campaigns' && <CampaignsTab />}
       {active === 'sources' && <SourcesTab />}
       {active === 'review' && <ReviewTab />}
+      {active === 'conflicts' && <ConflictsTab />}
+      {active === 'extract' && <ManualExtractTab />}
       {active === 'compliance' && <ComplianceTab />}
     </div>
   );

@@ -88,8 +88,21 @@ export function runEnrichment(opts: RunEnrichmentOptions): EnrichmentSummary {
   } = opts;
 
   // GATE: is this source's entity the same business as the one we hold?
+  /*
+   * `business.phone` does not exist on this type — the phone lives at
+   * `phoneE164` (EntityKey) or `fields.phone` (PolicyBusiness). It was reading
+   * `undefined`, so the phone signal never contributed to the identity match
+   * and the gate decided on name and domain alone.
+   *
+   * Invisible until supabase/functions was typechecked at all; see
+   * tsconfig.edge.json.
+   */
   const identity = matchIdentity(
-    { nameKey: business.name, domain: business.domain, phoneE164: business.phone },
+    {
+      nameKey: business.name,
+      domain: business.domain,
+      phoneE164: business.phoneE164 ?? business.fields.phone ?? null,
+    },
     { nameKey: report.name, domain: report.domain, phoneE164: report.phone },
   );
   if (!identity.matched) {
@@ -103,8 +116,43 @@ export function runEnrichment(opts: RunEnrichmentOptions): EnrichmentSummary {
   }
 
   // Hours -----------------------------------------------------------------
+  /*
+   * THE OVERWRITE GUARD WAS OPEN. Found 2026-09-15 when supabase/functions was
+   * typechecked for the first time (tsconfig.edge.json).
+   *
+   * `resolveHours` reads `opening_hours`, `hours`, `availability_mode` and
+   * `data_confidence` off the business it is given. It was handed
+   * `business` — a PolicyBusiness & EntityKey, which carries NONE of those
+   * names: its current column values live under `fields`, and its confirmation
+   * state under `ownerConfirmed`. TypeScript's word for the mismatch was
+   * "no properties in common with", which is as complete as a mismatch gets.
+   *
+   * What that produced, every single call:
+   *
+   *   ownerConfirmed -> ['owner_confirmed','admin_verified'].includes('')
+   *                     -> false, ALWAYS
+   *   existing       -> ('' || '' || '').trim()
+   *                     -> '', ALWAYS
+   *
+   * So enrichment believed every business had no hours on file and no owner
+   * confirmation — which is precisely the state in which overwriting is
+   * allowed. The protection against AI enrichment overwriting hours a business
+   * or an admin had confirmed was inert for as long as it has existed.
+   *
+   * It has not yet cost anything, because only 3 of 3,118 businesses have any
+   * hours and none are owner-confirmed. That is luck, not design.
+   */
   const hours = report.hours?.length
-    ? resolveHours(business, report.hours)
+    ? resolveHours(
+      {
+        opening_hours: business.fields.opening_hours,
+        hours: business.fields.hours,
+        availability_mode: business.fields.availability_mode,
+        data_confidence: business.fields.data_confidence,
+      },
+      report.hours,
+      { ownerConfirmed: business.ownerConfirmed },
+    )
     : null;
 
   // Text fields ------------------------------------------------------------

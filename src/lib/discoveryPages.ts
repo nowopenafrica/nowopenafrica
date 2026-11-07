@@ -111,6 +111,74 @@ export function discoveryPages(
   return pages.sort((a, b) => b.count - a.count || a.path.localeCompare(b.path));
 }
 
+/** One "where else to go" link. */
+export interface RelatedPlace {
+  label: string;
+  path: string;
+  /** How many listings stand behind it. Exposed so a caller can show it. */
+  count: number;
+}
+
+/**
+ * The places worth linking to from a discovery page, densest first.
+ *
+ * WHY COUNTING, RATHER THAN THE FIRST EIGHT THAT TURN UP
+ *
+ * api/discovery.ts used to read 500 rows with no ORDER BY and take the first
+ * eight distinct places out of them. Measured on /businesses/in/lagos —
+ * the most important city page in the directory — on 2026-09-14:
+ *
+ *   /businesses/in/3-lekki-road   a street address, filed as a place because it
+ *                                 is what sits before the first comma in one
+ *                                 listing's location. One listing behind it, so
+ *                                 the page answers `noindex`.
+ *   /businesses/in/ikotun         a real town, below the density threshold, so
+ *                                 also `noindex`.
+ *
+ * Two of eight links pointed at pages the site itself asks not to be indexed —
+ * crawl budget spent to say "never mind" — and, because the read was
+ * unordered, the eight changed between cache refreshes, so no link ever
+ * accumulated any value.
+ *
+ * Density fixes both halves at once. A place with several listings behind it is
+ * a real place very nearly by definition; a doorway has one. So this needs no
+ * list of banned words to maintain, and it happens to rank the best destinations
+ * highest too.
+ *
+ * `min` defaults to MIN_LISTINGS_PER_PAGE deliberately: it is the same constant
+ * the sitemap's page set is built from, so a linked page and a submitted page
+ * are the same set by construction rather than by two rules kept in step by
+ * hand.
+ */
+export function relatedPlaces(
+  listings: Pick<DiscoverableListing, 'location'>[],
+  excludeSlug: string,
+  limit = 8,
+  min = MIN_LISTINGS_PER_PAGE,
+): RelatedPlace[] {
+  const counts = new Map<string, { label: string; count: number }>();
+
+  for (const l of listings) {
+    const label = placeOf(l.location);
+    if (!label) continue;
+    const key = slugify(label);
+    // An empty slug means the label was punctuation; excludeSlug keeps a page
+    // from linking to itself.
+    if (!key || key === excludeSlug) continue;
+    const cur = counts.get(key);
+    if (cur) cur.count += 1;
+    else counts.set(key, { label, count: 1 });
+  }
+
+  return [...counts.entries()]
+    .filter(([, v]) => v.count >= min)
+    // Slug as the tiebreaker so the order is stable across requests. An
+    // unstable set of internal links is close to no internal links at all.
+    .sort((a, b) => b[1].count - a[1].count || a[0].localeCompare(b[0]))
+    .slice(0, limit)
+    .map(([key, v]) => ({ label: v.label, path: `/businesses/in/${key}`, count: v.count }));
+}
+
 /** Human title for a discovery page — also its <h1> and its <title>. */
 export function discoveryTitle(page: Pick<DiscoveryPage, 'kind' | 'place' | 'category'>): string {
   return page.kind === 'category-in-place' && page.category

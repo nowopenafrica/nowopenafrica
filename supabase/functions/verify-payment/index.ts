@@ -3,6 +3,29 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
 import { activatePlanFromIntent } from "../_shared/planActivation.ts";
 
+/*
+ * Credits bought with money.
+ *
+ * The function takes only the payment REFERENCE — it reads the intent, checks
+ * that the platform itself marked it paid, and grants what the PACK says. This
+ * code cannot name an amount, which is the point: a caller that could would be
+ * a caller that could name a large one.
+ *
+ * Idempotent, so verify-payment and the webhook may both call it. A failure
+ * here must not fail the payment response: the money is already taken and the
+ * reference means a retry credits exactly once.
+ */
+async function fulfilCreditsIfAny(
+  db: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> },
+  intent: { kind?: string | null },
+  reference: string,
+): Promise<void> {
+  if (intent?.kind !== "credits") return;
+  const { error } = await db.rpc("credit_fulfil_purchase", { p_reference: reference });
+  if (error) console.error("credit fulfilment failed for", reference, error.message);
+}
+
+
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -66,6 +89,7 @@ Deno.serve(async (req: Request) => {
     // sure the plan is granted (activatePlanFromIntent no-ops if it already is).
     if (intent.status === "paid") {
       await activatePlanFromIntent(supabase, { ...intent, reference });
+      await fulfilCreditsIfAny(supabase, intent, reference);
       return jsonResponse({ verified: true, message: "Payment already confirmed." });
     }
 
@@ -96,6 +120,7 @@ Deno.serve(async (req: Request) => {
       }).eq("id", intent.id);
       // If this was a plan subscription, grant it on the account now.
       await activatePlanFromIntent(supabase, { ...intent, reference });
+      await fulfilCreditsIfAny(supabase, intent, reference);
       return jsonResponse({ verified: true, message: "Payment confirmed." });
     }
 

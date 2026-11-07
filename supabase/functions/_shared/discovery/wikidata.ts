@@ -20,7 +20,6 @@
  * moment of publication.
  */
 
-import type { RawCandidate } from './types.ts';
 import type { WikidataCandidate } from './types.ts';
 
 /** The source key in `radar_sources`. */

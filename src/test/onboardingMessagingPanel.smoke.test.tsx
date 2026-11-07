@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+
 import { describe, it, vi, expect, beforeEach } from 'vitest';
 import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 
@@ -313,7 +315,11 @@ describe('Onboarding messaging panel', () => {
     };
 
     render(<OnboardingMessagingPanel />);
-    fireEvent.click(screen.getByRole('button', { name: 'Both' }));
+    /*
+     * Labelled "WA + IG" since email joined the toggle: with four options
+     * "Both" no longer says both of WHAT.
+     */
+    fireEvent.click(screen.getByRole('button', { name: 'WA + IG' }));
     fireEvent.change(screen.getByLabelText('Business name'), { target: { value: "Ada's Kitchen" } });
     fireEvent.change(screen.getByLabelText('WhatsApp number'), { target: { value: '0803 000 0001' } });
     fireEvent.change(screen.getByLabelText('Instagram recipient'), { target: { value: '17841400000000000' } });
@@ -374,5 +380,20 @@ describe('Onboarding messaging panel', () => {
     await waitFor(() => expect(screen.getByText(/needs_conversation/i)).toBeInTheDocument());
     expect(screen.getByText('@ada.kitchen')).toBeInTheDocument();
     expect(screen.getByText('IG')).toBeInTheDocument();
+  });
+});
+describe('a pending template is not a configuration problem', () => {
+  it('does not tell an operator to configure something Meta controls', () => {
+    /*
+     * The retry note read "it will go out automatically once the WhatsApp
+     * provider template is configured". For the commonest needs_template row
+     * that is false — the template IS submitted and Meta has not approved it.
+     * The sentence invited the one action that breaks things: naming a
+     * pending template, which sends nothing and converts honest refusals into
+     * real send failures.
+     */
+    const src = readFileSync('src/components/admin/OnboardingMessagingPanel.tsx', 'utf8');
+    expect(src).toMatch(/once Meta approves the template/);
+    expect(src).not.toMatch(/provider\{r\.status === 'needs_template' \? ' template' : ''\} is configured/);
   });
 });

@@ -112,6 +112,8 @@ export function sameValue(
   proposed: string | null | undefined,
 ): boolean {
   if (current === proposed) return true;
-  const clean = (s: string) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+  // Typed for what it is actually called with. The body already coalesced a
+  // missing value, so this only stops the declaration contradicting the use.
+  const clean = (s: string | null | undefined) => (s ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
   return clean(current) === clean(proposed);
 }

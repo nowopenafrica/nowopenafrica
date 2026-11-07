@@ -57,7 +57,7 @@ export const WIKIDATA_SPARQL = 'https://query.wikidata.org/sparql';
  * in a server function rather than in the admin console.
  */
 export const WIKIDATA_USER_AGENT =
-  'NowOpenAfrica/1.0 (https://nowopenafrica.com; tech@nowopenafrica.com) AutoAcquire';
+  'NowOpenAfrica/1.0 (https://www.nowopenafrica.com; tech@nowopenafrica.com) AutoAcquire';
 
 /**
  * Wikidata types worth listing, and the NowOpen category each becomes.

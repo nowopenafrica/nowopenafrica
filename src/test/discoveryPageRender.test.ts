@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 
 import {
-  renderDiscoveryPage, isIndexable, discoveryTitle, discoveryDescription,
+  renderDiscoveryPage, isIndexable, hoursCoverage, discoveryTitle, discoveryDescription,
   discoveryJsonLd, breadcrumbJsonLd, slugify, unslugify, MIN_INDEXABLE,
   type DiscoveryPage, type DiscoveryListing,
 } from '../lib/discoveryPageRender';
@@ -55,14 +55,56 @@ describe('the indexing threshold', () => {
   });
 
   /*
-   * The second condition, and the one specific to this product. NowOpen is
-   * named after knowing whether somewhere is open; a page where nothing can
-   * answer that should not ask to rank for it.
+   * CHANGED 2026-09-15. This used to assert the opposite.
+   *
+   * There was a second condition: at least one accountable listing had to have
+   * opening hours, because NowOpen is named after knowing whether somewhere is
+   * open. The instinct was right and the placement was wrong.
+   *
+   * MEASURED IN PRODUCTION: 3 of 3,118 businesses have any opening-hours text.
+   * So of the 220 discovery pages the sitemap submitted, exactly one passed —
+   * 40 of 40 sampled through Googlebot returned `noindex`. 148 pages that
+   * qualified on accountability were suppressed by a data gap, and the sitemap
+   * went on submitting them, asking Google to consider pages the site then told
+   * it to ignore.
+   *
+   * A page listing sixty accountable hospitals in Lagos with names, addresses
+   * and phone numbers answers "hospitals in Lagos". Hours would make it better.
+   * Their absence does not make it thin. The surface that genuinely must not
+   * exist without hours is /open-now, and that has its own rule.
+   *
+   * Hours are now a priority signal — hoursCoverage() — not an existence gate.
    */
-  it('refuses when no listing can say whether it is open', () => {
+  it('indexes a dense accountable page even when nobody has published hours', () => {
     const noHours = page({ listings: Array.from({ length: 6 }, (_, i) => listing(i)) });
     expect(noHours.total).toBeGreaterThanOrEqual(MIN_INDEXABLE);
-    expect(isIndexable(noHours)).toBe(false);
+    expect(isIndexable(noHours)).toBe(true);
+  });
+
+  it('still reports hours coverage, so the gap stays visible', () => {
+    // The data gap is real and must not become invisible just because it no
+    // longer hides the page.
+    const noHours = page({ listings: Array.from({ length: 6 }, (_, i) => listing(i)) });
+    expect(hoursCoverage(noHours)).toBe(0);
+
+    const half = page({
+      listings: [
+        ...Array.from({ length: 3 }, (_, i) => listing(i, { hasHours: true })),
+        ...Array.from({ length: 3 }, (_, i) => listing(i + 3)),
+      ],
+    });
+    expect(hoursCoverage(half)).toBeCloseTo(0.5);
+  });
+
+  it('counts coverage over accountable listings only', () => {
+    const mixed = page({
+      listings: [
+        ...Array.from({ length: 5 }, (_, i) => listing(i, { hasHours: true })),
+        // Not accountable: must not dilute the measure.
+        listing(9, { hasProvenance: false, hasHours: false }),
+      ],
+    });
+    expect(hoursCoverage(mixed)).toBe(1);
   });
 
   /*
@@ -174,8 +216,26 @@ describe('slugs round-trip', () => {
     expect(unslugify('port-harcourt')).toBe('Port Harcourt');
   });
 
-  it('handles ampersands in categories', () => {
-    expect(slugify('Restaurant & Food')).toBe('restaurant-food');
+  it('spells an ampersand as "and", the way the sitemap already submits it', () => {
+    /*
+     * CHANGED 2026-09-15. This asserted 'restaurant-food'.
+     *
+     * There were two slugify functions. discoveryPages.ts (which mints the
+     * sitemap URLs) wrote "&" as the word "and"; this file's copy stripped it.
+     * The same category therefore had two addresses, and the renderer could
+     * never resolve the one the sitemap submitted:
+     *
+     *   submitted   /businesses/hospital-and-clinic/in/lagos
+     *   resolvable  /businesses/hospital-clinic/in/lagos
+     *
+     * 25 categories contain "&", holding 2,657 of 3,118 businesses. Every one
+     * of their category pages rendered "No businesses listed here yet."
+     *
+     * There is now one function, re-exported. The "and" spelling wins because
+     * those are the URLs already given to search engines.
+     */
+    expect(slugify('Restaurant & Food')).toBe('restaurant-and-food');
+    expect(slugify('Hospital & Clinic')).toBe('hospital-and-clinic');
   });
 });
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { Search, ArrowRight, Loader2 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { fetchAllBusinesses } from '../../lib/fetchAllBusinesses';
 import type { Business } from '../../types';
 import { scanLocalPipeline, type PipelineCounts } from '../../lib/adminCreator';
 
@@ -39,10 +40,18 @@ export default function AdminBusinessPicker({ selectedId, onSelect, strip, tool 
     setLoading(true);
     try {
       const [bizRes, logRes] = await Promise.all([
-        supabase.from('businesses').select('*').order('created_at', { ascending: false }).limit(50000),
+        /*
+         * Paged, not `.limit(50000)`.
+         *
+         * MEASURED 2026-10-09: 4,010 businesses, of which this picker held the
+         * newest 1,000 — PostgREST truncates one request at its row cap with
+         * no error. An admin searching for any of the other 3,010 was told, in
+         * effect, that it does not exist.
+         */
+        fetchAllBusinesses(),
         supabase.from('social_publish_log').select('status'),
       ]);
-      if (bizRes.error) throw bizRes.error;
+      if (bizRes.error) throw new Error(bizRes.error);
       const rows = bizRes.data as Business[] | null;
       setBusinesses(rows ?? []);
       setPublished((logRes.data ?? []).filter((l) => l.status === 'ok' || l.status === 'simulated').length);

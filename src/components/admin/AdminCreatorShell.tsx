@@ -26,6 +26,8 @@ import MotionGraphicsStudio from './MotionGraphicsStudio';
 import VideoTemplateLibrary from './VideoTemplateLibrary';
 import DesignSystem from './DesignSystem';
 import PromptLibrary from './PromptLibrary';
+import TemplateManager from './TemplateManager';
+import AdSurfaceEditor from './AdSurfaceEditor';
 import PressRoom from './PressRoom';
 import PartnershipCrm from './PartnershipCrm';
 import LaunchControl from './LaunchControl';
@@ -41,9 +43,11 @@ import DocumentCenter from './DocumentCenter';
 import SigningVault from './SigningVault';
 import ApplicationsReview from './ApplicationsReview';
 import AiCommandCenter from './AiCommandCenter';
+import ModelAvailability from './ModelAvailability';
 import MediaIntelligencePanel from './MediaIntelligencePanel';
 import ChangeProposalsPanel from './ChangeProposalsPanel';
 import EnrichmentOpsPanel from './EnrichmentOpsPanel';
+import EnrichmentWorkspace from './EnrichmentWorkspace';
 
 // One internal frame for the whole team: every department in the sidebar,
 // Command Center as the front door. Sections that are live get a real
@@ -75,14 +79,28 @@ const LIVE_MODULES: Record<string, (open: (id: string) => void) => JSX.Element> 
   'video-templates': (open) => <VideoTemplateLibrary onOpenSection={open} />,
   'design-system': () => <DesignSystem />,
   'prompt-library': () => <PromptLibrary />,
+  'template-manager': () => <TemplateManager />,
+  'ad-surfaces': () => <AdSurfaceEditor />,
   'press-room': () => <PressRoom />,
   partners: () => <PartnershipCrm />,
   launch: () => <LaunchControl />,
   knowledge: () => <KnowledgeBase />,
-  'ai-command': (open) => <AiCommandCenter onOpenSection={open} />,
+  /*
+   * The availability check sits above the Command Centre because it answers
+   * the question the model picker below it raises: are these 18 hardcoded ids
+   * still real? It stays compact until somebody presses Check now, and it
+   * spends a probe call per provider, so it never runs on mount.
+   */
+  'ai-command': (open) => (
+    <div className="space-y-4">
+      <ModelAvailability />
+      <AiCommandCenter onOpenSection={open} />
+    </div>
+  ),
   'media-intelligence': () => <MediaIntelligencePanel />,
   'change-proposals': () => <ChangeProposalsPanel />,
   'enrichment-ops': () => <EnrichmentOpsPanel />,
+  'enrichment-content': () => <EnrichmentWorkspace />,
 };
 
 function PlannedPage({ section }: { section: AdminSection }) {
@@ -107,6 +125,8 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   'video-templates': LayoutTemplate,
   'design-system': Component,
   'prompt-library': Braces,
+  'template-manager': LayoutTemplate,
+  'ad-surfaces': Image,
   social: Instagram,
   'campaign-factory': Rocket,
   'content-factory': FileText,
@@ -122,6 +142,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   'media-intelligence': Image,
   'change-proposals': FileCheck2,
   'enrichment-ops': Activity,
+  'enrichment-content': Sparkles,
 };
 
 const GROUP_ICONS: Record<AdminGroup, LucideIcon> = {

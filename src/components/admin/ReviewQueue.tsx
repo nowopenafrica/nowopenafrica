@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import { Check, Loader2, X, ExternalLink, RefreshCw, CheckSquare } from 'lucide-react';
 
@@ -88,26 +88,138 @@ const SOURCE_LABEL: Record<string, string> = {
   google: 'Found on Google Maps (Places)',
 };
 
+/**
+ * Candidates fetched, and drawn, per page by default.
+ *
+ * 100 is about as many rows as an operator reads before acting on some of
+ * them. The list can be widened deliberately — see PAGE_SIZES.
+ */
+const QUEUE_PAGE = 100;
+
+/**
+ * The page sizes an operator can choose.
+ *
+ * The queue reaches 10,000+ rows during a bulk discovery run, and reading it
+ * 100 at a time means clicking "Load more" a hundred times. Any size is still
+ * a deliberate choice: rendering 5,000 rows carrying a `profile` each is heavy,
+ * so it is never the default.
+ */
+const PAGE_SIZES = [100, 500, 1000, 5000] as const;
+
+/**
+ * The most rows PostgREST will return in one response, silently.
+ *
+ * A `.range(0, 4999)` does not error — it returns 1,000 rows. Paging off that
+ * reply would then start the next page at 5,000 and skip everything between,
+ * so anything above this is fetched in contiguous chunks instead.
+ */
+const FETCH_CHUNK = 1000;
+
 export default function ReviewQueue() {
   const [rows, setRows] = useState<Candidate[]>([]);
   const [loading, setLoading] = useState(true);
+  /**
+   * Has the queue ever finished loading? Only the FIRST load may take the
+   * whole screen; every refresh after that happens in place. See the loader.
+   */
+  const [everLoaded, setEverLoaded] = useState(false);
+  /** Which page is loaded, and how many candidates exist in total. */
+  const [page, setPage] = useState(0);
+  const [total, setTotal] = useState<number | null>(null);
+  /** Rows per page, chosen by the operator. */
+  const [pageSize, setPageSize] = useState<number>(QUEUE_PAGE);
+  /**
+   * Which load is current. A page-size change or a refresh while a large page
+   * is still arriving starts a newer load; without this, the older one lands
+   * last and paints rows for a size that is no longer selected.
+   */
+  const loadSeq = useRef(0);
   const [working, setWorking] = useState<string | null>(null);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkWorking, setBulkWorking] = useState(false);
 
-  const load = useCallback(async () => {
+  /*
+   * ── WHY THIS PAGES, AND WHY IT USED TO HANG ──────────────────────
+   *
+   * REPORTED 2026-09-24: "after generating new data discovery manually, it
+   * doesn't seem to send all new to review queue, just keeps loading for long
+   * then stops."
+   *
+   * Staging was not the slow part. Staging calls `onStaged`, `onStaged` calls
+   * this loader, and this loader asked for `.limit(50000)` — which PostgREST
+   * silently caps at 1,000 — carrying `profile` (a jsonb of services, FAQs and
+   * socials) on every row, and then rendered all thousand at once. A run that
+   * staged 1,326 candidates therefore ended in a long freeze resolving to a
+   * list that could never have shown more than 1,000 of them anyway.
+   *
+   * Both halves were wrong in the same direction: it fetched far more than it
+   * could show, and showed far more than anyone reads. It now takes one page at
+   * a time, and states the total by counting in the database rather than
+   * inferring it from however many rows happened to arrive.
+   */
+  const loadPage = useCallback(async (pageIndex: number, append: boolean) => {
+    const seq = ++loadSeq.current;
     setLoading(true);
-    const { data, error } = await supabase
+
+    /*
+     * The real total, with head:true so it costs no rows. Without it the header
+     * can only describe what was fetched — which is exactly how a capped query
+     * reads as a complete queue.
+     */
+    const counted = await supabase
       .from('radar_candidates')
-      .select('id,source_key,name,category,city,address,phone,whatsapp,website,email,description,confidence,status,created_at,profile')
-      .in('status', ['pending', 'review'])
-      .order('confidence', { ascending: false })
-      .order('created_at', { ascending: false })
-      .limit(50000);
+      .select('id', { count: 'exact', head: true })
+      .in('status', ['pending', 'review']);
+    if (seq !== loadSeq.current) return;
+    if (!counted.error) setTotal(counted.count ?? null);
+
+    const from = pageIndex * pageSize;
+    const to = from + pageSize - 1;
+
+    /*
+     * Fetched in chunks, contiguous from `from`, so a 5,000-row page is five
+     * requests rather than one silently truncated to 1,000. A short chunk
+     * means the queue ended, so there is nothing after it to ask for.
+     */
+    const batch: Candidate[] = [];
+    for (let start = from; start <= to; start += FETCH_CHUNK) {
+      const end = Math.min(start + FETCH_CHUNK - 1, to);
+      const { data, error } = await supabase
+        .from('radar_candidates')
+        .select('id,source_key,name,category,city,address,phone,whatsapp,website,email,description,confidence,status,created_at,profile')
+        .in('status', ['pending', 'review'])
+        .order('confidence', { ascending: false })
+        .order('created_at', { ascending: false })
+        /*
+         * `id` breaks ties. Candidates staged in one bulk insert share a
+         * created_at to the millisecond and very often a confidence too, so
+         * without a unique tiebreaker Postgres is free to order them differently
+         * between pages — and a row can appear twice while another never appears.
+         */
+        .order('id', { ascending: false })
+        .range(start, end);
+
+      if (seq !== loadSeq.current) return;
+      if (error) {
+        setLoading(false);
+        setEverLoaded(true);
+        toast.error(error.message);
+        return;
+      }
+
+      const rows = (data as Candidate[]) ?? [];
+      batch.push(...rows);
+      if (rows.length < end - start + 1) break;
+    }
+
     setLoading(false);
-    if (error) { toast.error(error.message); return; }
-    setRows((data as Candidate[]) ?? []);
-  }, []);
+    setEverLoaded(true);
+    setRows((prev) => (append ? [...prev, ...batch] : batch));
+    setPage(pageIndex);
+  }, [pageSize]);
+
+  /** Reload from the top. This is what `onStaged` calls after a bulk stage. */
+  const load = useCallback(async () => { await loadPage(0, false); }, [loadPage]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -176,7 +288,21 @@ export default function ReviewQueue() {
     else toast.error(`Published ${ok}, ${failed} failed — ${firstError}`);
   };
 
-  if (loading) {
+  /*
+   * Only the very first load may replace the screen.
+   *
+   * This early return used to fire on EVERY load — including the reload that
+   * `onStaged` triggers when a bulk stage finishes. So the moment staging
+   * completed, the whole panel unmounted: the discovery results, the progress
+   * line and the staging summary all vanished behind "Loading the queue…",
+   * which is precisely what "keeps loading for long then stops" looks like from
+   * the outside. Nothing had failed — the screen had thrown away the evidence
+   * that it worked.
+   *
+   * After the first load, refreshes are shown inline (see the header) and the
+   * list stays where it is.
+   */
+  if (loading && !everLoaded) {
     return (
       <p className="flex items-center gap-2 text-sm text-gray-500 py-8">
         <Loader2 size={16} className="animate-spin" /> Loading the queue…
@@ -198,12 +324,40 @@ export default function ReviewQueue() {
             listing — it never gives anyone an account.
           </p>
         </div>
-        <button onClick={() => { setSelected(new Set()); void load(); }} className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-gray-600 dark:text-gray-300">
-          <RefreshCw size={13} /> Refresh
-        </button>
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Reading 10,000 candidates 100 at a time is a hundred clicks.
+              Widening the page is deliberate, so it is a choice and not the
+              default; the loader above chunks anything over PostgREST's cap. */}
+          <label htmlFor="review-page-size" className="inline-flex items-center gap-1.5 text-[12px] text-gray-600 dark:text-gray-300">
+            Show
+            <select
+              id="review-page-size"
+              value={pageSize}
+              onChange={(e) => {
+                setSelected(new Set());
+                setPageSize(Number(e.target.value));
+              }}
+              className="min-h-[34px] rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 px-2 text-[12px] font-semibold text-gray-800 dark:text-gray-200"
+            >
+              {PAGE_SIZES.map((n) => (
+                <option key={n} value={n}>{n.toLocaleString('en-NG')}</option>
+              ))}
+            </select>
+            per page
+          </label>
+          <button onClick={() => { setSelected(new Set()); void load(); }} disabled={loading}
+            className="inline-flex items-center gap-1.5 text-[12px] font-semibold text-gray-600 dark:text-gray-300 disabled:opacity-60">
+            {loading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+            {loading ? 'Refreshing…' : 'Refresh'}
+          </button>
+        </div>
       </header>
 
-      {rows.length === 0 ? (
+      {rows.length === 0 && loading ? (
+        <p className="flex items-center gap-2 text-sm text-gray-500 py-6">
+          <Loader2 size={16} className="animate-spin" /> Loading the queue…
+        </p>
+      ) : rows.length === 0 ? (
         <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
           <p className="text-sm text-gray-600 dark:text-gray-300">Nothing waiting. The queue is clear.</p>
         </div>
@@ -226,12 +380,18 @@ export default function ReviewQueue() {
             </div>
           )}
 
-          <p className="text-[12px] text-gray-500 flex items-center gap-3">
-            {rows.length} waiting
+          <p className="text-[12px] text-gray-500 flex items-center gap-3 flex-wrap">
+            {/* The total is counted in the database, so it stays true beyond
+                whichever page happens to be loaded. */}
+            {total !== null && total > rows.length
+              ? <span>Showing {rows.length} of {total} waiting</span>
+              : <span>{total ?? rows.length} waiting</span>}
             <button onClick={toggleSelectAll} disabled={bulkWorking}
               className="inline-flex items-center gap-1 font-semibold text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white disabled:opacity-50">
               <CheckSquare size={13} />
-              {allSelected ? 'Clear all' : 'Select all'}
+              {/* Names the number it actually reaches. A button saying "select
+                  all" while selecting 100 of 1,300 is simply untrue. */}
+              {allSelected ? 'Clear selection' : 'Select these ' + rows.length}
             </button>
             {selected.size > 0 && <span className="text-gray-400">{selected.size} selected</span>}
           </p>
@@ -421,6 +581,18 @@ export default function ReviewQueue() {
               );
             })}
           </ul>
+
+          {/* More exist than are drawn. Fetching them is a decision, not a
+              default — that default is what used to freeze the screen. */}
+          {total !== null && rows.length < total && (
+            <div className="pt-1 text-center">
+              <button onClick={() => void loadPage(page + 1, true)} disabled={loading}
+                className="inline-flex items-center gap-2 px-4 min-h-[38px] rounded-lg border border-gray-300 dark:border-gray-600 text-[12px] font-semibold text-gray-700 dark:text-gray-200 disabled:opacity-60">
+                {loading && <Loader2 size={13} className="animate-spin" />}
+                {loading ? 'Loading…' : 'Load ' + Math.min(pageSize, total - rows.length) + ' more'}
+              </button>
+            </div>
+          )}
         </>
       )}
     </div>

@@ -54,6 +54,23 @@ export interface CampaignPlan {
   filtersApplied: string[];
   /** Filters the source cannot answer — review queue's job, names and whys. */
   filtersDeferred: { filter: string; why: string }[];
+  /*
+   * ── COUNTRIES THE CAMPAIGN NAMED AND THIS COULD NOT RESOLVE ────────────
+   *
+   * MEASURED 2026-10-06: the live campaign stores `countries = ['NG']`, and
+   * COUNTRY_QIDS is keyed by FULL NAMES ('Nigeria'). So nothing matched, and
+   * the fallback below quietly made it Nigeria — which happened to be right.
+   *
+   * For any other market it would not be. A campaign scoped to Ghana with
+   * `['GH']` would have swept NIGERIA and staged Nigerian businesses under a
+   * Ghanaian campaign, reporting success throughout. That is the same failure
+   * as the Wikidata id that made Port Harcourt into a Catalan town: a silent
+   * fallback doing exactly what it was told.
+   *
+   * The worker refuses to run when this is non-empty, rather than harvesting
+   * the wrong country.
+   */
+  unmatchedCountries: string[];
 }
 
 /** The default scope of one run when the campaign sets neither limit. */
@@ -65,27 +82,27 @@ export const MAX_RUN_BUDGET = 500;
 export const PLACE_QIDS: Record<string, string> = {
   // Nigeria
   Lagos: 'Q8673',
-  Abuja: 'Q1700',
-  Kano: 'Q182842',
-  Ibadan: 'Q142435',
-  'Port Harcourt': 'Q15624',
-  Kaduna: 'Q2778',
-  'Benin City': 'Q806878',
-  Enugu: 'Q795282',
-  Onitsha: 'Q1152150',
-  Aba: 'Q4807649',
-  Ilorin: 'Q1625963',
-  Jos: 'Q284459',
-  Sokoto: 'Q754930',
-  Bauchi: 'Q853186',
-  Akure: 'Q833771',
-  Abeokuta: 'Q840395',
-  Uyo: 'Q836355',
-  Calabar: 'Q485003',
-  Owerri: 'Q361724',
-  Asaba: 'Q735088',
-  Makurdi: 'Q850027',
-  Warri: 'Q1450721',
+  Abuja: 'Q3787',
+  Kano: 'Q182984',
+  Ibadan: 'Q183298',
+  'Port Harcourt': 'Q217432',
+  Kaduna: 'Q208318',
+  'Benin City': 'Q320704',
+  Enugu: 'Q465022',
+  Onitsha: 'Q852238',
+  Aba: 'Q202162',
+  Ilorin: 'Q587085',
+  Jos: 'Q321079',
+  Sokoto: 'Q336350',
+  Bauchi: 'Q811144',
+  Akure: 'Q423831',
+  Abeokuta: 'Q206484',
+  Uyo: 'Q1999000',
+  Calabar: 'Q844091',
+  Owerri: 'Q583619',
+  Asaba: 'Q1061665',
+  Makurdi: 'Q994096',
+  Warri: 'Q574593',
   // Selected African neighbours
   Accra: 'Q3761',
   Nairobi: 'Q3870',
@@ -93,11 +110,11 @@ export const PLACE_QIDS: Record<string, string> = {
   'Dar es Salaam': 'Q1960',
   'Addis Ababa': 'Q3624',
   Kigali: 'Q3859',
-  Dakar: 'Q3719',
+  Dakar: 'Q3718',
   Cairo: 'Q85',
   Casablanca: 'Q7903',
   'Cape Town': 'Q5465',
-  Johannesburg: 'Q2093391',
+  Johannesburg: 'Q34647',
 };
 
 /** Known countries → Wikidata QIDs. Nigeria is the market default. */
@@ -110,7 +127,7 @@ export const COUNTRY_QIDS: Record<string, string> = {
   Tanzania: 'Q924',
   Uganda: 'Q1036',
   Ethiopia: 'Q115',
-  Rwanda: 'Q1039',
+  Rwanda: 'Q1037',
   Senegal: 'Q1041',
   Morocco: 'Q1028',
   Algeria: 'Q262',
@@ -178,11 +195,16 @@ export function buildPlan(req: PlanRequest): CampaignPlan {
   const placeQids = pairs.map((p) => p.qid);
   const placeNames = pairs.map((p) => p.name);
 
-  const matchedCountry = req.countries
-    .map((c) => c.trim())
-    .find((c): c is string => Boolean(COUNTRY_QIDS[c]));
+  const namedCountries = req.countries.map((c) => c.trim()).filter(Boolean);
+  const matchedCountry = namedCountries.find((c): c is string => Boolean(COUNTRY_QIDS[c]));
+  /*
+   * Nigeria remains the default when NO country is named — that is the
+   * market this platform launched in. It is not a default for a country that
+   * was named and not understood; those are reported above.
+   */
   const countryQid = matchedCountry ? COUNTRY_QIDS[matchedCountry] : 'Q1033';
   const countryName = matchedCountry ?? 'Nigeria';
+  const unmatchedCountries = matchedCountry ? [] : namedCountries;
 
   const perPlace = placeQids.length
     ? Math.max(1, Math.ceil(perSource / placeQids.length))
@@ -240,6 +262,7 @@ export function buildPlan(req: PlanRequest): CampaignPlan {
   }
 
   return {
+    unmatchedCountries,
     sourceShares,
     placeQids,
     placeNames,
@@ -300,7 +323,10 @@ export function recordMatchesFilters(
       'has_whatsapp: no dialable phone to reach'],
   ];
 
-  for (const [filter, ok, reason] of checks) {
+  // The filter's name is already the first word of every `reason` string, so
+  // the tuple's first slot is documentation for the reader of `checks` above
+  // rather than something this loop needs.
+  for (const [, ok, reason] of checks) {
     if (!ok) return { keep: false, reason };
   }
   return { keep: true };

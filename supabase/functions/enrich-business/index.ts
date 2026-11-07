@@ -65,9 +65,42 @@ function waitOnSourceLock(key: string): Promise<void> {
   return new Promise((r) => setTimeout(r, Math.max(0, next.getTime() - Date.now())));
 }
 
-function hostOf(url: string | null): string | null {
+/**
+ * A website as an absolute URL, or null.
+ *
+ * ── WHY THIS EXISTS ──────────────────────────────────────────────────────
+ *
+ * MEASURED 2026-10-06, from a live run: `Invalid URL: 'mypaga.com'`, thrown
+ * out of fetch() and failing the whole job.
+ *
+ * 125 of the 947 businesses with a website store it as a bare domain —
+ * unionbankng.com, chivitahollandia.com, ekohospitals.com. That is how people
+ * write a web address, and `fetch()` requires an absolute URL, so 13% of every
+ * website-based extraction died on the first call. hostOf() returned null for
+ * the same rows, so those businesses also lost the domain signal that identity
+ * matching leans on hardest.
+ *
+ * https rather than http: a bare domain in 2026 means the secure site, and a
+ * server that only speaks http will redirect.
+ */
+function absoluteUrl(url: string | null): string | null {
   if (!url) return null;
-  try { return new URL(url).hostname; } catch { return null; }
+  const v = url.trim();
+  if (!v) return null;
+  const withScheme = /^https?:\/\//i.test(v) ? v : `https://${v}`;
+  try {
+    const u = new URL(withScheme);
+    // A hostname with no dot is not a site — it is somebody's note to self.
+    return u.hostname.includes('.') ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
+function hostOf(url: string | null): string | null {
+  const abs = absoluteUrl(url);
+  if (!abs) return null;
+  try { return new URL(abs).hostname; } catch { return null; }
 }
 
 interface BusinessRow {
@@ -96,7 +129,12 @@ async function loadBusiness(db: any, id: string): Promise<BusinessRow | null> {
   if (error) throw new Error(error.message);
   if (!data) return null;
   const row = data as BusinessRow;
-  return { ...row, domain: hostOf(row.website) };
+  /*
+   * `website` is replaced by its absolute form so every downstream fetch gets
+   * something fetchable. The raw value stays in the database untouched — this
+   * is a reading convenience, not a rewrite of the owner's data.
+   */
+  return { ...row, website: absoluteUrl(row.website) ?? row.website, domain: hostOf(row.website) };
 }
 
 /** Nominatim: the open, no-key way to ask OSM for a business's hours record. */
@@ -125,7 +163,21 @@ async function fetchOsmHours(business: { name: string }, key: string): Promise<S
 
 /** Fetch the business's website as text (approx) for the AI text resolver. */
 async function fetchPageText(url: string): Promise<string> {
-  const res = await fetch(url, { headers: { "User-Agent": "NowOpenAfricaBusinessIntelligence/0.1" } });
+  /*
+   * Belt and braces over absoluteUrl(). A site that is unreachable, times out
+   * or serves a malformed redirect must cost ITS job the page text, not the
+   * whole run — one unreachable website should never stop the other nine
+   * businesses in the batch being extracted.
+   */
+  const target = absoluteUrl(url);
+  if (!target) return "";
+  let res: Response;
+  try {
+    res = await fetch(target, { headers: { "User-Agent": "NowOpenAfricaBusinessIntelligence/0.1" } });
+  } catch (err) {
+    console.warn("fetchPageText: could not reach", target, String(err));
+    return "";
+  }
   if (!res.ok) return "";
   const html = await res.text();
   return (html as string)
@@ -279,6 +331,18 @@ Deno.serve(async (req: Request) => {
         if (hours?.length) report.hours = hours;
       }
 
+      /*
+       * What this job spends on the model.
+       *
+       * MEASURED 2026-10-09: 8,060 jobs had run and none recorded a cost, so
+       * "what does an enriched profile cost?" — the question under every
+       * pricing decision — had no answer. Null until a provider reports
+       * something, because an unmeasured job must never average in as free.
+       */
+      let jobUsage: { inputTokens: number; outputTokens: number; calls: number } | null = null;
+      let jobProvider: string | null = null;
+      let jobModel: string | null = null;
+
       // Hydrate AI text extraction when configured AND the business has a site.
       if (aiResolver && !report.observations && business.website) {
         const text = await fetchPageText(business.website);
@@ -290,6 +354,15 @@ Deno.serve(async (req: Request) => {
             undefined,
             { maxTokens: 1200, model: job.payload.model as string | undefined },
           );
+          if (outcome.usage) {
+            jobUsage = {
+              inputTokens: (jobUsage?.inputTokens ?? 0) + outcome.usage.inputTokens,
+              outputTokens: (jobUsage?.outputTokens ?? 0) + outcome.usage.outputTokens,
+              calls: (jobUsage?.calls ?? 0) + outcome.usage.calls,
+            };
+            jobProvider = outcome.provider;
+            jobModel = outcome.model;
+          }
           if (outcome.ok) {
             try {
               // The model may wrap the array in markers; the validator also
@@ -343,7 +416,24 @@ Deno.serve(async (req: Request) => {
           social_links: business.social_links ?? undefined,
         },
         source: {
-          key: sources[0] ?? (osmActive ? "openstreetmap" : "website"),
+          /*
+           * `official_website`, not `website`.
+           *
+           * business_evidence.source_id is a FOREIGN KEY to radar_sources(key),
+           * and "website" is not a registered source — the registry calls it
+           * `official_website`. MEASURED 2026-10-06: every general enrichment
+           * job (payload {"ai_resolver": true}, so `sources` is empty and
+           * osmActive is false) hit this fallback and had its evidence insert
+           * rejected:
+           *
+           *   evidence insert failed: ... violates foreign key constraint
+           *   "business_evidence_source_id_fkey"
+           *
+           * The job carried on and the extracted values were still applied, so
+           * facts reached listings while the record of where they came from was
+           * discarded — a provenance system quietly not recording provenance.
+           */
+          key: sources[0] ?? (osmActive ? "openstreetmap" : "official_website"),
           url: business.website ?? `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(business.name)}`,
           sourceType: sources[0] ?? (osmActive ? "api" : "dom_extraction"),
         },
@@ -356,6 +446,8 @@ Deno.serve(async (req: Request) => {
       });
 
       let autoApplied = 0;
+      let proposalsWritten = 0;
+      const proposalsBlocked: string[] = [];
       if (summary.matched && !dryRun) {
         const evidenceIdByField = new Map<string, string>();
 
@@ -393,9 +485,22 @@ Deno.serve(async (req: Request) => {
         }
 
         // 2. Proposals (linked to the evidence row the policy already created)
+        //
+        // `business_change_proposals_active_unique` permits ONE pending
+        // proposal per (business, field). `pendingFields` above filters out
+        // fields already open when this run started, but that is a
+        // read-then-write check: a concurrent run can open one in between.
+        //
+        // This insert used to be written bare, with no error inspected, and
+        // supabase-js RESOLVES with { error } rather than throwing — so the
+        // rejection was discarded and a second source's disagreement vanished
+        // with nothing logged. The evidence row written above survives it,
+        // which is exactly why `business_field_conflicts` reads evidence: that
+        // is the only place a disagreement can be represented. A blocked
+        // proposal is now reported rather than swallowed.
         for (const draft of summary.deliverables.proposals) {
           const evidenceId = evidenceIdByField.get(draft.field_name);
-          await db.from("business_change_proposals").insert({
+          const { error: propErr } = await db.from("business_change_proposals").insert({
             business_id: job.business_id,
             field_name: draft.field_name,
             current_value: draft.current_value,
@@ -407,6 +512,15 @@ Deno.serve(async (req: Request) => {
             evidence_id: evidenceId ?? null,
             reason: draft.reason,
           });
+          if (!propErr) { proposalsWritten += 1; continue; }
+          if (/duplicate key|unique/i.test(propErr.message)) {
+            // Not a failure: another proposal for this field is already open.
+            // The evidence stands, so the disagreement is still on file and
+            // reaches a human through the conflicts view.
+            proposalsBlocked.push(draft.field_name);
+            continue;
+          }
+          throw new Error(`proposal insert failed: ${propErr.message}`);
         }
 
         // 3. Media (with the unique source guard catching duplicates quietly)
@@ -446,7 +560,12 @@ Deno.serve(async (req: Request) => {
       const result = {
         matched: summary.matched,
         evidence: summary.deliverables.evidence.length,
+        // What was DRAFTED, and what actually reached the table. They differ
+        // when a field already had an open proposal; reporting only the draft
+        // count would report work that was never written.
         proposals: summary.deliverables.proposals.length,
+        proposals_written: proposalsWritten,
+        proposals_blocked: proposalsBlocked,
         media: summary.deliverables.media.length,
         auto_applied: autoApplied,
         notes: summary.notes,
@@ -459,6 +578,29 @@ Deno.serve(async (req: Request) => {
         p_result: result,
         p_error: null,
       });
+
+      /*
+       * Written separately rather than through finish_enrichment_job, whose
+       * signature other callers share — a cost column is not worth a
+       * migration that changes a function three other things depend on.
+       *
+       * Failure here must not fail the job: the enrichment happened, and
+       * losing its token count is a reporting gap, not a reason to mark real
+       * work as failed.
+       */
+      if (jobUsage) {
+        const { error: usageErr } = await db
+          .from("business_enrichment_jobs")
+          .update({
+            llm_provider: jobProvider,
+            llm_model: jobModel,
+            llm_input_tokens: jobUsage.inputTokens,
+            llm_output_tokens: jobUsage.outputTokens,
+            llm_calls: jobUsage.calls,
+          })
+          .eq("id", job.id);
+        if (usageErr) console.error("usage not recorded for", job.id, usageErr.message);
+      }
       outcomes.push({ job: job.id, ...result });
     } catch (e) {
       const reason = (e as Error)?.message ?? "unknown error";

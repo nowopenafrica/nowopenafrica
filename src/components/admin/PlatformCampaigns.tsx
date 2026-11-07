@@ -32,7 +32,19 @@ export default function PlatformCampaigns() {
         .select('*')
         .eq('org_id', NOWOPEN_ORG_ID);
       const rows = (data ?? []) as unknown[];
-      if (error || rows.length === 0) throw new Error('os_campaigns unavailable');
+      /*
+       * `error` only — an empty table is NOT a missing one.
+       *
+       * MEASURED 2026-10-06: every os_ table exists live with its policies,
+       * and Launch Control was telling operators "the os_launches migration
+       * isn't applied in this project yet" about a database that was fine,
+       * while showing invented rows whose edits saved nowhere. The cause was
+       * `rows.length === 0` being treated as a failure.
+       *
+       * An empty table is a correct answer to a correct question. Only a real
+       * error falls through to the labelled seed below.
+       */
+      if (error) throw new Error('os_campaigns unavailable');
       setCampaigns(rows.map((r) => mapCampaignRow(r as Parameters<typeof mapCampaignRow>[0])));
       setUsingFallback(false);
     } catch {

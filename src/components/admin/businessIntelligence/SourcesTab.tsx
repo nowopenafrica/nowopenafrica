@@ -17,6 +17,11 @@ interface SourceRow {
   bulk_extraction: string;
   competing_dataset: string;
   redistribution: string;
+  /* Added 20260917010000 — the two rights the registry could not answer. */
+  image_reuse_allowed?: string | null;
+  contact_storage_allowed?: string | null;
+  compliance_status?: string | null;
+  license_type?: string | null;
   licence: string | null;
   authorised_by: string | null;
   authorised_at: string | null;
@@ -163,16 +168,32 @@ export default function SourcesTab() {
               }
             >
               <div className="space-y-3 text-[12px]">
-                <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
+                {/*
+                  * SIX rights, not four.
+                  *
+                  * Images and contacts are separately licensed from the data
+                  * around them — Wikidata is the case that proves it: CC0
+                  * data, photographs on Commons that are licensed per file.
+                  * Showing only the first four let an operator conclude that
+                  * "everything permitted" covered the pictures too.
+                  */}
+                <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
                   <RightBox label="automated access" value={row.automated_access} />
                   <RightBox label="bulk extraction" value={row.bulk_extraction} />
                   <RightBox label="competing dataset" value={row.competing_dataset} />
                   <RightBox label="redistribution" value={row.redistribution} />
+                  <RightBox label="image reuse" value={row.image_reuse_allowed ?? 'unknown'} />
+                  <RightBox label="contact storage" value={row.contact_storage_allowed ?? 'unknown'} />
                 </div>
                 <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-gray-500 dark:text-gray-400">
                   <span className="flex items-center gap-1.5">
                     source health: <StatusChip status={row.health_status ?? 'unknown'}>{row.health_status ?? 'unknown'}</StatusChip>
                   </span>
+                  {/* Health is operational; review is legal. Different questions. */}
+                  <span className="flex items-center gap-1.5">
+                    review: <strong>{(row.compliance_status ?? 'review_required').replace(/_/g, ' ')}</strong>
+                  </span>
+                  {row.license_type && <span>licence type: {row.license_type.replace(/_/g, ' ')}</span>}
                   {row.licence && <span>licence: {row.licence}</span>}
                   <span>{row.authorised_by ? `signed off by ${row.authorised_by}` : 'no sign-off recorded'}</span>
                   <span>records seen: {row.records_seen}</span>
