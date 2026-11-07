@@ -292,6 +292,7 @@ export async function addPlacement(
     if (error.code === '23505') return { ok: false, error: DUPLICATE_PLACEMENT };
     return { ok: false, error: error.message };
   }
+  notifyPlanChanged();
   return { ok: true };
 }
 
@@ -305,6 +306,7 @@ export type PlanItem =
   | { kind: 'placement'; id: string; pricing: number | null; days?: number | null }
   | { kind: 'product'; id: string; priceMinor: number; days: number | null };
 
+const localKey = (l: LocalLine) => (l.kind === 'placement' ? `placement:${l.advertId}` : `product:${l.productId}`);
 const itemKey = (i: PlanItem) => `${i.kind}:${i.id}`;
 
 async function addProduct(
@@ -343,14 +345,22 @@ export async function addToPlan(items: PlanItem[]): Promise<PlanAddResult> {
   /* Nothing to add is not a reason to read, or worse create, a plan. */
   if (items.length === 0) return { ok: true, added: 0, skipped: 0 };
 
-  const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user?.id) {
+  /*
+   * Signed out means NO SESSION. getUser() is a network call, so a blip or a
+   * token-refresh race must not send a signed-in user's adds to this browser.
+   */
+  const { data: sess } = await supabase.auth.getSession();
+  if (!sess?.session) {
     const local: LocalLine[] = items.map((i) =>
       i.kind === 'placement'
         ? { kind: 'placement', advertId: i.id, days: i.days === undefined ? 30 : i.days }
         : { kind: 'product', productId: i.id },
     );
     return { ok: true, ...addLocalLines(local), local: true };
+  }
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth?.user?.id) {
+    return { ok: false, error: 'We could not reach your account just now.', added: 0 };
   }
 
   const read = await fetchCampaigns();
@@ -455,8 +465,11 @@ export async function migrateLocalPlan(): Promise<{ moved: number; kept: number 
 
   const moving = new Set(itemAt.slice(0, processed));
   const remaining = local.filter((_, i) => !moving.has(i));
-  if (remaining.length === 0) clearLocalPlan();
-  else replaceLocalPlan(remaining);
+  /* Re-read so a line added while this ran survives; drop only what moved. */
+  const movedKeys = new Set(local.filter((_, i) => moving.has(i)).map(localKey));
+  const now = readLocalPlan().filter((l) => !movedKeys.has(localKey(l)));
+  if (now.length === 0) clearLocalPlan();
+  else replaceLocalPlan(now);
   return { moved: moving.size, kept: remaining.length };
 }
 
@@ -475,7 +488,17 @@ export async function setLineDays(lineId: string, days: number | null): Promise<
 const PLAN_ARTWORK_BUCKET = 'plan-artwork';
 const VIDEO_MESSAGE = 'Attach an image of the artwork; video adverts are sent with the quote request.';
 const BUCKET_IMAGE = /^image\/(png|jpeg|webp)$/;
-const BUCKET_IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+
+/** The MIME type to upload as: the file's own, or from the extension when it is empty or generic. */
+function artworkMime(file: { name: string; type: string }): string {
+  const type = (file.type || '').toLowerCase();
+  if (type && type !== 'application/octet-stream') return type;
+  const ext = file.name.slice(file.name.lastIndexOf('.') + 1).toLowerCase();
+  if (ext === 'png') return 'image/png';
+  if (ext === 'jpg' || ext === 'jpeg' || ext === 'jfif') return 'image/jpeg';
+  if (ext === 'webp') return 'image/webp';
+  return type;
+}
 
 /** Record an uploaded or designed artwork on a plan line. `path` is a storage path in `plan-artwork`. */
 export async function setLineArtwork(
@@ -509,8 +532,8 @@ export async function uploadLineArtwork(
   const verdict = classifyArtworkFile(file);
   if (!verdict.ok) return { error: verdict.problem };
   if (verdict.kind === 'video') return { error: VIDEO_MESSAGE };
-  const type = (file.type || '').toLowerCase();
-  if (!(type ? BUCKET_IMAGE.test(type) : BUCKET_IMAGE_EXT.test(file.name))) {
+  const mime = artworkMime(file);
+  if (!BUCKET_IMAGE.test(mime)) {
     return { error: 'Attach the artwork as a PNG, JPG or WebP image.' };
   }
 
@@ -520,7 +543,7 @@ export async function uploadLineArtwork(
   const path = `${auth.user.id}/${campaignId}/${lineId}-${safeArtworkName(file.name)}`;
   const { error } = await supabase.storage
     .from(PLAN_ARTWORK_BUCKET)
-    .upload(path, file, { upsert: true, contentType: file.type || undefined });
+    .upload(path, file, { upsert: true, contentType: mime });
   if (error) return { error: error.message || 'That artwork could not be uploaded.' };
   return { path };
 }

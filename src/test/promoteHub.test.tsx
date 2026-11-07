@@ -94,7 +94,7 @@ vi.mock('../lib/supabase', () => {
       from: (t: string) => chain(t),
       rpc: async () => ({ data: null, error: null }),
       /* Signed out: no user. Only the real plan helper (signed-out test) asks. */
-      auth: { getUser: async () => ({ data: { user: null }, error: null }) },
+      auth: { getSession: async () => ({ data: { session: null }, error: null }), getUser: async () => ({ data: { user: null }, error: null }) },
     },
   };
 });

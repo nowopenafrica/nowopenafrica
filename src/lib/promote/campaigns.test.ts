@@ -25,12 +25,17 @@ const state = vi.hoisted(() => ({
   uploads: [] as Array<{ bucket: string; path: string; opts: unknown }>,
   designs: [] as Array<Record<string, unknown>>,
   designsError: null as { message: string } | null,
+  getUserError: null as { message: string } | null,
+  inError: false,
 }));
 
 vi.mock('../supabase', () => ({
   supabase: {
     auth: {
-      getUser: async () => ({ data: { user: state.user }, error: null }),
+      getSession: async () => ({ data: { session: state.user ? { user: state.user } : null }, error: null }),
+      getUser: async () => (state.getUserError
+        ? { data: { user: null }, error: state.getUserError }
+        : { data: { user: state.user }, error: null }),
     },
     storage: {
       from: (bucket: string) => ({
@@ -68,10 +73,9 @@ vi.mock('../supabase', () => ({
         const rows = () => (table === 'advertisements' ? state.adverts : state.products);
         return {
           select: () => ({
-            in: async (_c: string, ids: string[]) => ({
-              data: rows().filter((r) => ids.includes(String(r.id))),
-              error: null,
-            }),
+            in: async (_c: string, ids: string[]) => (state.inError
+              ? { data: null, error: { message: 'read failed' } }
+              : { data: rows().filter((r) => ids.includes(String(r.id))), error: null }),
           }),
         };
       }
@@ -148,6 +152,8 @@ beforeEach(() => {
   state.uploads = [];
   state.designs = [];
   state.designsError = null;
+  state.getUserError = null;
+  state.inError = false;
   clearLocalPlan();
 });
 
@@ -258,6 +264,23 @@ describe('addToPlan', () => {
   });
 });
 
+describe('addToPlan session handling', () => {
+  it('a getUser error with a session is an error, never a local add', async () => {
+    state.getUserError = { message: 'network' };
+    const out = await addToPlan([{ kind: 'placement', id: 'a1', pricing: 1 }]);
+    expect(out).toEqual({ ok: false, error: 'We could not reach your account just now.', added: 0 });
+    expect(readLocalPlan()).toEqual([]);
+    expect(state.placements).toHaveLength(0);
+  });
+
+  it('no session goes local even if getUser would error', async () => {
+    state.user = null;
+    state.getUserError = { message: 'Auth session missing' };
+    const out = await addToPlan([{ kind: 'placement', id: 'a1', pricing: 1 }]);
+    expect(out).toMatchObject({ ok: true, local: true, added: 1 });
+  });
+});
+
 describe('migrateLocalPlan', () => {
   const seed = () => {
     state.adverts = ['a1', 'a2', 'a3'].map((id) => ({
@@ -306,6 +329,26 @@ describe('migrateLocalPlan', () => {
     expect(readLocalPlan()).toEqual([{ kind: 'product', productId: 'gone' }]);
   });
 
+  it('keeps a line added to local storage while it ran', async () => {
+    seed();
+    state.campaigns = [{ id: 'p1', name: 'First' }];
+    const realPush = state.placements.push.bind(state.placements);
+    state.placements.push = (...rows: Array<Record<string, unknown>>) => {
+      if (rows[0].advert_id === 'a1') addLocalLines([{ kind: 'placement', advertId: 'late', days: 30 }]);
+      return realPush(...rows);
+    };
+    expect(await migrateLocalPlan()).toEqual({ moved: 3, kept: 0 });
+    expect(readLocalPlan()).toEqual([{ kind: 'placement', advertId: 'late', days: 30 }]);
+  });
+
+  it('returns null and touches nothing when the catalogue read fails', async () => {
+    seed();
+    state.inError = true;
+    expect(await migrateLocalPlan()).toBeNull();
+    expect(readLocalPlan()).toHaveLength(3);
+    expect(state.placements).toHaveLength(0);
+  });
+
   it('leaves the local plan alone when signed out', async () => {
     seed();
     state.user = null;
@@ -337,7 +380,20 @@ describe('fetchLocalPlanLines', () => {
   });
 });
 
+describe('fetchLocalPlanLines errors', () => {
+  it('throws when a read fails', async () => {
+    state.inError = true;
+    await expect(fetchLocalPlanLines([{ kind: 'placement', advertId: 'a1', days: 30 }])).rejects.toThrow();
+  });
+});
+
 describe('artwork', () => {
+  it('derives the content type from the extension when the browser gives none', async () => {
+    const f = new File(['x'], 'a.PNG', { type: '' });
+    expect(await uploadLineArtwork('c1', 'l1', f)).toEqual({ path: 'u1/c1/l1-a.png' });
+    expect(state.uploads[0].opts).toMatchObject({ upsert: true, contentType: 'image/png' });
+  });
+
   it('refuses a video with the quote-request message', async () => {
     const f = new File(['x'], 'ad.mp4', { type: 'video/mp4' });
     expect(await uploadLineArtwork('c1', 'l1', f)).toEqual({
