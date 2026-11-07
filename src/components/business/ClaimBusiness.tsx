@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { BadgeCheck, Loader2, X, Clock } from 'lucide-react';
 
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import { claimState, evidenceIsUsable, type BusinessClaim } from '../../lib/claims';
+import { claimMessage, waChatLink } from '../../lib/waLink';
+import { socialEntries } from '../../lib/businessProfile';
+import AuthModal from '../auth/AuthModal';
 import type { Business } from '../../types';
 
 /**
@@ -21,10 +23,51 @@ import type { Business } from '../../types';
  * account takeover with a friendly label, and the obvious target would be the
  * best-ranked business on the platform.
  */
+/*
+ * The number owners can write to. Unset means no WhatsApp option is offered:
+ * a dead "Message us" reads as a broken channel, which is worse than an
+ * absent one.
+ */
+const PLATFORM_WHATSAPP: string = import.meta.env.VITE_NOWOPEN_WHATSAPP_NUMBER ?? '';
+
 export default function ClaimBusiness({ business }: { business: Business }) {
   const { user } = useAuth();
   const [claim, setClaim] = useState<BusinessClaim | null>(null);
   const [open, setOpen] = useState(false);
+  /*
+   * Signing in used to mean LEAVING this page for /login?next=. An owner who
+   * has just recognised their own business is the most motivated visitor this
+   * platform gets, and the old flow sent them to a generic form and asked
+   * them to find their way back. The options now open over the listing.
+   */
+  const [signingIn, setSigningIn] = useState(false);
+  /* Set when sign-in was started FROM here, so the claim form opens by itself
+   * once an account exists — otherwise they arrive back and must click the
+   * same button a second time. */
+  const [claimAfterAuth, setClaimAfterAuth] = useState(false);
+
+  /*
+   * The Instagram handle already on this listing, if any.
+   *
+   * There is no "sign in with Instagram" to build: Supabase supports 19
+   * social providers and Instagram is not one of them (the authorize endpoint
+   * answers "Provider instagram could not be found"). What an Instagram owner
+   * CAN do is point at the account this listing was built from, which is a
+   * fact a reviewer can check in seconds — 217 of the 223 uncategorised
+   * listings came from Instagram, so for most owners it is the strongest
+   * evidence they have.
+   */
+  const instagramHandle = (() => {
+    /*
+     * `social_links` is a real column that the shared Business type does not
+     * carry — BusinessStory reads it through its own ProfileStory type. Read
+     * narrowly here rather than widening a type the whole app depends on.
+     */
+    const links = (business as unknown as { social_links?: unknown }).social_links;
+    const entry = socialEntries(links).find((x) => /instagram\.com/i.test(x.url));
+    const m = entry ? /instagram\.com\/([A-Za-z0-9._]+)/.exec(entry.url) : null;
+    return m ? m[1] : null;
+  })();
   const [evidence, setEvidence] = useState('');
   const [contact, setContact] = useState('');
   const [saving, setSaving] = useState(false);
@@ -45,6 +88,18 @@ export default function ClaimBusiness({ business }: { business: Business }) {
   }, [user, businessId]);
 
   useEffect(() => { void load(); }, [load]);
+
+  /*
+   * They asked to claim, then signed in. Carry them into the form rather than
+   * returning them to the button they already pressed.
+   */
+  useEffect(() => {
+    if (user && claimAfterAuth) {
+      setClaimAfterAuth(false);
+      setSigningIn(false);
+      setOpen(true);
+    }
+  }, [user, claimAfterAuth]);
 
   const state = claimState(business, claim);
   // Nothing to offer on a business that already has an owner.
@@ -112,17 +167,29 @@ export default function ClaimBusiness({ business }: { business: Business }) {
             Claim this business
           </button>
         ) : (
-          // Sign-in first, because a claim has to belong to an account. The
-          // page is remembered so they come back here rather than to the home
-          // page having forgotten why they signed up.
-          <Link
-            to={`/login?next=${encodeURIComponent(window.location.pathname)}`}
+          /*
+           * A claim still has to belong to an account — that has not changed,
+           * and it is what makes approval meaningful. What changed is where
+           * the account is created: here, over the listing they are looking
+           * at, with whichever methods the project actually has enabled.
+           *
+           * MEASURED 2026-10-12 against this project's auth settings:
+           * google, github, email and phone are enabled; facebook, apple,
+           * linkedin and twitter are not. AuthModal reads that itself rather
+           * than being told, so this does not go stale.
+           */
+          <button
+            onClick={() => { setClaimAfterAuth(true); setSigningIn(true); }}
             className="px-4 min-h-[40px] inline-flex items-center rounded-lg bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 shrink-0"
           >
-            Sign in to claim
-          </Link>
+            Claim this business
+          </button>
         )}
       </div>
+
+      {signingIn && !user && (
+        <AuthModal onClose={() => { setSigningIn(false); setClaimAfterAuth(false); }} />
+      )}
 
       {open && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Claim this business">
@@ -159,6 +226,60 @@ export default function ClaimBusiness({ business }: { business: Business }) {
                 </p>
               </div>
             </div>
+
+            {/*
+              * A second way in, for owners who will not fill a form.
+              *
+              * Outbound WhatsApp templates are gated behind billing — every
+              * one this platform sent failed with Meta code 131042. A message
+              * the OWNER sends costs nothing and needs no approval, and it
+              * carries a reference so whoever reads the inbox knows which
+              * listing is meant without asking.
+              *
+              * It does not replace the claim: the message opens a
+              * conversation, and an admin still approves ownership.
+              */}
+            {waChatLink({
+              phone: PLATFORM_WHATSAPP,
+              text: claimMessage({ businessName: business.name, businessId: business.id }),
+            }) && (
+              <div className="mt-4 rounded-lg border border-gray-200 dark:border-gray-700 p-3">
+                <p className="text-xs text-gray-600 dark:text-gray-300">
+                  Would rather talk? Message us on WhatsApp and we will take it from there.
+                </p>
+                <a
+                  href={waChatLink({
+                    phone: PLATFORM_WHATSAPP,
+                    text: claimMessage({ businessName: business.name, businessId: business.id }),
+                  }) as string}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-2 inline-flex items-center gap-2 rounded-lg bg-[#25d366] px-4 min-h-[44px] text-sm font-bold text-white"
+                >
+                  Message us on WhatsApp
+                </a>
+              </div>
+            )}
+
+            {instagramHandle && (
+              <button
+                type="button"
+                onClick={() => {
+                  setEvidence((prev) => prev.trim()
+                    ? prev
+                    : `I run the Instagram account @${instagramHandle} that this listing was built from.`);
+                  setContact((prev) => prev.trim() ? prev : `@${instagramHandle}`);
+                }}
+                className="mt-3 w-full rounded-lg border border-gray-200 dark:border-gray-700 px-3 py-2.5 text-left min-h-[44px]"
+              >
+                <span className="block text-xs font-semibold text-gray-900 dark:text-white">
+                  I run @{instagramHandle} on Instagram
+                </span>
+                <span className="block text-[11px] text-gray-500 dark:text-gray-400">
+                  Fills this in for you. A reviewer checks the account against the listing.
+                </span>
+              </button>
+            )}
 
             <div className="flex justify-end gap-2 mt-4">
               <button onClick={() => setOpen(false)} className="px-4 min-h-[44px] text-sm font-semibold text-gray-600 dark:text-gray-300">
