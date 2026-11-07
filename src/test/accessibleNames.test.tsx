@@ -66,7 +66,8 @@ describe('the directory search box has a name', () => {
 describe('every LocationAutocomplete call site ends up named', () => {
   for (const path of [
     'src/pages/Businesses.tsx',
-    'src/pages/Adverts.tsx',
+    // The placement filters moved from the Adverts page into the hub's medium browser.
+    'src/components/promote/MediumBrowser.tsx',
     'src/pages/Discover.tsx',
   ]) {
     it(`${path} passes a name or inherits the default`, () => {

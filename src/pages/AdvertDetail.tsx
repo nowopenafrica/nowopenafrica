@@ -1,7 +1,7 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { MapPin, DollarSign, Calendar, Eye, Star, ChevronLeft, Phone, Share2, MessageCircle, Mail } from 'lucide-react';
+import { Calendar, ChevronLeft, DollarSign, Eye, ListPlus, Loader2, Mail, MapPin, MessageCircle, Phone, Share2, Star } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useCurrency } from '../contexts/CurrencyContext';
 import PaymentModal from '../components/PaymentModal';
@@ -13,6 +13,17 @@ import { applySeo } from '../lib/seo';
 import { localDateISO } from '../lib/dates';
 import LoadFailure from '../components/LoadFailure';
 import SmartImg from '../components/SmartImg';
+import StockPhotoCaption from '../components/StockPhotoCaption';
+import { isStockPlaceholder } from '../lib/stockImage';
+import { reportPlanAdd } from '../lib/promote/planToast';
+import AdPreviewStudio from '../components/promote/AdPreviewStudio';
+import { sceneForType } from '../lib/promote/mockupScenes';
+import { describeDimensions, readAdDimensions } from '../lib/promote/adDimensions';
+import { addAdvertsToPlan } from '../lib/promote/campaigns';
+import { IMPORTED_FALLBACK, fetchPlacementTrust, isListedPlacement, ownerWebsiteHref, type PlacementTrust } from '../lib/promote/trust';
+import { UNLISTED_LIFECYCLES_IN } from '../lib/promote/listing';
+import { AvailabilityLine, TrustChip, priceBasisSuffix } from '../components/promote/PlacementLine';
+import ClaimPlacementButton from '../components/promote/ClaimPlacementButton';
 
 const DURATION_PRESETS = [7, 14, 30, 60, 90];
 
@@ -34,6 +45,42 @@ export default function AdvertDetail() {
   const [ownerBusiness, setOwnerBusiness] = useState<{ id: string; name: string; username?: string; phone?: string; location?: string } | null>(null);
   const [similar, setSimilar] = useState<Advertisement[]>([]);
   const [days, setDays] = useState(30);
+  /*
+   * This placement's placement_trust row. Null until the read answers, when
+   * it has no row, and when the read fails — all three render the honest
+   * default (IMPORTED_FALLBACK), so the page never says "Available" on the
+   * strength of a request still in flight.
+   */
+  const [trust, setTrust] = useState<PlacementTrust | null>(null);
+
+  /*
+   * Which scene is a fair preview of this placement, if any.
+   *
+   * Null for radio, television, cinema and print: a broadcast slot shown on
+   * a billboard is not a preview, it is a mistake with a picture attached.
+   * The section simply does not appear.
+   */
+  /*
+   * Saving into a plan. Creates one on first use rather than making a
+   * business set up a plan before it knows it wants one — the first
+   * placement they like IS the moment they want a plan.
+   */
+  const [savingPlan, setSavingPlan] = useState(false);
+  const saveToPlan = async () => {
+    if (!advert) return;
+    setSavingPlan(true);
+    const out = await addAdvertsToPlan([{ id: String(advert.id), pricing: advert.pricing ?? null }]);
+    setSavingPlan(false);
+    /* Failures share the hub's toast, so signed out offers a way to sign in. */
+    if (!out.ok) { reportPlanAdd(out); return; }
+    if (out.skipped > 0) { toast('Already in your plan.'); return; }
+    toast.success('Added to your plan.');
+  };
+
+  const previewScene = useMemo(
+    () => sceneForType(advert?.type) ?? sceneForType(advert?.category),
+    [advert?.type, advert?.category],
+  );
   const [customDays, setCustomDays] = useState('');
   const [startDate, setStartDate] = useState(() => localDateISO());
 
@@ -41,18 +88,38 @@ export default function AdvertDetail() {
     if (!advert) return undefined;
     if (isSampleId(advert.id)) {
       return applySeo({
-        title: 'Advertise in Africa — NowOpen Africa',
-        description: 'Book real-world and digital advertising placements across 20+ African markets.',
+        title: 'Advertise across Africa — NowOpen Africa',
+        description: 'Plan real-world and digital advertising placements across 20+ African markets. Rates are indicative and confirmed on enquiry.',
         path: window.location.pathname,
         robots: 'noindex, nofollow',
       });
     }
+    // A placement that is not public (waiting for review, rejected or
+    // archived) is not offered, so it is not indexed either. Waiting for
+    // review was never listed, so it is not "no longer" listed.
+    if (!isListedPlacement(advert)) {
+      const waiting = advert.lifecycle === 'pending_review';
+      return applySeo({
+        title: waiting ? 'Not listed yet — NowOpen Africa' : 'No longer listed — NowOpen Africa',
+        description: waiting
+          ? 'This advertising placement is not listed on NowOpen Africa yet.'
+          : 'This advertising placement is no longer listed on NowOpen Africa.',
+        path: `/adverts/${advert.id}`,
+        robots: 'noindex, nofollow',
+      });
+    }
     const location = advert.location ?? 'Africa';
+    /*
+     * No "Book": a placement is enquired about, and the media owner confirms
+     * the dates and the price. The city is the first part of "Lagos, Nigeria".
+     */
+    const city = location.split(',')[0].trim() || location;
+    const what = `${advert.category ?? 'Advertising placement'} in ${location}.`;
+    const rates = 'Rates are indicative and confirmed on enquiry.';
+    const own = (advert.description ?? '').trim();
     return applySeo({
-      title: `${advert.title} — Advertise in ${location} | NowOpen Africa`,
-      description:
-        (advert.description ?? '').trim().slice(0, 300) ||
-        `Book this ${advert.category ?? 'advert placement'} in ${location} on NowOpen Africa.`,
+      title: `${advert.title} — advertise in ${city} | NowOpen Africa`,
+      description: (own ? `${own.slice(0, 240)} ${rates}` : `${what} ${rates}`).trim(),
       path: `/adverts/${advert.id}`,
       image: advert.image_url || '/og-image.png',
     });
@@ -110,6 +177,15 @@ export default function AdvertDetail() {
     if (id) fetchAdvert();
   }, [id, fetchAdvert]);
 
+  useEffect(() => {
+    setTrust(null);
+    const advertId = advert ? String(advert.id) : null;
+    if (!advertId || isSampleId(advertId)) return undefined;
+    let live = true;
+    fetchPlacementTrust([advertId]).then((m) => { if (live) setTrust(m.get(advertId) ?? null); });
+    return () => { live = false; };
+  }, [advert?.id]);
+
   // Owner contact — if this placement is linked to a business account,
   // surface its real (publicly-readable) phone/WhatsApp instead of a dead
   // generic mailto.
@@ -131,9 +207,13 @@ export default function AdvertDetail() {
       setSimilar(pool.slice(0, 4) as Advertisement[]);
       return;
     }
-    let query = supabase.from('advertisements').select('*').neq('id', advert.id).limit(4);
+    // The table is publicly readable, so unlisted placements (waiting for
+    // review, rejected, archived) are left out IN the query, before the
+    // limit: filtering after it could show fewer than four (listing.ts).
+    let query = supabase.from('advertisements').select('*').neq('id', advert.id)
+      .not('lifecycle', 'in', UNLISTED_LIFECYCLES_IN);
     if (advert.category) query = query.eq('category', advert.category);
-    query.then(({ data }) => setSimilar(data || []));
+    query.limit(4).then(({ data }) => setSimilar(((data || []) as Advertisement[]).filter(isListedPlacement).slice(0, 4)));
   }, [advert]);
 
   if (loading) {
@@ -178,7 +258,35 @@ export default function AdvertDetail() {
             className="inline-flex items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
           >
             <ChevronLeft size={18} />
-            Back to Adverts
+            Back to Promote
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
+  /*
+   * Not public: the row is still publicly readable, but the placement is not
+   * offered. One plain statement and the way back, with no price,
+   * availability, booking or enquiry. Rejected or archived reads "No longer
+   * listed", matching the plan page; waiting for review (pending_review) was
+   * never listed, so it reads "Not listed yet", with no promise of when.
+   */
+  if (!isListedPlacement(advert)) {
+    const waiting = advert.lifecycle === 'pending_review';
+    return (
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 flex items-center justify-center px-4">
+        <div className="text-center max-w-md">
+          <h1 className="text-xl font-semibold text-gray-900 dark:text-white mb-2">{waiting ? 'Not listed yet' : 'No longer listed'}</h1>
+          <p className="text-gray-600 dark:text-gray-400 mb-6">
+            {waiting ? `${advert.title} is not listed on NowOpen Africa yet.` : `${advert.title} is no longer listed on NowOpen Africa.`}
+          </p>
+          <Link
+            to="/adverts"
+            className="inline-flex min-h-[44px] items-center gap-2 px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition"
+          >
+            <ChevronLeft size={18} />
+            Back to Promote
           </Link>
         </div>
       </div>
@@ -186,6 +294,21 @@ export default function AdvertDetail() {
   }
 
   const effectiveDays = Math.max(1, days);
+  /* A row left over from the placement viewed before this one never applies here. */
+  const trustNow = trust && trust.advertId === String(advert.id) ? trust : IMPORTED_FALLBACK(String(advert.id));
+  /* The linked owner's website, only once that owner is verified (trust.ts decides). */
+  const ownerSite = ownerWebsiteHref(trustNow);
+  /*
+   * What a media owner entered in the portal: the street or landmark, and
+   * the photos beyond the cover. Owner placements only (owner_id set); the
+   * cover is not repeated. Each photo follows the stock-photo rule.
+   */
+  const isOwned = !!advert.owner_id;
+  const siteAddress = isOwned ? advert.site_address?.trim() || null : null;
+  const morePhotos = isOwned
+    ? [...new Set((advert.media_urls ?? []).filter((u): u is string => typeof u === 'string' && u.trim() !== ''))]
+      .filter((u) => u !== advert.image_url)
+    : [];
   const totalPrice = advert.pricing ? Number(advert.pricing) * effectiveDays : 0;
   const whatsappLink = ownerBusiness?.phone
     ? whatsappHref(String(ownerBusiness.phone), ownerBusiness.location, `Hi, I'm interested in booking "${advert.title}" on NowOpen Africa.`)
@@ -199,7 +322,7 @@ export default function AdvertDetail() {
           <nav className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
             <Link to="/adverts" className="hover:text-blue-600 flex items-center gap-1">
               <ChevronLeft size={16} />
-              Adverts
+              Promote
             </Link>
             <span>/</span>
             <span className="text-gray-900 dark:text-white font-medium line-clamp-1">{advert.title}</span>
@@ -212,13 +335,17 @@ export default function AdvertDetail() {
           {/* Main Content */}
           <div className="lg:col-span-2 space-y-6">
             {/* Image */}
-            <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
+            <div className="relative bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
               {advert.image_url ? (
-                <SmartImg
-                  src={advert.image_url}
-                  alt={advert.title}
-                  className="w-full h-48 sm:h-72 md:h-96 object-cover"
-                />
+                <>
+                  <SmartImg
+                    src={advert.image_url}
+                    alt={isStockPlaceholder(advert.image_url) ? `Stock photograph standing in for ${advert.title}` : advert.title}
+                    className="w-full h-48 sm:h-72 md:h-96 object-cover"
+                  />
+                  {/* Stock, not the site: said on the picture, as business profiles do. */}
+                  <StockPhotoCaption url={advert.image_url} />
+                </>
               ) : (
                 <div className="w-full h-48 sm:h-72 md:h-96 bg-gradient-to-br from-blue-400 to-purple-600 flex items-center justify-center">
                   <Eye size={64} className="text-white/50" />
@@ -226,16 +353,43 @@ export default function AdvertDetail() {
               )}
             </div>
 
+            {morePhotos.length > 0 && (
+              <ul aria-label="More photos of this site" className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {morePhotos.map((url) => (
+                  <li key={url} className="relative overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800">
+                    <SmartImg
+                      src={url}
+                      alt={isStockPlaceholder(url) ? `Stock photograph standing in for ${advert.title}` : `${advert.title}, another view`}
+                      className="w-full h-32 sm:h-40 object-cover"
+                    />
+                    <StockPhotoCaption url={url} compact />
+                  </li>
+                ))}
+              </ul>
+            )}
+
             {/* Details */}
             <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
               <div className="flex items-start justify-between mb-4 gap-3">
                 <div className="min-w-0">
-                  {advert.category && (
-                    <span className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium rounded-full mb-2">
-                      {advert.category}
-                    </span>
-                  )}
+                  {/* The trust label beside the medium; its words come from lib/promote/trust.ts. */}
+                  <div className="flex flex-wrap items-center gap-2 mb-2">
+                    {advert.category && (
+                      <span className="inline-block px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 text-xs font-medium rounded-full">
+                        {advert.category}
+                      </span>
+                    )}
+                    <TrustChip trust={trustNow} />
+                  </div>
                   <h1 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white">{advert.title}</h1>
+                  {ownerSite && (
+                    <p data-testid="owner-website" className="mt-1 text-sm text-gray-600 dark:text-gray-400">
+                      Owner:{' '}
+                      <a href={ownerSite} target="_blank" rel="noopener noreferrer" className="font-medium text-blue-600 dark:text-blue-400 hover:underline">
+                        {trustNow.ownerName ?? ownerSite}
+                      </a>
+                    </p>
+                  )}
                 </div>
                 <button
                   aria-label="Share this placement"
@@ -271,6 +425,15 @@ export default function AdvertDetail() {
                     </div>
                   </div>
                 )}
+                {siteAddress && (
+                  <div className="flex items-center gap-3 p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
+                    <MapPin size={20} className="text-blue-600 dark:text-blue-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs text-gray-500 dark:text-gray-400">Site address</p>
+                      <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">{siteAddress}</p>
+                    </div>
+                  </div>
+                )}
                 {advert.pricing && (
                   <div className="flex items-center gap-3 p-3 sm:p-4 bg-gray-50 dark:bg-gray-900 rounded-lg">
                     <DollarSign size={20} className="text-green-600 dark:text-green-400 flex-shrink-0" />
@@ -285,7 +448,15 @@ export default function AdvertDetail() {
                     <Eye size={20} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
                     <div>
                       <p className="text-xs text-gray-500 dark:text-gray-400">Dimensions</p>
-                      <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">{advert.dimensions}</p>
+                      {/*
+                        Read rather than printed raw. The column is free text
+                        and says five different things across the inventory —
+                        a size, a count of faces, an extent, airtime, or
+                        nothing usable. See lib/promote/adDimensions.ts.
+                      */}
+                      <p className="text-sm sm:text-base font-medium text-gray-900 dark:text-white">
+                        {describeDimensions(readAdDimensions(advert.dimensions))}
+                      </p>
                     </div>
                   </div>
                 )}
@@ -301,24 +472,53 @@ export default function AdvertDetail() {
               </div>
             </div>
 
-            {/* Additional Info */}
-            {(advert.duration || advert.available_until) && (
+            {/*
+              Booking terms. This section used to print "Available until"
+              from the listing's own column — a date nobody confirmed, which
+              contradicted the availability line beside the price. Whether a
+              placement is available is said in one place only: trust.ts's
+              availabilityText, under the price. The column stays in the data.
+            */}
+            {advert.duration && (
               <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
-                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Availability</h2>
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white mb-3 sm:mb-4">Booking</h2>
                 <div className="space-y-3">
-                  {advert.duration && (
-                    <div className="flex items-center gap-3">
-                      <Calendar size={18} className="text-gray-400" />
-                      <span className="text-gray-600 dark:text-gray-400">Minimum booking: <span className="font-medium text-gray-900 dark:text-white">{advert.duration} days</span></span>
-                    </div>
-                  )}
-                  {advert.available_until && (
-                    <div className="flex items-center gap-3">
-                      <Calendar size={18} className="text-gray-400" />
-                      <span className="text-gray-600 dark:text-gray-400">Available until: <span className="font-medium text-gray-900 dark:text-white">{new Date(advert.available_until).toLocaleDateString()}</span></span>
-                    </div>
-                  )}
+                  <div className="flex items-center gap-3">
+                    <Calendar size={18} className="text-gray-400" />
+                    <span className="text-gray-600 dark:text-gray-400">Minimum booking: <span className="font-medium text-gray-900 dark:text-white">{advert.duration} days</span></span>
+                  </div>
                 </div>
+              </div>
+            )}
+
+            {/*
+              See your own advert on THIS placement.
+              *
+              * The listing says the price and the road. What a business
+              * cannot picture is their artwork on it — whether the words
+              * survive at that shape, how much the bus windows eat. The
+              * scene is matched to this placement's own medium, and its
+              * confirmed size drives the surface where there is one.
+              */}
+            {previewScene && (
+              <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-4 sm:p-6">
+                <h2 className="text-base sm:text-lg font-semibold text-gray-900 dark:text-white">
+                  See your advert here
+                </h2>
+                <p className="mt-1 mb-4 text-sm text-gray-600 dark:text-gray-400">
+                  Upload your artwork to place it on this {previewScene.name.toLowerCase()}.
+                </p>
+                <AdPreviewStudio
+                  initialScene={previewScene.id}
+                  placement={{
+                    id: advert.id,
+                    title: advert.title,
+                    type: advert.type ?? advert.category ?? '',
+                    location: advert.location,
+                    dimensions: advert.dimensions,
+                    imageUrl: advert.image_url,
+                  }}
+                />
               </div>
             )}
 
@@ -333,8 +533,10 @@ export default function AdvertDetail() {
                       to={`/adverts/${a.id}`}
                       className="flex gap-3 p-3 rounded-lg border border-gray-100 dark:border-gray-700 hover:border-blue-300 dark:hover:border-blue-700 transition"
                     >
-                      <div className="w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
+                      <div className="relative w-16 h-16 rounded-lg bg-gray-100 dark:bg-gray-700 flex-shrink-0 overflow-hidden">
                         {a.image_url && <SmartImg loading="lazy" decoding="async" src={a.image_url} alt={a.title} className="w-full h-full object-cover" />}
+                        {/* Too small for the words: the mark, with the notice as its name. */}
+                        <StockPhotoCaption url={a.image_url} compact />
                       </div>
                       <div className="min-w-0">
                         <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{a.title}</p>
@@ -408,6 +610,7 @@ export default function AdvertDetail() {
                       {format(totalPrice, { compact: true })}
                     </p>
                     <p className="text-gray-600 dark:text-gray-400">for {effectiveDays} day{effectiveDays === 1 ? '' : 's'} ({format(advert.pricing)}/day)</p>
+                    <p data-testid="price-basis" className="text-xs text-gray-500 dark:text-gray-400 mt-1">{priceBasisSuffix(trustNow)}</p>
                     {currency !== 'USD' && (
                       <p className="text-xs text-gray-500 dark:text-gray-400 mt-2">≈ {formatUsd(totalPrice)} USD</p>
                     )}
@@ -415,11 +618,15 @@ export default function AdvertDetail() {
                 </>
               )}
 
+              {/* Under the price: what is known about the dates, and who said so. */}
+              <AvailabilityLine trust={trustNow} className="text-center mb-4" />
+
               <button
                 onClick={() => setCheckoutOpen(true)}
                 className="block text-center w-full px-4 sm:px-6 py-2.5 sm:py-3 text-sm sm:text-base bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition mb-3"
               >
-                Book This Placement
+                {/* This opens the Paystack checkout, so it says so. Whether payment should come before a media owner confirms is the founder's Promote step-3 decision. */}
+                Pay to reserve these dates
               </button>
 
               {ownerBusiness?.phone ? (
@@ -457,6 +664,33 @@ export default function AdvertDetail() {
                 </button>
               )}
 
+              {/*
+                Most advertising is not one board. Saving a placement into a
+                plan is what lets a business compare three billboards, a bus
+                and a screen and take them to the media owners together,
+                rather than sending five separate enquiries.
+              */}
+              <button
+                onClick={() => void saveToPlan()}
+                disabled={savingPlan}
+                className="flex items-center justify-center gap-2 w-full px-4 sm:px-6 py-2.5 text-sm border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition mb-3 disabled:opacity-50"
+              >
+                {savingPlan ? <Loader2 size={15} className="animate-spin" /> : <ListPlus size={15} />}
+                Save to my plan
+              </button>
+
+              {/*
+                "Is this your site? Claim it": only while the placement has no
+                owner. The button itself shows only to a signed-in member of a
+                media-owner business, and says "Claim sent for review" once a
+                claim is pending. Never on a sample or an unlisted placement.
+              */}
+              {!advert.owner_id && !isSampleId(String(advert.id)) && isListedPlacement(advert) && (
+                <div className="mb-3">
+                  <ClaimPlacementButton advertId={String(advert.id)} />
+                </div>
+              )}
+
               {ownerBusiness?.username && (
                 <Link
                   to={`/${ownerBusiness.username}`}
@@ -467,7 +701,7 @@ export default function AdvertDetail() {
               )}
 
               <p className="text-xs text-gray-500 dark:text-gray-400 text-center mt-1">
-                Reserve now — you approve before any payment is taken.
+                Enquire about this placement — you approve before any payment is taken.
               </p>
             </div>
 

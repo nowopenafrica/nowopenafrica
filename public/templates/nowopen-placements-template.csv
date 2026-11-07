@@ -1,0 +1,3 @@
+type,site_name,city,country,address,size_type,width_m,height_m,resolution,orientation,seconds_per_spot,spots_per_day,coverage,size_description,price,currency,per,description,photo_link
+Billboard,Ikeja Along unipole,Lagos,NG,"Opposite Ikeja City Mall, Obafemi Awolowo Way",area,12,6,,,,,,,450000,NGN,month,Faces traffic heading to the airport,
+Digital Screen,Lekki Phase 1 LED screen,Lagos,NG,Admiralty Way roundabout,screen,,,1920x1080,landscape,,,,,90000,NGN,week,,
