@@ -243,9 +243,25 @@ export function seedInserts(rawSql) {
   const inserts = [...sql.matchAll(/insert\s+into\s+([a-z0-9_."]+)/g)];
   if (!inserts.length) return null;
 
+  /*
+   * A TEMPORARY table declared in this same script is scaffolding, not a
+   * destination. It does not outlive the transaction, so nothing inserted into
+   * it exists once the migration ends and no replay can duplicate it. Listing
+   * it would have the report name a table this migration "seeds" that will not
+   * exist a moment later.
+   *
+   * The guard classification below is deliberately NOT relaxed by this. It is
+   * computed across the whole file, and a migration that writes real rows stays
+   * a writer whatever scaffolding it used on the way.
+   */
+  const temporary = new Set(
+    [...sql.matchAll(/create\s+(?:temp|temporary)\s+table\s+(?:if\s+not\s+exists\s+)?([a-z0-9_."]+)/g)]
+      .map((m) => m[1].replace(/^public\./, '').replace(/"/g, '')),
+  );
+
   const tables = [
     ...new Set(inserts.map((m) => m[1].replace(/^public\./, '').replace(/"/g, ''))),
-  ];
+  ].filter((t) => !temporary.has(t));
 
   let guard = 'none';
   if (/on\s+conflict/.test(sql)) guard = 'idempotent';

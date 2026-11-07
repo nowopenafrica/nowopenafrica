@@ -120,6 +120,23 @@ function auditSql(sql) {
     ]),
   };
 
+  /*
+   * Tables this script itself declares TEMPORARY.
+   *
+   * A temp table cannot duplicate on a re-run: it does not survive the
+   * transaction that created it, so the next run inserts into a table that is
+   * empty by construction. Demanding ON CONFLICT on one would mean adding a
+   * unique constraint to scaffolding purely to satisfy this checker, which
+   * makes the migration harder to read and protects nothing.
+   *
+   * Scoped to names this file declares — an INSERT into an unknown table is
+   * still flagged, which is the case that matters.
+   */
+  const temporaryTables = new Set(
+    [...sql.matchAll(/CREATE\s+(?:TEMP|TEMPORARY)\s+TABLE\s+(?:IF\s+NOT\s+EXISTS\s+)?([\w.]+)/gi)]
+      .map((m) => m[1].toLowerCase()),
+  );
+
   const problems = [];
   for (const statement of splitStatements(sql)) {
     const flat = statement.split(/\s+/).join(' ').trim();
@@ -140,7 +157,8 @@ function auditSql(sql) {
     }
 
     m = /^\s*INSERT\s+INTO\s+([\w.]+)/i.exec(flat);
-    if (m && !/ON\s+CONFLICT|WHERE\s+NOT\s+EXISTS/i.test(flat)) {
+    if (m && !temporaryTables.has(m[1].toLowerCase())
+      && !/ON\s+CONFLICT|WHERE\s+NOT\s+EXISTS/i.test(flat)) {
       problems.push(`INSERT INTO ${m[1]} — add ON CONFLICT … DO NOTHING, or it duplicates on re-run`);
     }
 
@@ -212,6 +230,91 @@ function auditFunctionOverloads(files) {
   return problems;
 }
 
+// Block comments that end where the author did not mean them to.
+//
+// MEASURED 2026-10-10: `db push` aborted with "syntax error at or near 15" on
+// a migration whose prose read "Not <star><slash>15: three other jobs already
+// run on the quarter hour". The terminator closed the comment, so the rest of
+// the sentence was handed to the parser as SQL. TWO MIGRATIONS HAD ALREADY
+// BEEN APPLIED when it failed -- the half-migrated database this file exists
+// to prevent.
+//
+// The mirror image is just as quiet: Postgres block comments NEST, unlike C
+// and unlike JavaScript. An opener written inside prose starts a second
+// level, and the file's single terminator closes only one of them, so
+// everything after it is swallowed as comment and silently never runs.
+// 20240813000000 carried exactly that for months ("Users read<star-slash-ish>
+// mark read") and was only ever in the ledger because the ledger was
+// reconciled by repair rather than by replay -- it had never actually run.
+//
+// Both are invisible to a reader and fatal to a push, so they are caught here
+// rather than discovered against production.
+//
+// (This comment is deliberately written with // lines: the sequences it
+// describes cannot be spelled inside a block comment without ending it, which
+// is the whole point.)
+function auditCommentNesting(sql) {
+  const problems = [];
+  let i = 0; let depth = 0; let openedAt = 0;
+  const lineOf = (at) => sql.slice(0, at).split('\n').length;
+
+  while (i < sql.length) {
+    if (depth === 0) {
+      // Skip what a comment opener can hide inside, so a cron string such
+      // as the every-15-minutes one is not mistaken for comment syntax.
+      if (sql.startsWith('--', i)) {
+        const nl = sql.indexOf('\n', i);
+        i = nl < 0 ? sql.length : nl + 1;
+        continue;
+      }
+      if (sql[i] === "'") {
+        let j = i + 1;
+        while (j < sql.length) {
+          if (sql[j] === "'" && sql[j + 1] === "'") { j += 2; continue; }
+          if (sql[j] === "'") break;
+          j += 1;
+        }
+        i = j + 1;
+        continue;
+      }
+      const dollar = /^\$[A-Za-z_]*\$/.exec(sql.slice(i));
+      if (dollar) {
+        const close = sql.indexOf(dollar[0], i + dollar[0].length);
+        i = close < 0 ? sql.length : close + dollar[0].length;
+        continue;
+      }
+      if (sql.startsWith('/*', i)) { depth = 1; openedAt = i; i += 2; continue; }
+      i += 1;
+      continue;
+    }
+
+    if (sql.startsWith('/*', i)) {
+      problems.push(
+        `line ${lineOf(i)}: "/*" inside a block comment opens a NESTED comment `
+        + '(Postgres nests), so this comment does not end where it appears to '
+        + 'and the SQL after it is silently skipped. Reword it.',
+      );
+      depth += 1; i += 2; continue;
+    }
+    if (sql.startsWith('*/', i)) {
+      depth -= 1; i += 2;
+      if (depth === 0 && i < sql.length && !/\s/.test(sql[i])) {
+        problems.push(
+          `line ${lineOf(i)}: a block comment ends mid-sentence ("…${sql.slice(i, i + 24).split('\n')[0]}"), `
+          + 'so the rest of the prose is parsed as SQL. Reword it.',
+        );
+      }
+      continue;
+    }
+    i += 1;
+  }
+
+  if (depth > 0) {
+    problems.push(`line ${lineOf(openedAt)}: block comment is never terminated.`);
+  }
+  return problems;
+}
+
 const targets = [];
 if (existsSync(MIGRATIONS_DIR)) {
   for (const file of readdirSync(MIGRATIONS_DIR).filter((f) => f.endsWith('.sql')).sort()) {
@@ -225,7 +328,7 @@ const loaded = [];
 for (const path of targets) {
   const sql = readFileSync(path, 'utf8');
   loaded.push({ name: basename(path), sql });
-  const problems = auditSql(sql);
+  const problems = auditSql(sql).concat(auditCommentNesting(sql));
   if (problems.length) {
     console.error(`\n${basename(path)}`);
     for (const p of problems) console.error(`  ✗ ${p}`);

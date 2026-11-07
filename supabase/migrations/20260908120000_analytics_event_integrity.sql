@@ -37,6 +37,10 @@ alter table public.analytics_events
 
 alter table public.analytics_events
   add constraint analytics_events_name_known check (name in (
+    'install_cta_clicked',
+    'install_instructions_viewed',
+    'install_prompt_accepted',
+    'install_prompt_dismissed',
     'signup',
     'signin',
     'business_created',
@@ -46,6 +50,17 @@ alter table public.analytics_events
     'business_kept',
     'profile_request_started',
     'profile_requested',
+    'create_hub_opened',
+    'create_action_selected',
+    'create_auth_required',
+    'create_deep_link',
+    'creation_started',
+    'create_claim_prompt_followed',
+    'creation_completed',
+    'create_tools_customised',
+    'add_business_started',
+    'add_business_step',
+    'business_submitted',
     'business_nominated',
     'create_order_requested',
     'create_order_accepted',

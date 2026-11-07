@@ -9,7 +9,7 @@
      sticks, while a normal user still can't raise their own plan.
 
   2. `notifications` — per-user dashboard notifications (plan changes, booking
-     updates, admin messages, welcome, etc.). Users read/*mark read* their own;
+     updates, admin messages, welcome, etc.). Users read / mark-read their own;
      admins can create a notification for anyone (and read all for support).
 */
 

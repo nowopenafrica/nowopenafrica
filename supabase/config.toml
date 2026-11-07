@@ -1,3 +1,22 @@
+# ─────────────────────────────────────────────────────────────────────────
+# DO NOT RUN `supabase config push` AGAINST THIS PROJECT.
+#
+# This file has NO [auth] section, and `config push` does not push a diff — it
+# pushes the whole config, filling in DEFAULTS for everything absent. Running it
+# today would send production:
+#
+#   site_url        -> http://localhost:3000   (breaks every confirmation and
+#                                               password-reset link that is sent)
+#   external.google -> disabled                (currently enabled and in use)
+#   external.github -> disabled                (currently enabled and in use)
+#   external.phone  -> disabled                (phone signup, such as it is)
+#
+# Checked against the live project 2026-09-22 via /auth/v1/settings.
+#
+# Auth settings on this project are managed in the Supabase dashboard. To bring
+# them under version control, mirror the LIVE values into a complete [auth]
+# block first and verify each one — an incomplete block is the trap above.
+# ─────────────────────────────────────────────────────────────────────────
 
 # chatbot, translate-caption, and verify-payment are all called by our own
 # frontend with the anon key as a bearer token, so they need no override
@@ -54,3 +73,88 @@ verify_jwt = false
 [functions.social-publish]
 enabled = true
 
+
+# generate-profile is called from the dashboard with the user's session, and it
+# now CHARGES CREDITS — the charge runs as the caller via auth.uid(). JWT
+# verification stays on so an anonymous caller never reaches the model at all.
+#
+# Declared explicitly rather than left to the default: on 2026-10-06 a deploy
+# passed --no-verify-jwt and silently turned it off, and nothing in the repo
+# recorded what it should have been.
+[functions.generate-profile]
+enabled = true
+verify_jwt = true
+
+# verify-payment is called by our own frontend right after checkout. It proves
+# the payment with Paystack server-side regardless, but JWT verification is the
+# outer gate and was turned off by the same mistaken deploy.
+[functions.verify-payment]
+enabled = true
+verify_jwt = true
+
+# extract-instagram is the admin's manual Instagram lookup. It is reachable
+# from a browser and it spends the app's Meta rate limit, so the JWT is the
+# outer gate and the role check inside is the inner one. Declared explicitly
+# for the same reason generate-profile is: a deploy flag once turned this off
+# elsewhere and nothing in the repo recorded the intent.
+[functions.extract-instagram]
+enabled = true
+verify_jwt = true
+
+# selftest-email sends ONE message, to the signed-in staff member's own
+# address only. It is reachable from the admin UI, so the JWT is the gate.
+[functions.selftest-email]
+enabled = true
+verify_jwt = true
+
+# selftest-whatsapp is READ-ONLY: it asks Meta what the token is and what is
+# still missing. It cannot send a message (a JWT carries no verified phone
+# number, so there is no "only to yourself" guarantee to lean on).
+[functions.selftest-whatsapp]
+enabled = true
+verify_jwt = true
+
+# whatsapp-template-setup submits the welcome wording to Meta for approval.
+# It messages nobody; Meta approval is what makes a template sendable.
+[functions.whatsapp-template-setup]
+enabled = true
+verify_jwt = true
+
+# selftest-instagram is READ-ONLY: it asks Meta what the token reaches and
+# proves the extractor path by looking up our OWN profile. It never DMs.
+[functions.selftest-instagram]
+enabled = true
+verify_jwt = true
+
+# instagram-logo copies ONE profile picture into our storage on a staff
+# request. Meta's URL expires in days, so a link would be a broken logo.
+# Reachable only from the admin UI; no batch mode and no scheduler path.
+[functions.instagram-logo]
+enabled = true
+verify_jwt = true
+
+# instagram-intake is the public "add my business from my Instagram handle"
+# endpoint. JWT off on purpose: the whole point is that a business owner with
+# no NowOpen account can use it. It spends the app's Meta budget, so unlike
+# extract-instagram it carries its own guards -- a duplicate check before any
+# lookup, a per-caller limit in rate_limit_buckets, and a 60% ceiling on the
+# hour so scheduled jobs and admin tooling can never be starved by strangers.
+# Declared explicitly because a deploy flag once turned verify_jwt off for a
+# function that needed it on, and the reverse is just as easy to do by accident.
+[functions.instagram-intake]
+verify_jwt = false
+
+# Meta's delivery-status webhook. Public by necessity: Meta presents no JWT.
+# Authentication is the X-Hub-Signature-256 HMAC over the raw body, checked
+# against META_APP_SECRET, and an unverified body is never applied.
+[functions.whatsapp-webhook]
+enabled = true
+verify_jwt = false
+
+# Brand social dispatcher. Zoho Flow's report-back carries no Supabase JWT.
+# The function authenticates every caller itself: admin actions re-check
+# is_admin() with the caller's own token, and the Flow callback must present
+# X-Flow-Secret (compared in constant time; fails closed when unset).
+[functions.brand-social-dispatch]
+enabled = true
+verify_jwt = false
