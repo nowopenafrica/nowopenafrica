@@ -79,7 +79,8 @@ export default function MediaPlan() {
     void fetchPlanLines(current.id).then(setLines);
   }, [current]);
 
-  const summary = useMemo(() => summarise(lines), [lines]);
+  const { format: money, ngnPerUsd } = useCurrency();
+  const summary = useMemo(() => summarise(lines, ngnPerUsd), [lines, ngnPerUsd]);
 
   /*
    * Which lines are still listed. placement_trust leaves out archived and
@@ -93,7 +94,7 @@ export default function MediaPlan() {
    * Keyed on the ids, not the lines, so editing a duration does not re-read.
    * Null while reading; lines then read as the imported default too.
    */
-  const lineIds = useMemo(() => [...new Set(lines.map((l) => l.advertId))].join(','), [lines]);
+  const lineIds = useMemo(() => [...new Set(lines.flatMap((l) => (l.advertId ? [l.advertId] : [])))].join(','), [lines]);
   const [trust, setTrust] = useState<{ map: Map<string, PlacementTrust>; failed: boolean } | null>(null);
   useEffect(() => {
     setTrust(null);
@@ -102,7 +103,7 @@ export default function MediaPlan() {
     void fetchPlacementTrustResult(lineIds.split(',')).then((r) => { if (live) setTrust(r); });
     return () => { live = false; };
   }, [lineIds]);
-  const delisted = (advertId: string) => trust != null && !trust.failed && !trust.map.has(advertId);
+  const delisted = (advertId: string | null) => advertId != null && trust != null && !trust.failed && !trust.map.has(advertId);
 
   /*
    * The SAME formatter the rest of the product uses.
@@ -113,8 +114,6 @@ export default function MediaPlan() {
    * "₦14 / day" — a plausible-looking number that is wrong by three orders
    * of magnitude, on the one page whose job is to be careful about money.
    */
-  const { format: money } = useCurrency();
-
   const start = async () => {
     setBusy(true);
     const made = await createCampaign('My advertising plan');
@@ -223,7 +222,7 @@ export default function MediaPlan() {
         <div className="mt-5 grid gap-5 lg:grid-cols-[1fr,300px]">
           <ul className="space-y-2">
             {lines.map((l) => {
-              const cost = lineCost(l);
+              const cost = lineCost(l, ngnPerUsd);
               return (
                 <li key={l.id} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
                   <div className="flex items-start gap-3">
@@ -238,8 +237,8 @@ export default function MediaPlan() {
                         <p className="mt-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">No longer listed</p>
                       ) : (
                         <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <TrustChip trust={trustFor(trust?.map, l.advertId)} />
-                          <AvailabilityLine trust={trustFor(trust?.map, l.advertId)} className="text-[11px]" />
+                          <TrustChip trust={trustFor(trust?.map, l.advertId ?? '')} />
+                          <AvailabilityLine trust={trustFor(trust?.map, l.advertId ?? '')} className="text-[11px]" />
                         </div>
                       )}
                     </div>

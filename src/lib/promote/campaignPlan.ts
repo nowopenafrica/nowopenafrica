@@ -25,11 +25,14 @@
  * without a network.
  */
 
-export type PriceBasis = 'indicative' | 'quoted' | 'unpriced';
+import { ngnToUsd } from './hubMoney';
+
+export type PriceBasis = 'indicative' | 'quoted' | 'unpriced' | 'fixed';
 
 export interface PlanLine {
   id: string;
-  advertId: string;
+  /** Null for a NowOpen product line. */
+  advertId: string | null;
   title: string;
   type: string | null;
   location: string | null;
@@ -40,6 +43,16 @@ export interface PlanLine {
   priceBasis: PriceBasis;
   currency: string;
   artworkUrl: string | null;
+  /** A media placement, or a NowOpen product. A `fixed` line is always a product with a price. */
+  kind: 'placement' | 'product';
+  productId: string | null;
+  /** NGN kobo. Products only. */
+  priceMinor: number | null;
+  artworkDesignId: string | null;
+  artworkWidth: number | null;
+  artworkHeight: number | null;
+  /** False when the placement is delisted or the product is inactive. */
+  offered: boolean;
 }
 
 export interface BasisTotal {
@@ -57,8 +70,10 @@ export interface PlanSummary {
   totals: BasisTotal[];
   /** How many placements of each medium. */
   byMedium: { medium: string; count: number }[];
-  /** Lines with artwork attached, out of the total. */
+  /** Placement lines with artwork attached, out of `artworkNeeded`. */
   creativeReady: number;
+  /** Placement lines that need artwork. Products never do. */
+  artworkNeeded: number;
   /** Things to do before this is worth sending. Each is actionable. */
   missing: string[];
   /**
@@ -71,9 +86,10 @@ export interface PlanSummary {
   hasConfirmedTotal: boolean;
 }
 
-const BASIS_ORDER: PriceBasis[] = ['quoted', 'indicative', 'unpriced'];
+export const BASIS_ORDER: PriceBasis[] = ['fixed', 'quoted', 'indicative', 'unpriced'];
 
 export const BASIS_LABEL: Record<PriceBasis, string> = {
+  fixed: 'NowOpen price',
   quoted: 'Quoted by the media owner',
   indicative: 'Indicative, from published rate cards',
   unpriced: 'No rate published',
@@ -85,8 +101,12 @@ export const BASIS_LABEL: Record<PriceBasis, string> = {
  * Null rather than zero. A line with no duration costs an unknown amount,
  * and zero would quietly make a plan look cheaper the more unknowns it has.
  */
-export const lineCost = (line: PlanLine): number | null =>
-  (line.ratePerDay != null && line.days != null ? line.ratePerDay * line.days : null);
+export function lineCost(line: PlanLine, ngnPerUsd: number): number | null {
+  if (line.kind === 'product') {
+    return line.priceMinor == null ? null : ngnToUsd(line.priceMinor / 100, ngnPerUsd);
+  }
+  return line.ratePerDay != null && line.days != null ? line.ratePerDay * line.days : null;
+}
 
 /**
  * Add a plan up, keeping the bases apart.
@@ -94,7 +114,10 @@ export const lineCost = (line: PlanLine): number | null =>
  * A group's total is null if ANY line in it is uncosted, because a partial
  * sum presented as a total is the same lie in smaller type.
  */
-export function summarise(lines: readonly PlanLine[]): PlanSummary {
+export function summarise(allLines: readonly PlanLine[], ngnPerUsd: number): PlanSummary {
+  /* A line that is no longer on offer is named in `missing`, never costed. */
+  const lines = allLines.filter((l) => l.offered);
+  const withdrawn = allLines.length - lines.length;
   const totals: BasisTotal[] = [];
 
   for (const basis of BASIS_ORDER) {
@@ -106,12 +129,14 @@ export function summarise(lines: readonly PlanLine[]): PlanSummary {
     let complete = true;
 
     for (const line of group) {
-      const cost = lineCost(line);
+      const cost = lineCost(line, ngnPerUsd);
       if (cost == null) {
         complete = false;
         incomplete.push({
           title: line.title,
-          why: line.ratePerDay == null ? 'no published rate' : 'no duration set',
+          why: line.kind === 'product'
+            ? 'no price set'
+            : line.ratePerDay == null ? 'no published rate' : 'no duration set',
         });
       } else {
         running += cost;
@@ -123,38 +148,49 @@ export function summarise(lines: readonly PlanLine[]): PlanSummary {
 
   const mediums = new Map<string, number>();
   for (const line of lines) {
-    const medium = line.type?.trim() || 'Other';
+    const medium = line.kind === 'product' ? 'NowOpen' : line.type?.trim() || 'Other';
     mediums.set(medium, (mediums.get(medium) ?? 0) + 1);
   }
 
-  const creativeReady = lines.filter((l) => Boolean(l.artworkUrl)).length;
+  const placements = lines.filter((l) => l.kind === 'placement');
+  const products = lines.filter((l) => l.kind === 'product');
+  const creativeReady = placements.filter((l) => Boolean(l.artworkUrl)).length;
 
   const missing: string[] = [];
-  const undated = lines.filter((l) => l.days == null);
+  const undated = placements.filter((l) => l.days == null);
   if (undated.length) {
     missing.push(`${undated.length} placement${undated.length === 1 ? '' : 's'} ${undated.length === 1 ? 'has' : 'have'} no duration — set how long each runs.`);
   }
-  if (creativeReady < lines.length) {
-    const n = lines.length - creativeReady;
+  if (creativeReady < placements.length) {
+    const n = placements.length - creativeReady;
     missing.push(`${n} placement${n === 1 ? '' : 's'} ${n === 1 ? 'has' : 'have'} no artwork attached yet.`);
   }
-  const unpriced = lines.filter((l) => l.ratePerDay == null);
+  const unpriced = placements.filter((l) => l.ratePerDay == null);
   if (unpriced.length) {
     missing.push(`${unpriced.length} placement${unpriced.length === 1 ? '' : 's'} ${unpriced.length === 1 ? 'has' : 'have'} no published rate — the media owner will quote.`);
   }
+  const unpricedProducts = products.filter((l) => l.priceMinor == null);
+  if (unpricedProducts.length) {
+    const n = unpricedProducts.length;
+    missing.push(`${n} product${n === 1 ? '' : 's'} ${n === 1 ? 'has' : 'have'} no price set.`);
+  }
+  if (withdrawn) {
+    missing.push(`${withdrawn} line${withdrawn === 1 ? ' is' : 's are'} no longer on offer — remove ${withdrawn === 1 ? 'it' : 'them'}.`);
+  }
 
   return {
-    lines: lines.length,
+    lines: allLines.length,
     totals,
     byMedium: [...mediums.entries()]
       .map(([medium, count]) => ({ medium, count }))
       .sort((a, b) => b.count - a.count || a.medium.localeCompare(b.medium)),
     creativeReady,
+    artworkNeeded: placements.length,
     missing,
-    /* Confident only when every line is a real quote and every line is costed. */
+    /* Confident only when every line is a real quote or NowOpen price and every line is costed. */
     hasConfirmedTotal: lines.length > 0
-      && lines.every((l) => l.priceBasis === 'quoted')
-      && lines.every((l) => lineCost(l) != null),
+      && lines.every((l) => l.priceBasis === 'quoted' || l.priceBasis === 'fixed')
+      && lines.every((l) => lineCost(l, ngnPerUsd) != null),
   };
 }
 
@@ -172,7 +208,8 @@ export function describeCost(summary: PlanSummary, format: (n: number) => string
   if (!costed.length) return 'The media owners will quote for these placements.';
 
   if (summary.hasConfirmedTotal) {
-    return `${format(costed.reduce((sum, t) => sum + (t.total ?? 0), 0))}, quoted.`;
+    const sum = format(costed.reduce((acc, t) => acc + (t.total ?? 0), 0));
+    return costed.every((t) => t.basis === 'fixed') ? `${sum}, NowOpen price.` : `${sum}, quoted.`;
   }
 
   const parts = costed.map((t) => `${format(t.total as number)} ${t.basis}`);

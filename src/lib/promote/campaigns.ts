@@ -94,7 +94,7 @@ export async function fetchPlanLines(campaignId: string): Promise<PlanLine[]> {
 
   return (data as unknown as RawLine[]).map((r) => ({
     id: String(r.id),
-    advertId: String(r.advert_id),
+    advertId: r.advert_id == null ? null : String(r.advert_id),
     title: r.advertisements?.title ?? 'Placement',
     type: r.advertisements?.type ?? null,
     location: r.advertisements?.location ?? null,
@@ -104,6 +104,13 @@ export async function fetchPlanLines(campaignId: string): Promise<PlanLine[]> {
     priceBasis: (r.price_basis as PriceBasis) ?? 'indicative',
     currency: String(r.currency ?? 'NGN'),
     artworkUrl: r.artwork_url ?? null,
+    kind: 'placement' as const,
+    productId: null,
+    priceMinor: null,
+    artworkDesignId: null,
+    artworkWidth: null,
+    artworkHeight: null,
+    offered: true,
   }));
 }
 
@@ -206,7 +213,7 @@ export async function addAdvertsToPlan(
     if ('error' in made) return { ok: false, error: made.error, added: 0 };
     planId = made.id;
   } else {
-    inPlan = new Set((await fetchPlanLines(planId)).map((l) => l.advertId));
+    inPlan = new Set((await fetchPlanLines(planId)).flatMap((l) => (l.advertId ? [l.advertId] : [])));
   }
 
   /*
