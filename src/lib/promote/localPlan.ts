@@ -16,8 +16,10 @@ export const PLAN_CHANGED_EVENT = 'nowopen:plan-changed';
 
 const STORE_VERSION = 1;
 
-/** Fallback copy for the visit; also mirrors the last successful write. */
+/** Copy of the last written plan. Authoritative while `memoryDirty` is set. */
 let memory: LocalLine[] = [];
+/** True after a failed storage write: storage is stale, so reads use memory. */
+let memoryDirty = false;
 
 const lineKey = (l: LocalLine): string =>
   l.kind === 'placement' ? `placement:${l.advertId}` : `product:${l.productId}`;
@@ -60,7 +62,7 @@ function dedupe(lines: LocalLine[]): LocalLine[] {
 }
 
 export function readLocalPlan(): LocalLine[] {
-  if (typeof window === 'undefined') return [...memory];
+  if (typeof window === 'undefined' || memoryDirty) return [...memory];
   let text: string | null;
   try {
     text = window.localStorage.getItem(LOCAL_PLAN_KEY);
@@ -101,8 +103,10 @@ function write(lines: LocalLine[]): void {
         LOCAL_PLAN_KEY,
         JSON.stringify({ v: STORE_VERSION, lines }),
       );
+      memoryDirty = false;
     } catch {
       /* blocked or full: the in-memory copy carries the visit */
+      memoryDirty = true;
     }
   }
   notifyPlanChanged();

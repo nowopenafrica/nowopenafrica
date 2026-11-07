@@ -77,6 +77,17 @@ describe('localPlan', () => {
     expect(readLocalPlan()).toEqual([A]);
   });
 
+  it('keeps the plan when only setItem throws', () => {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('quota');
+    });
+    addLocalLines([A]);
+    expect(readLocalPlan()).toEqual([A]);
+    expect(readLocalPlan()).toEqual([A]);
+    addLocalLines([B]);
+    expect(readLocalPlan()).toEqual([A, B]);
+  });
+
   it('removes by item id and sets days', () => {
     addLocalLines([A, P]);
     setLocalDays('ad-1', 30);
@@ -101,9 +112,13 @@ describe('localPlan', () => {
     removeLocalLine('ad-1');
     replaceLocalPlan([B]);
     expect(cb).toHaveBeenCalledTimes(3);
+    setLocalDays('ad-2', 5);
+    clearLocalPlan();
+    expect(cb).toHaveBeenCalledTimes(5);
     off();
     addLocalLines([P]);
-    expect(cb).toHaveBeenCalledTimes(3);
+    window.dispatchEvent(new StorageEvent('storage', { key: LOCAL_PLAN_KEY }));
+    expect(cb).toHaveBeenCalledTimes(5);
   });
 
   it('reacts to storage events for the plan key only', () => {
