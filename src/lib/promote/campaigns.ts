@@ -8,6 +8,12 @@
 
 import { supabase } from '../supabase';
 import type { PlanLine, PriceBasis } from './campaignPlan';
+import { classifyArtworkFile } from './artworkSource';
+import { safeArtworkName } from '../create/artwork';
+import {
+  addLocalLines, clearLocalPlan, notifyPlanChanged, readLocalPlan, replaceLocalPlan,
+  type LocalLine,
+} from './localPlan';
 
 export type CampaignStatus = 'draft' | 'enquiry_sent' | 'archived';
 
@@ -73,69 +79,171 @@ export async function fetchCampaigns(): Promise<CampaignsRead> {
   return { state: 'ready', campaigns: (data ?? []).map((r) => toCampaign(r as Record<string, unknown>)) };
 }
 
+const PLAN_LINE_COLUMNS = `
+  id, advert_id, product_id, days, price_basis, rate_per_day, price_minor, currency,
+  artwork_url, artwork_design_id, artwork_width, artwork_height,
+  advertisements ( title, type, location, dimensions ),
+  revenue_products ( name, slug, active, duration_days )
+`;
+
 /**
- * The lines of one plan, with each placement's own details joined in.
+ * The lines of one plan: placements and NowOpen products, each with its own
+ * details joined in.
  *
- * `advertisements!inner` so a line whose placement has been deleted does
- * not come back as a row of nulls that renders as a blank card nobody can
- * remove.
+ * Both joins are left joins. A deleted placement cascades its line away, so a
+ * line never comes back as a row of nulls; a product that has been switched
+ * off keeps its line but is `offered: false`. A placement's `offered` is
+ * decided later from `placement_trust` on the page, so it starts true here.
  */
 export async function fetchPlanLines(campaignId: string): Promise<PlanLine[]> {
   const { data, error } = await supabase
     .from('ad_campaign_placements')
-    .select(`
-      id, advert_id, days, price_basis, rate_per_day, currency, artwork_url,
-      advertisements!inner ( title, type, location, dimensions )
-    `)
+    .select(PLAN_LINE_COLUMNS)
     .eq('campaign_id', campaignId)
     .order('created_at');
 
   if (error || !data) return [];
 
-  return (data as unknown as RawLine[]).map((r) => ({
-    id: String(r.id),
-    advertId: r.advert_id == null ? null : String(r.advert_id),
-    title: r.advertisements?.title ?? 'Placement',
-    type: r.advertisements?.type ?? null,
-    location: r.advertisements?.location ?? null,
-    dimensions: r.advertisements?.dimensions ?? null,
-    days: r.days == null ? null : Number(r.days),
-    ratePerDay: r.rate_per_day == null ? null : Number(r.rate_per_day),
-    priceBasis: (r.price_basis as PriceBasis) ?? 'indicative',
-    currency: String(r.currency ?? 'NGN'),
-    artworkUrl: r.artwork_url ?? null,
-    kind: 'placement' as const,
-    productId: null,
-    priceMinor: null,
-    artworkDesignId: null,
-    artworkWidth: null,
-    artworkHeight: null,
-    offered: true,
-  }));
+  return (data as unknown as RawLine[]).map((r) => {
+    const isProduct = r.product_id != null;
+    return {
+      id: String(r.id),
+      advertId: r.advert_id == null ? null : String(r.advert_id),
+      title: isProduct ? (r.revenue_products?.name ?? 'NowOpen product') : (r.advertisements?.title ?? 'Placement'),
+      type: r.advertisements?.type ?? null,
+      location: r.advertisements?.location ?? null,
+      dimensions: r.advertisements?.dimensions ?? null,
+      days: r.days == null ? null : Number(r.days),
+      ratePerDay: r.rate_per_day == null ? null : Number(r.rate_per_day),
+      priceBasis: (r.price_basis as PriceBasis) ?? 'indicative',
+      currency: String(r.currency ?? 'NGN'),
+      artworkUrl: r.artwork_url ?? null,
+      kind: isProduct ? ('product' as const) : ('placement' as const),
+      productId: r.product_id == null ? null : String(r.product_id),
+      priceMinor: r.price_minor == null ? null : Number(r.price_minor),
+      artworkDesignId: r.artwork_design_id ?? null,
+      artworkWidth: r.artwork_width == null ? null : Number(r.artwork_width),
+      artworkHeight: r.artwork_height == null ? null : Number(r.artwork_height),
+      offered: isProduct ? r.revenue_products?.active === true : true,
+    };
+  });
 }
 
 interface RawLine {
   id: string;
-  advert_id: string;
+  advert_id: string | null;
+  product_id: string | null;
   days: number | null;
   price_basis: string;
   rate_per_day: number | null;
+  price_minor: number | string | null;
   currency: string;
   artwork_url: string | null;
+  artwork_design_id: string | null;
+  artwork_width: number | null;
+  artwork_height: number | null;
   advertisements: { title: string; type: string | null; location: string | null; dimensions: string | null } | null;
+  revenue_products: { name: string; slug: string; active: boolean; duration_days: number | null } | null;
+}
+
+const NOT_OFFERED_TITLE = 'No longer on offer';
+
+/**
+ * A signed-out visitor's local plan, read back as plan lines.
+ *
+ * Only public columns are read. Ids are `local:<itemId>` so they can never be
+ * mistaken for a database line. A row that no longer exists, or a product that
+ * is inactive or has no price, is `offered: false`. Placement listing rules
+ * and trust are NOT applied here; the page does that.
+ *
+ * THROWS if a read fails, rather than calling every line "No longer on offer"
+ * on the back of a network blip.
+ */
+export async function fetchLocalPlanLines(lines: LocalLine[]): Promise<PlanLine[]> {
+  const advertIds = [...new Set(lines.flatMap((l) => (l.kind === 'placement' ? [l.advertId] : [])))];
+  const productIds = [...new Set(lines.flatMap((l) => (l.kind === 'product' ? [l.productId] : [])))];
+
+  const [ads, prods] = await Promise.all([
+    advertIds.length === 0
+      ? Promise.resolve({ data: [] as unknown[], error: null })
+      : supabase.from('advertisements').select('id,title,type,location,dimensions,pricing').in('id', advertIds),
+    productIds.length === 0
+      ? Promise.resolve({ data: [] as unknown[], error: null })
+      : supabase.from('revenue_products').select('id,name,slug,active,duration_days,price_minor,currency').in('id', productIds),
+  ]);
+  if (ads.error || prods.error) throw new Error('The local plan could not be read.');
+
+  const adById = new Map<string, Record<string, unknown>>();
+  for (const r of (ads.data ?? []) as Record<string, unknown>[]) adById.set(String(r.id), r);
+  const prodById = new Map<string, Record<string, unknown>>();
+  for (const r of (prods.data ?? []) as Record<string, unknown>[]) prodById.set(String(r.id), r);
+
+  const blank = (id: string, kind: 'placement' | 'product'): PlanLine => ({
+    id: `local:${id}`,
+    advertId: kind === 'placement' ? id : null,
+    title: NOT_OFFERED_TITLE,
+    type: null,
+    location: null,
+    dimensions: null,
+    days: null,
+    ratePerDay: null,
+    priceBasis: 'unpriced',
+    currency: 'NGN',
+    artworkUrl: null,
+    kind,
+    productId: kind === 'product' ? id : null,
+    priceMinor: null,
+    artworkDesignId: null,
+    artworkWidth: null,
+    artworkHeight: null,
+    offered: false,
+  });
+
+  return lines.map((l): PlanLine => {
+    if (l.kind === 'placement') {
+      const r = adById.get(l.advertId);
+      if (!r) return blank(l.advertId, 'placement');
+      const pricing = r.pricing == null ? null : Number(r.pricing);
+      return {
+        ...blank(l.advertId, 'placement'),
+        title: String(r.title ?? '').trim() || 'Placement',
+        type: (r.type as string) ?? null,
+        location: (r.location as string) ?? null,
+        dimensions: (r.dimensions as string) ?? null,
+        days: l.days,
+        ratePerDay: pricing,
+        priceBasis: pricing == null ? 'unpriced' : 'indicative',
+        offered: true,
+      };
+    }
+    const r = prodById.get(l.productId);
+    const price = r?.price_minor == null ? null : Number(r.price_minor);
+    if (!r || r.active !== true || price == null || !Number.isFinite(price)) return blank(l.productId, 'product');
+    return {
+      ...blank(l.productId, 'product'),
+      title: String(r.name ?? '').trim() || 'NowOpen product',
+      days: r.duration_days == null ? null : Number(r.duration_days),
+      priceBasis: 'fixed',
+      priceMinor: price,
+      currency: String(r.currency ?? 'NGN'),
+      offered: true,
+    };
+  });
 }
 
 const DUPLICATE_PLACEMENT = 'That placement is already in this plan.';
 
-/** Start a plan. Returns its id, or null with the reason reported. */
-/** What a signed-out visitor is told; planToast adds the way to sign in. */
+/** What a signed-out visitor is told by `createCampaign`; planToast adds the way to sign in. */
 export const SIGN_IN_TO_SAVE_PLAN = 'Sign in to save a plan.';
 
-/** The outcome of adding placements to the plan. */
+/** The outcome of adding placements and products to the plan. */
 export type PlanAddResult =
-  | { ok: true; added: number; skipped: number }
-  | { ok: false; error: string; added: number };
+  /** `local` means it went into this browser's plan because nobody is signed in. */
+  | { ok: true; added: number; skipped: number; local?: boolean }
+  /** `skipped` is how many were already in the plan before the failure. */
+  | { ok: false; error: string; added: number; skipped?: number };
 
+/** Start a plan. Returns its id, or null with the reason reported. */
 export async function createCampaign(name: string): Promise<{ id: string } | { error: string }> {
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user?.id) return { error: SIGN_IN_TO_SAVE_PLAN };
@@ -153,6 +261,7 @@ export async function createCampaign(name: string): Promise<{ id: string } | { e
     .single();
 
   if (error || !data) return { error: error?.message ?? 'That plan could not be created.' };
+  notifyPlanChanged();
   return { id: String((data as { id: string }).id) };
 }
 
@@ -187,21 +296,62 @@ export async function addPlacement(
 }
 
 /**
- * Put adverts into the advertiser's plan, starting one if they have none.
+ * One thing to put in the plan. A placement's rate is copied in as it stands;
+ * a product carries its fixed kobo price and its duration (`days`, from
+ * `RevenueProduct.durationDays`).
+ */
+export type PlanItem =
+  /** `days` defaults to 30 when left out. */
+  | { kind: 'placement'; id: string; pricing: number | null; days?: number | null }
+  | { kind: 'product'; id: string; priceMinor: number; days: number | null };
+
+const itemKey = (i: PlanItem) => `${i.kind}:${i.id}`;
+
+async function addProduct(
+  campaignId: string,
+  item: Extract<PlanItem, { kind: 'product' }>,
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  const { error } = await supabase.from('ad_campaign_placements').insert([{
+    campaign_id: campaignId,
+    product_id: item.id,
+    days: item.days,
+    price_basis: 'fixed',
+    price_minor: item.priceMinor,
+    currency: 'NGN',
+  }]);
+  if (error) {
+    if (error.code === '23505') return { ok: false, error: DUPLICATE_PLACEMENT };
+    return { ok: false, error: error.message };
+  }
+  return { ok: true };
+}
+
+/**
+ * Put placements and products into the plan.
  *
- * The hub and the placement page both save into a plan, and used to be two
- * copies of the same four steps. Creating on first use means the first
- * placement somebody likes IS the moment they get a plan, rather than
- * making them set one up before they know they want it.
+ * Signed in, they go into the advertiser's first plan (started if they have
+ * none: the first thing somebody likes IS the moment they get a plan). Signed
+ * out, they go into the browser-held plan and no campaign is created; the
+ * result says `local: true` so the page can offer sign-in, and
+ * `migrateLocalPlan` moves them into the account afterwards.
  *
  * Returns results rather than toasting: each page words its own feedback.
  * Stops at the first real failure and reports how many went in before it.
+ * Items already in the plan are skipped and counted, not errors.
  */
-export async function addAdvertsToPlan(
-  adverts: { id: string; pricing: number | null }[],
-): Promise<PlanAddResult> {
+export async function addToPlan(items: PlanItem[]): Promise<PlanAddResult> {
   /* Nothing to add is not a reason to read, or worse create, a plan. */
-  if (adverts.length === 0) return { ok: true, added: 0, skipped: 0 };
+  if (items.length === 0) return { ok: true, added: 0, skipped: 0 };
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user?.id) {
+    const local: LocalLine[] = items.map((i) =>
+      i.kind === 'placement'
+        ? { kind: 'placement', advertId: i.id, days: i.days === undefined ? 30 : i.days }
+        : { kind: 'product', productId: i.id },
+    );
+    return { ok: true, ...addLocalLines(local), local: true };
+  }
 
   const read = await fetchCampaigns();
   if (read.state === 'unavailable') return { ok: false, error: read.reason, added: 0 };
@@ -213,40 +363,204 @@ export async function addAdvertsToPlan(
     if ('error' in made) return { ok: false, error: made.error, added: 0 };
     planId = made.id;
   } else {
-    inPlan = new Set((await fetchPlanLines(planId)).flatMap((l) => (l.advertId ? [l.advertId] : [])));
+    inPlan = new Set(
+      (await fetchPlanLines(planId)).flatMap((l) =>
+        l.productId ? [`product:${l.productId}`] : l.advertId ? [`placement:${l.advertId}`] : [],
+      ),
+    );
   }
 
   /*
-   * The table is UNIQUE(campaign_id, advert_id), and "add all" will often
-   * include something already there. That is not a failure: skip it, and
-   * count it so the page can say so. The input is deduped too, so a list
-   * naming one advert twice does not trip the constraint on itself.
+   * The table is UNIQUE per (campaign, advert) and (campaign, product), and
+   * "add all" will often include something already there. Skip and count it.
+   * The input is deduped too, so a list naming one item twice does not trip the
+   * constraint on itself.
    */
   let added = 0;
   let skipped = 0;
+  const finish = (r: PlanAddResult): PlanAddResult => {
+    if (added > 0) notifyPlanChanged();
+    return r;
+  };
   const seen = new Set<string>();
-  for (const advert of adverts) {
-    if (seen.has(advert.id)) continue;
-    seen.add(advert.id);
-    if (inPlan.has(advert.id)) { skipped += 1; continue; }
-    const out = await addPlacement(planId, advert, 30);
+  for (const item of items) {
+    const key = itemKey(item);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    if (inPlan.has(key)) { skipped += 1; continue; }
+    const out = item.kind === 'placement'
+      ? await addPlacement(planId, { id: item.id, pricing: item.pricing }, item.days === undefined ? 30 : item.days)
+      : await addProduct(planId, item);
     if (!out.ok) {
       if (out.error === DUPLICATE_PLACEMENT) { skipped += 1; continue; }
-      return { ok: false, error: out.error, added };
+      return finish({ ok: false, error: out.error, added, skipped });
     }
     added += 1;
   }
-  return { ok: true, added, skipped };
+  return finish({ ok: true, added, skipped });
+}
+
+/** Placements only; kept so existing callers compile. See `addToPlan`. */
+export async function addAdvertsToPlan(
+  adverts: { id: string; pricing: number | null }[],
+): Promise<PlanAddResult> {
+  return addToPlan(adverts.map((a) => ({ kind: 'placement' as const, id: a.id, pricing: a.pricing })));
+}
+
+/**
+ * Move the browser-held plan into the account, at sign-in.
+ *
+ * Null when there is nothing local (or nobody is signed in, or the local rows
+ * could not be read), and then nothing is touched. Otherwise returns how many
+ * lines are now in the account (`moved`, including ones that were already
+ * there) and how many stay on this device (`kept`: lines that failed to move,
+ * and lines no longer on offer). Local storage is cleared only when `kept` is
+ * 0; otherwise it holds exactly what did not move, so a second run finishes
+ * the job without duplicating anything.
+ */
+export async function migrateLocalPlan(): Promise<{ moved: number; kept: number } | null> {
+  const local = readLocalPlan();
+  if (local.length === 0) return null;
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user?.id) return null;
+
+  let resolved: PlanLine[];
+  try {
+    resolved = await fetchLocalPlanLines(local);
+  } catch {
+    return null;
+  }
+
+  const items: PlanItem[] = [];
+  /** Index in `local` of each entry of `items`. */
+  const itemAt: number[] = [];
+  local.forEach((l, i) => {
+    const pl = resolved[i];
+    if (!pl || !pl.offered) return;
+    itemAt.push(i);
+    items.push(
+      l.kind === 'placement'
+        ? { kind: 'placement', id: l.advertId, pricing: pl.ratePerDay, days: l.days }
+        : { kind: 'product', id: l.productId, priceMinor: pl.priceMinor ?? 0, days: pl.days },
+    );
+  });
+
+  let processed = items.length;
+  if (items.length > 0) {
+    const out = await addToPlan(items);
+    if (!out.ok) processed = out.added + (out.skipped ?? 0);
+    else if (out.local) processed = 0; // signed out mid-flight: nothing reached the account
+  }
+
+  const moving = new Set(itemAt.slice(0, processed));
+  const remaining = local.filter((_, i) => !moving.has(i));
+  if (remaining.length === 0) clearLocalPlan();
+  else replaceLocalPlan(remaining);
+  return { moved: moving.size, kept: remaining.length };
 }
 
 export async function removePlacement(lineId: string): Promise<boolean> {
   const { error } = await supabase.from('ad_campaign_placements').delete().eq('id', lineId);
+  if (!error) notifyPlanChanged();
   return !error;
 }
 
 export async function setLineDays(lineId: string, days: number | null): Promise<boolean> {
   const { error } = await supabase.from('ad_campaign_placements').update({ days }).eq('id', lineId);
+  if (!error) notifyPlanChanged();
   return !error;
+}
+
+const PLAN_ARTWORK_BUCKET = 'plan-artwork';
+const VIDEO_MESSAGE = 'Attach an image of the artwork; video adverts are sent with the quote request.';
+const BUCKET_IMAGE = /^image\/(png|jpeg|webp)$/;
+const BUCKET_IMAGE_EXT = /\.(png|jpe?g|webp)$/i;
+
+/** Record an uploaded or designed artwork on a plan line. `path` is a storage path in `plan-artwork`. */
+export async function setLineArtwork(
+  lineId: string,
+  art: { path: string; width: number; height: number; designId?: string | null },
+): Promise<boolean> {
+  const { error } = await supabase
+    .from('ad_campaign_placements')
+    .update({
+      artwork_url: art.path,
+      artwork_width: art.width,
+      artwork_height: art.height,
+      artwork_design_id: art.designId ?? null,
+    })
+    .eq('id', lineId);
+  if (error) return false;
+  notifyPlanChanged();
+  return true;
+}
+
+/**
+ * Upload an image to the private `plan-artwork` bucket under the owner's own
+ * folder (the bucket policy needs the first path folder to be the user id).
+ * Images only: PNG, JPEG or WebP, which is what the bucket accepts.
+ */
+export async function uploadLineArtwork(
+  campaignId: string,
+  lineId: string,
+  file: File,
+): Promise<{ path: string } | { error: string }> {
+  const verdict = classifyArtworkFile(file);
+  if (!verdict.ok) return { error: verdict.problem };
+  if (verdict.kind === 'video') return { error: VIDEO_MESSAGE };
+  const type = (file.type || '').toLowerCase();
+  if (!(type ? BUCKET_IMAGE.test(type) : BUCKET_IMAGE_EXT.test(file.name))) {
+    return { error: 'Attach the artwork as a PNG, JPG or WebP image.' };
+  }
+
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user?.id) return { error: 'Sign in to attach artwork.' };
+
+  const path = `${auth.user.id}/${campaignId}/${lineId}-${safeArtworkName(file.name)}`;
+  const { error } = await supabase.storage
+    .from(PLAN_ARTWORK_BUCKET)
+    .upload(path, file, { upsert: true, contentType: file.type || undefined });
+  if (error) return { error: error.message || 'That artwork could not be uploaded.' };
+  return { path };
+}
+
+/** A short-lived link to private artwork, or null when it cannot be signed. */
+export async function artworkUrlFor(path: string): Promise<string | null> {
+  const { data, error } = await supabase.storage.from(PLAN_ARTWORK_BUCKET).createSignedUrl(path, 3600);
+  if (error || !data?.signedUrl) return null;
+  return data.signedUrl;
+}
+
+export type OwnDesignsRead =
+  | { state: 'ready'; designs: { id: string; title: string; width: number; height: number }[] }
+  /** The read failed. NEVER rendered as "you have no designs". */
+  | { state: 'unavailable'; reason: string };
+
+const isSize = (n: unknown): n is number => typeof n === 'number' && Number.isFinite(n) && n > 0;
+
+/** The signed-in user's newest 30 Create designs, sized from their first page. */
+export async function fetchOwnDesigns(): Promise<OwnDesignsRead> {
+  const { data: auth, error: authError } = await supabase.auth.getUser();
+  if (authError || !auth.user?.id) return { state: 'unavailable', reason: 'Sign in to use your designs.' };
+
+  const { data, error } = await supabase
+    .from('design_projects')
+    .select('id,title,pages:document->pages')
+    .eq('user_id', auth.user.id)
+    .is('archived_at', null)
+    .order('updated_at', { ascending: false })
+    .limit(30);
+  if (error) return { state: 'unavailable', reason: 'We could not load your designs just now.' };
+
+  const designs: { id: string; title: string; width: number; height: number }[] = [];
+  for (const r of (data ?? []) as unknown as { id: string; title: string | null; pages: unknown }[]) {
+    const page = Array.isArray(r.pages) ? (r.pages[0] as { width?: unknown; height?: unknown } | undefined) : undefined;
+    /* A size is never guessed: a design without one is left out. */
+    if (!page || !isSize(page.width) || !isSize(page.height)) continue;
+    designs.push({ id: String(r.id), title: String(r.title ?? '').trim() || 'Untitled design', width: page.width, height: page.height });
+  }
+  return { state: 'ready', designs };
 }
 
 /**
@@ -261,5 +575,6 @@ export async function markEnquirySent(campaignId: string): Promise<boolean> {
     .from('ad_campaigns')
     .update({ status: 'enquiry_sent', enquiry_sent_at: new Date().toISOString(), updated_at: new Date().toISOString() })
     .eq('id', campaignId);
+  if (!error) notifyPlanChanged();
   return !error;
 }

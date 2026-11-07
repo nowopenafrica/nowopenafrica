@@ -444,17 +444,17 @@ describe('the Promote hub, fix round 1', () => {
     }
   });
 
-  it('signed out, the toast gives the real reason', async () => {
+  it('signed out, the toast says it is kept on this device and offers sign-in', async () => {
     at('/adverts?goal=nearby&city=Lagos');
     await loaded();
     const region = goalView('Get customers nearby');
     await waitFor(() => expect(selectedTab(region)).toEqual(['Starter']));
     plan.addAdvertsToPlan.mockImplementationOnce((list) => plan.real!(list as { id: string; pricing: number | null }[]));
     fireEvent.click(within(region).getByRole('button', { name: 'Add all to plan' }));
-    await waitFor(() => expect(toasts.error).toHaveBeenCalled());
-    // The reason, and a way through it: a sign-in link back to this page.
-    const { container } = render(<>{toasts.error.mock.calls[0][0]}</>);
-    expect(container.textContent).toContain('Sign in to save a plan.');
+    await waitFor(() => expect(toasts.success).toHaveBeenCalled());
+    // Kept in this browser, and a way to keep it for good: a sign-in link back to this page.
+    const { container } = render(<>{toasts.success.mock.calls[0][0]}</>);
+    expect(container.textContent).toContain('Added to your plan on this device. Sign in to keep it.');
     const link = within(container).getByRole('link', { name: 'Sign in' });
     const here = `${window.location.pathname}${window.location.search}${window.location.hash}`;
     expect(link.getAttribute('href')).toBe(`/login?next=${encodeURIComponent(here)}`);

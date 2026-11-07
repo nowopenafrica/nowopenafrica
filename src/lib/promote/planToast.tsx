@@ -35,6 +35,16 @@ export function reportPlanAdd(out: PlanAddResult) {
     toast.error(out.error);
     return;
   }
+  if (out.local && out.added > 0) {
+    toast.success(
+      <span>
+        Added to your plan on this device. Sign in to keep it.{' '}
+        <a href={signInLinkTo(here())} className="font-semibold underline underline-offset-2">Sign in</a>
+      </span>,
+      { id: 'plan-sign-in', duration: 8000 },
+    );
+    return;
+  }
   if (out.added === 0) { toast(out.skipped > 0 ? 'Already in your plan.' : 'Nothing to add.'); return; }
   toast.success(`Added ${out.added} to your plan.${out.skipped > 0 ? ` · ${out.skipped} already there` : ''}`);
 }
