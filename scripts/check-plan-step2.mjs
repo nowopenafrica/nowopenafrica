@@ -127,6 +127,18 @@ BEGIN
   PERFORM pg_temp.chk_pass('negative_price_refused');
 
   ASSERT pg_temp.chk_refused(format(
+    'INSERT INTO public.ad_campaign_placements (campaign_id, product_id, price_basis) VALUES (%L,%L,%L)',
+    v_other, current_setting('chk.product'), 'fixed'), '23514'),
+    'fixed_needs_price: a fixed line with null price_minor was accepted';
+  PERFORM pg_temp.chk_pass('fixed_needs_price');
+
+  ASSERT pg_temp.chk_refused(format(
+    'INSERT INTO public.ad_campaign_placements (campaign_id, advert_id, price_basis, price_minor) VALUES (%L,%L,%L,100)',
+    v_other, current_setting('chk.advert'), 'fixed'), '23514'),
+    'fixed_needs_product: a fixed placement line was accepted';
+  PERFORM pg_temp.chk_pass('fixed_needs_product');
+
+  ASSERT pg_temp.chk_refused(format(
     'INSERT INTO public.ad_campaign_placements (campaign_id, advert_id, artwork_width) VALUES (%L,%L,0)',
     v_other, current_setting('chk.advert')), '23514'),
     'artwork_size_refused: a zero artwork_width was accepted';
@@ -141,8 +153,8 @@ BEGIN
     'bucket_private: bucket plan-artwork is public';
   ASSERT (SELECT count(*) FROM pg_policies
            WHERE schemaname = 'storage' AND tablename = 'objects'
-             AND policyname LIKE 'plan\\_artwork\\_%') = 4,
-    'bucket_policies: expected 4 plan_artwork_* policies';
+             AND policyname LIKE 'plan\\_artwork\\_%') = 5,
+    'bucket_policies: expected 5 plan_artwork_* policies';
   PERFORM pg_temp.chk_pass('bucket_private');
   PERFORM pg_temp.chk_pass('bucket_policies');
 END $$;
@@ -167,7 +179,7 @@ try {
 }
 
 const output = `${result.stdout ?? ''}\n${result.stderr ?? ''}`;
-if (/ERROR|assert/i.test(output) || result.status !== 0 || !/checks_passed/.test(output)) {
+if (result.status !== 0 || !/"n_passed": *\d+/.test(output) || /^\s*ERROR/m.test(output)) {
   console.error('FAILED. Output follows.\n');
   console.error(output.trim());
   process.exit(1);

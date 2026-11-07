@@ -62,6 +62,13 @@ ALTER TABLE public.ad_campaign_placements
   ADD CONSTRAINT ad_campaign_placements_price_basis_check
   CHECK (price_basis IN ('indicative', 'quoted', 'unpriced', 'fixed'));
 
+-- A fixed price is only meaningful on a product line that carries its price.
+ALTER TABLE public.ad_campaign_placements
+  DROP CONSTRAINT IF EXISTS ad_campaign_placements_fixed_is_product;
+ALTER TABLE public.ad_campaign_placements
+  ADD CONSTRAINT ad_campaign_placements_fixed_is_product
+  CHECK (price_basis <> 'fixed' OR (product_id IS NOT NULL AND price_minor IS NOT NULL));
+
 -- 3. Artwork columns ----------------------------------------------------------
 
 ALTER TABLE public.ad_campaign_placements
@@ -125,3 +132,13 @@ CREATE POLICY "plan_artwork_staff_select"
   ON storage.objects FOR SELECT
   TO authenticated
   USING (bucket_id = 'plan-artwork' AND public.is_staff());
+
+-- Replacing artwork uploads with upsert, which needs UPDATE.
+DROP POLICY IF EXISTS "plan_artwork_owner_update" ON storage.objects;
+CREATE POLICY "plan_artwork_owner_update"
+  ON storage.objects FOR UPDATE
+  TO authenticated
+  USING (bucket_id = 'plan-artwork'
+         AND (storage.foldername(name))[1] = auth.uid()::text)
+  WITH CHECK (bucket_id = 'plan-artwork'
+              AND (storage.foldername(name))[1] = auth.uid()::text);
