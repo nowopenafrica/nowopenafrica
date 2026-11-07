@@ -13,6 +13,8 @@
 //                       models. Slower and rate-limited, but a drop-in second.
 //   ANTHROPIC_API_KEY   Anthropic — the original provider, kept working so
 //                       nothing regresses for anyone already using it.
+//   OPENAI_API_KEY      OpenAI — paid, no free tier; tried last so adding it
+//                       never re-points an existing deployment's traffic.
 //   OPENCODE_API_KEY    OpenCode Zen — OpenAI-compatible gateway for the open
 //                       models (Big Pickle, DeepSeek V4 flash, North Mini…).
 //                       The AI Command Center pins it when a model id starts
@@ -30,7 +32,7 @@
 // `provider: 'none'` and the function falls back to formatting real search
 // results directly. Degraded, but never a dead chat box.
 
-export type ProviderName = "groq" | "openrouter" | "anthropic" | "zen" | "none";
+export type ProviderName = "groq" | "openrouter" | "anthropic" | "openai" | "zen" | "none";
 
 export interface ProviderConfig {
   name: ProviderName;
@@ -59,6 +61,15 @@ const DEFAULTS: Record<Exclude<ProviderName, "none">, string> = {
   groq: "openai/gpt-oss-120b",
   openrouter: "meta-llama/llama-3.3-70b-instruct:free",
   anthropic: "claude-opus-4-8",
+  /*
+   * OpenAI's cheap tool-calling workhorse, which is the role this router
+   * gives a provider. NOT verified from here: nobody on this machine holds an
+   * OPENAI_API_KEY, so the id is a starting point rather than a measured
+   * fact. `selftest-ai-models` asks OpenAI what it actually serves, and
+   * ASSISTANT_MODEL overrides this without a code change -- the same escape
+   * hatch the comment above describes for the others.
+   */
+  openai: "gpt-4o-mini",
   // OpenCode Zen's free flagship. The AI Command Center pin model ids that
   // start with "opencode/" here when the user picks one.
   zen: "opencode/big-pickle",
@@ -120,12 +131,65 @@ export interface AgentTurn {
   content: string;
 }
 
+/**
+ * What a model call cost, as the provider reported it.
+ *
+ * MEASURED 2026-10-09: 8,060 enrichment jobs had run and nothing recorded
+ * what any of them cost. Every provider returns a usage block and this
+ * wrapper discarded it, so "what does an enriched profile cost?" — the
+ * question behind every pricing decision — had no answer anywhere.
+ *
+ * Tokens are reported, never a price. A rate card belongs with whoever is
+ * paying the bill and changes without warning; multiplying tokens by a
+ * hardcoded figure here would produce a number that looks authoritative and
+ * quietly goes wrong.
+ */
+export interface TokenUsage {
+  inputTokens: number;
+  outputTokens: number;
+  /** Calls made, which is more than one whenever a tool round-trips. */
+  calls: number;
+}
+
 export interface AgentResult {
   text: string;
   provider: ProviderName;
   model: string;
   /** True when a tool actually ran — useful for logging and tests. */
   usedTool: boolean;
+  /**
+   * Null when the provider reported nothing — which is NOT the same as zero,
+   * and must not be recorded as a free call.
+   */
+  usage: TokenUsage | null;
+}
+
+/**
+ * Read a usage block from either provider shape.
+ *
+ * OpenAI-compatible returns prompt_tokens/completion_tokens; Anthropic
+ * returns input_tokens/output_tokens. Returns null when neither is present,
+ * so an unreported call stays unknown rather than becoming a zero.
+ */
+export function readUsage(data: unknown): TokenUsage | null {
+  const u = (data as { usage?: Record<string, unknown> } | null)?.usage;
+  if (!u) return null;
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : null);
+  const inTok = num(u.prompt_tokens) ?? num(u.input_tokens);
+  const outTok = num(u.completion_tokens) ?? num(u.output_tokens);
+  if (inTok === null && outTok === null) return null;
+  return { inputTokens: inTok ?? 0, outputTokens: outTok ?? 0, calls: 1 };
+}
+
+/** Add a call's usage to a running total, preserving "never reported". */
+export function addUsage(a: TokenUsage | null, b: TokenUsage | null): TokenUsage | null {
+  if (!a) return b;
+  if (!b) return a;
+  return {
+    inputTokens: a.inputTokens + b.inputTokens,
+    outputTokens: a.outputTokens + b.outputTokens,
+    calls: a.calls + b.calls,
+  };
 }
 
 type RunTool = (name: string, args: Record<string, unknown>) => Promise<unknown>;
@@ -208,6 +272,7 @@ async function postWithRetry(url: string, init: RequestInit, label: string): Pro
 const OPENAI_BASE: Record<string, string> = {
   groq: "https://api.groq.com/openai/v1/chat/completions",
   openrouter: "https://openrouter.ai/api/v1/chat/completions",
+  openai: "https://api.openai.com/v1/chat/completions",
   zen: "https://opencode.ai/zen/v1/chat/completions",
 };
 
@@ -279,9 +344,12 @@ async function runOpenAICompatible(
   };
 
   let usedTool = false;
+  /* Accumulated across tool round-trips: a job's cost is every call it made. */
+  let usage: TokenUsage | null = null;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const data = await call(true);
+    usage = addUsage(usage, readUsage(data));
     if (!data) {
       if (!toolFormatFailed) return null;
       break; // recoverable — fall through to the tool-less call below
@@ -289,7 +357,7 @@ async function runOpenAICompatible(
     const msg = data.choices?.[0]?.message;
 
     if (!msg?.tool_calls?.length) {
-      return { text: (msg?.content || "").trim(), provider: cfg.name, model: cfg.model, usedTool };
+      return { text: (msg?.content || "").trim(), provider: cfg.name, model: cfg.model, usedTool, usage };
     }
 
     usedTool = true;
@@ -316,7 +384,9 @@ async function runOpenAICompatible(
   // the turn ends on a tool call with no text and the whole answer is lost.
   const final = await call(false);
   if (!final) return null;
+  usage = addUsage(usage, readUsage(final));
   return {
+    usage,
     text: (final.choices?.[0]?.message?.content || "").trim(),
     provider: cfg.name,
     model: cfg.model,
@@ -374,13 +444,16 @@ async function runAnthropic(
     .trim();
 
   let usedTool = false;
+  /* Accumulated across tool round-trips: a job's cost is every call it made. */
+  let usage: TokenUsage | null = null;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const data = await call(true);
+    usage = addUsage(usage, readUsage(data));
     if (!data) return null;
 
     if (data.stop_reason !== "tool_use") {
-      return { text: textOf(data), provider: cfg.name, model: cfg.model, usedTool };
+      return { text: textOf(data), provider: cfg.name, model: cfg.model, usedTool, usage };
     }
 
     usedTool = true;
@@ -400,7 +473,8 @@ async function runAnthropic(
   // written answer rather than losing the turn to another tool call.
   const final = await call(false);
   if (!final) return null;
-  return { text: textOf(final), provider: cfg.name, model: cfg.model, usedTool };
+  usage = addUsage(usage, readUsage(final));
+  return { text: textOf(final), provider: cfg.name, model: cfg.model, usedTool, usage };
 }
 
 // --- diagnostics -------------------------------------------------------------

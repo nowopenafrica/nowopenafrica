@@ -5,7 +5,7 @@ import {
   strategyDirector, researchAnalyst, seoManager, socialDirector,
   contentManager, commsDirector, creativeDirector, copywriter,
   productionManager, postSupervisor, salesDirector, operationsDirector,
-  financeAnalyst, productManager,
+  financeAnalyst, productManager, dataAnalyst,
   AGENTS, notifiable, runStatus, bySeverity, type Finding,
 } from './agents';
 
@@ -177,7 +177,7 @@ describe('the safety boundary', () => {
         'growth-director', 'operations-director', 'post-supervisor',
         'production-manager', 'product-manager', 'research-analyst',
         'sales-director', 'seo-manager', 'social-director',
-        'strategy-director', 'trust-safety',
+        'strategy-director', 'trust-safety', 'data-analyst',
       ].sort(),
     );
   });
@@ -360,5 +360,69 @@ describe('the product manager', () => {
   it('is quiet when launches are ready and nothing is blocked', () => {
     const r = productManager({ launches_total: 3, launches_ready: 3, work_blocked: 0, suggestions_7d: 2, listings_public: 200 });
     expect(r.findings.filter((x) => x.severity === 'attention')).toEqual([]);
+  });
+});
+
+describe('dataAnalyst', () => {
+  /*
+   * This agent exists because volume is the misleading half of analytics. Its
+   * job is to say whether the numbers can answer a question, so the tests are
+   * about attribution and silence rather than about counts going up.
+   */
+  const base = {
+    events_total: 43698, events_7d: 1000, events_24h: 100,
+    unattributed_7d: 100, business_events_7d: 500, distinct_events_7d: 12,
+  };
+
+  it('says nothing is wrong when events arrive and are attributable', () => {
+    const r = dataAnalyst(base);
+    expect(r.agentKey).toBe('data-analyst');
+    expect(r.findings).toEqual([]);
+  });
+
+  it('treats total silence as critical, not as a quiet week', () => {
+    // A table that stopped receiving looks exactly like low traffic on every
+    // chart drawn from it. That is the failure worth interrupting someone for.
+    const r = dataAnalyst({ ...base, events_7d: 0, events_24h: 0 });
+    expect(r.findings[0].severity).toBe('critical');
+    expect(r.findings[0].title).toMatch(/no events recorded/i);
+  });
+
+  it('raises attention when most of the week cannot be attributed', () => {
+    const r = dataAnalyst({ ...base, unattributed_7d: 900 });
+    const f = r.findings.find((x) => /cannot be attributed/i.test(x.title));
+    expect(f?.severity).toBe('attention');
+    expect(f?.title).toContain('90%');
+  });
+
+  it('only watches, rather than escalating, a middling junk share', () => {
+    const r = dataAnalyst({ ...base, unattributed_7d: 500 });
+    const f = r.findings.find((x) => /unattributable/i.test(x.title));
+    expect(f?.severity).toBe('watch');
+  });
+
+  it('flags an uninstrumented funnel however many rows arrive', () => {
+    // 40,000 copies of one event is one fact, not a funnel.
+    const r = dataAnalyst({ ...base, events_7d: 40000, distinct_events_7d: 1 });
+    expect(r.findings.some((x) => /distinct event name/i.test(x.title))).toBe(true);
+  });
+
+  it('flags a week where no event names a business', () => {
+    const r = dataAnalyst({ ...base, business_events_7d: 0 });
+    expect(r.findings.some((x) => /names a business/i.test(x.title))).toBe(true);
+  });
+
+  it('never divides by zero when the week is empty', () => {
+    const r = dataAnalyst({ ...base, events_7d: 0, unattributed_7d: 0 });
+    expect(r.summary).not.toMatch(/NaN|Infinity/);
+  });
+
+  it('rests every finding on facts it actually reported', () => {
+    const r = dataAnalyst({ ...base, events_7d: 0 });
+    const keys = new Set(r.facts.map((x) => x.key));
+    for (const finding of r.findings) {
+      expect(finding.basis.length).toBeGreaterThan(0);
+      for (const b of finding.basis) expect(keys.has(b)).toBe(true);
+    }
   });
 });

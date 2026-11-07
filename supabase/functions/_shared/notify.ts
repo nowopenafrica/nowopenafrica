@@ -19,6 +19,25 @@ export interface SendResult {
   ok: boolean;
   skipped?: boolean;
   error?: string;
+  /**
+   * Meta's `wamid`, when the provider returned one.
+   *
+   * Discarded until 2026-10-10, which left the platform unable to match a
+   * delivery webhook to the message it was about — so `sent` could never
+   * become `delivered` or `failed`, and the console asserted deliveries it
+   * had no way to know about.
+   */
+  messageId?: string;
+  /**
+   * The provider's own words, when it gave any.
+   *
+   * `error` used to be the whole story and it was only ever `resend 403` — a
+   * status with the reason thrown away. The commonest cause by far is an
+   * unverified sending domain, which is a five-minute DNS job, but nothing on
+   * the status alone tells an operator that. Carried separately from `error`
+   * so callers can show it without parsing.
+   */
+  providerMessage?: string;
 }
 
 /** Wrap a plain body in the NowOpen branded email shell. */
@@ -43,7 +62,21 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
       headers: { Authorization: `Bearer ${RESEND_API_KEY}`, "Content-Type": "application/json" },
       body: JSON.stringify({ from: RESEND_FROM, to: [to], subject, html }),
     });
-    if (!res.ok) return { ok: false, error: `resend ${res.status}` };
+    if (!res.ok) {
+      /*
+       * Read the body before giving up. Resend says exactly what is wrong —
+       * "The nowopenafrica.com domain is not verified", "API key is
+       * restricted" — and that sentence is the difference between an operator
+       * fixing a DNS record and an operator believing email is broken.
+       */
+      const detail = await res.text().catch(() => "");
+      let providerMessage = detail.slice(0, 400);
+      try {
+        const parsed = JSON.parse(detail) as { message?: string; error?: string };
+        providerMessage = parsed.message ?? parsed.error ?? providerMessage;
+      } catch { /* not JSON — keep the raw text */ }
+      return { ok: false, error: `resend ${res.status}`, providerMessage };
+    }
     return { ok: true };
   } catch (e) {
     return { ok: false, error: String(e) };
@@ -54,7 +87,34 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
 export function waNumber(phone?: string | null): string | null {
   if (!phone) return null;
   const d = phone.replace(/[^\d]/g, "");
-  return d.length >= 8 ? d : null;
+  if (d.length < 8 || d.length > 15) return null;
+
+  /*
+   * A leading zero means a LOCAL number with the country code left off, and
+   * this function cannot know which country. It refuses rather than guesses.
+   *
+   * MEASURED 2026-10-10: 316 businesses store a phone in `0...` form, and the
+   * admin console's own placeholder invites it ("e.g. 0803 000 0000"). The
+   * digits were previously passed to Meta as-is, so `08030000000` was sent
+   * with no country code at all.
+   *
+   * Guessing +234 was the obvious repair and is the wrong one. This directory
+   * is pan-African -- the only welcome ever sent went to +254 (Kenya) -- so
+   * treating every leading zero as Nigerian would take a Kenyan business's
+   * 0709... and deliver a real message to a REAL DIFFERENT PERSON on a
+   * Nigerian line. An undelivered message is a failure; a message delivered
+   * to a stranger is a harm, and the two are not the same size.
+   *
+   * So it fails closed. The caller records a skip with a reason, which turns
+   * 316 silent non-deliveries into a visible data-quality task.
+   *
+   * NOTE: `toE164` in _shared/onboarding.ts DOES map a leading zero to +234.
+   * That is used for the suppression lookup, where over-matching is the safe
+   * direction: it can only ever stop a send, never misdirect one.
+   */
+  if (d.startsWith("0")) return null;
+
+  return d;
 }
 
 /** Plain-text WhatsApp — only delivers inside an open 24h session window
@@ -70,8 +130,21 @@ export async function sendWhatsAppText(to: string, body: string): Promise<SendRe
       headers: { Authorization: `Bearer ${WHATSAPP_TOKEN}`, "Content-Type": "application/json" },
       body: JSON.stringify({ messaging_product: "whatsapp", to: num, type: "text", text: { body, preview_url: true } }),
     });
-    if (!res.ok) return { ok: false, error: `whatsapp ${res.status}` };
-    return { ok: true };
+    const payload = await res.json().catch(() => null) as
+      { messages?: Array<{ id?: string }>; error?: { message?: string } } | null;
+    if (!res.ok) {
+      /*
+       * Keep Meta's sentence. `whatsapp 400` alone names a status and throws
+       * away the reason, which is the difference between an operator fixing a
+       * template name and believing WhatsApp is down.
+       */
+      return {
+        ok: false,
+        error: `whatsapp ${res.status}`,
+        providerMessage: payload?.error?.message,
+      };
+    }
+    return { ok: true, messageId: payload?.messages?.[0]?.id };
   } catch (e) {
     return { ok: false, error: String(e) };
   }
@@ -104,8 +177,21 @@ export async function sendWhatsAppTemplate(
         },
       }),
     });
-    if (!res.ok) return { ok: false, error: `whatsapp ${res.status}` };
-    return { ok: true };
+    const payload = await res.json().catch(() => null) as
+      { messages?: Array<{ id?: string }>; error?: { message?: string } } | null;
+    if (!res.ok) {
+      /*
+       * Keep Meta's sentence. `whatsapp 400` alone names a status and throws
+       * away the reason, which is the difference between an operator fixing a
+       * template name and believing WhatsApp is down.
+       */
+      return {
+        ok: false,
+        error: `whatsapp ${res.status}`,
+        providerMessage: payload?.error?.message,
+      };
+    }
+    return { ok: true, messageId: payload?.messages?.[0]?.id };
   } catch (e) {
     return { ok: false, error: String(e) };
   }

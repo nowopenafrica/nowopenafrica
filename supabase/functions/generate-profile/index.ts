@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { callerClient, canAfford, chargeFor } from "../_shared/credits.ts";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
 import { runAgent } from "../_shared/llm.ts";
 
@@ -133,6 +134,9 @@ function toDraft(raw: unknown): Draft {
   };
 }
 
+/** The catalogue entry this endpoint charges against (credit_actions.slug). */
+const CREDIT_ACTION = "ai.business_description";
+
 Deno.serve(async (req: Request) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
@@ -188,6 +192,39 @@ Deno.serve(async (req: Request) => {
     if (!authHeader || authHeader.length < 20) return json({ error: "Sign in first." }, 401);
   }
 
+  /*
+   * ── CREDITS ────────────────────────────────────────────────────────────
+   *
+   * Checked here, charged after the draft comes back. Charging first would
+   * bill somebody for a provider that timed out; not checking at all would let
+   * one credit fund a hundred concurrent generations.
+   *
+   * The check and the charge both run as the CALLER — the credit functions
+   * take no user id and act on auth.uid(), so this function cannot bill the
+   * wrong wallet even by mistake.
+   */
+  /*
+   * One id for this request, used as the charge's idempotency key. A client
+   * that retries after a dropped connection re-sends the same id and is
+   * charged once; a genuinely new request gets a new id and is charged again.
+   */
+  const requestRef = typeof body.requestId === "string" && body.requestId.length > 8
+    ? `profile:${body.requestId.slice(0, 64)}`
+    : `profile:${crypto.randomUUID()}`;
+
+  const credits = callerClient(authHeader);
+  const afford = await canAfford(credits, CREDIT_ACTION);
+  if (!afford.ok) {
+    // 402 so the client can tell "out of credits" from "broken", and the
+    // numbers so somebody can act on it rather than guess how short they are.
+    return json({
+      error: afford.message ?? "This action needs credits.",
+      reason: "insufficient_credits",
+      cost: afford.cost,
+      available: afford.available,
+    }, 402);
+  }
+
   const context = [
     body.name ? `Business name: ${body.name}` : "",
     body.category ? `Category: ${body.category}` : "",
@@ -217,5 +254,25 @@ Deno.serve(async (req: Request) => {
     return json({ error: "Could not make sense of that. Try describing the business again." }, 502);
   }
 
-  return json({ draft, provider: result.provider ?? null });
+  /*
+   * The work is done and about to be handed over, so charge for it.
+   *
+   * A failed ledger write does NOT withhold the draft: taking back work
+   * already produced because the accounting hiccuped is the worse outcome for
+   * everybody, and the reference below means a retry cannot double-charge.
+   * It is logged instead, which is what the reconciliation needs.
+   */
+  const charge = await chargeFor(credits, CREDIT_ACTION, {
+    reference: requestRef,
+    businessId: body.businessId ? String(body.businessId) : undefined,
+  });
+  if (!charge.charged) {
+    console.error("generate-profile: draft delivered but not charged:", charge.message);
+  }
+
+  return json({
+    draft,
+    provider: result.provider ?? null,
+    creditsCharged: charge.charged ? afford.cost : 0,
+  });
 });

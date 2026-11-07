@@ -131,7 +131,11 @@ async function searchAdverts(query: string, location?: string) {
   const term = sanitize(query);
   let q = supabase
     .from("advertisements")
-    .select("id, title, type, category, location, price_per_day, status")
+    .select("id, title, type, category, location, price_per_day, pricing, status")
+    // Never a placement that is not public: pending_review, rejected,
+    // archived. Mirrors UNLISTED_LIFECYCLES in src/lib/promote/listing.ts
+    // (Deno cannot import src/; a test compares the two).
+    .not("lifecycle", "in", "(rejected,archived,pending_review)")
     .limit(5);
   if (term) q = q.or(`title.ilike.%${term}%,description.ilike.%${term}%,category.ilike.%${term}%,type.ilike.%${term}%`);
   if (location) q = q.ilike("location", `%${sanitize(location)}%`);
@@ -146,6 +150,10 @@ async function searchAdverts(query: string, location?: string) {
     category: a.type || a.category,
     location: a.location,
     price_per_day: a.price_per_day,
+    // Placements listed by a media owner (partner portal) carry only pricing,
+    // which is USD per day, derived from the owner's own rate. Named with its
+    // unit so the model never quotes it as naira.
+    price_per_day_usd: a.price_per_day == null ? a.pricing ?? null : null,
     status: a.status,
     link: `/adverts/${a.id}`,
   }));

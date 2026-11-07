@@ -1033,6 +1033,95 @@ function summarise(findings: Finding[], fallback: string): string {
   return `All clear. ${fallback}.`;
 }
 
+/* =============================================================== data analyst */
+/**
+ * Whether the numbers the platform collects can answer a question.
+ *
+ * NOT a traffic report. Volume is the easy half and the misleading one: a table
+ * can grow all week and still say nothing, which is exactly what happened here
+ * — `analytics_events` accepts anonymous writes, and for a long stretch the
+ * overwhelming majority of rows carried no business and no session, so they
+ * could not be attributed to anything and could not answer a question.
+ *
+ * So the measure this agent watches is the share of events that are
+ * ATTRIBUTABLE. A funnel built on unattributable rows produces confident
+ * numbers that are wrong, which is worse than having no numbers at all,
+ * because somebody acts on them.
+ */
+export function dataAnalyst(f: RawFacts): AgentResult {
+  const week = n(f, 'events_7d');
+  const junk = n(f, 'unattributed_7d');
+  const junkPct = pct(junk, week);
+
+  const facts: Fact[] = [
+    { key: 'events_total', label: 'Events recorded, all time', value: n(f, 'events_total'), source: 'analytics_events' },
+    { key: 'events_7d', label: 'Events this week', value: week, source: 'analytics_events', filter: 'last 7 days' },
+    { key: 'events_24h', label: 'Events today', value: n(f, 'events_24h'), source: 'analytics_events', filter: 'last 24 hours' },
+    { key: 'unattributed_7d', label: 'Attached to no business and no session', value: junk, source: 'analytics_events', filter: 'last 7 days' },
+    { key: 'business_events_7d', label: 'Attached to a business', value: n(f, 'business_events_7d'), source: 'analytics_events', filter: 'last 7 days' },
+    { key: 'distinct_events_7d', label: 'Distinct event names seen', value: n(f, 'distinct_events_7d'), source: 'analytics_events', filter: 'last 7 days' },
+  ];
+
+  const findings: Finding[] = [];
+
+  /*
+   * Silence is the most serious state here and the easiest to miss. A table
+   * that has stopped receiving looks identical to a quiet week on every chart
+   * drawn from it, so it is called out before anything about quality.
+   */
+  if (week === 0) {
+    findings.push({
+      title: 'No events recorded in seven days',
+      severity: 'critical',
+      detail: 'Either nobody used the platform this week or the client stopped reporting. Both are urgent and they look the same from here — check that a page view registers before reading any other number.',
+      basis: ['events_7d'],
+    });
+  } else if (junkPct >= 80) {
+    findings.push({
+      title: `${junkPct}% of this week's events cannot be attributed to anything`,
+      severity: 'attention',
+      detail: 'These rows carry no business and no session, so they cannot answer who did what. Any funnel built on this week would be mostly noise. Worth finding what is writing them before trusting a conversion number.',
+      basis: ['unattributed_7d', 'events_7d'],
+    });
+  } else if (junkPct >= 40) {
+    findings.push({
+      title: `${junkPct}% of this week's events are unattributable`,
+      severity: 'watch',
+      detail: 'Usable, but a meaningful share of the week answers no question. Worth watching whether the share is falling as the event vocabulary tightens.',
+      basis: ['unattributed_7d', 'events_7d'],
+    });
+  }
+
+  /*
+   * One or two distinct names means the funnel is not instrumented, however
+   * many rows arrive. A single event repeated 40,000 times is one fact.
+   */
+  if (week > 0 && n(f, 'distinct_events_7d') <= 2) {
+    findings.push({
+      title: `Only ${n(f, 'distinct_events_7d')} distinct event name${n(f, 'distinct_events_7d') === 1 ? '' : 's'} this week`,
+      severity: 'attention',
+      detail: 'The funnel cannot be read from one or two event types. Search, business views and contact clicks each need to arrive under their own name before a drop-off can be located.',
+      basis: ['distinct_events_7d', 'events_7d'],
+    });
+  }
+
+  if (week > 0 && n(f, 'business_events_7d') === 0) {
+    findings.push({
+      title: 'No event this week names a business',
+      severity: 'attention',
+      detail: 'Business views, contact clicks and directions are the events an owner is paying for. None of them arrived, so nothing can be reported back to a business about its own page.',
+      basis: ['business_events_7d', 'events_7d'],
+    });
+  }
+
+  return {
+    agentKey: 'data-analyst',
+    facts,
+    findings: bySeverity(findings),
+    summary: summarise(findings, `${week} events this week, ${junkPct}% unattributable`),
+  };
+}
+
 export const AGENTS: Record<string, (f: RawFacts) => AgentResult> = {
   'chief-of-staff': chiefOfStaff,
   'trust-safety': trustSafety,
@@ -1052,6 +1141,7 @@ export const AGENTS: Record<string, (f: RawFacts) => AgentResult> = {
   'operations-director': operationsDirector,
   'finance-analyst': financeAnalyst,
   'product-manager': productManager,
+  'data-analyst': dataAnalyst,
 };
 
 /**

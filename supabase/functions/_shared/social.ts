@@ -25,6 +25,35 @@ export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   tiktok: "TikTok",
 };
 
+/**
+ * The stored connection handed to `refresh`.
+ *
+ * Named because three providers disagreed with it silently. publishJob.ts calls
+ * `provider.refresh({ accessToken, refreshToken, expiresAt })`, and the Provider
+ * interface below has always declared that shape — but linkedinRefresh, xRefresh
+ * and tiktokRefresh were each written as `(refreshToken: string)`.
+ *
+ * TypeScript had the error the whole time. Nothing ran it: supabase/functions
+ * is outside tsconfig.app.json and tsconfig.server.json, and Supabase deploys
+ * with esbuild, which strips types rather than checking them. See
+ * tsconfig.edge.json.
+ *
+ * At runtime those three received the object and interpolated it into a form
+ * body, so the POST carried `refresh_token=[object Object]`. The provider
+ * rejected it, `refresh` threw, publishJob caught it and returned the stale
+ * access token — meaning LinkedIn, X and TikTok publishing would fail the
+ * moment a token aged past its expiry, with the real cause buried in a caught
+ * exception.
+ *
+ * Meta was correct throughout: metaRefresh reads `conn.accessToken`, which is
+ * what it needs for the long-lived exchange.
+ */
+export interface ProviderConnection {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: Date;
+}
+
 export interface ProviderAuth {
   accessToken: string;
   refreshToken?: string;
@@ -289,7 +318,8 @@ export async function metaExchangeCode(code: string, redirectUri: string): Promi
 
 async function instagramPublish(input: PublishInput): Promise<PublishResult> {
   const { graph } = metaConfig();
-  const token = encodeURIComponent(input.accessToken);
+  // The token goes in the POST body below, not in a query string, so there is
+  // nothing here to encode. The leftover `token` local was never read.
   const caption = input.text.slice(0, 2200);
 
   if (!input.media) {
@@ -399,7 +429,14 @@ export async function linkedinExchangeCode(code: string, redirectUri: string): P
   };
 }
 
-export async function linkedinRefresh(refreshToken: string): Promise<ProviderAuth> {
+/*
+ * Takes the connection, not a bare token — see ProviderConnection. A
+ * connection with no refresh token cannot be refreshed, and saying so beats
+ * sending "undefined" to the provider and reporting whatever it says back.
+ */
+export async function linkedinRefresh(conn: ProviderConnection): Promise<ProviderAuth> {
+  const refreshToken = conn.refreshToken;
+  if (!refreshToken) throw new Error('LinkedIn refresh needs a refresh token; this connection has none.');
   const { clientId, clientSecret } = linkedinConfig();
   const tok = await formPost("https://www.linkedin.com/oauth/v2/accessToken", {
     grant_type: "refresh_token",
@@ -523,7 +560,14 @@ export async function xExchangeCode(code: string, redirectUri: string, codeVerif
   };
 }
 
-export async function xRefresh(refreshToken: string): Promise<ProviderAuth> {
+/*
+ * Takes the connection, not a bare token — see ProviderConnection. A
+ * connection with no refresh token cannot be refreshed, and saying so beats
+ * sending "undefined" to the provider and reporting whatever it says back.
+ */
+export async function xRefresh(conn: ProviderConnection): Promise<ProviderAuth> {
+  const refreshToken = conn.refreshToken;
+  if (!refreshToken) throw new Error('X refresh needs a refresh token; this connection has none.');
   const { clientId, clientSecret } = xConfig();
   const tok = await formPost("https://api.x.com/2/oauth2/token", {
     grant_type: "refresh_token",
@@ -544,7 +588,10 @@ async function xPublish(input: PublishInput): Promise<PublishResult> {
   const body: Record<string, unknown> = { text };
   if (input.media && input.media.type === "image") {
     // v1.1 media upload accepts OAuth 2.0 user tokens for the media_data field.
-    const raw = new Uint8Array(await fetch(input.media.url).then((r) => r.arrayBuffer()));
+    // Awaited in two steps: inlining the .then() widened the inferred type to
+    // `ArrayBuffer | Iterable<number>`, which Uint8Array will not take.
+    const res = await fetch(input.media.url);
+    const raw = new Uint8Array(await res.arrayBuffer());
     if (raw.byteLength > 4 * 1024 * 1024) {
       return { ok: false, error: "X: images over ~4MB need the chunked upload — re-attach a smaller file." };
     }
@@ -614,7 +661,14 @@ export async function tiktokExchangeCode(code: string, redirectUri: string): Pro
   };
 }
 
-export async function tiktokRefresh(refreshToken: string): Promise<ProviderAuth> {
+/*
+ * Takes the connection, not a bare token — see ProviderConnection. A
+ * connection with no refresh token cannot be refreshed, and saying so beats
+ * sending "undefined" to the provider and reporting whatever it says back.
+ */
+export async function tiktokRefresh(conn: ProviderConnection): Promise<ProviderAuth> {
+  const refreshToken = conn.refreshToken;
+  if (!refreshToken) throw new Error('TikTok refresh needs a refresh token; this connection has none.');
   const { clientKey, clientSecret } = tiktokConfig();
   const tok = await formPost("https://open.tiktokapis.com/v2/oauth/token/", {
     client_key: clientKey,
@@ -674,7 +728,7 @@ export interface Provider {
   authorizeUrl(redirectUri: string, state: string, extra?: { codeChallenge?: string }): string;
   needsPkce: boolean;
   exchangeCode(code: string, redirectUri: string, codeVerifier?: string): Promise<ExchangeResult>;
-  refresh(conn: { accessToken: string; refreshToken?: string; expiresAt?: Date }): Promise<ProviderAuth>;
+  refresh(conn: ProviderConnection): Promise<ProviderAuth>;
   publish(input: PublishInput): Promise<PublishResult>;
 }
 
