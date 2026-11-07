@@ -231,6 +231,7 @@ export const DESIGN_FORMATS: StudioFormat[] = [
   { key: 'linkedin-cover', label: 'LinkedIn Cover', w: 1584, h: 396 },
   { key: 'youtube-banner', label: 'YouTube Banner', w: 2560, h: 1440 },
   { key: 'email-header', label: 'Email Header', w: 600, h: 200 },
+  { key: 'board-48-sheet', label: '48-Sheet Billboard', w: 3600, h: 1800 },
   /*
    * IAB display units. This platform sells ad placements, and the two sizes
    * every publisher asks for had no canvas here — so a display ad designed
