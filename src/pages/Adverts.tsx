@@ -18,6 +18,7 @@ import { fetchPlacementTrust, isListedPlacement, type PlacementTrust } from '../
 import { listSellableProducts, type RevenueProduct } from '../lib/revenue/products';
 import { Advertisement } from '../types';
 import { applySeo } from '../lib/seo';
+import PlanTray from '../components/promote/PlanTray';
 
 /**
  * The Promote hub (/adverts, the nav's "Promote" tab).
@@ -301,6 +302,7 @@ export default function Adverts() {
           </Link>
         </nav>
       </div>
+      <PlanTray />
     </div>
   );
 }

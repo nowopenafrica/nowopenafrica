@@ -24,6 +24,7 @@ import { IMPORTED_FALLBACK, fetchPlacementTrust, isListedPlacement, ownerWebsite
 import { UNLISTED_LIFECYCLES_IN } from '../lib/promote/listing';
 import { AvailabilityLine, TrustChip, priceBasisSuffix } from '../components/promote/PlacementLine';
 import ClaimPlacementButton from '../components/promote/ClaimPlacementButton';
+import PlanTray from '../components/promote/PlanTray';
 
 const DURATION_PRESETS = [7, 14, 30, 60, 90];
 
@@ -758,6 +759,7 @@ export default function AdvertDetail() {
           onClose={() => setEnquiryOpen(false)}
         />
       )}
+      <PlanTray />
     </div>
   );
 }

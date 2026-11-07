@@ -12,6 +12,7 @@ import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
 import CookieConsent from './components/CookieConsent';
+import PlanSync from './components/promote/PlanSync';
 /*
  * ChatBot, VoiceAssistant and TrialPromoModal are no longer imported here.
  * They were in the entry bundle, so every visitor downloaded an unopened chat
@@ -327,6 +328,8 @@ function App() {
           requirement. It hides itself on routes where it would compete with
           an existing creation surface (see the component). */}
       <UniversalCreateButton />
+      {/* Moves a signed-out visitor's browser-held plan into their account at sign-in. Renders nothing. */}
+      <PlanSync />
       {/* Hides itself on browsers without SpeechRecognition (notably most of
           Safari), so it never offers a control that cannot work. */}
       <DeferredOverlays />
