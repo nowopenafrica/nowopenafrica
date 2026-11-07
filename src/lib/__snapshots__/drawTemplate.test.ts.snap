@@ -232,7 +232,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 45px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "600 45px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -286,7 +286,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 24px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+      "600 24px "Space Mono", "Source Sans 3", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
     ],
     "op": "set:font",
   },
@@ -436,7 +436,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "900 92px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "900 92px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -496,7 +496,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 35px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "600 35px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -550,7 +550,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 35px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "600 35px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -694,7 +694,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 22px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+      "600 22px "Space Mono", "Source Sans 3", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
     ],
     "op": "set:font",
   },
@@ -1089,7 +1089,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "800 30px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "800 30px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1149,7 +1149,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 26px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "600 26px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1299,7 +1299,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "800 89px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "800 89px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1359,7 +1359,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "700 35px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "700 35px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1419,7 +1419,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 24px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "600 24px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1473,7 +1473,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "800 35px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "800 35px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1623,7 +1623,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "700 21px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "700 21px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1650,7 +1650,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "700 21px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "700 21px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -1677,7 +1677,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "700 21px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "700 21px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -3164,7 +3164,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 45px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "600 45px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -3218,7 +3218,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 24px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+      "600 24px "Space Mono", "Source Sans 3", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
     ],
     "op": "set:font",
   },
@@ -3373,7 +3373,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "700 106px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+      "700 106px "Bebas Neue", "Source Sans 3", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
     ],
     "op": "set:font",
   },
@@ -3433,7 +3433,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 35px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "600 35px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -3577,7 +3577,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 23px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+      "600 23px "Space Mono", "Source Sans 3", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
     ],
     "op": "set:font",
   },
@@ -3871,7 +3871,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "800 49px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "800 49px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -3931,7 +3931,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "800 94px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "800 94px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -3991,7 +3991,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "600 52px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "600 52px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },
@@ -4045,7 +4045,7 @@ exports[`drawTemplateFrame — looks > still paints a look-less template exactly
   },
   {
     "args": [
-      "800 17px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+      "800 17px Outfit, "Source Sans 3", Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
     ],
     "op": "set:font",
   },

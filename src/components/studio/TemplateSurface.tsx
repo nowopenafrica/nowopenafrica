@@ -5,10 +5,9 @@ import {
   isListRole, listRowBoxes, shapeColor, shapeGeometry,
   type PriceRow,
 } from '../../lib/designTemplates';
-import { resolveLook, gradientCss, duotoneMatrix, type Look, type ResolvedLook } from '../../lib/design/look';
+import { resolveLook, gradientCss, duotoneMatrix, pairingFace, type Look, type ResolvedLook } from '../../lib/design/look';
 import { patternZoneBox } from '../../lib/design/patterns';
 import type { Palette, PaletteRole } from '../../lib/design/palettes';
-import type { FontKey } from '../../lib/design/typefaces';
 
 // Renders a DesignTemplate. One component for stills and for motion frames.
 //
@@ -384,14 +383,8 @@ export default function TemplateSurface({
    * otherwise the template and its style keep owning type, as before.
    * Display-size slots take the display face, the eyebrow the accent face.
    */
-  const lookFamily = (slot: SlotSpec): string | undefined => {
-    if (!hasLook) return undefined;
-    const p = resolved.pairing;
-    const key: FontKey = slot.role === 'headline' || (slot.size ?? 0) >= 0.06
-      ? p.display
-      : slot.role === 'eyebrow' ? p.accent : p.text;
-    return fontStack(key);
-  };
+  const lookFamily = (slot: SlotSpec): string | undefined =>
+    hasLook ? fontStack(pairingFace(slot, resolved.pairing)) : undefined;
 
   const textFor = (role: SlotRole): string => {
     switch (role) {

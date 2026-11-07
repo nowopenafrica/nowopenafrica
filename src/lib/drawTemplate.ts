@@ -22,7 +22,7 @@ import {
   isListRole, listRowBoxes, shapeColor, shapeGeometry,
   type PriceRow,
 } from './designTemplates';
-import { resolveLook, type Look, type GradientSpec } from './design/look';
+import { resolveLook, pairingFace, type Look, type GradientSpec } from './design/look';
 import { patternZoneBox } from './design/patterns';
 import type { Palette, PaletteRole } from './design/palettes';
 
@@ -654,14 +654,8 @@ export function drawTemplateFrame(
   const inkOf = (slot: SlotSpec): string => inkOn[slot.on ?? 'ground'];
 
   /** Type comes from the look's pairing only when the template has a look. */
-  const lookFamily = (slot: SlotSpec): string | undefined => {
-    if (!hasLook) return undefined;
-    const p = resolved.pairing;
-    return fontStack(
-      slot.role === 'headline' || (slot.size ?? 0) >= 0.06 ? p.display
-        : slot.role === 'eyebrow' ? p.accent : p.text,
-    );
-  };
+  const lookFamily = (slot: SlotSpec): string | undefined =>
+    hasLook ? fontStack(pairingFace(slot, resolved.pairing)) : undefined;
 
   ctx.save();
   ctx.clearRect(0, 0, w, h);

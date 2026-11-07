@@ -114,7 +114,8 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
     headline: 'Your customer quote',
     subline: 'Paste a real review here, never one you wrote.',
     stats: [
-      { value: '5★', label: 'Their rating' },
+      // Not '5★': no face we ship has a star, so it drew in whatever the device had.
+      { value: '5/5', label: 'Their rating' },
       { value: 'Name', label: 'Customer' },
       { value: 'Date', label: 'Reviewed' },
     ],

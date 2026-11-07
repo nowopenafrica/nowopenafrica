@@ -118,7 +118,7 @@ function faceRules(): string {
   for (const face of TYPEFACES) {
     for (const [weight, url] of Object.entries(face.files ?? {})) {
       out.push(
-        `@font-face{font-family:"${face.family}";src:url("${url}") format("woff2");`
+        `@font-face{font-family:"${face.family}";src:url("${url}") format("${url.endsWith('.woff2') ? 'woff2' : 'woff'}");`
         + `font-weight:${weight};font-style:normal;font-display:block;}`,
       );
     }

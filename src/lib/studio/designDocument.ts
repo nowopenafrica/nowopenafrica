@@ -2,7 +2,7 @@ import type { FontKey } from '../design/typefaces';
 import type { PageBackground } from './pageBackground';
 import type { DesignTemplate, SlotSpec, SurfaceLayer } from '../designTemplates';
 import { estimateLines, fitSlotSize, hexAlpha, lineHeightFor, shapeColor } from '../designTemplates';
-import { gradientCss, resolveLook, type Look, type PatternSpec, type ResolvedLook } from '../design/look';
+import { gradientCss, pairingFace, resolveLook, type Look, type PatternSpec, type ResolvedLook } from '../design/look';
 import type { Palette, PaletteRole } from '../design/palettes';
 import type { Harmony } from '../design/remix';
 import type { TemplateContent } from '../../components/studio/TemplateSurface';
@@ -321,11 +321,7 @@ export function documentFromTemplate(
   };
 
   /* TemplateSurface's lookFamily: display face for big type, accent face for the eyebrow. */
-  const lookFont = (slot: SlotSpec): TextObject['font'] => {
-    const p = resolved.pairing;
-    if (slot.role === 'headline' || (slot.size ?? 0) >= 0.06) return p.display;
-    return slot.role === 'eyebrow' ? p.accent : p.text;
-  };
+  const lookFont = (slot: SlotSpec): TextObject['font'] => pairingFace(slot, resolved.pairing);
 
   /**
    * The words for a slot.

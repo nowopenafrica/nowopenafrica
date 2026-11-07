@@ -51,92 +51,117 @@
    ensureTypefacesReady in src/lib/design/typefaces.ts); and no visitor of ours
    is announced to a third party for the sake of a font.
 
-   All SIL OFL 1.1. Fetched by scripts/fetch-typefaces.mjs.
+   All SIL OFL 1.1, built by scripts/build-studio-fonts.py from Google's own
+   repository with the Latin Extended and African letters each family has
+   (public/fonts/studio/README.md). WOFF rather than WOFF2 for now, as ruled
+   for that build. Source Sans 3 is named second in every Studio stack
+   (typefaces.ts) to draw the glyphs a face lacks, such as ₦.
 
    `font-display: swap` plus the fact that a browser only downloads a face it
    actually renders means these cost nothing on pages that set no Studio type.
    --------------------------------------------------------------------------- */
 @font-face {
   font-family: 'Outfit';
-  src: url('/fonts/studio/outfit-400.woff2') format('woff2');
+  src: url('/fonts/studio/outfit-400.woff') format('woff');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Outfit';
-  src: url('/fonts/studio/outfit-600.woff2') format('woff2');
+  src: url('/fonts/studio/outfit-600.woff') format('woff');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Outfit';
-  src: url('/fonts/studio/outfit-800.woff2') format('woff2');
+  src: url('/fonts/studio/outfit-800.woff') format('woff');
   font-weight: 800;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Playfair Display';
-  src: url('/fonts/studio/playfair-display-700.woff2') format('woff2');
+  src: url('/fonts/studio/playfair-display-700.woff') format('woff');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Playfair Display';
-  src: url('/fonts/studio/playfair-display-900.woff2') format('woff2');
+  src: url('/fonts/studio/playfair-display-900.woff') format('woff');
   font-weight: 900;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'DM Serif Display';
-  src: url('/fonts/studio/dm-serif-display-400.woff2') format('woff2');
+  src: url('/fonts/studio/dm-serif-display-400.woff') format('woff');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Fraunces';
-  src: url('/fonts/studio/fraunces-600.woff2') format('woff2');
+  src: url('/fonts/studio/fraunces-600.woff') format('woff');
   font-weight: 600;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Bebas Neue';
-  src: url('/fonts/studio/bebas-neue-400.woff2') format('woff2');
+  src: url('/fonts/studio/bebas-neue-400.woff') format('woff');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Archivo Black';
-  src: url('/fonts/studio/archivo-black-400.woff2') format('woff2');
+  src: url('/fonts/studio/archivo-black-400.woff') format('woff');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Space Grotesk';
-  src: url('/fonts/studio/space-grotesk-500.woff2') format('woff2');
+  src: url('/fonts/studio/space-grotesk-500.woff') format('woff');
   font-weight: 500;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Space Grotesk';
-  src: url('/fonts/studio/space-grotesk-700.woff2') format('woff2');
+  src: url('/fonts/studio/space-grotesk-700.woff') format('woff');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Space Mono';
-  src: url('/fonts/studio/space-mono-700.woff2') format('woff2');
+  src: url('/fonts/studio/space-mono-700.woff') format('woff');
   font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('/fonts/studio/source-sans-3-400.woff') format('woff');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Source Sans 3';
+  src: url('/fonts/studio/source-sans-3-700.woff') format('woff');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Dancing Script';
+  src: url('/fonts/studio/dancing-script-400.woff') format('woff');
+  font-weight: 400;
   font-style: normal;
   font-display: swap;
 }

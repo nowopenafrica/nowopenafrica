@@ -1,8 +1,8 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import {
-  FONT_STACKS, TYPEFACES, TYPEFACE_FAMILIES, TYPE_PAIRINGS, fontStack,
+  FONT_STACKS, TYPEFACES, TYPEFACE_FAMILIES, TYPE_PAIRINGS, ensureTypefacesReady, fontStack,
   nearestWeight, pairingOf, typefaceOf,
 } from './typefaces';
 
@@ -135,6 +135,20 @@ describe('pairings', () => {
 
   it('say what they suit, because that is what somebody is choosing on', () => {
     for (const p of TYPE_PAIRINGS) expect(p.suits.length, p.key).toBeGreaterThan(15);
+  });
+});
+
+describe('loading', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('loads each face with its fallback, because the fallback draws its missing glyphs', async () => {
+    const load = vi.fn(() => Promise.resolve([]));
+    vi.stubGlobal('document', { fonts: { load, ready: Promise.resolve() } });
+    await ensureTypefacesReady(['sans']);
+    const loaded = load.mock.calls.map((c) => String((c as unknown[])[0]));
+    expect(loaded.some((s) => s.includes('"Outfit"'))).toBe(true);
+    expect(loaded.some((s) => s.includes('"Source Sans 3"'))).toBe(true);
+    expect(loaded.some((s) => s.includes('"Playfair Display"'))).toBe(false);
   });
 });
 
