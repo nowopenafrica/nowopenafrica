@@ -213,4 +213,16 @@ describe('NowOpen products and the fixed basis', () => {
     expect(s.missing).toContain('2 lines are no longer on offer — remove them.');
     expect(summarise([line({ offered: false })], RATE).missing).toContain('1 line is no longer on offer — remove it.');
   });
+
+  it('never sums a fixed group and a quoted group into one figure', () => {
+    const s2 = summarise([product(), line({ id: 'q', priceBasis: 'quoted' })], RATE);
+    expect(s2.hasConfirmedTotal).toBe(true);
+    const f = (n: number) => `$${n.toFixed(2)}`;
+    expect(describeCost(s2, f)).toBe('$16.67 NowOpen price · $30000.00 quoted.');
+    expect(describeCost(summarise([product()], RATE), f)).toBe('$16.67, NowOpen price.');
+  });
+
+  it('leaves a product uncosted when its currency is not NGN', () => {
+    expect(lineCost(product({ currency: 'USD' }), RATE)).toBeNull();
+  });
 });

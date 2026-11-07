@@ -103,6 +103,8 @@ export const BASIS_LABEL: Record<PriceBasis, string> = {
  */
 export function lineCost(line: PlanLine, ngnPerUsd: number): number | null {
   if (line.kind === 'product') {
+    /* priceMinor is NGN kobo; any other currency is uncosted, never mis-converted. */
+    if (line.currency !== 'NGN') return null;
     return line.priceMinor == null ? null : ngnToUsd(line.priceMinor / 100, ngnPerUsd);
   }
   return line.ratePerDay != null && line.days != null ? line.ratePerDay * line.days : null;
@@ -207,12 +209,12 @@ export function describeCost(summary: PlanSummary, format: (n: number) => string
   const costed = summary.totals.filter((t) => t.total != null);
   if (!costed.length) return 'The media owners will quote for these placements.';
 
-  if (summary.hasConfirmedTotal) {
-    const sum = format(costed.reduce((acc, t) => acc + (t.total ?? 0), 0));
-    return costed.every((t) => t.basis === 'fixed') ? `${sum}, NowOpen price.` : `${sum}, quoted.`;
+  if (summary.hasConfirmedTotal && costed.length === 1) {
+    const only = costed[0];
+    return `${format(only.total as number)}, ${only.basis === 'fixed' ? 'NowOpen price' : 'quoted'}.`;
   }
 
-  const parts = costed.map((t) => `${format(t.total as number)} ${t.basis}`);
+  const parts = costed.map((t) => `${format(t.total as number)} ${t.basis === 'fixed' ? 'NowOpen price' : t.basis}`);
   const pending = summary.totals.filter((t) => t.total == null).length;
   return `${parts.join(' · ')}${pending ? `, plus ${pending} group${pending === 1 ? '' : 's'} still to be quoted` : ''}.`;
 }
