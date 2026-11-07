@@ -532,7 +532,20 @@ export async function uploadLineArtwork(
   const verdict = classifyArtworkFile(file);
   if (!verdict.ok) return { error: verdict.problem };
   if (verdict.kind === 'video') return { error: VIDEO_MESSAGE };
-  const mime = artworkMime(file);
+  return uploadLineArtworkBlob(campaignId, lineId, file, file.name);
+}
+
+/**
+ * The same upload for an image made in the app (a Studio export), which has no
+ * File. The storage path rule and the MIME handling live here once.
+ */
+export async function uploadLineArtworkBlob(
+  campaignId: string,
+  lineId: string,
+  blob: Blob,
+  name: string,
+): Promise<{ path: string } | { error: string }> {
+  const mime = artworkMime({ name, type: blob.type });
   if (!BUCKET_IMAGE.test(mime)) {
     return { error: 'Attach the artwork as a PNG, JPG or WebP image.' };
   }
@@ -540,10 +553,10 @@ export async function uploadLineArtwork(
   const { data: auth, error: authError } = await supabase.auth.getUser();
   if (authError || !auth.user?.id) return { error: 'Sign in to attach artwork.' };
 
-  const path = `${auth.user.id}/${campaignId}/${lineId}-${safeArtworkName(file.name)}`;
+  const path = `${auth.user.id}/${campaignId}/${lineId}-${safeArtworkName(name)}`;
   const { error } = await supabase.storage
     .from(PLAN_ARTWORK_BUCKET)
-    .upload(path, file, { upsert: true, contentType: mime });
+    .upload(path, blob, { upsert: true, contentType: mime });
   if (error) return { error: error.message || 'That artwork could not be uploaded.' };
   return { path };
 }

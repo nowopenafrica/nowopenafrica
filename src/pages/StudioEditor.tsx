@@ -54,7 +54,9 @@ import {
   clampPageSize, describeSize, PRESET_GROUPS, PRESETS, presetPixels, PRINT_DPI,
   refitPage, shapeChangesMuch, toPixels, type RefitMode, type Unit,
 } from '../lib/studio/formats';
-import { downloadNodePng, exportNodeToPng } from '../lib/studio';
+import { dataUrlToBlob, downloadNodePng, exportNodeToPng } from '../lib/studio';
+import { planReturnPath, readPlanReturn, withPlanReturn } from '../lib/promote/planReturn';
+import { setLineArtwork, uploadLineArtworkBlob } from '../lib/promote/campaigns';
 import {
   ACCEPTED_IMAGE_TYPES, assetPath, checkImageFile, imageTypeOf, placeImage, STUDIO_BUCKET,
 } from '../lib/studio/designAssets';
@@ -1257,8 +1259,8 @@ export default function StudioEditor() {
 
   /* ── saving ──────────────────────────────────────────────────────────── */
 
-  const save = async () => {
-    if (!doc || !user) return;
+  const save = async (): Promise<boolean> => {
+    if (!doc || !user) return false;
     setSaveState('saving');
     try {
       if (!projectId) {
@@ -1281,7 +1283,7 @@ export default function StudioEditor() {
          * Replaced rather than pushed, so Back does not return to a stale
          * template URL that would open yet another copy.
          */
-        navigate(`/media/studio/${savedId}`, { replace: true });
+        navigate(withPlanReturn(`/media/studio/${savedId}`, params), { replace: true });
       } else {
         /*
          * Version-checked. Two tabs autosaving is how work disappears: the
@@ -1300,14 +1302,69 @@ export default function StudioEditor() {
            */
           setSaveState('conflict');
           toast.error('This design was saved somewhere else since you opened it. Reload to get the newer version.');
-          return;
+          return false;
         }
         setVersion(data as number);
       }
       setSaveState('saved');
+      return true;
     } catch (e) {
       setSaveState('error');
       toast.error(e instanceof Error ? e.message : 'Could not save.');
+      return false;
+    }
+  };
+
+  /* ── attach to a media plan ──────────────────────────────────────────── */
+
+  /*
+   * Present only when Studio was opened from a plan line. Both ids are
+   * validated as UUIDs (planReturn.ts) because they are written to the
+   * database below.
+   */
+  const planReturn = useMemo(() => readPlanReturn(params), [params]);
+  const [attaching, setAttaching] = useState(false);
+
+  const attachToPlan = async () => {
+    if (!planReturn || !user || !docRef.current || attaching) return;
+    setAttaching(true);
+    try {
+      const needsSave = !projectIdRef.current || ['unsaved', 'error', 'conflict'].includes(saveState);
+      if (needsSave && !(await save())) return;
+      const current = docRef.current;
+      const pg = current?.pages[0];
+      const node = exportNodes.current[0];
+      if (!current || !pg || !node) throw new Error('The design was not ready to export. Try again.');
+
+      const dataUrl = await exportNodeToPng(node, {
+        pixelRatio: describeExport(current, pg, 2).scale,
+        designWidth: pg.width,
+        backgroundColor: pg.background ?? '#ffffff',
+      });
+      /* Measured through an element, never by fetching the image back. */
+      const size = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+        img.onerror = () => reject(new Error('The exported image could not be read.'));
+        img.src = dataUrl;
+      });
+      const blob = dataUrlToBlob(dataUrl);
+
+      const up = await uploadLineArtworkBlob(
+        planReturn.campaignId, planReturn.lineId, blob, `${current.title || 'design'}.png`,
+      );
+      if ('error' in up) throw new Error(up.error);
+      const ok = await setLineArtwork(planReturn.lineId, {
+        path: up.path, width: size.w, height: size.h, designId: projectIdRef.current,
+      });
+      if (!ok) throw new Error('The artwork uploaded but could not be attached to the plan line.');
+
+      toast.success('Artwork attached.');
+      navigate(planReturnPath(planReturn.campaignId));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Could not attach the artwork.');
+    } finally {
+      setAttaching(false);
     }
   };
 
@@ -1434,6 +1491,20 @@ export default function StudioEditor() {
           )}
         </div>
       </header>
+
+      {planReturn && user && (
+        <div className="flex flex-wrap items-center gap-3 border-b border-blue-200 bg-blue-50 px-3 py-2 dark:border-blue-900 dark:bg-blue-950">
+          <p className="min-w-0 flex-1 text-sm font-semibold text-blue-900 dark:text-blue-100">Making artwork for your plan</p>
+          <button
+            onClick={() => void attachToPlan()}
+            disabled={attaching}
+            style={{ minHeight: 44 }}
+            className="inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 text-sm font-bold text-white disabled:opacity-50"
+          >
+            {attaching && <Loader2 size={14} className="animate-spin" />} Attach to plan
+          </button>
+        </div>
+      )}
 
       {/*
         * Off-screen, not hidden. html-to-image can only capture a node the
