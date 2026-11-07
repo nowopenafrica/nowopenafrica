@@ -2,7 +2,7 @@
 
 Last updated 7 November 2026. Covers the work started on 31 October 2026: the Create redesign, the Promote rebuild, and the first two sub-projects of Inventory Intelligence.
 
-**Nothing below is committed to git.** It all lives in the shared working folder. Deploys ship that whole folder, so run `npm run check:drift` before every deploy.
+**Committed 7 Nov** on branch `creative-studio-live-canvas` (commits `4b95d8f` to `de6c777`; not pushed). Deploys ship the whole folder, so run `npm run check:drift` before every deploy. Start new sessions from `docs/HANDOVER.md`.
 
 ---
 
@@ -16,7 +16,7 @@ Last updated 7 November 2026. Covers the work started on 31 October 2026: the Cr
 | Ad preview: images, video and links | Done | Yes, 31 Oct |
 | Placement trust model (Inventory sub-project 1) | Done | Yes, 31 Oct |
 | Partner portal (Inventory sub-project 2) | Done | Yes, 7 Nov (chatbot redeployed too) |
-| Business Updates (24-hour stories) | Separate session: phases 1–2 built and committed on branches | Database yes; screens no |
+| Business Updates (24-hour stories) | Separate session: phases 1–2 built (also on its own branches) | Yes, dashboard wiring shipped 7 Nov |
 
 ---
 
