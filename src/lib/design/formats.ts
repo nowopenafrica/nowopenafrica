@@ -35,12 +35,18 @@ const fmt = (
 ): Format => ({ key, label, w, h, medium, targetDpi, bleedMm, safeMm, ...(mm && { mm }), ...(source && { source }), ...(verifiedAt && { verifiedAt }) });
 
 export const FORMATS: Record<string, Format> = {
-  'story': fmt('story', 'Story / WhatsApp Status', 1080, 1920, 'screen', null, 0, 0, undefined, 'https://help.instagram.com/1631821640426723'),
-  'instagram-post': fmt('instagram-post', 'Instagram Post', 1080, 1080, 'screen', null, 0, 0, undefined, 'https://help.instagram.com/1631821640426723'),
-  'instagram-portrait': fmt('instagram-portrait', 'Instagram / Facebook Portrait', 1080, 1350, 'screen', null, 0, 0, undefined, 'https://help.instagram.com/1631821640426723'),
-  'facebook-post': fmt('facebook-post', 'Facebook Post', 1200, 630, 'screen', null, 0, 0, undefined, 'https://www.facebook.com/business/help/103816146375741'),
-  'linkedin-post': fmt('linkedin-post', 'LinkedIn Post', 1200, 627, 'screen', null, 0, 0, undefined, 'https://www.linkedin.com/help/linkedin/answer/a564118'),
-  'x-post': fmt('x-post', 'X / Twitter', 1600, 900, 'screen', null, 0, 0, undefined, 'https://help.x.com/en/using-x/x-images'),
+  /*
+   * Platform `source` values are where to VERIFY a size (the official help centre),
+   * not proof of it. None is verified yet (2026-11-07): the fetch tool could not
+   * read the pages, so `verifiedAt` is omitted. The YouTube thumbnail page was
+   * read and states only the 16:9 ratio, not 1280x720.
+   */
+  'story': fmt('story', 'Story / WhatsApp Status', 1080, 1920, 'screen', null, 0, 0, undefined, 'https://help.instagram.com/'),
+  'instagram-post': fmt('instagram-post', 'Instagram Post', 1080, 1080, 'screen', null, 0, 0, undefined, 'https://help.instagram.com/'),
+  'instagram-portrait': fmt('instagram-portrait', 'Instagram / Facebook Portrait', 1080, 1350, 'screen', null, 0, 0, undefined, 'https://help.instagram.com/'),
+  'facebook-post': fmt('facebook-post', 'Facebook Post', 1200, 630, 'screen', null, 0, 0, undefined, 'https://www.facebook.com/help/'),
+  'linkedin-post': fmt('linkedin-post', 'LinkedIn Post', 1200, 627, 'screen', null, 0, 0, undefined, 'https://www.linkedin.com/help/linkedin'),
+  'x-post': fmt('x-post', 'X / Twitter', 1600, 900, 'screen', null, 0, 0, undefined, 'https://help.x.com/'),
   'pinterest': fmt('pinterest', 'Pinterest', 1000, 1500, 'screen', null, 0, 0, undefined),
   'youtube-thumbnail': fmt('youtube-thumbnail', 'YouTube Thumbnail', 1280, 720, 'screen', null, 0, 0, undefined, 'https://support.google.com/youtube/answer/72431'),
   'a4': fmt('a4', 'A4 Flyer / Poster', 1240, 1754, 'office', 150, 3, 5, { w: 210, h: 297 }),
@@ -55,9 +61,9 @@ export const FORMATS: Record<string, Format> = {
   'rollup': fmt('rollup', 'Roll-up', 1200, 2400, 'large-format', null, 0, 0, undefined),
   'backdrop': fmt('backdrop', 'Backdrop', 2400, 1200, 'large-format', null, 0, 0, undefined),
   'street': fmt('street', 'Street Banner', 1200, 400, 'large-format', null, 0, 0, undefined),
-  'facebook-cover': fmt('facebook-cover', 'Facebook Cover', 1640, 859, 'screen', null, 0, 0, undefined, 'https://www.facebook.com/help/1593070264324211'),
-  'linkedin-cover': fmt('linkedin-cover', 'LinkedIn Cover', 1584, 396, 'screen', null, 0, 0, undefined, 'https://www.linkedin.com/help/linkedin/answer/a564118'),
-  'youtube-banner': fmt('youtube-banner', 'YouTube Banner', 2560, 1440, 'screen', null, 0, 0, undefined, 'https://support.google.com/youtube/answer/2972003'),
+  'facebook-cover': fmt('facebook-cover', 'Facebook Cover', 1640, 859, 'screen', null, 0, 0, undefined, 'https://www.facebook.com/help/'),
+  'linkedin-cover': fmt('linkedin-cover', 'LinkedIn Cover', 1584, 396, 'screen', null, 0, 0, undefined, 'https://www.linkedin.com/help/linkedin'),
+  'youtube-banner': fmt('youtube-banner', 'YouTube Banner', 2560, 1440, 'screen', null, 0, 0, undefined, 'https://support.google.com/youtube/'),
   'email-header': fmt('email-header', 'Email Header', 600, 200, 'screen', null, 0, 0, undefined),
   'display-mpu': fmt('display-mpu', 'Display Ad · MPU', 300, 250, 'screen', null, 0, 0, undefined),
   'display-leaderboard': fmt('display-leaderboard', 'Display Ad · Leaderboard', 728, 90, 'screen', null, 0, 0, undefined),
@@ -88,5 +94,8 @@ const dayNumber = (ymd: string): number => {
 /** Never verified, or last verified more than `days` days before `today` (YYYY-MM-DD). */
 export function needsReverify(f: Format, today: string, days = 180): boolean {
   if (!f.verifiedAt) return true;
-  return dayNumber(today) - dayNumber(f.verifiedAt) > days;
+  const age = dayNumber(today) - dayNumber(f.verifiedAt);
+  /* A malformed date on either side fails safe: re-verify. */
+  if (!Number.isFinite(age)) return true;
+  return age > days;
 }
