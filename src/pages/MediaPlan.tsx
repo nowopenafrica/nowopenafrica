@@ -1,5 +1,5 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Link, useLocation, useParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { ArrowLeft, Loader2, Plus, Send, Trash2 } from 'lucide-react';
 
@@ -7,8 +7,9 @@ import { applySeo } from '../lib/seo';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import PlatformEnquiryModal from '../components/PlatformEnquiryModal';
+import LineArtwork from '../components/promote/LineArtwork';
 import {
-  addPlacement, createCampaign, fetchCampaigns, fetchPlanLines, markEnquirySent,
+  addPlacement, createCampaign, fetchCampaigns, fetchLocalPlanLines, fetchPlanLines, markEnquirySent,
   removePlacement, setLineDays, type AdCampaign,
 } from '../lib/promote/campaigns';
 import {
@@ -16,7 +17,13 @@ import {
 } from '../lib/promote/campaignPlan';
 import { describeDimensions, readAdDimensions } from '../lib/promote/adDimensions';
 import { fetchPlacementTrustResult, type PlacementTrust } from '../lib/promote/trust';
+import { onPlanChanged, readLocalPlan, removeLocalLine, setLocalDays } from '../lib/promote/localPlan';
+import { signInLinkTo } from '../lib/safeNext';
 import { AvailabilityLine, TrustChip, trustFor } from '../components/promote/PlacementLine';
+
+const LOAD_FAILED = 'We could not load your plan just now';
+const DEVICE_ONLY = 'This plan is on this device only. Sign in to keep it and send it.';
+const localItemId = (lineId: string) => lineId.replace(/^local:/, '');
 
 /**
  * A media plan: several placements taken to the media owners as one ask.
@@ -38,10 +45,17 @@ import { AvailabilityLine, TrustChip, trustFor } from '../components/promote/Pla
  *
  * That is not pessimism about the product. It is the difference between a
  * plan a business can take to its board and a number it will be wrong by.
+ *
+ * ── SIGNED OUT ───────────────────────────────────────────────────────────
+ *
+ * A visitor's plan is held in the browser (localPlan). It shows here, with
+ * remove and days, and says plainly that it lives on this device only.
  */
 export default function MediaPlan() {
   const { id } = useParams<{ id?: string }>();
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const here = useLocation();
+  const signedIn = Boolean(user);
 
   const [campaigns, setCampaigns] = useState<AdCampaign[]>([]);
   const [lines, setLines] = useState<PlanLine[]>([]);
@@ -67,20 +81,44 @@ export default function MediaPlan() {
     setLoading(false);
   }, []);
 
-  useEffect(() => { if (user) void load(); else setLoading(false); }, [user, load]);
+  /** A slow older read must not overwrite a newer one. */
+  const localSeq = useRef(0);
+  const loadLocal = useCallback(async () => {
+    const mine = ++localSeq.current;
+    try {
+      const local = readLocalPlan();
+      const next = local.length ? await fetchLocalPlanLines(local) : [];
+      if (mine !== localSeq.current) return;
+      setLines(next);
+      setProblem(null);
+    } catch {
+      /* A failed read is not an empty plan. */
+      if (mine !== localSeq.current) return;
+      setProblem(LOAD_FAILED);
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    if (authLoading) return undefined;
+    if (user) { void load(); return undefined; }
+    setCampaigns([]);
+    void loadLocal();
+    return onPlanChanged(() => { void loadLocal(); });
+  }, [authLoading, user, load, loadLocal]);
 
   const current = useMemo(
-    () => campaigns.find((c) => c.id === id) ?? campaigns[0] ?? null,
-    [campaigns, id],
+    () => (signedIn ? campaigns.find((c) => c.id === id) ?? campaigns[0] ?? null : null),
+    [signedIn, campaigns, id],
   );
 
   useEffect(() => {
+    if (!signedIn) return;
     if (!current) { setLines([]); return; }
     void fetchPlanLines(current.id).then(setLines);
-  }, [current]);
+  }, [signedIn, current]);
 
   const { format: money, ngnPerUsd } = useCurrency();
-  const summary = useMemo(() => summarise(lines, ngnPerUsd), [lines, ngnPerUsd]);
 
   /*
    * Which lines are still listed. placement_trust leaves out archived and
@@ -103,7 +141,17 @@ export default function MediaPlan() {
     void fetchPlacementTrustResult(lineIds.split(',')).then((r) => { if (live) setTrust(r); });
     return () => { live = false; };
   }, [lineIds]);
-  const delisted = (advertId: string | null) => advertId != null && trust != null && !trust.failed && !trust.map.has(advertId);
+  const delisted = useCallback(
+    (advertId: string | null) => advertId != null && trust != null && !trust.failed && !trust.map.has(advertId),
+    [trust],
+  );
+
+  /* A delisted placement leaves the totals: feed it into `offered` before summarising. */
+  const shown = useMemo(
+    () => lines.map((l) => (l.kind === 'placement' && l.offered && delisted(l.advertId) ? { ...l, offered: false } : l)),
+    [lines, delisted],
+  );
+  const summary = useMemo(() => summarise(shown, ngnPerUsd), [shown, ngnPerUsd]);
 
   /*
    * The SAME formatter the rest of the product uses.
@@ -124,13 +172,22 @@ export default function MediaPlan() {
   };
 
   const drop = async (lineId: string) => {
+    if (!signedIn) {
+      removeLocalLine(localItemId(lineId));
+      setLines((l) => l.filter((x) => x.id !== lineId));
+      return;
+    }
     if (!(await removePlacement(lineId))) { toast.error('Could not remove that.'); return; }
     setLines((l) => l.filter((x) => x.id !== lineId));
   };
 
-  const changeDays = async (lineId: string, days: number | null) => {
-    setLines((l) => l.map((x) => (x.id === lineId ? { ...x, days } : x)));
-    if (!(await setLineDays(lineId, days))) toast.error('Could not save that duration.');
+  const changeDays = async (line: PlanLine, days: number | null) => {
+    setLines((l) => l.map((x) => (x.id === line.id ? { ...x, days } : x)));
+    if (!signedIn) {
+      if (line.advertId) setLocalDays(line.advertId, days);
+      return;
+    }
+    if (!(await setLineDays(line.id, days))) toast.error('Could not save that duration.');
   };
 
   const send = async () => {
@@ -139,21 +196,7 @@ export default function MediaPlan() {
     setEnquiryOpen(true);
   };
 
-  if (!user) {
-    return (
-      <Shell>
-        <p className="text-sm text-gray-600 dark:text-gray-400">
-          Sign in to build a media plan. It is private to you — what you are considering, and
-          what you can spend, is nobody else’s business.
-        </p>
-        <Link to="/signin" className="mt-4 inline-flex min-h-[44px] items-center rounded-xl bg-blue-600 px-5 font-semibold text-white">
-          Sign in
-        </Link>
-      </Shell>
-    );
-  }
-
-  if (loading) {
+  if (authLoading || loading) {
     return <Shell><Loader2 className="mx-auto animate-spin text-gray-400" size={22} /></Shell>;
   }
 
@@ -166,14 +209,14 @@ export default function MediaPlan() {
         <p className="mt-1 text-xs text-amber-700 dark:text-amber-400">
           This is a failed read, not an empty plan — nothing of yours has been lost.
         </p>
-        <button onClick={() => void load()} className="mt-3 text-xs font-bold text-amber-900 underline dark:text-amber-200">
+        <button onClick={() => void (signedIn ? load() : loadLocal())} className="mt-3 text-xs font-bold text-amber-900 underline dark:text-amber-200">
           Try again
         </button>
       </Shell>
     );
   }
 
-  if (!current) {
+  if (signedIn && !current) {
     return (
       <Shell>
         <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -191,22 +234,33 @@ export default function MediaPlan() {
     );
   }
 
+  const signIn = signInLinkTo(here.pathname);
+
   return (
     <Shell>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900 dark:text-white">{current.name}</h1>
+          <h1 className="text-xl font-bold text-gray-900 dark:text-white">{current?.name ?? 'Your plan'}</h1>
           <p className="mt-0.5 text-sm text-gray-600 dark:text-gray-400">
-            {summary.lines} placement{summary.lines === 1 ? '' : 's'} · {describeCost(summary, money)}
+            {summary.lines} line{summary.lines === 1 ? '' : 's'} · {describeCost(summary, money)}
           </p>
         </div>
         <Link
           to="/adverts"
-          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
+          className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-700 dark:border-gray-600 dark:text-gray-200"
         >
           <Plus size={15} /> Add placements
         </Link>
       </div>
+
+      {!signedIn && (
+        <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-xl border border-blue-200 bg-blue-50 p-3 dark:border-blue-900 dark:bg-blue-950/40">
+          <p className="text-xs text-blue-900 dark:text-blue-200">{DEVICE_ONLY}</p>
+          <Link to={signIn} className="inline-flex min-h-[44px] items-center text-xs font-bold text-blue-700 underline dark:text-blue-300">
+            Sign in
+          </Link>
+        </div>
+      )}
 
       {trust?.failed && (
         <p role="status" className="mt-3 text-[11px] text-gray-500 dark:text-gray-400">
@@ -221,63 +275,23 @@ export default function MediaPlan() {
       ) : (
         <div className="mt-5 grid gap-5 lg:grid-cols-[1fr,300px]">
           <ul className="space-y-2">
-            {lines.map((l) => {
-              const cost = lineCost(l, ngnPerUsd);
-              return (
-                <li key={l.id} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
-                  <div className="flex items-start gap-3">
-                    <div className="min-w-0 flex-1">
-                      <Link to={`/adverts/${l.advertId}`} className="truncate text-sm font-semibold text-gray-900 hover:underline dark:text-white">
-                        {l.title}
-                      </Link>
-                      <p className="truncate text-[11px] text-gray-500">
-                        {l.type}{l.location ? ` · ${l.location}` : ''} · {describeDimensions(readAdDimensions(l.dimensions))}
-                      </p>
-                      {delisted(l.advertId) ? (
-                        <p className="mt-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">No longer listed</p>
-                      ) : (
-                        <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                          <TrustChip trust={trustFor(trust?.map, l.advertId ?? '')} />
-                          <AvailabilityLine trust={trustFor(trust?.map, l.advertId ?? '')} className="text-[11px]" />
-                        </div>
-                      )}
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => void drop(l.id)}
-                      aria-label={`Remove ${l.title} from this plan`}
-                      className="grid h-8 w-8 shrink-0 place-items-center rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px]">
-                    <label className="flex items-center gap-1.5">
-                      <span className="text-gray-500">Days</span>
-                      <input
-                        type="number"
-                        min={1}
-                        value={l.days ?? ''}
-                        placeholder="—"
-                        onChange={(e) => {
-                          const v = e.target.value.trim();
-                          void changeDays(l.id, v ? Math.max(1, Number(v)) : null);
-                        }}
-                        aria-label={`Days for ${l.title}`}
-                        className="w-16 rounded border border-gray-300 bg-white px-1.5 py-1 dark:border-gray-600 dark:bg-gray-900"
-                      />
-                    </label>
-                    <span className="text-gray-500">
-                      {l.ratePerDay != null ? `${money(l.ratePerDay)} / day` : 'No published rate'}
-                    </span>
-                    <span className="ml-auto font-semibold text-gray-900 dark:text-white">
-                      {cost != null ? money(cost) : 'To be quoted'}
-                    </span>
-                  </div>
-                </li>
-              );
-            })}
+            {shown.map((l) => (
+              <PlanRow
+                key={l.id}
+                line={l}
+                money={money}
+                ngnPerUsd={ngnPerUsd}
+                trust={trust}
+                isDelisted={delisted(l.advertId)}
+                signedIn={signedIn}
+                campaignId={current?.id ?? null}
+                onDrop={() => void drop(l.id)}
+                onDays={(days) => void changeDays(l, days)}
+                onArtwork={(art) => setLines((all) => all.map((x) => (x.id === l.id
+                  ? { ...x, artworkUrl: art.path, artworkWidth: art.width, artworkHeight: art.height, artworkDesignId: art.designId }
+                  : x)))}
+              />
+            ))}
           </ul>
 
           <aside className="space-y-3">
@@ -325,7 +339,7 @@ export default function MediaPlan() {
                 ))}
               </ul>
               <p className="mt-2 text-[11px] text-gray-500">
-                Artwork ready on {summary.creativeReady} of {summary.lines}.
+                {summary.creativeReady} of {summary.artworkNeeded} lines have artwork
               </p>
             </div>
 
@@ -340,13 +354,22 @@ export default function MediaPlan() {
               </ul>
             )}
 
-            <button
-              type="button"
-              onClick={() => void send()}
-              className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 font-semibold text-white dark:bg-white dark:text-gray-900"
-            >
-              <Send size={16} /> Send this plan as an enquiry
-            </button>
+            {signedIn ? (
+              <button
+                type="button"
+                onClick={() => void send()}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 font-semibold text-white dark:bg-white dark:text-gray-900"
+              >
+                <Send size={16} /> Send this plan as an enquiry
+              </button>
+            ) : (
+              <Link
+                to={signIn}
+                className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-xl bg-gray-900 px-4 font-semibold text-white dark:bg-white dark:text-gray-900"
+              >
+                Sign in to send this plan
+              </Link>
+            )}
             {/* Said before the button is pressed, not after. */}
             <p className="text-[11px] text-gray-500">
               Sends your plan to our team, who take it to the media owners. Nothing is booked and
@@ -356,11 +379,11 @@ export default function MediaPlan() {
         </div>
       )}
 
-      {enquiryOpen && (
+      {enquiryOpen && current && (
         <PlatformEnquiryModal
           kind="advert"
           itemId={current.id}
-          itemTitle={`${current.name} — ${summary.lines} placement${summary.lines === 1 ? '' : 's'}`}
+          itemTitle={`${current.name} — ${summary.lines} line${summary.lines === 1 ? '' : 's'}`}
           subjectPrefix="Media plan enquiry"
           onClose={() => {
             setEnquiryOpen(false);
@@ -369,6 +392,127 @@ export default function MediaPlan() {
         />
       )}
     </Shell>
+  );
+}
+
+/** One line of the plan: a placement, a NowOpen product, or a line no longer on offer. */
+function PlanRow({
+  line: l, money, ngnPerUsd, trust, isDelisted, signedIn, campaignId, onDrop, onDays, onArtwork,
+}: {
+  line: PlanLine;
+  money: (n: number) => string;
+  ngnPerUsd: number;
+  trust: { map: Map<string, PlacementTrust>; failed: boolean } | null;
+  isDelisted: boolean;
+  signedIn: boolean;
+  campaignId: string | null;
+  onDrop: () => void;
+  onDays: (days: number | null) => void;
+  onArtwork: (art: { path: string; width: number; height: number; designId: string | null }) => void;
+}) {
+  const cost = lineCost(l, ngnPerUsd);
+  const remove = (
+    <button
+      type="button"
+      onClick={onDrop}
+      aria-label={`Remove ${l.title} from this plan`}
+      className="grid h-[44px] w-[44px] shrink-0 place-items-center rounded-lg text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
+    >
+      <Trash2 size={14} />
+    </button>
+  );
+  const box = 'rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800';
+
+  if (!l.offered) {
+    return (
+      <li className={box}>
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{l.title}</p>
+            <p className="mt-0.5 text-[11px] font-semibold text-amber-700 dark:text-amber-300">
+              {isDelisted ? 'No longer listed' : 'No longer on offer'}
+            </p>
+          </div>
+          {remove}
+        </div>
+      </li>
+    );
+  }
+
+  if (l.kind === 'product') {
+    return (
+      <li className={box}>
+        <div className="flex items-start gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{l.title}</p>
+            {l.days != null && <p className="text-[11px] text-gray-500">{l.days} day{l.days === 1 ? '' : 's'}</p>}
+          </div>
+          <div className="text-right text-[11px]">
+            <p className="font-semibold text-gray-900 dark:text-white">{cost != null ? money(cost) : 'No price set'}</p>
+            <p className="text-gray-500">NowOpen price</p>
+          </div>
+          {remove}
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li className={box}>
+      <div className="flex items-start gap-3">
+        <div className="min-w-0 flex-1">
+          {l.advertId ? (
+            <Link to={`/adverts/${l.advertId}`} className="truncate text-sm font-semibold text-gray-900 hover:underline dark:text-white">
+              {l.title}
+            </Link>
+          ) : (
+            <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{l.title}</p>
+          )}
+          <p className="truncate text-[11px] text-gray-500">
+            {l.type}{l.location ? ` · ${l.location}` : ''} · {describeDimensions(readAdDimensions(l.dimensions))}
+          </p>
+          <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+            <TrustChip trust={trustFor(trust?.map, l.advertId ?? '')} />
+            <AvailabilityLine trust={trustFor(trust?.map, l.advertId ?? '')} className="text-[11px]" />
+          </div>
+        </div>
+        {remove}
+      </div>
+
+      <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px]">
+        <label className="flex items-center gap-1.5">
+          <span className="text-gray-500">Days</span>
+          <input
+            type="number"
+            min={1}
+            value={l.days ?? ''}
+            placeholder="—"
+            onChange={(e) => {
+              const v = e.target.value.trim();
+              onDays(v ? Math.max(1, Math.round(Number(v))) : null);
+            }}
+            aria-label={`Days for ${l.title}`}
+            className="min-h-[44px] w-16 rounded border border-gray-300 bg-white px-1.5 py-1 dark:border-gray-600 dark:bg-gray-900"
+          />
+        </label>
+        <span className="text-gray-500">
+          {l.ratePerDay != null ? `${money(l.ratePerDay)} / day` : 'No published rate'}
+        </span>
+        <span className="ml-auto font-semibold text-gray-900 dark:text-white">
+          {cost != null ? money(cost) : 'To be quoted'}
+        </span>
+      </div>
+
+      <div className="mt-2 border-t border-gray-100 pt-2 dark:border-gray-700">
+        <LineArtwork
+          line={l}
+          campaignId={campaignId}
+          placementDimensions={l.dimensions}
+          signedIn={signedIn}
+          onChanged={onArtwork}
+        />
+      </div>
+    </li>
   );
 }
 

@@ -75,6 +75,7 @@ function measure(url: string, kind: ArtworkKind): Promise<{ width: number; heigh
 export default function AdPreviewStudio({
   placement,
   initialScene,
+  initialArtwork,
 }: {
   /** The real inventory row, when the preview was opened from one. */
   placement?: {
@@ -86,6 +87,8 @@ export default function AdPreviewStudio({
     imageUrl?: string | null;
   } | null;
   initialScene?: string;
+  /** Artwork to load on mount, e.g. a plan line's own artwork (a signed link). */
+  initialArtwork?: { url: string; name: string };
 }) {
   const [sceneId, setSceneId] = useState<string>(
     initialScene ?? MOCKUP_SCENES[0].id,
@@ -132,6 +135,24 @@ export default function AdPreviewStudio({
 
   /** Whether the preview is standing on a real photo or a drawn scene. */
   const onSite = Boolean(site) && useSite;
+
+  /* Artwork handed in by the caller is measured through the same element path as a pasted link. */
+  useEffect(() => {
+    if (!initialArtwork) return undefined;
+    let cancelled = false;
+    setProblem(null);
+    setLoading(true);
+    measure(initialArtwork.url, 'image')
+      .then((size) => {
+        if (!cancelled) setArtwork({ url: initialArtwork.url, ...size, name: initialArtwork.name, kind: 'image', objectUrl: false });
+      })
+      .catch(() => {
+        if (!cancelled) setProblem('That artwork could not be opened. Try attaching it again.');
+      })
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialArtwork?.url]);
 
   /* The object URL is revoked when it is replaced, not left to the tab. */
   useEffect(() => () => { if (artwork?.objectUrl) URL.revokeObjectURL(artwork.url); }, [artwork]);

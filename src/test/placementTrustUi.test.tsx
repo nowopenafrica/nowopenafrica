@@ -330,6 +330,7 @@ describe('placement trust on Promote', () => {
     const line = (id: string, advertId: string, title: string) => ({
       id, advertId, title, type: null, location: null, dimensions: null, days: 30,
       ratePerDay: 1, priceBasis: 'indicative', currency: 'NGN', artworkUrl: null,
+      kind: 'placement', productId: null, priceMinor: null, artworkDesignId: null, artworkWidth: null, artworkHeight: null, offered: true,
     });
     // 'gone-1' has no trust row and no advert row (fetchPlanLines' "Placement" default).
     plan.lines = [line('l1', 'live-1', 'Allen Avenue shelter'), line('l2', 'gone-1', 'Placement')];
@@ -368,6 +369,7 @@ describe('placement trust on Promote', () => {
 const planLine = (id: string, advertId: string, title: string) => ({
   id, advertId, title, type: null, location: null, dimensions: null, days: 30,
   ratePerDay: 1, priceBasis: 'indicative', currency: 'NGN', artworkUrl: null,
+  kind: 'placement', productId: null, priceMinor: null, artworkDesignId: null, artworkWidth: null, artworkHeight: null, offered: true,
 });
 
 describe('availability has one source on Promote', () => {
