@@ -231,3 +231,28 @@ export function readyToSend(summary: PlanSummary): { ok: true } | { ok: false; w
   if (!summary.lines) return { ok: false, why: 'Add at least one placement before sending an enquiry.' };
   return { ok: true };
 }
+
+/** A placement_trust read as the plan uses it: which placements still have a row, and whether the read worked. */
+export interface ListingRead {
+  map: { has(advertId: string): boolean };
+  failed: boolean;
+}
+
+/**
+ * Is this placement no longer listed? placement_trust leaves out archived and
+ * rejected placements, so after a read that WORKED, a missing row means
+ * delisted. A failed or pending read (null) says nothing about any placement.
+ */
+export function isDelisted(advertId: string | null, trust: ListingRead | null): boolean {
+  return advertId != null && trust != null && !trust.failed && !trust.map.has(advertId);
+}
+
+/**
+ * The lines with every delisted placement marked `offered: false`, so it
+ * leaves the totals and is never moved. A failed read changes nothing. The
+ * one copy of this rule: the plan page, the tray and sign-in migration all
+ * use it.
+ */
+export function withListing(lines: PlanLine[], trust: ListingRead | null): PlanLine[] {
+  return lines.map((l) => (l.kind === 'placement' && l.offered && isDelisted(l.advertId, trust) ? { ...l, offered: false } : l));
+}

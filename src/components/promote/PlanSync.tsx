@@ -4,7 +4,8 @@
  * Renders nothing. Keyed on the user id, not on the user object: Supabase
  * raises SIGNED_IN again for a restored session and a refocused tab (see
  * AuthContext), and each of those hands back a fresh object for the same
- * person. The ref makes the run once per id per page session.
+ * person. The ref makes the run once per id while signed in; signing out
+ * clears it, so signing back in (even as the same person) migrates again.
  */
 
 import { useEffect, useRef } from 'react';
@@ -19,7 +20,8 @@ export default function PlanSync() {
   const doneFor = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!userId || doneFor.current === userId) return;
+    if (!userId) { doneFor.current = null; return; }
+    if (doneFor.current === userId) return;
     if (readLocalPlan().length === 0) return;
     doneFor.current = userId;
     void migrateLocalPlan()
@@ -29,7 +31,7 @@ export default function PlanSync() {
         const kept = out.kept > 0 ? ` · ${out.kept} kept on this device` : '';
         toast.success(`Moved ${out.moved} ${noun} into your plan.${kept}`);
       })
-      .catch(() => { /* No toast. The lines stay on this device; the ref resets only on a page load, so the retry happens on the next page load. */ });
+      .catch(() => { /* No toast. The lines stay on this device; the ref resets on a page load or a sign-out, so the retry happens then. */ });
   }, [userId]);
 
   return null;

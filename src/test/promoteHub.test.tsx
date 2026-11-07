@@ -284,7 +284,7 @@ describe('the Promote hub', () => {
     const sent = plan.addToPlan.mock.calls[0][0] as Array<Record<string, unknown>>;
     expect(sent).toHaveLength(products.length + placements.length);
     for (const p of products) {
-      expect(sent).toContainEqual({ kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays });
+      expect(sent).toContainEqual({ kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays, currency: 'NGN' });
     }
     for (const a of placements) {
       expect(sent.some((i) => i.kind === 'placement' && i.id === String(a.id))).toBe(true);
@@ -303,7 +303,7 @@ describe('the Promote hub', () => {
     await waitFor(() => expect(btn).toBeDisabled());
     fireEvent.click(btn);
     expect(plan.addToPlan).toHaveBeenCalledTimes(1);
-    expect(plan.addToPlan).toHaveBeenCalledWith([{ kind: 'product', id: 'city-spotlight', priceMinor: 1_950_000, days: 30 }]);
+    expect(plan.addToPlan).toHaveBeenCalledWith([{ kind: 'product', id: 'city-spotlight', priceMinor: 1_950_000, days: 30, currency: 'NGN' }]);
     release({ ok: true, added: 1, skipped: 0 });
     await waitFor(() => expect(btn).not.toBeDisabled());
     expect(toasts.success).toHaveBeenCalledWith('Added 1 to your plan.');
@@ -531,7 +531,7 @@ describe('the Promote hub, fix round 1', () => {
     await waitFor(() => expect(btn).toBeDisabled());
     fireEvent.click(btn);
     expect(plan.addToPlan).toHaveBeenCalledTimes(1);
-    expect(plan.addToPlan).toHaveBeenCalledWith([{ kind: 'product', id: 'sponsored-result', priceMinor: 500_000, days: 7 }]);
+    expect(plan.addToPlan).toHaveBeenCalledWith([{ kind: 'product', id: 'sponsored-result', priceMinor: 500_000, days: 7, currency: 'NGN' }]);
     release({ ok: true, added: 1, skipped: 0 });
     await waitFor(() => expect(btn).not.toBeDisabled());
   });
@@ -715,6 +715,43 @@ describe('the Promote hub, Partner portal', () => {
       expect(screen.queryByText('Ikeja waiting unipole')).toBeNull();
     } finally {
       ADVERTS.splice(ADVERTS.indexOf(waiting as never), 1);
+    }
+  });
+});
+
+describe('the Promote hub, product currency', () => {
+  /*
+   * Plan lines cost products as NGN kobo, so a product priced in any other
+   * currency keeps the enquiry link and is never added. $13 is the same
+   * 19,500 naira as the NGN fixture at this rate, so the mix is unchanged.
+   */
+  const asUsd = () => {
+    const original = PRODUCTS.list[0];
+    PRODUCTS.list[0] = { ...original, currency: 'USD', priceMinor: 1300 };
+    return () => { PRODUCTS.list[0] = original; };
+  };
+
+  it('a non-NGN product gets the enquiry link, not "Add", in a goal and On NowOpen', async () => {
+    const restore = asUsd();
+    try {
+      at('/adverts?goal=nearby&city=Lagos');
+      await loaded();
+      const region = goalView('Get customers nearby');
+      await waitFor(() => expect(within(region).getByRole('tab', { name: 'Starter' }).getAttribute('aria-selected')).toBe('true'));
+      expect(within(region).queryByRole('button', { name: 'Add City spotlight to plan' })).toBeNull();
+      expect(within(region).getByRole('link', { name: 'Get started with City spotlight' }).getAttribute('href'))
+        .toBe('/contact?product=city-spotlight');
+
+      const card = screen.getAllByTestId('product-card').find((c) => c.getAttribute('data-product') === 'city-spotlight')!;
+      expect(within(card).queryByRole('button', { name: /to plan$/ })).toBeNull();
+      expect(within(card).getByRole('link', { name: 'Get started with City spotlight' })).toBeTruthy();
+
+      fireEvent.click(within(region).getByRole('button', { name: 'Add all to plan' }));
+      await waitFor(() => expect(plan.addToPlan).toHaveBeenCalledTimes(1));
+      const sent = plan.addToPlan.mock.calls[0][0] as Array<Record<string, unknown>>;
+      expect(sent.some((i) => i.id === 'city-spotlight')).toBe(false);
+    } finally {
+      restore();
     }
   });
 });

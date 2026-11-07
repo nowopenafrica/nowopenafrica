@@ -4,7 +4,7 @@ import { ArrowRight, Loader2, Megaphone, Plus, ShieldCheck } from 'lucide-react'
 
 import { useCurrency } from '../../contexts/CurrencyContext';
 import { formatPrice, type RevenueProduct } from '../../lib/revenue/products';
-import { addToPlan } from '../../lib/promote/campaigns';
+import { addToPlan, productPlanItem } from '../../lib/promote/campaigns';
 import { productPriceUsd } from '../../lib/promote/hubMoney';
 import { reportPlanAdd } from '../../lib/promote/planToast';
 import SponsoredLabel, { type PlacementKind } from '../promotion/SponsoredLabel';
@@ -49,7 +49,8 @@ const labelFor = (slug: string): Exclude<PlacementKind, 'organic'> => LABEL_FOR[
  * at its fixed price), but paying for it is step 3: the database refuses to
  * activate a promotion without a webhook-verified payment, and that path has
  * never completed on this project. A product with no price set is not
- * sellable, so it gets no button and keeps the enquiry link.
+ * sellable, so it gets no button and keeps the enquiry link. Nor does one
+ * priced in anything but NGN: plan lines cost products as NGN kobo.
  */
 export default function OnNowOpen({
   products, loading, failed,
@@ -59,10 +60,11 @@ export default function OnNowOpen({
   /* The product whose write is in flight; its button is disabled so a double tap adds once. */
   const [adding, setAdding] = useState<string | null>(null);
   const addProduct = async (p: RevenueProduct) => {
-    if (adding || p.priceMinor == null) return;
+    const item = productPlanItem(p);
+    if (adding || !item) return;
     setAdding(p.id);
     try {
-      reportPlanAdd(await addToPlan([{ kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays }]));
+      reportPlanAdd(await addToPlan([item]));
     } finally {
       setAdding(null);
     }
@@ -160,7 +162,7 @@ export default function OnNowOpen({
                   <span className="text-xl font-bold text-gray-900 dark:text-white">{priceOf(p)}</span>
                   {p.durationDays ? <> · {p.durationDays} days</> : null}
                 </p>
-                {p.priceMinor != null ? (
+                {productPlanItem(p) ? (
                   <button
                     type="button"
                     onClick={() => addProduct(p)}
@@ -172,7 +174,7 @@ export default function OnNowOpen({
                     Add to plan
                   </button>
                 ) : (
-                  /* No price set, so nothing to put in a plan: it stays an enquiry. */
+                  /* No price set, or not priced in NGN, so nothing to put in a plan: it stays an enquiry. */
                   <Link
                     to={`/contact?product=${encodeURIComponent(p.slug)}`}
                     aria-label={`Get started with ${p.name}`}

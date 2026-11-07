@@ -3,15 +3,25 @@
  *
  * Signed in: the newest plan's lines. Signed out: the browser-held lines,
  * resolved against the live catalogue. A read that fails sets `failed`; it is
- * never reported as an empty plan.
+ * never reported as an empty plan. Placements placement_trust no longer lists
+ * are `offered: false` before summarising (the plan page's rule, shared via
+ * withListing); a failed trust read changes nothing.
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useCurrency } from '../../contexts/CurrencyContext';
-import { summarise, type PlanLine, type PlanSummary } from './campaignPlan';
+import { summarise, withListing, type PlanLine, type PlanSummary } from './campaignPlan';
 import { fetchCampaigns, fetchLocalPlanLines, fetchPlanLines } from './campaigns';
 import { onPlanChanged, readLocalPlan } from './localPlan';
+import { fetchPlacementTrustResult } from './trust';
+
+/** The lines with delisted placements marked; a failed trust read leaves them as they are. */
+async function listed(lines: PlanLine[]): Promise<PlanLine[]> {
+  const ids = [...new Set(lines.flatMap((l) => (l.kind === 'placement' && l.advertId ? [l.advertId] : [])))];
+  if (ids.length === 0) return lines;
+  return withListing(lines, await fetchPlacementTrustResult(ids));
+}
 
 export interface PlanSnapshot {
   lines: PlanLine[];
@@ -47,12 +57,15 @@ export function usePlanSnapshot(): PlanSnapshot {
           next = { lines: [], planId: null, failed: false };
         } else {
           const planId = campaigns.campaigns[0].id;
-          next = { lines: await fetchPlanLines(planId), planId, failed: false };
+          const read = await fetchPlanLines(planId);
+          next = read.state === 'ready'
+            ? { lines: await listed(read.lines), planId, failed: false }
+            : { lines: [], planId, failed: true };
         }
       } else {
         const local = readLocalPlan();
         next = {
-          lines: local.length ? await fetchLocalPlanLines(local) : [],
+          lines: local.length ? await listed(await fetchLocalPlanLines(local)) : [],
           planId: null,
           failed: false,
         };

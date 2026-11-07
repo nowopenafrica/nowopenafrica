@@ -27,12 +27,22 @@ const state = vi.hoisted(() => ({
   designsError: null as { message: string } | null,
   getUserError: null as { message: string } | null,
   inError: false,
+  /** Ids placement_trust has a row for; null means every id asked about. */
+  trustIds: null as string[] | null,
+  trustError: false,
+  linesError: false,
+  sessionError: null as { message: string } | null,
+  /** Rows an update or delete matches (RLS hides rows by matching none). */
+  matchRows: 1,
+  deletes: [] as string[],
 }));
 
 vi.mock('../supabase', () => ({
   supabase: {
     auth: {
-      getSession: async () => ({ data: { session: state.user ? { user: state.user } : null }, error: null }),
+      getSession: async () => (state.sessionError
+        ? { data: { session: null }, error: state.sessionError }
+        : { data: { session: state.user ? { user: state.user } : null }, error: null }),
       getUser: async () => (state.getUserError
         ? { data: { user: null }, error: state.getUserError }
         : { data: { user: state.user }, error: null }),
@@ -79,6 +89,20 @@ vi.mock('../supabase', () => ({
           }),
         };
       }
+      if (table === 'placement_trust') {
+        return {
+          select: () => ({
+            in: async (_c: string, ids: string[]) => (state.trustError
+              ? { data: null, error: { message: 'trust read failed' } }
+              : {
+                data: ids
+                  .filter((id) => state.trustIds == null || state.trustIds.includes(id))
+                  .map((id) => ({ advert_id: id, trust_label: 'source_listed', availability: 'requires_confirmation' })),
+                error: null,
+              }),
+          }),
+        };
+      }
       if (table === 'design_projects') {
         return {
           select: () => ({
@@ -95,7 +119,7 @@ vi.mock('../supabase', () => ({
       return {
         select: () => ({
           eq: () => ({
-            order: async () => ({
+            order: async () => (state.linesError ? { data: null, error: { message: 'lines read failed' } } : {
               data: [
                 ...state.existingAdvertIds.map((a, i) => ({
                   id: `l${i}`, advert_id: a, product_id: null, price_basis: 'indicative', currency: 'NGN',
@@ -111,10 +135,20 @@ vi.mock('../supabase', () => ({
           }),
         }),
         update: (patch: Record<string, unknown>) => ({
-          eq: async (_c: string, id: string) => {
-            state.updates.push({ id, patch });
-            return { error: null };
-          },
+          eq: (_c: string, id: string) => ({
+            select: async () => {
+              state.updates.push({ id, patch });
+              return { data: Array.from({ length: state.matchRows }, () => ({ id })), error: null };
+            },
+          }),
+        }),
+        delete: () => ({
+          eq: (_c: string, id: string) => ({
+            select: async () => {
+              state.deletes.push(id);
+              return { data: Array.from({ length: state.matchRows }, () => ({ id })), error: null };
+            },
+          }),
         }),
         insert: async (rows: Array<Record<string, unknown>>) => {
           if (state.duplicateIds.includes(String(rows[0].advert_id ?? rows[0].product_id))) {
@@ -131,9 +165,10 @@ vi.mock('../supabase', () => ({
 }));
 
 import {
-  addAdvertsToPlan, addToPlan, fetchLocalPlanLines, migrateLocalPlan, setLineArtwork,
-  uploadLineArtwork, artworkUrlFor, fetchOwnDesigns,
+  addAdvertsToPlan, addToPlan, fetchLocalPlanLines, fetchPlanLines, migrateLocalPlan, setLineArtwork,
+  uploadLineArtwork, artworkUrlFor, fetchOwnDesigns, productPlanItem, removePlacement, setLineDays,
 } from './campaigns';
+import type { RevenueProduct } from '../revenue/products';
 import { readLocalPlan, addLocalLines, clearLocalPlan, replaceLocalPlan } from './localPlan';
 
 beforeEach(() => {
@@ -154,6 +189,12 @@ beforeEach(() => {
   state.designsError = null;
   state.getUserError = null;
   state.inError = false;
+  state.trustIds = null;
+  state.trustError = false;
+  state.linesError = false;
+  state.sessionError = null;
+  state.matchRows = 1;
+  state.deletes = [];
   clearLocalPlan();
 });
 
@@ -238,7 +279,7 @@ describe('addToPlan', () => {
     state.user = null;
     const out = await addToPlan([
       { kind: 'placement', id: 'a1', pricing: 10 },
-      { kind: 'product', id: 'pr1', priceMinor: 5000, days: 7 },
+      { kind: 'product', id: 'pr1', priceMinor: 5000, days: 7, currency: 'NGN' },
     ]);
     expect(out).toEqual({ ok: true, added: 2, skipped: 0, local: true });
     expect(state.createdCampaigns).toHaveLength(0);
@@ -248,7 +289,7 @@ describe('addToPlan', () => {
 
   it('signed in, a product insert is fixed-price with its kobo amount', async () => {
     state.campaigns = [{ id: 'p1', name: 'First' }];
-    const out = await addToPlan([{ kind: 'product', id: 'pr1', priceMinor: 5000, days: 7 }]);
+    const out = await addToPlan([{ kind: 'product', id: 'pr1', priceMinor: 5000, days: 7, currency: 'NGN' }]);
     expect(out).toEqual({ ok: true, added: 1, skipped: 0 });
     expect(state.placements[0]).toMatchObject({
       campaign_id: 'p1', product_id: 'pr1', days: 7, price_basis: 'fixed', price_minor: 5000, currency: 'NGN',
@@ -259,7 +300,7 @@ describe('addToPlan', () => {
   it('skips a product already in the plan', async () => {
     state.campaigns = [{ id: 'p1', name: 'First' }];
     state.existingProductIds = ['pr1'];
-    const out = await addToPlan([{ kind: 'product', id: 'pr1', priceMinor: 5000, days: null }]);
+    const out = await addToPlan([{ kind: 'product', id: 'pr1', priceMinor: 5000, days: null, currency: 'NGN' }]);
     expect(out).toEqual({ ok: true, added: 0, skipped: 1 });
   });
 });
@@ -448,5 +489,110 @@ describe('fetchOwnDesigns', () => {
   it('reports unavailable on error, never as no designs', async () => {
     state.designsError = { message: 'x' };
     expect((await fetchOwnDesigns()).state).toBe('unavailable');
+  });
+});
+
+describe('fetchPlanLines', () => {
+  it('is ready with the lines when the read works', async () => {
+    state.existingAdvertIds = ['a1'];
+    const out = await fetchPlanLines('p1');
+    expect(out.state).toBe('ready');
+    expect(out.state === 'ready' && out.lines.map((l) => l.advertId)).toEqual(['a1']);
+  });
+
+  it('is unavailable on a read error, never an empty plan', async () => {
+    state.linesError = true;
+    expect(await fetchPlanLines('p1')).toEqual({ state: 'unavailable', reason: 'We could not load your plan just now.' });
+  });
+});
+
+describe('addToPlan read failures', () => {
+  it('a failed read of the plan already there adds nothing', async () => {
+    state.campaigns = [{ id: 'p1', name: 'First' }];
+    state.linesError = true;
+    const out = await addToPlan([{ kind: 'placement', id: 'a1', pricing: 1 }]);
+    expect(out).toEqual({ ok: false, error: 'We could not load your plan just now.', added: 0 });
+    expect(state.placements).toHaveLength(0);
+  });
+
+  it('a getSession error is an error, and nothing is written locally', async () => {
+    state.sessionError = { message: 'storage' };
+    const out = await addToPlan([{ kind: 'placement', id: 'a1', pricing: 1 }]);
+    expect(out).toEqual({ ok: false, error: 'We could not reach your account just now.', added: 0 });
+    expect(readLocalPlan()).toEqual([]);
+    expect(state.placements).toHaveLength(0);
+  });
+
+  it("a product is written in the item's own currency", async () => {
+    state.campaigns = [{ id: 'p1', name: 'First' }];
+    await addToPlan([{ kind: 'product', id: 'pr1', priceMinor: 5000, days: 7, currency: 'NGN' }]);
+    expect(state.placements[0].currency).toBe('NGN');
+  });
+});
+
+describe('productPlanItem', () => {
+  const prod = (over: Partial<RevenueProduct> = {}) => ({
+    id: 'pr1', slug: 'pr1', name: 'P', description: null, kind: 'promotion', priceMinor: 5000,
+    currency: 'NGN', durationDays: 7, scopeCategory: null, scopeLocation: null, maxConcurrent: null,
+    active: true, sortOrder: 0, ...over,
+  }) as RevenueProduct;
+
+  it('an NGN product with a price is an item carrying its currency', () => {
+    expect(productPlanItem(prod())).toEqual({ kind: 'product', id: 'pr1', priceMinor: 5000, days: 7, currency: 'NGN' });
+  });
+
+  it('a non-NGN or unpriced product is not an item', () => {
+    expect(productPlanItem(prod({ currency: 'USD' }))).toBeNull();
+    expect(productPlanItem(prod({ priceMinor: null }))).toBeNull();
+  });
+});
+
+describe('migrateLocalPlan and placement_trust', () => {
+  const seed = () => {
+    state.adverts = ['a1', 'a2', 'a3'].map((id) => ({
+      id, title: id, type: 'billboard', location: 'Lagos', dimensions: null, pricing: 10,
+    }));
+    addLocalLines([
+      { kind: 'placement', advertId: 'a1', days: 30 },
+      { kind: 'placement', advertId: 'a2', days: 14 },
+      { kind: 'placement', advertId: 'a3', days: 30 },
+    ]);
+  };
+
+  it('keeps a delisted placement local and never moves it', async () => {
+    seed();
+    state.campaigns = [{ id: 'p1', name: 'First' }];
+    state.trustIds = ['a1', 'a3'];
+    expect(await migrateLocalPlan()).toEqual({ moved: 2, kept: 1 });
+    expect(state.placements.map((p) => p.advert_id)).toEqual(['a1', 'a3']);
+    expect(readLocalPlan()).toEqual([{ kind: 'placement', advertId: 'a2', days: 14 }]);
+  });
+
+  it('a failed trust read moves nothing', async () => {
+    seed();
+    state.campaigns = [{ id: 'p1', name: 'First' }];
+    state.trustError = true;
+    expect(await migrateLocalPlan()).toBeNull();
+    expect(state.placements).toHaveLength(0);
+    expect(readLocalPlan()).toHaveLength(3);
+  });
+});
+
+describe('writes that match no row', () => {
+  it('setLineArtwork reports failure when 0 rows match', async () => {
+    state.matchRows = 0;
+    expect(await setLineArtwork('l1', { path: 'u1/c1/l1-a.png', width: 10, height: 10 })).toBe(false);
+  });
+
+  it('removePlacement and setLineDays report failure when 0 rows match', async () => {
+    state.matchRows = 0;
+    expect(await removePlacement('l1')).toBe(false);
+    expect(await setLineDays('l1', 7)).toBe(false);
+  });
+
+  it('they succeed when the row matches', async () => {
+    expect(await removePlacement('l1')).toBe(true);
+    expect(await setLineDays('l1', 7)).toBe(true);
+    expect(state.deletes).toEqual(['l1']);
   });
 });

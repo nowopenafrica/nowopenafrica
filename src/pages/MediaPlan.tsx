@@ -13,7 +13,7 @@ import {
   removePlacement, setLineDays, type AdCampaign,
 } from '../lib/promote/campaigns';
 import {
-  BASIS_LABEL, describeCost, lineCost, readyToSend, summarise, type PlanLine,
+  BASIS_LABEL, describeCost, isDelisted, lineCost, readyToSend, summarise, withListing, type PlanLine,
 } from '../lib/promote/campaignPlan';
 import { describeDimensions, readAdDimensions } from '../lib/promote/adDimensions';
 import { fetchPlacementTrustResult, type PlacementTrust } from '../lib/promote/trust';
@@ -63,6 +63,10 @@ export default function MediaPlan() {
   const [problem, setProblem] = useState<string | null>(null);
   const [enquiryOpen, setEnquiryOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  /** Bumped by every campaign load, so the current plan's lines are re-read with it. */
+  const [reloads, setReloads] = useState(0);
+  /** The plan whose lines are on screen; until it matches the current plan, the page is loading. */
+  const [linesFor, setLinesFor] = useState<string | null>(null);
 
   useEffect(() => {
     applySeo({
@@ -78,6 +82,7 @@ export default function MediaPlan() {
     const read = await fetchCampaigns();
     if (read.state === 'unavailable') { setProblem(read.reason); setCampaigns([]); }
     else { setProblem(null); setCampaigns(read.campaigns); }
+    setReloads((n) => n + 1);
     setLoading(false);
   }, []);
 
@@ -99,9 +104,18 @@ export default function MediaPlan() {
     setLoading(false);
   }, []);
 
+  /*
+   * Signed in, the page listens too. Sign-in migration (PlanSync) moves lines
+   * in after this page has loaded, and an add from another tab or the tray
+   * lands the same way; without this the page shows a stale plan, and
+   * "Start a plan" would make a second, empty one that becomes the newest.
+   */
   useEffect(() => {
     if (authLoading) return undefined;
-    if (user) { void load(); return undefined; }
+    if (user) {
+      void load();
+      return onPlanChanged(() => { void load(); });
+    }
     setCampaigns([]);
     void loadLocal();
     return onPlanChanged(() => { void loadLocal(); });
@@ -112,11 +126,21 @@ export default function MediaPlan() {
     [signedIn, campaigns, id],
   );
 
+  const currentId = current?.id ?? null;
+  /** A slow older lines read must not overwrite a newer one. */
+  const linesSeq = useRef(0);
   useEffect(() => {
     if (!signedIn) return;
-    if (!current) { setLines([]); return; }
-    void fetchPlanLines(current.id).then(setLines);
-  }, [signedIn, current]);
+    const mine = ++linesSeq.current;
+    if (!currentId) { setLines([]); setLinesFor(null); return; }
+    void fetchPlanLines(currentId).then((read) => {
+      if (mine !== linesSeq.current) return;
+      /* A failed read is not an empty plan. */
+      if (read.state === 'unavailable') { setProblem(read.reason); return; }
+      setLines(read.lines);
+      setLinesFor(currentId);
+    });
+  }, [signedIn, currentId, reloads]);
 
   const { format: money, ngnPerUsd } = useCurrency();
 
@@ -141,17 +165,13 @@ export default function MediaPlan() {
     void fetchPlacementTrustResult(lineIds.split(',')).then((r) => { if (live) setTrust(r); });
     return () => { live = false; };
   }, [lineIds]);
-  const delisted = useCallback(
-    (advertId: string | null) => advertId != null && trust != null && !trust.failed && !trust.map.has(advertId),
-    [trust],
-  );
+  const delisted = useCallback((advertId: string | null) => isDelisted(advertId, trust), [trust]);
 
-  /* A delisted placement leaves the totals: feed it into `offered` before summarising. */
-  const shown = useMemo(
-    () => lines.map((l) => (l.kind === 'placement' && l.offered && delisted(l.advertId) ? { ...l, offered: false } : l)),
-    [lines, delisted],
-  );
+  /* A delisted placement leaves the totals: feed it into `offered` before summarising (shared with the tray and migration). */
+  const shown = useMemo(() => withListing(lines, trust), [lines, trust]);
   const summary = useMemo(() => summarise(shown, ngnPerUsd), [shown, ngnPerUsd]);
+  /* The rate-card note is about indicative lines; a plan with none does not get it. */
+  const anyIndicative = shown.some((l) => l.offered && l.priceBasis === 'indicative');
 
   /*
    * The SAME formatter the rest of the product uses.
@@ -164,11 +184,23 @@ export default function MediaPlan() {
    */
   const start = async () => {
     setBusy(true);
-    const made = await createCampaign('My advertising plan');
-    setBusy(false);
-    if ('error' in made) { toast.error(made.error); return; }
-    toast.success('Plan started. Add placements from any listing.');
-    void load();
+    try {
+      /* Re-read first: a plan may have arrived since this page loaded (sign-in migration, another tab). */
+      const read = await fetchCampaigns();
+      if (read.state === 'unavailable') { toast.error(read.reason); return; }
+      if (read.campaigns.length > 0) {
+        setCampaigns(read.campaigns);
+        setReloads((n) => n + 1);
+        toast('You already have a plan, so it is open here.');
+        return;
+      }
+      const made = await createCampaign('My advertising plan');
+      if ('error' in made) { toast.error(made.error); return; }
+      toast.success('Plan started. Add placements from any listing.');
+      void load();
+    } finally {
+      setBusy(false);
+    }
   };
 
   const drop = async (lineId: string) => {
@@ -196,7 +228,7 @@ export default function MediaPlan() {
     setEnquiryOpen(true);
   };
 
-  if (authLoading || loading) {
+  if (authLoading || loading || (signedIn && currentId != null && linesFor !== currentId && !problem)) {
     return <Shell><Loader2 className="mx-auto animate-spin text-gray-400" size={22} /></Shell>;
   }
 
@@ -320,7 +352,7 @@ export default function MediaPlan() {
                   </li>
                 ))}
               </ul>
-              {!summary.hasConfirmedTotal && (
+              {anyIndicative && (
                 <p className="mt-2 border-t border-gray-200 pt-2 text-[11px] text-gray-500 dark:border-gray-700">
                   These are indicative rates from published rate cards, not quotes for your dates.
                   The media owners confirm the price.

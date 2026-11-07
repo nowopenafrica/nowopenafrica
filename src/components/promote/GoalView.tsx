@@ -3,7 +3,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Loader2, LocateFixed, MapPin, Palette, Plus, X } from 'lucide-react';
 
 import { useCurrency } from '../../contexts/CurrencyContext';
-import { addToPlan, type PlanItem } from '../../lib/promote/campaigns';
+import { addToPlan, productPlanItem, type PlanItem } from '../../lib/promote/campaigns';
 import { freeTool } from '../../lib/promote/freeTools';
 import { parsePromoteIntent } from '../../lib/promote/promoteIntent';
 import { detectLocation } from '../../lib/geolocation';
@@ -19,9 +19,8 @@ import { PlacementPrice, PlacementWhere, TrustChip, trustFor } from './Placement
 
 const placementItem = (a: Advertisement): PlanItem => ({ kind: 'placement', id: String(a.id), pricing: a.pricing ?? null });
 
-/** A product joins the plan at its fixed price; one with no price is not sellable and has no item. */
-const productItem = (p: RevenueProduct): PlanItem | null =>
-  p.priceMinor == null ? null : { kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays };
+/** A product joins the plan at its fixed NGN price; one with no price, or another currency, has no item. */
+const productItem = (p: RevenueProduct): PlanItem | null => productPlanItem(p);
 
 /** Everything in a level that can go in the plan, in the level's own order. */
 const planItemsOf = (items: MixItem[]): PlanItem[] =>
@@ -389,7 +388,7 @@ function MixRow({
               {adding ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Plus size={15} aria-hidden />} Add
             </button>
           ) : (
-            /* No price set, so nothing to put in a plan: it stays an enquiry. */
+            /* No price set, or not priced in NGN, so nothing to put in a plan: it stays an enquiry. */
             <Link to={`/contact?product=${encodeURIComponent(p.slug)}`} aria-label={`Get started with ${p.name}`} className={action}>
               Get started
             </Link>

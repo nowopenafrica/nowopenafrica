@@ -7,7 +7,9 @@
  */
 
 import { supabase } from '../supabase';
-import type { PlanLine, PriceBasis } from './campaignPlan';
+import { withListing, type PlanLine, type PriceBasis } from './campaignPlan';
+import { fetchPlacementTrustResult } from './trust';
+import type { RevenueProduct } from '../revenue/products';
 import { classifyArtworkFile } from './artworkSource';
 import { safeArtworkName } from '../create/artwork';
 import {
@@ -86,6 +88,13 @@ const PLAN_LINE_COLUMNS = `
   revenue_products ( name, slug, active, duration_days )
 `;
 
+export type PlanLinesRead =
+  | { state: 'ready'; lines: PlanLine[] }
+  /** The read failed. NEVER rendered as an empty plan, and never an empty tray. */
+  | { state: 'unavailable'; reason: string };
+
+const LINES_UNAVAILABLE = 'We could not load your plan just now.';
+
 /**
  * The lines of one plan: placements and NowOpen products, each with its own
  * details joined in.
@@ -95,16 +104,17 @@ const PLAN_LINE_COLUMNS = `
  * off keeps its line but is `offered: false`. A placement's `offered` is
  * decided later from `placement_trust` on the page, so it starts true here.
  */
-export async function fetchPlanLines(campaignId: string): Promise<PlanLine[]> {
+export async function fetchPlanLines(campaignId: string): Promise<PlanLinesRead> {
   const { data, error } = await supabase
     .from('ad_campaign_placements')
     .select(PLAN_LINE_COLUMNS)
     .eq('campaign_id', campaignId)
     .order('created_at');
 
-  if (error || !data) return [];
+  /* A failed read is not an empty plan: an empty answer here would let "add" skip nothing and the tray look fine. */
+  if (error || !data) return { state: 'unavailable', reason: LINES_UNAVAILABLE };
 
-  return (data as unknown as RawLine[]).map((r) => {
+  return { state: 'ready', lines: (data as unknown as RawLine[]).map((r) => {
     const isProduct = r.product_id != null;
     return {
       id: String(r.id),
@@ -126,7 +136,7 @@ export async function fetchPlanLines(campaignId: string): Promise<PlanLine[]> {
       artworkHeight: r.artwork_height == null ? null : Number(r.artwork_height),
       offered: isProduct ? r.revenue_products?.active === true : true,
     };
-  });
+  }) };
 }
 
 interface RawLine {
@@ -298,13 +308,26 @@ export async function addPlacement(
 
 /**
  * One thing to put in the plan. A placement's rate is copied in as it stands;
- * a product carries its fixed kobo price and its duration (`days`, from
- * `RevenueProduct.durationDays`).
+ * a product carries its fixed minor-unit price, its currency and its duration
+ * (`days`, from `RevenueProduct.durationDays`).
  */
 export type PlanItem =
   /** `days` defaults to 30 when left out. */
   | { kind: 'placement'; id: string; pricing: number | null; days?: number | null }
-  | { kind: 'product'; id: string; priceMinor: number; days: number | null };
+  | { kind: 'product'; id: string; priceMinor: number; days: number | null; currency: string };
+
+/**
+ * A NowOpen product as a plan item, or null when it cannot join a plan.
+ *
+ * Only a priced NGN product: plan lines cost products as NGN kobo
+ * (campaignPlan.lineCost), so any other currency would sit in the plan
+ * uncosted. Those keep the enquiry link instead. Every active product is NGN
+ * today; this is the guard for the day one is not.
+ */
+export function productPlanItem(p: RevenueProduct): Extract<PlanItem, { kind: 'product' }> | null {
+  if (p.priceMinor == null || p.currency !== 'NGN') return null;
+  return { kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays, currency: p.currency };
+}
 
 const localKey = (l: LocalLine) => (l.kind === 'placement' ? `placement:${l.advertId}` : `product:${l.productId}`);
 const itemKey = (i: PlanItem) => `${i.kind}:${i.id}`;
@@ -319,7 +342,7 @@ async function addProduct(
     days: item.days,
     price_basis: 'fixed',
     price_minor: item.priceMinor,
-    currency: 'NGN',
+    currency: item.currency,
   }]);
   if (error) {
     if (error.code === '23505') return { ok: false, error: DUPLICATE_PLACEMENT };
@@ -349,7 +372,9 @@ export async function addToPlan(items: PlanItem[]): Promise<PlanAddResult> {
    * Signed out means NO SESSION. getUser() is a network call, so a blip or a
    * token-refresh race must not send a signed-in user's adds to this browser.
    */
-  const { data: sess } = await supabase.auth.getSession();
+  const { data: sess, error: sessError } = await supabase.auth.getSession();
+  /* An unreadable session is not "signed out": nothing goes to this browser. */
+  if (sessError) return { ok: false, error: 'We could not reach your account just now.', added: 0 };
   if (!sess?.session) {
     const local: LocalLine[] = items.map((i) =>
       i.kind === 'placement'
@@ -373,8 +398,11 @@ export async function addToPlan(items: PlanItem[]): Promise<PlanAddResult> {
     if ('error' in made) return { ok: false, error: made.error, added: 0 };
     planId = made.id;
   } else {
+    /* Unknown contents are not empty contents: skipping nothing would trip the unique key and misreport. */
+    const there = await fetchPlanLines(planId);
+    if (there.state === 'unavailable') return { ok: false, error: there.reason, added: 0 };
     inPlan = new Set(
-      (await fetchPlanLines(planId)).flatMap((l) =>
+      there.lines.flatMap((l) =>
         l.productId ? [`product:${l.productId}`] : l.advertId ? [`placement:${l.advertId}`] : [],
       ),
     );
@@ -421,7 +449,9 @@ export async function addAdvertsToPlan(
  * Move the browser-held plan into the account, at sign-in.
  *
  * Null when there is nothing local (or nobody is signed in, or the local rows
- * could not be read), and then nothing is touched. Otherwise returns how many
+ * or their listing status could not be read), and then nothing is touched. A
+ * placement placement_trust no longer lists is not on offer: it stays local
+ * and is never moved. Otherwise returns how many
  * lines are now in the account (`moved`, including ones that were already
  * there) and how many stay on this device (`kept`: lines that failed to move,
  * and lines no longer on offer). Local storage is cleared only when `kept` is
@@ -442,6 +472,14 @@ export async function migrateLocalPlan(): Promise<{ moved: number; kept: number 
     return null;
   }
 
+  /* Listing status, the same rule the plan page applies. A failed read moves nothing. */
+  const advertIds = [...new Set(resolved.flatMap((l) => (l.kind === 'placement' && l.advertId ? [l.advertId] : [])))];
+  if (advertIds.length > 0) {
+    const trust = await fetchPlacementTrustResult(advertIds);
+    if (trust.failed) return null;
+    resolved = withListing(resolved, trust);
+  }
+
   const items: PlanItem[] = [];
   /** Index in `local` of each entry of `items`. */
   const itemAt: number[] = [];
@@ -452,7 +490,7 @@ export async function migrateLocalPlan(): Promise<{ moved: number; kept: number 
     items.push(
       l.kind === 'placement'
         ? { kind: 'placement', id: l.advertId, pricing: pl.ratePerDay, days: l.days }
-        : { kind: 'product', id: l.productId, priceMinor: pl.priceMinor ?? 0, days: pl.days },
+        : { kind: 'product', id: l.productId, priceMinor: pl.priceMinor ?? 0, days: pl.days, currency: pl.currency },
     );
   });
 
@@ -473,16 +511,27 @@ export async function migrateLocalPlan(): Promise<{ moved: number; kept: number 
   return { moved: moving.size, kept: remaining.length };
 }
 
+/*
+ * Writes below read back the ids they touched. RLS hides a row it will not
+ * let you change by matching nothing, which supabase-js reports as success;
+ * 0 rows is a failure. The owner SELECT policy covers the read-back, and these
+ * are not anonymous inserts, so .select() cannot lose the write.
+ */
+const touchedOne = (r: { data: unknown; error: unknown }) =>
+  !r.error && Array.isArray(r.data) && r.data.length > 0;
+
 export async function removePlacement(lineId: string): Promise<boolean> {
-  const { error } = await supabase.from('ad_campaign_placements').delete().eq('id', lineId);
-  if (!error) notifyPlanChanged();
-  return !error;
+  const out = await supabase.from('ad_campaign_placements').delete().eq('id', lineId).select('id');
+  const ok = touchedOne(out);
+  if (ok) notifyPlanChanged();
+  return ok;
 }
 
 export async function setLineDays(lineId: string, days: number | null): Promise<boolean> {
-  const { error } = await supabase.from('ad_campaign_placements').update({ days }).eq('id', lineId);
-  if (!error) notifyPlanChanged();
-  return !error;
+  const out = await supabase.from('ad_campaign_placements').update({ days }).eq('id', lineId).select('id');
+  const ok = touchedOne(out);
+  if (ok) notifyPlanChanged();
+  return ok;
 }
 
 const PLAN_ARTWORK_BUCKET = 'plan-artwork';
@@ -505,7 +554,7 @@ export async function setLineArtwork(
   lineId: string,
   art: { path: string; width: number; height: number; designId?: string | null },
 ): Promise<boolean> {
-  const { error } = await supabase
+  const out = await supabase
     .from('ad_campaign_placements')
     .update({
       artwork_url: art.path,
@@ -513,8 +562,9 @@ export async function setLineArtwork(
       artwork_height: art.height,
       artwork_design_id: art.designId ?? null,
     })
-    .eq('id', lineId);
-  if (error) return false;
+    .eq('id', lineId)
+    .select('id');
+  if (!touchedOne(out)) return false;
   notifyPlanChanged();
   return true;
 }

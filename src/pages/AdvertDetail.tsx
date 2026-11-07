@@ -72,10 +72,8 @@ export default function AdvertDetail() {
     setSavingPlan(true);
     const out = await addAdvertsToPlan([{ id: String(advert.id), pricing: advert.pricing ?? null }]);
     setSavingPlan(false);
-    /* Failures share the hub's toast, so signed out offers a way to sign in. */
-    if (!out.ok) { reportPlanAdd(out); return; }
-    if (out.skipped > 0) { toast('Already in your plan.'); return; }
-    toast.success('Added to your plan.');
+    /* Every result shares the hub's toast: a signed-out add says it is on this device only and offers sign-in. */
+    reportPlanAdd(out);
   };
 
   const previewScene = useMemo(

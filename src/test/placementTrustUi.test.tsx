@@ -70,7 +70,7 @@ vi.mock('../lib/promote/campaigns', async (importOriginal) => {
       state: 'ready',
       campaigns: [{ id: 'c1', name: 'My plan', objective: null, audience: null, startsOn: null, endsOn: null, budget: null, currency: 'NGN', status: 'draft', updatedAt: '2026-10-31' }],
     }),
-    fetchPlanLines: async () => plan.lines,
+    fetchPlanLines: async () => ({ state: 'ready' as const, lines: plan.lines }),
   };
 });
 

@@ -10,6 +10,8 @@ const h = vi.hoisted(() => ({
   fetchCampaigns: vi.fn(),
   fetchPlanLines: vi.fn(),
   fetchLocalPlanLines: vi.fn(),
+  /** placement_trust as read; failed by default, which changes nothing. */
+  trust: { map: new Map<string, unknown>(), failed: true } as { map: Map<string, unknown>; failed: boolean },
 }));
 
 vi.mock('../../contexts/AuthContext', () => ({
@@ -24,6 +26,9 @@ vi.mock('./localPlan', () => ({
     h.listener = cb;
     return () => { h.listener = null; };
   },
+}));
+vi.mock('./trust', () => ({
+  fetchPlacementTrustResult: async () => h.trust,
 }));
 vi.mock('./campaigns', () => ({
   fetchCampaigns: h.fetchCampaigns,
@@ -43,6 +48,7 @@ const line = (id: string, over: Partial<PlanLine> = {}): PlanLine => ({
 beforeEach(() => {
   h.user = null; h.authLoading = false; h.local = [];
   h.fetchCampaigns.mockReset(); h.fetchPlanLines.mockReset(); h.fetchLocalPlanLines.mockReset();
+  h.trust = { map: new Map(), failed: true };
 });
 afterEach(cleanup);
 
@@ -77,7 +83,7 @@ describe('usePlanSnapshot', () => {
   it('signed in: reads the newest campaign', async () => {
     h.user = { id: 'u1' };
     h.fetchCampaigns.mockResolvedValue({ state: 'ready', campaigns: [{ id: 'c-new' }, { id: 'c-old' }] });
-    h.fetchPlanLines.mockResolvedValue([line('a'), line('b')]);
+    h.fetchPlanLines.mockResolvedValue({ state: 'ready', lines: [line('a'), line('b')] });
     const { result } = renderHook(() => usePlanSnapshot());
     await waitFor(() => expect(result.current.loading).toBe(false));
     expect(h.fetchPlanLines).toHaveBeenCalledWith('c-new');
@@ -112,6 +118,37 @@ describe('usePlanSnapshot', () => {
     h.fetchLocalPlanLines.mockResolvedValue([line('a'), line('b')]);
     await act(async () => { h.listener?.(); });
     await waitFor(() => expect(result.current.lines).toHaveLength(2));
+  });
+
+  it('signed in: an unavailable lines read is failed, never an empty tray', async () => {
+    h.user = { id: 'u1' };
+    h.fetchCampaigns.mockResolvedValue({ state: 'ready', campaigns: [{ id: 'c1' }] });
+    h.fetchPlanLines.mockResolvedValue({ state: 'unavailable', reason: 'x' });
+    const { result } = renderHook(() => usePlanSnapshot());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.failed).toBe(true);
+    expect(result.current.summary).toBeNull();
+  });
+
+  it('the total leaves out a placement placement_trust no longer lists', async () => {
+    h.local = [{ kind: 'placement', advertId: 'a', days: 7 }, { kind: 'placement', advertId: 'gone', days: 7 }];
+    h.fetchLocalPlanLines.mockResolvedValue([line('a'), line('gone')]);
+    h.trust = { map: new Map([['a', {}]]), failed: false };
+    const { result } = renderHook(() => usePlanSnapshot());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.lines.find((l) => l.id === 'gone')?.offered).toBe(false);
+    const indicative = result.current.summary?.totals.find((t) => t.basis === 'indicative');
+    expect(indicative?.total).toBe(70); // a only: 10 x 7
+  });
+
+  it('a failed trust read changes nothing', async () => {
+    h.local = [{ kind: 'placement', advertId: 'a', days: 7 }, { kind: 'placement', advertId: 'b', days: 7 }];
+    h.fetchLocalPlanLines.mockResolvedValue([line('a'), line('b')]);
+    h.trust = { map: new Map(), failed: true };
+    const { result } = renderHook(() => usePlanSnapshot());
+    await waitFor(() => expect(result.current.loading).toBe(false));
+    expect(result.current.lines.every((l) => l.offered)).toBe(true);
+    expect(result.current.summary?.totals.find((t) => t.basis === 'indicative')?.total).toBe(140);
   });
 
   it('waits for auth to settle before reading', async () => {

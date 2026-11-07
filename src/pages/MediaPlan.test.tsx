@@ -10,7 +10,12 @@ const h = vi.hoisted(() => ({
   localFails: false,
   planLines: [] as unknown[],
   trust: { map: new Map<string, unknown>(), failed: false } as { map: Map<string, unknown>; failed: boolean },
+  campaigns: [] as unknown[],
+  linesUnavailable: false,
+  createCampaign: vi.fn(async () => ({ id: 'c-new' })),
 }));
+
+const PLAN_C1 = { id: 'c1', name: 'My plan', objective: null, audience: null, startsOn: null, endsOn: null, budget: null, currency: 'NGN', status: 'draft', updatedAt: '' };
 
 vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: h.user, loading: false }) }));
 vi.mock('../contexts/CurrencyContext', () => ({
@@ -27,11 +32,11 @@ vi.mock('../lib/promote/trust', async (orig) => ({
 }));
 vi.mock('../lib/promote/campaigns', async (orig) => ({
   ...(await orig<typeof import('../lib/promote/campaigns')>()),
-  fetchCampaigns: async () => ({
-    state: 'ready',
-    campaigns: [{ id: 'c1', name: 'My plan', objective: null, audience: null, startsOn: null, endsOn: null, budget: null, currency: 'NGN', status: 'draft', updatedAt: '' }],
-  }),
-  fetchPlanLines: async () => h.planLines,
+  fetchCampaigns: async () => ({ state: 'ready', campaigns: [...h.campaigns] }),
+  fetchPlanLines: async () => (h.linesUnavailable
+    ? { state: 'unavailable', reason: 'We could not load your plan just now.' }
+    : { state: 'ready', lines: [...h.planLines] }),
+  createCampaign: h.createCampaign,
   fetchLocalPlanLines: async () => {
     if (h.localFails) throw new Error('boom');
     return h.localLines;
@@ -39,7 +44,7 @@ vi.mock('../lib/promote/campaigns', async (orig) => ({
 }));
 
 import MediaPlan from './MediaPlan';
-import { LOCAL_PLAN_KEY, readLocalPlan } from '../lib/promote/localPlan';
+import { LOCAL_PLAN_KEY, notifyPlanChanged, readLocalPlan } from '../lib/promote/localPlan';
 import * as campaigns from '../lib/promote/campaigns';
 
 const base = (over: Partial<PlanLine>): PlanLine => ({
@@ -59,6 +64,7 @@ const page = () => render(<MemoryRouter initialEntries={['/advertise/plan']}><Me
 beforeEach(() => {
   h.user = null; h.localLines = []; h.localFails = false; h.planLines = [];
   h.trust = { map: new Map(), failed: true };
+  h.campaigns = [PLAN_C1]; h.linesUnavailable = false; h.createCampaign.mockClear();
   window.localStorage.setItem(LOCAL_PLAN_KEY, JSON.stringify({ v: 1, lines: [{ kind: 'placement', advertId: 'a1', days: 30 }] }));
 });
 afterEach(() => { cleanup(); window.localStorage.clear(); });
@@ -171,5 +177,63 @@ describe('plan page, signed in', () => {
     await waitFor(() => expect(screen.getByRole('button', { name: /Send this plan/ })).toBeTruthy());
     expect(screen.queryByText(/on this device only/)).toBeNull();
     expect(document.querySelector('a[href="/adverts/a1"]')).not.toBeNull();
+  });
+});
+
+describe('plan page, signed in, stays current', () => {
+  it('a plan-changed event after mount shows the new lines', async () => {
+    h.user = { id: 'u1' };
+    h.planLines = [base({ id: 'l1', title: 'Allen Avenue gantry' })];
+    page();
+    await screen.findByText('Allen Avenue gantry');
+    h.planLines = [...h.planLines, base({ id: 'l2', advertId: 'a2', title: 'Ikorodu shelter' })];
+    notifyPlanChanged();
+    await screen.findByText('Ikorodu shelter');
+  });
+
+  it('"Start a plan" opens the plan the re-read finds instead of making a second one', async () => {
+    h.user = { id: 'u1' };
+    h.campaigns = [];
+    page();
+    const startBtn = await screen.findByRole('button', { name: /Start a plan/ });
+    h.campaigns = [PLAN_C1];
+    h.planLines = [base({ id: 'l1', title: 'Allen Avenue gantry' })];
+    fireEvent.click(startBtn);
+    await screen.findByText('Allen Avenue gantry');
+    expect(h.createCampaign).not.toHaveBeenCalled();
+  });
+
+  it('"Start a plan" creates one when the re-read still finds none', async () => {
+    h.user = { id: 'u1' };
+    h.campaigns = [];
+    page();
+    fireEvent.click(await screen.findByRole('button', { name: /Start a plan/ }));
+    await waitFor(() => expect(h.createCampaign).toHaveBeenCalledTimes(1));
+  });
+
+  it('a failed lines read is a failed read, never an empty plan', async () => {
+    h.user = { id: 'u1' };
+    h.linesUnavailable = true;
+    page();
+    await screen.findByText('We could not load your plan just now.');
+    expect(screen.queryByText(/Nothing in this plan yet/)).toBeNull();
+  });
+});
+
+describe('plan page, the rate-card note', () => {
+  const NOTE = /indicative rates from published rate cards/;
+
+  it('shows when a line is indicative', async () => {
+    h.localLines = [base({ id: 'local:a1', title: 'Allen Avenue gantry' })];
+    page();
+    await screen.findByText('Allen Avenue gantry');
+    expect(screen.getByText(NOTE)).toBeTruthy();
+  });
+
+  it('is absent when no line is indicative', async () => {
+    h.localLines = [product(), base({ id: 'local:a1', title: 'Allen Avenue gantry', priceBasis: 'unpriced', ratePerDay: null })];
+    page();
+    await screen.findByText('Allen Avenue gantry');
+    expect(screen.queryByText(NOTE)).toBeNull();
   });
 });

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { MemoryRouter, Route, Routes } from 'react-router-dom';
 
 /*
@@ -11,6 +11,16 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
  */
 
 const row = vi.hoisted(() => ({ current: null as Record<string, unknown> | null }));
+/* The plan write and its toast, so "Save to my plan" can be pressed without writing anything. */
+const planAdd = vi.hoisted(() => ({
+  add: vi.fn(async () => ({ ok: true as const, added: 1, skipped: 0, local: true })),
+  report: vi.fn(),
+}));
+vi.mock('../lib/promote/campaigns', async (orig) => ({
+  ...(await orig<typeof import('../lib/promote/campaigns')>()),
+  addAdvertsToPlan: planAdd.add,
+}));
+vi.mock('../lib/promote/planToast', () => ({ reportPlanAdd: planAdd.report }));
 
 vi.mock('../lib/supabase', () => {
   const chain = (table: string): any => {
@@ -37,7 +47,8 @@ vi.mock('../contexts/CurrencyContext', () => ({
     convert: (n: number) => n, rate: 1, ngnPerUsd: 1,
   }),
 }));
-vi.mock('react-hot-toast', () => ({ default: Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }) }));
+const toasts = vi.hoisted(() => Object.assign(vi.fn(), { success: vi.fn(), error: vi.fn() }));
+vi.mock('react-hot-toast', () => ({ default: toasts }));
 vi.mock('../contexts/AuthContext', () => ({
   useAuth: () => ({ user: null, session: null, loading: false, signOut: vi.fn() }),
 }));
@@ -89,5 +100,15 @@ describe('the claim button on a placement page', () => {
     open();
     await screen.findByRole('heading', { name: 'No longer listed' });
     expect(screen.queryByTestId('claim-button')).toBeNull();
+  });
+});
+
+describe('"Save to my plan" on a placement page', () => {
+  it('signed out, the add goes through the shared toast, which says it is on this device only', async () => {
+    row.current = advert({ owner_id: 'o1' });
+    open();
+    fireEvent.click(await screen.findByRole('button', { name: /Save to my plan/ }));
+    await waitFor(() => expect(planAdd.report).toHaveBeenCalledWith({ ok: true, added: 1, skipped: 0, local: true }));
+    expect(toasts.success).not.toHaveBeenCalledWith('Added to your plan.');
   });
 });

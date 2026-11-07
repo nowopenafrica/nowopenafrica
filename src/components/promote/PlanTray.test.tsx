@@ -83,6 +83,24 @@ describe('PlanTray', () => {
     expect(screen.getAllByText('to be quoted').length).toBeGreaterThanOrEqual(2);
   });
 
+  it('a NowOpen-price group with no total says "price to confirm", never "to be quoted"', () => {
+    h.snap = snapshot([
+      line('p', { kind: 'product', advertId: null, productId: 'p', priceBasis: 'fixed', currency: 'NGN', priceMinor: null, days: 30, ratePerDay: null }),
+    ]);
+    renderTray();
+    const region = screen.getByRole('region', { name: 'Your plan' });
+    expect(region.textContent).toContain('price to confirm');
+    expect(region.textContent).not.toContain('to be quoted');
+  });
+
+  it('clears the Universal Create pill from sm up (explicit px, not rem)', () => {
+    h.snap = snapshot([line('a')]);
+    renderTray();
+    const row = screen.getByText('1 in your plan').parentElement!;
+    expect(row.className).toContain('sm:pl-[136px]');
+    expect(row.className).not.toMatch(/sm:px-/);
+  });
+
   it('has a same-height spacer in flow and is not a dialog', () => {
     h.snap = snapshot([line('a')]);
     renderTray();
@@ -118,6 +136,19 @@ describe('PlanSync', () => {
     await Promise.resolve();
     expect(h.migrate).toHaveBeenCalledTimes(1);
     expect(h.toast.success).toHaveBeenCalledWith('Moved 2 lines into your plan.');
+  });
+
+  it('signing out and back in as the same user migrates again', async () => {
+    h.user = { id: 'u1' };
+    h.local = [{ kind: 'product', productId: 'p' }];
+    h.migrate.mockResolvedValue({ moved: 1, kept: 0 });
+    const r = mount();
+    await waitFor(() => expect(h.migrate).toHaveBeenCalledTimes(1));
+    h.user = null;
+    r.rerender(<PlanSync />);
+    h.user = { id: 'u1' };
+    r.rerender(<PlanSync />);
+    await waitFor(() => expect(h.migrate).toHaveBeenCalledTimes(2));
   });
 
   it('never migrates when nothing is held locally', async () => {
