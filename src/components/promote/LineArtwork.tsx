@@ -74,19 +74,32 @@ export default function LineArtwork({
   const [preview, setPreview] = useState<{ url: string; n: number } | null>(null);
   const [opens, setOpens] = useState(0);
   const fileRef = useRef<HTMLInputElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+  const returnTo = useRef<HTMLElement | null>(null);
+  const thumbRetried = useRef(false);
 
   const path = line.artworkUrl;
   useEffect(() => {
     let live = true;
     setThumb(null);
+    thumbRetried.current = false;
     if (!path) return undefined;
     void artworkUrlFor(path).then((u) => { if (live) setThumb(u); });
     return () => { live = false; };
   }, [path]);
 
+  const closePreview = () => {
+    setPreview(null);
+    const back = returnTo.current;
+    returnTo.current = null;
+    /* After the dialog unmounts, so focus is not taken back by the removal. */
+    if (back) setTimeout(() => { if (back.isConnected) back.focus(); }, 0);
+  };
+
   useEffect(() => {
     if (!preview) return undefined;
-    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') setPreview(null); };
+    closeRef.current?.focus();
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') closePreview(); };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
   }, [preview]);
@@ -116,8 +129,8 @@ export default function LineArtwork({
     setProblem(null);
     setBusy(true);
     try {
-      const up = await uploadLineArtwork(campaignId, line.id, file);
-      if ('error' in up) { setProblem(up.error); return; }
+      /* Measure first (no network): the upload overwrites a same-named file,
+         so an unreadable image must never reach storage. */
       let measured: { width: number; height: number };
       try {
         measured = await measureFile(file);
@@ -126,6 +139,8 @@ export default function LineArtwork({
         return;
       }
       if (!isSize(measured.width) || !isSize(measured.height)) { setProblem(UNREADABLE); return; }
+      const up = await uploadLineArtwork(campaignId, line.id, file);
+      if ('error' in up) { setProblem(up.error); return; }
       const art = { path: up.path, width: measured.width, height: measured.height };
       if (!(await setLineArtwork(line.id, art))) { setProblem('We could not save that artwork. Try again.'); return; }
       setOpen(false);
@@ -142,6 +157,7 @@ export default function LineArtwork({
     /* A signed link lasts an hour, so sign a fresh one on every open. */
     const url = await artworkUrlFor(path);
     if (!url) { setProblem('We could not open that artwork just now.'); return; }
+    if (document.activeElement instanceof HTMLElement) returnTo.current = document.activeElement;
     setOpens((n) => n + 1);
     setPreview({ url, n: opens + 1 });
   };
@@ -166,7 +182,15 @@ export default function LineArtwork({
       {hasArt && (
         <div className="flex items-center gap-3">
           {thumb ? (
-            <img src={thumb} alt={`Artwork for ${line.title}`} className="h-12 w-12 shrink-0 rounded-md border border-gray-200 object-cover dark:border-gray-700" />
+            <img
+              src={thumb}
+              alt={`Artwork for ${line.title}`}
+              onError={() => {
+                /* A signed link can lapse; sign a fresh one, once. */
+                if (thumbRetried.current || !path) return;
+                thumbRetried.current = true;
+                void artworkUrlFor(path).then((u) => { if (u) setThumb(u); });
+              }} className="h-12 w-12 shrink-0 rounded-md border border-gray-200 object-cover dark:border-gray-700" />
           ) : (
             <span className="grid h-12 w-12 shrink-0 place-items-center rounded-md border border-gray-200 text-gray-400 dark:border-gray-700"><ImagePlus size={16} /></span>
           )}
@@ -231,7 +255,7 @@ export default function LineArtwork({
         <div role="dialog" aria-modal="true" aria-label={`Preview of ${line.title}`} className="fixed inset-0 z-50 overflow-y-auto bg-black/60 p-3 sm:p-6">
           <div className="mx-auto max-w-5xl rounded-2xl bg-white p-4 dark:bg-gray-800">
             <div className="mb-3 flex justify-end">
-              <button type="button" onClick={() => setPreview(null)} aria-label="Close preview" className="grid h-[44px] w-[44px] place-items-center rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
+              <button ref={closeRef} type="button" onClick={closePreview} aria-label="Close preview" className="grid h-[44px] w-[44px] place-items-center rounded-lg text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700">
                 <X size={18} />
               </button>
             </div>

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { cleanup, render, screen, waitFor, within } from '@testing-library/react';
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import type { PlanLine } from '../lib/promote/campaignPlan';
@@ -39,7 +39,8 @@ vi.mock('../lib/promote/campaigns', async (orig) => ({
 }));
 
 import MediaPlan from './MediaPlan';
-import { LOCAL_PLAN_KEY } from '../lib/promote/localPlan';
+import { LOCAL_PLAN_KEY, readLocalPlan } from '../lib/promote/localPlan';
+import * as campaigns from '../lib/promote/campaigns';
 
 const base = (over: Partial<PlanLine>): PlanLine => ({
   id: 'x', advertId: 'a1', title: 'Shelter', type: 'Billboard', location: 'Lagos', dimensions: '12m x 6m',
@@ -83,6 +84,30 @@ describe('plan page, signed out', () => {
   });
 });
 
+describe('plan page, signed out edits stay on the device', () => {
+  it('remove goes through localPlan only', async () => {
+    const rm = vi.spyOn(campaigns, 'removePlacement');
+    const days = vi.spyOn(campaigns, 'setLineDays');
+    h.localLines = [base({ id: 'local:a1', title: 'Allen Avenue gantry' })];
+    page();
+    fireEvent.click(await screen.findByRole('button', { name: 'Remove Allen Avenue gantry from this plan' }));
+    await waitFor(() => expect(readLocalPlan().some((l) => l.kind === 'placement' && l.advertId === 'a1')).toBe(false));
+    expect(rm).not.toHaveBeenCalled();
+    expect(days).not.toHaveBeenCalled();
+  });
+
+  it('days change goes through localPlan only', async () => {
+    const rm = vi.spyOn(campaigns, 'removePlacement');
+    const days = vi.spyOn(campaigns, 'setLineDays');
+    h.localLines = [base({ id: 'local:a1', title: 'Allen Avenue gantry' })];
+    page();
+    fireEvent.change(await screen.findByLabelText('Days for Allen Avenue gantry'), { target: { value: '45' } });
+    await waitFor(() => expect(readLocalPlan()).toEqual([{ kind: 'placement', advertId: 'a1', days: 45 }]));
+    expect(rm).not.toHaveBeenCalled();
+    expect(days).not.toHaveBeenCalled();
+  });
+});
+
 describe('plan page lines', () => {
   it('a product line has price basis, period and no artwork, days, trust or placement link', async () => {
     h.localLines = [product(), base({ id: 'local:a1', title: 'Allen Avenue gantry' })];
@@ -99,9 +124,10 @@ describe('plan page lines', () => {
   });
 
   it('a withdrawn line says so, offers Remove only, and leaves the totals', async () => {
-    h.localLines = [product({ offered: false, title: 'No longer on offer' }), base({ id: 'local:a1', title: 'Allen Avenue gantry' })];
+    h.localLines = [product({ offered: false, title: 'Old product' }), base({ id: 'local:a1', title: 'Allen Avenue gantry' })];
     page();
-    const li = (await screen.findAllByText('No longer on offer'))[0].closest('li')!;
+    const li = (await screen.findByText('Old product')).closest('li')!;
+    expect(within(li).getByText('No longer on offer')).toBeTruthy();
     expect(within(li).getByRole('button', { name: /Remove/ })).toBeTruthy();
     expect(within(li).queryByLabelText(/Days for/)).toBeNull();
     expect(screen.queryByText(/NowOpen price/)).toBeNull();

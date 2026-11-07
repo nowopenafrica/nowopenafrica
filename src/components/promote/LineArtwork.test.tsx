@@ -122,8 +122,9 @@ describe('LineArtwork', () => {
 
     h.size = { w: 10, h: 10, fail: true };
     upload();
-    await waitFor(() => expect(h.upload).toHaveBeenCalledTimes(2));
-    await screen.findByText("We could not read that image's size.");
+    await waitFor(() => expect(screen.getByText("We could not read that image's size.")).toBeTruthy());
+    /* Measured first: an unreadable file never reaches storage, so it cannot overwrite attached artwork. */
+    expect(h.upload).not.toHaveBeenCalled();
     expect(h.setArt).not.toHaveBeenCalled();
   });
 
@@ -185,6 +186,29 @@ describe('LineArtwork', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Preview on the medium' }));
     await screen.findByTestId('studio');
     expect(h.signed.mock.calls.length).toBe(before + 2);
+  });
+
+  it('re-signs the thumbnail once when it fails to load', async () => {
+    h.signed.mockResolvedValueOnce('https://signed.example/old.png').mockResolvedValueOnce('https://signed.example/new.png');
+    view(line({ artworkUrl: 'u1/c1/l1-art.png', artworkWidth: 2400, artworkHeight: 1200 }));
+    const img = await screen.findByAltText('Artwork for Allen Avenue gantry');
+    expect(img.getAttribute('src')).toBe('https://signed.example/old.png');
+    fireEvent.error(img);
+    await waitFor(() => expect(screen.getByAltText('Artwork for Allen Avenue gantry').getAttribute('src')).toBe('https://signed.example/new.png'));
+    fireEvent.error(screen.getByAltText('Artwork for Allen Avenue gantry'));
+    expect(h.signed).toHaveBeenCalledTimes(2);
+  });
+
+  it('moves focus into the preview and returns it to the trigger on close', async () => {
+    view(line({ artworkUrl: 'u1/c1/l1-art.png', artworkWidth: 2400, artworkHeight: 1200 }));
+    const trigger = screen.getByRole('button', { name: 'Preview on the medium' });
+    trigger.focus();
+    fireEvent.click(trigger);
+    const close = await screen.findByRole('button', { name: 'Close preview' });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+    fireEvent.keyDown(window, { key: 'Escape' });
+    await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    expect(document.activeElement).toBe(screen.getByRole('button', { name: 'Preview on the medium' }));
   });
 
   it('unknown placement size says to confirm', () => {
