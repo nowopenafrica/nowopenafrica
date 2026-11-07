@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import {
   openNow, newest, topRated, hiddenGems, near,
   affinityCategories, recommended, businessHref,
-  isClaimed, hasListingImage, claimedFirst, byImageThenClaimedThenVerified, featuredFirst,
+  isClaimed, hasListingImage, claimedFirst, byClaimedThenImageThenVerified, featuredFirst,
   shuffle, shuffledSort, DISCOVER_SELECT,
   type DiscoverBusiness,
 } from '../lib/discover';
@@ -506,20 +506,32 @@ describe('business card ordering', () => {
       { id: 'claim-plain', claimed: true, hasImage: false, verified: false },
       { id: 'import-with-logo', claimed: false, hasImage: true, verified: false },
     ];
-    expect([...rows].sort(byImageThenClaimedThenVerified).map((r) => r.id))
-      .toEqual(['import-with-logo', 'claim-plain']);
+    expect([...rows].sort(byClaimedThenImageThenVerified).map((r) => r.id))
+      .toEqual(['claim-plain', 'import-with-logo']);
   });
 
-  it('lifts image-complete businesses above claimed shells', () => {
-    // Image is the first tier — a card that shows something leads, whatever
-    // its claim state; a real owner is the second tier, verification third.
+  it('lifts a claimed business above an image-complete import', () => {
+    /*
+     * REVERSED 2026-09-14, deliberately. This test previously asserted the
+     * opposite — that an import with a logo led a claimed shell — which was
+     * the rule agreed on 2026-09-13 so the front page would look finished.
+     *
+     * The owner reversed it: a claimed profile is a business that turned up,
+     * and leading with a prettier guess tells every owner that claiming buys
+     * them nothing. Claim is the first tier, image the second, verification
+     * the third.
+     *
+     * MEASURED before the change, so the cost is known: of 3,115 listable
+     * published rows exactly ONE is claimed without an image, so exactly one
+     * card moves ahead of a finished-looking one.
+     */
     const rows = [
       { id: 'import-with-logo', claimed: false, hasImage: true, verified: false },
       { id: 'claimed-no-image', claimed: true, hasImage: false, verified: true },
       { id: 'import-no-image', claimed: false, hasImage: false, verified: true },
     ];
-    expect([...rows].sort(byImageThenClaimedThenVerified).map((r) => r.id))
-      .toEqual(['import-with-logo', 'claimed-no-image', 'import-no-image']);
+    expect([...rows].sort(byClaimedThenImageThenVerified).map((r) => r.id))
+      .toEqual(['claimed-no-image', 'import-with-logo', 'import-no-image']);
   });
 
   it('asks the database for the columns the rule needs', () => {
@@ -600,8 +612,9 @@ describe('shuffle / shuffledSort', () => {
       { id: 'shell', hasImage: false, claimed: false, verified: false },
     ];
     for (let n = 0; n < 30; n += 1) {
-      const sorted = shuffledSort(rows, byImageThenClaimedThenVerified);
-      expect(sorted.map((r) => r.id)).toEqual(['image', 'claimed', 'verified', 'shell']);
+      const sorted = shuffledSort(rows, byClaimedThenImageThenVerified);
+      // Claim first, then image, then verification — see the tier tests above.
+      expect(sorted.map((r) => r.id)).toEqual(['claimed', 'image', 'verified', 'shell']);
       expect(sorted.length).toBe(rows.length);
     }
   });
@@ -612,8 +625,45 @@ describe('shuffle / shuffledSort', () => {
     const rows = ['a', 'b', 'c', 'd', 'e', 'f'].map((id) => ({ id, hasImage: true }));
     const seen = new Set<string>();
     for (let n = 0; n < 30; n += 1) {
-      seen.add(shuffledSort(rows, byImageThenClaimedThenVerified).map((r) => r.id).join(','));
+      seen.add(shuffledSort(rows, byClaimedThenImageThenVerified).map((r) => r.id).join(','));
     }
     expect(seen.size).toBeGreaterThan(1);
+  });
+});
+
+describe('the 24/7 default must not leak into "Open right now"', () => {
+  /*
+   * MEASURED 2026-09-14: 3,056 of 3,059 listings carry
+   * `availability_mode = 'default_24_7'` with `is_24_hours_confirmed = false`.
+   * Nobody has told NowOpen when any of them opens.
+   *
+   * `publicOpenState` deliberately calls such a listing `open` with the
+   * detail "Open 24 hours · default" — a considered product decision, pinned
+   * by its own test in openingHours.test.ts, and honest because every badge
+   * renders the qualifier beside the label.
+   *
+   * The discover rails are conservative for a DIFFERENT reason:
+   * DISCOVER_SELECT does not carry `availability_mode` or
+   * `is_24_hours_confirmed`, so the state machine sees no default to apply
+   * and answers "Hours not confirmed". The rails therefore show only
+   * businesses with real hours.
+   *
+   * That is the right outcome reached by accident, and an accident is exactly
+   * what this test converts into a decision: adding those two columns to the
+   * select would silently move 3,056 unconfirmed listings into a rail
+   * headed "Doors open as of this minute". If someone wants that, it should
+   * be a deliberate change that fails here first.
+   */
+  it('does not ask the database for the columns that would trigger the default', () => {
+    expect(DISCOVER_SELECT).not.toContain('availability_mode');
+    expect(DISCOVER_SELECT).not.toContain('is_24_hours_confirmed');
+  });
+
+  it('keeps a listing with no hours out of the open rail', () => {
+    const unconfirmed = b({ id: 'no-hours' });
+    const real = b({ id: 'real-hours', opening_hours: 'Mon-Sun 00:00-23:59' });
+    const ids = openNow([unconfirmed, real], now).map((x) => x.id);
+    expect(ids).toContain('real-hours');
+    expect(ids).not.toContain('no-hours');
   });
 });

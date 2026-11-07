@@ -39,7 +39,7 @@ describe('the empty directory', () => {
 
   it('offers the owner a way in', () => {
     renderIt();
-    const cta = screen.getByRole('link', { name: /list your business/i });
+    const cta = screen.getByRole('link', { name: /add your business/i });
     expect(cta).toHaveAttribute('href', '/waitlist');
   });
 
@@ -93,13 +93,15 @@ describe('the empty state is only used when the directory is truly empty', () =>
      * not ask. The homepage and /businesses still carry it — this asserts only
      * that Create does not, and that its own empty state is not a dead end.
      */
-    const media = readFileSync('src/pages/Media.tsx', 'utf8');
+    /* The creator marketplace and its empty state moved to /media/services. */
+    expect(readFileSync('src/pages/Media.tsx', 'utf8')).not.toContain('<IndustryDirectory');
+    const media = readFileSync('src/pages/MediaServices.tsx', 'utf8');
     expect(media).not.toContain('<IndustryDirectory');
     expect(media).not.toContain('The directory is being built');
     expect(media).not.toContain('Is this your industry');
     expect(media).toContain('No creative professionals listed yet');
-    // Both routes out have to be real.
-    expect(media).toContain('#create-designs');
+    // Both routes out have to be real: back to the designs on /media, or list yourself.
+    expect(media).toContain('to="/media"');
     expect(media).toMatch(/to="\/waitlist"/);
     expect(readFileSync('src/components/create/TemplateGallery.tsx', 'utf8'))
       .toContain('id="create-designs"');

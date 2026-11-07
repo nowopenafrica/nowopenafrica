@@ -37,7 +37,7 @@ export interface LiveShareInput {
 }
 
 /** Where a shared live link points. Short, because it gets typed out loud. */
-export const liveShareUrl = (streamId: string, siteUrl = 'https://nowopenafrica.com'): string =>
+export const liveShareUrl = (streamId: string, siteUrl = 'https://www.nowopenafrica.com'): string =>
   `${siteUrl.replace(/\/$/, '')}/live/${streamId}`;
 
 /**

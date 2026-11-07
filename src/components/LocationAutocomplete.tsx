@@ -1,12 +1,21 @@
-import { useMemo, useRef, useState, KeyboardEvent } from 'react';
+import { useEffect, useMemo, useRef, useState, KeyboardEvent } from 'react';
 import { MapPin, Navigation, LocateFixed, Loader2 } from 'lucide-react';
 import { AFRICAN_PLACES, placeLabel } from '../data/locations';
-import { rankMatches, splitMatch } from '../lib/search';
+import { normalize, rankMatches, splitMatch } from '../lib/search';
 import { detectLocation } from '../lib/geolocation';
+import { suggestPlaces, MIN_QUERY_LENGTH, type PlaceHit } from '../lib/universalSearch';
 
 interface Suggestion {
   label: string;
   sub?: string;
+  /**
+   * This place has no listings.
+   *
+   * Only ever true for the curated city list. It is carried so the row can SAY
+   * so: a suggestion that silently filters the directory to nothing reads as a
+   * broken directory rather than as an honest gap in coverage.
+   */
+  empty?: boolean;
 }
 
 interface LocationAutocompleteProps {
@@ -14,6 +23,15 @@ interface LocationAutocompleteProps {
   onChange: (value: string) => void;
   /** Locations found in live data, merged above the curated city list */
   extraOptions?: string[];
+  /**
+   * Ask the database for places instead of relying on `extraOptions`.
+   *
+   * /businesses can pass `extraOptions` because it has already fetched every
+   * listing. The home page has not, and must not fetch 3,141 rows to populate a
+   * dropdown — so it sets this, and place_suggest() answers in about 8ms with
+   * the place names AND how many businesses are in each.
+   */
+  remote?: boolean;
   placeholder?: string;
   /*
    * The accessible name.
@@ -49,6 +67,7 @@ export default function LocationAutocomplete({
   value,
   onChange,
   extraOptions = [],
+  remote = false,
   placeholder = 'e.g., Lagos, Ikeja...',
   ariaLabel = 'Filter by location',
   className = '',
@@ -58,6 +77,67 @@ export default function LocationAutocomplete({
   const [active, setActive] = useState(-1);
   const [detecting, setDetecting] = useState(false);
   const blurTimer = useRef<number>();
+
+  /* ── Remote places ──────────────────────────────────────────────── */
+  const [live, setLive] = useState<PlaceHit[]>([]);
+  const [degraded, setDegraded] = useState(false);
+  /*
+   * An answer has come back for what is currently typed.
+   *
+   * "No listings yet" is a claim about the database, so it may not be made
+   * before the database has been asked. Without this the label appeared on the
+   * first render — while the request was still in flight — and then vanished
+   * when the answer arrived, which is both a flicker and, for that moment, a
+   * statement made on no evidence at all.
+   */
+  const [settled, setSettled] = useState(false);
+  /*
+   * The newest request wins. Type "lag" then "lagos": if the first answer lands
+   * last it paints results for a query nobody is looking at any more, and
+   * nothing on screen says so. Compared on the way out rather than cancelled on
+   * the way in, because the extra request is not the bug — the ordering is.
+   */
+  const seq = useRef(0);
+  const debounceTimer = useRef<number>();
+
+  useEffect(() => {
+    if (!remote) return;
+    const term = value.trim();
+    window.clearTimeout(debounceTimer.current);
+
+    setSettled(false);
+    if (term.length < MIN_QUERY_LENGTH) {
+      // Discard anything in flight too, or it lands afterwards and repopulates
+      // a list the visitor has just emptied.
+      seq.current += 1;
+      setLive([]);
+      setDegraded(false);
+      return;
+    }
+
+    debounceTimer.current = window.setTimeout(() => {
+      const mine = ++seq.current;
+      suggestPlaces(term, 6).then(({ places, degraded: failed }) => {
+        if (mine !== seq.current) return;
+        setLive(places);
+        setDegraded(failed);
+        setSettled(true);
+      });
+    }, 160);
+  }, [value, remote]);
+
+  /*
+   * Both timers cancelled on unmount.
+   *
+   * The close-on-blur delay exists so a click on a suggestion lands before the
+   * list closes. Nothing cancelled it, so it could fire into a component that
+   * had already gone — and this box is on pages people navigate away from
+   * mid-typing, which is exactly when it is pending.
+   */
+  useEffect(() => () => {
+    window.clearTimeout(blurTimer.current);
+    window.clearTimeout(debounceTimer.current);
+  }, []);
 
   const useMyLocation = async () => {
     setDetecting(true);
@@ -77,26 +157,72 @@ export default function LocationAutocomplete({
   const suggestions = useMemo<Suggestion[]>(() => {
     if (!value.trim()) return [];
 
-    // Live listing locations first (they're bookable right now)…
-    const fromData = rankMatches(
-      [...new Set(extraOptions.filter(Boolean))],
-      value,
-      (loc) => [loc],
-      3
-    ).map((label) => ({ label, sub: 'On NowOpen' }));
+    /*
+     * Places that HAVE listings, first, each saying how many.
+     *
+     * The count is the point. 278 places hold 3,141 listings and the
+     * distribution is steep — Lagos 325, Lekki 5, most of them one. "Lekki · 5
+     * businesses" tells somebody what they are about to get before they commit
+     * to it.
+     *
+     * In `remote` mode these come from place_suggest(); otherwise from the
+     * caller's already-fetched listings, which is what /businesses has.
+     */
+    const fromData: Suggestion[] = remote
+      ? live.map((p) => ({
+        label: p.label,
+        sub: `${p.hits} ${p.hits === 1 ? 'business' : 'businesses'}`,
+      }))
+      : rankMatches(
+        [...new Set(extraOptions.filter(Boolean))],
+        value,
+        (loc) => [loc],
+        3,
+      ).map((label) => ({ label, sub: 'On NowOpen' }));
 
-    // …then the curated place list, skipping near-duplicates
+    /*
+     * Then the 87 curated African cities, for places the directory does not
+     * cover yet.
+     *
+     * ── WHEN "NO LISTINGS YET" IS ACTUALLY TRUE ──────────────────────────
+     *
+     * Only when the CITY NAME ITSELF matched what was typed — and the first
+     * version of this got it wrong in a way worth recording.
+     *
+     * OBSERVED IN THE BROWSER, 2026-09-17. Typing "lag" listed
+     * "Ikeja, Lagos, Nigeria — No listings yet". Ikeja has TEN listings. It
+     * appeared because "lag" matches *Lagos* further along the label, and
+     * place_suggest was never asked about Ikeja: it matches on the stored
+     * location string, and "Ikeja" does not contain "lag".
+     *
+     * So the absence of a place from place_suggest only means "no listings"
+     * when the query would have FOUND it. place_suggest matches
+     * `location ilike '%term%'`, so if the head of the curated label contains
+     * the term, any business stored under that head would have come back. When
+     * it does not, we know nothing — and the row says nothing.
+     */
+    const q = normalize(value);
+    const known = (label: string) => normalize(label.split(',')[0]).includes(q);
+
     const fromPlaces = rankMatches(
       AFRICAN_PLACES,
       value,
       (p) => [p.name, placeLabel(p)],
-      8
+      8,
     )
-      .map((p) => ({ label: placeLabel(p), sub: undefined as string | undefined }))
+      .map((p): Suggestion => {
+        const label = placeLabel(p);
+        const provablyEmpty = remote && settled && !degraded && known(label);
+        return {
+          label,
+          sub: provablyEmpty ? 'No listings yet' : undefined,
+          empty: provablyEmpty,
+        };
+      })
       .filter((s) => !fromData.some((d) => d.label.toLowerCase().includes(s.label.split(',')[0].toLowerCase())));
 
     return [...fromData, ...fromPlaces].slice(0, 7);
-  }, [value, extraOptions]);
+  }, [value, extraOptions, remote, live, degraded, settled]);
 
   const pick = (s: Suggestion) => {
     onChange(s.label);
@@ -152,13 +278,24 @@ export default function LocationAutocomplete({
         {detecting ? <Loader2 size={16} className="animate-spin" /> : <LocateFixed size={16} />}
       </button>
 
-      {open && suggestions.length > 0 && (
-        <ul
-          role="listbox"
+      {open && (suggestions.length > 0 || degraded) && (
+        <div
           className="absolute z-30 left-0 right-0 mt-1 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-xl overflow-hidden"
           // Keep focus on the input so onBlur doesn't fire before the click lands
           onMouseDown={(e) => e.preventDefault()}
         >
+        {degraded && (
+          /*
+           * Said out loud. A failed read and an empty directory are the same
+           * shape coming back from supabase-js, so without this the box tells
+           * somebody NowOpen covers nowhere near them when their connection
+           * dropped — a confident wrong answer, worse than a visible error.
+           */
+          <p className="px-3 py-2 text-xs text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-200 dark:border-amber-900">
+            Places could not be loaded just now. You can still type a place and search.
+          </p>
+        )}
+        <ul role="listbox" aria-label="Place suggestions">
           {suggestions.map((s, i) => (
             <li key={s.label}>
               <button
@@ -172,11 +309,18 @@ export default function LocationAutocomplete({
                 }`}
               >
                 <Navigation size={14} className="text-gray-400 flex-shrink-0" />
-                <span className="text-gray-700 dark:text-gray-300 truncate">
+                <span className={`truncate ${s.empty ? 'text-gray-500 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'}`}>
                   <Highlight label={s.label} query={value} />
                 </span>
                 {s.sub && (
-                  <span className="ml-auto text-[10px] font-medium text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30 px-1.5 py-0.5 rounded-full flex-shrink-0">
+                  /* Grey, not green, when there is nothing there. The badge is
+                     read as a count of what you will get, so a place with none
+                     must not wear the same colour as a place with 325. */
+                  <span className={`ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded-full flex-shrink-0 ${
+                    s.empty
+                      ? 'text-gray-500 dark:text-gray-400 bg-gray-100 dark:bg-gray-700'
+                      : 'text-green-600 dark:text-green-400 bg-green-50 dark:bg-green-900/30'
+                  }`}>
                     {s.sub}
                   </span>
                 )}
@@ -184,6 +328,7 @@ export default function LocationAutocomplete({
             </li>
           ))}
         </ul>
+        </div>
       )}
     </div>
   );

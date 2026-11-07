@@ -89,22 +89,57 @@ describe('LaunchControl smoke', () => {
   });
 });
 
-describe('LaunchControl fallback', () => {
-  it('labels the demo board when os_launches is unavailable', async () => {
-    const chain = {
-      select: vi.fn(() => chain),
-      eq: vi.fn(() => chain),
-      order: vi.fn(() => chain),
-      insert: vi.fn(async () => ({ data: null, error: null })),
-      update: vi.fn(() => chain),
-      delete: vi.fn(() => chain),
-      then: (onF?: any, onR?: any) => Promise.resolve({ data: [], error: null }).then(onF, onR),
-      catch: (onR?: any) => Promise.resolve({ data: [], error: null }).catch(onR),
-      finally: (onF?: any) => Promise.resolve({ data: [], error: null }).finally(onF),
-    };
-    vi.mocked(supabase.from).mockImplementation(() => chain as never);
+/*
+ * ── EMPTY IS NOT MISSING ─────────────────────────────────────────────────
+ *
+ * The previous version of this suite mocked `{data: [], error: null}` — an
+ * empty table that read perfectly — and asserted that the demo board appeared.
+ * It pinned the bug in place.
+ *
+ * MEASURED 2026-10-06 in production: os_launches exists, its migration is
+ * recorded, RLS is on with four admin policies, and it holds 0 rows. The board
+ * was therefore telling an operator "the os_launches migration isn't applied
+ * in this project yet" about a database that was fine, while showing three
+ * invented launches whose checkboxes saved nowhere.
+ */
+const chainReturning = (result: { data: unknown; error: unknown }) => {
+  const chain: Record<string, unknown> = {
+    select: vi.fn(() => chain),
+    eq: vi.fn(() => chain),
+    order: vi.fn(() => chain),
+    insert: vi.fn(async () => ({ data: null, error: null })),
+    update: vi.fn(() => chain),
+    delete: vi.fn(() => chain),
+    then: (onF?: any, onR?: any) => Promise.resolve(result).then(onF, onR),
+    catch: (onR?: any) => Promise.resolve(result).catch(onR),
+    finally: (onF?: any) => Promise.resolve(result).finally(onF),
+  };
+  return chain;
+};
+
+describe('LaunchControl tells empty apart from unavailable', () => {
+  it('an EMPTY board says it is live, and shows no invented launches', async () => {
+    vi.mocked(supabase.from).mockImplementation(() => chainReturning({ data: [], error: null }) as never);
     render(<LaunchControl />);
-    expect(await screen.findByText(/Demo launch board/)).toBeInTheDocument();
+
+    expect(await screen.findByText(/No launches on the board yet/)).toBeInTheDocument();
+    expect(screen.getByText(/live and saving/i)).toBeInTheDocument();
+    // The seed must not appear: ticking it would save nothing.
+    expect(screen.queryByText('AI Video Studio')).not.toBeInTheDocument();
+    // And it must not blame a migration that is applied.
+    expect(screen.queryByText(/migration isn't applied/i)).not.toBeInTheDocument();
+  });
+
+  it('an UNREADABLE board says so, and does not blame the migration alone', async () => {
+    vi.mocked(supabase.from).mockImplementation(() =>
+      chainReturning({ data: null, error: { message: 'permission denied' } }) as never);
+    render(<LaunchControl />);
+
+    expect(await screen.findByText(/could not be read/i)).toBeInTheDocument();
+    // Admin permissions are as likely a cause as a missing table.
+    expect(screen.getByText(/not an admin/i)).toBeInTheDocument();
+    expect(screen.getByText(/not saved/i)).toBeInTheDocument();
+    // Only here is an example board acceptable, and only because it is labelled.
     expect(screen.getByText('AI Video Studio')).toBeInTheDocument();
   });
 });

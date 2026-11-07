@@ -527,9 +527,46 @@ export function publicOpenState(b: OpenStateInput, now: Date = new Date()): Open
       * NowOpen's safe default, not something the owner ever said. That is the
       * whole difference between this label and the confirmed one below.
       */
-    if (b.availability_mode === 'default_24_7' && !b.is_24_hours_confirmed) {
-      return { kind: 'open', label: 'Open now', detail: 'Open 24 hours · default' };
-    }
+    /*
+     * THE 24/7 DEFAULT NO LONGER ANSWERS "OPEN". REMOVED 2026-09-15.
+     *
+     * It used to return { kind: 'open', label: 'Open now',
+     * detail: 'Open 24 hours · default' } for any business carrying
+     * availability_mode = 'default_24_7' without confirmation, on the reasoning
+     * that a directory named NowOpen should give the answer it exists to give.
+     *
+     * MEASURED IN PRODUCTION 2026-09-15:
+     *   availability_mode = 'default_24_7'      3,115 of 3,118 businesses
+     *   is_24_hours_confirmed = true                0
+     *   any opening-hours text at all                3
+     *
+     * So the platform told every visitor that 1,669 hospitals, 536 schools and
+     * 11 tailors were open, at every hour of every day, on the strength of a
+     * column default. /open-now — the page the product is named after —
+     * returned all 3,115 at three in the morning, which made it not a feature
+     * but a list of everything.
+     *
+     * Two further consequences made it untenable rather than merely generous:
+     *
+     *   1. The server-rendered profile said "Hours not confirmed" because its
+     *      SELECT does not carry availability_mode, while the app said "Open
+     *      now" for the same business. A crawler and a person were being told
+     *      different things about the same fact.
+     *   2. It is an availability claim with no evidence behind it, on a real
+     *      named business, which the founder's own rule forbids in the same
+     *      words used here: opening hours are "verified or explicitly 'hours
+     *      not confirmed'".
+     *
+     * "Hours not confirmed" is a worse headline and a true one. Someone can no
+     * longer travel to a closed hospital because a default said it was open,
+     * and the gap is now visible where it can be fixed: /open-now asks for the
+     * hours instead of inventing them, which is also the only thing that makes
+     * that page mean anything.
+     *
+     * A CONFIRMED 24/7 still renders open — see immediately below. The
+     * difference between the two branches is the whole point: one is something
+     * a business said, the other is something nobody said.
+     */
     // An owner/source CONFIRMED 24/7 but no hour text exists: safe to render open.
     if (b.is_24_hours && b.is_24_hours_confirmed) {
       return { kind: 'open', label: 'Open now', detail: 'Open 24 hours' };

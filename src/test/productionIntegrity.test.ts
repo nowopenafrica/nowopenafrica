@@ -168,6 +168,27 @@ describe('a deploy no longer breaks an open session', () => {
     expect((app.match(/lazyRoute\(\(\) => import\(/g) ?? []).length).toBeGreaterThanOrEqual(40);
   });
 
+  /*
+   * A bare `import X from './pages/X'` is the other way a route opts out, and
+   * the lazyRoute count above cannot see it.
+   *
+   * MEASURED 2026-10-10: AddBusiness, InstagramOnboarding and CreateRoute sat
+   * as plain imports in the middle of the lazyRoute list — no comment, no
+   * test. Between them they held 111.7 kB of the entry chunk, because each
+   * dragged its whole subtree in (CreateRoute alone pulled CreateHub, 23 kB,
+   * defeating the lazy() UniversalCreateButton already had). Making them lazy
+   * took the entry from 421.04 kB to 309.36 kB.
+   *
+   * Home is the exception on purpose: it is the landing route, so splitting it
+   * would only add a round trip before the first paint.
+   */
+  it('does not import page components eagerly, except the landing page', () => {
+    const eager = [...app.matchAll(/^import\s+(\w+)\s+from\s+'\.\/pages\/[^']+';/gm)]
+      .map((m) => m[1])
+      .filter((name) => name !== 'Home');
+    expect(eager).toEqual([]);
+  });
+
   it('can only ever reload once', () => {
     // A reload loop is far worse than an error screen.
     const src = readFileSync('src/lib/lazyRoute.ts', 'utf8');

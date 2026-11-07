@@ -13,8 +13,9 @@ import {
   DIGITAL_CAMPAIGN_STARTING_USD, FOUNDING_MEMBER_LIMIT, FOUNDING_MEMBER_DISCOUNT,
   moduleLimitForPlan,
 } from '../data/pricingPlans';
-import { applySeo } from '../lib/seo';
+import { Editable, PageContentProvider, useEditableSeo } from '../components/editor/PageContent';
 import { track } from '../lib/telemetry';
+import { fetchCreditActions, isCreditProgrammeLive } from '../lib/credits/catalogue';
 
 const BUSINESS_ICONS: Record<string, typeof Building2> = {
   starter: Building2,
@@ -68,21 +69,70 @@ const SECTIONS = [
 ];
 
 export default function Pricing() {
+  return (
+    <PageContentProvider page="pricing">
+      <PricingContent />
+    </PageContentProvider>
+  );
+}
+
+function PricingContent() {
+  /*
+   * ── IS THERE A CREDIT PROGRAMME TO ADVERTISE? ──────────────────────────
+   *
+   * MEASURED 2026-10-06: this page told every visitor "Every plan comes with
+   * AI credits each month … or top up when you need more", above a grid
+   * reading 50 / 500 / 2,000.
+   *
+   * None of it was true. There was no wallet, no ledger, no grant, no way to
+   * spend a credit and no way to top up. The numbers came from a hardcoded
+   * field in pricingPlans.ts that nothing in the platform could honour.
+   *
+   * The credit system now exists, but it ships inert: every action is
+   * unpriced and disabled until an operator sets a cost against measured
+   * provider cost. So the page ASKS the database whether any of it is real,
+   * and says "coming soon" until it is — at which point this starts making
+   * the claim again, by itself. A marketing claim should be a reading of the
+   * system rather than a constant that was true when somebody typed it.
+   *
+   * `null` means the answer has not arrived: render neither claim yet.
+   */
+  const [creditsLive, setCreditsLive] = useState<boolean | null>(null);
+  useEffect(() => {
+    let alive = true;
+    fetchCreditActions()
+      .then((actions) => { if (alive) setCreditsLive(isCreditProgrammeLive(actions)); })
+      // A failed read must not be reported as "credits are live".
+      .catch(() => { if (alive) setCreditsLive(false); });
+    return () => { alive = false; };
+  }, []);
+
+  /*
+   * The credit allowance is also written into each plan's feature bullets, so
+   * hiding the badge and the grid was not enough — "50 AI credits / month"
+   * still appeared on every card. Same rule: the bullet is a promise, and it
+   * only appears once something can grant it.
+   */
+  const visibleFeatures = (features: string[]) =>
+    creditsLive === true ? features : features.filter((f) => !/AI credits?\s*\/\s*month/i.test(f));
+
   const { format, formatUsd, currency } = useCurrency();
   const [annual, setAnnual] = useState(true);
   const [openFaq, setOpenFaq] = useState<number | null>(0);
   const [checkout, setCheckout] = useState<CheckoutItem | null>(null);
   const [businessCount, setBusinessCount] = useState<number | null>(null);
 
-  useEffect(() => {
-    return applySeo({
-      title: 'Pricing — NowOpen Africa Plans for Businesses & Creatives',
-      description:
-        'Simple, honest pricing for African businesses and creatives — free listings, growth plans and enterprise options with founding-member discounts.',
-      path: '/pricing',
-      image: '/og-image.png',
-    });
-  }, []);
+  // The wording is editable. The numbers are not: prices, fees, credits and
+  // plan features come from data and stay unreachable to the editor.
+  useEditableSeo({
+    titleSlot: 'pricing.seo.title',
+    descriptionSlot: 'pricing.seo.description',
+    title: 'Pricing — NowOpen Africa Plans for Businesses & Creatives',
+    description:
+      'Simple, honest pricing for African businesses and creatives — free listings, growth plans and enterprise options with founding-member discounts.',
+    path: '/pricing',
+    image: '/og-image.png',
+  });
 
   useEffect(() => {
     /*
@@ -137,12 +187,16 @@ export default function Pricing() {
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4">
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
             <Sparkles size={16} className="text-yellow-300" />
-            Join for free. Grow with NowOpen. Upgrade when your business grows.
+            <Editable slot="pricing.hero.pill" as="span">Join for free. Grow with NowOpen. Upgrade when your business grows.</Editable>
           </div>
-          <h1 className="text-3xl md:text-5xl font-bold">Pricing built for every African business</h1>
+          <h1 className="text-3xl md:text-5xl font-bold">
+            <Editable slot="pricing.hero.title" as="span">Pricing built for every African business</Editable>
+          </h1>
           <p className="text-indigo-100/85 text-base md:text-lg max-w-2xl mx-auto">
-            From a neighborhood tailor to a multinational — start free with Free Launch, unlock essential tools
-            with Growth, and move to Business Pro when you're ready to scale.
+            <Editable slot="pricing.hero.sub" as="span">
+              From a neighborhood tailor to a multinational — start free with Free Launch, unlock essential tools
+              with Growth, and move to Business Pro when you're ready to scale.
+            </Editable>
           </p>
 
           {/* Billing toggle */}
@@ -198,8 +252,12 @@ export default function Pricing() {
 
       {/* Business Plans */}
       <section id="business-plans" className="site-container pt-10 pb-16 scroll-mt-20">
-        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white text-center">Business plans</h2>
-        <p className="mt-2 text-center text-gray-600 dark:text-gray-400 mb-12 max-w-xl mx-auto">Join for free. Grow with NowOpen. Upgrade when your business grows.</p>
+        <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-gray-900 dark:text-white text-center">
+          <Editable slot="pricing.plans.heading" as="span">Business plans</Editable>
+        </h2>
+        <p className="mt-2 text-center text-gray-600 dark:text-gray-400 mb-12 max-w-xl mx-auto">
+          <Editable slot="pricing.plans.sub" as="span">Join for free. Grow with NowOpen. Upgrade when your business grows.</Editable>
+        </p>
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6">
           {BUSINESS_TIERS.map((tier) => {
             const Icon = BUSINESS_ICONS[tier.id] ?? Building2;
@@ -280,8 +338,9 @@ export default function Pricing() {
                   <span className="text-xs font-semibold text-blue-800 dark:text-blue-300">{modLabel}</span>
                 </div>
 
-                {/* AI credits included in the plan */}
-                {tier.aiCredits !== null && (
+                {/* AI credits included in the plan — only once there is a
+                    credit programme able to grant them. */}
+                {tier.aiCredits !== null && creditsLive === true && (
                   <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-900/40">
                     <Coins size={16} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
                     <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
@@ -291,7 +350,7 @@ export default function Pricing() {
                 )}
 
                 <ul className="space-y-2 mb-6 flex-1">
-                  {tier.features.map((f) => (
+                  {visibleFeatures(tier.features).map((f) => (
                     <li key={f} className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300">
                       <Check size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
                       {f}
@@ -350,23 +409,33 @@ export default function Pricing() {
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white text-center">AI Credits</h2>
           </div>
           <p className="text-center text-gray-600 dark:text-gray-400 mb-10">
-            Every plan comes with AI credits each month — power your copy, images and business assistant.
-            Use them across Studio, or top up when you need more.
+            {creditsLive === true
+              ? <>Every plan comes with AI credits each month, granted automatically. Spend them on
+                  AI writing for your profile today — image and video generation follow — or top up
+                  any time with a credit pack.</>
+              : <>AI credits are coming. They will power copy, images and your business assistant across
+                  Studio — we will publish the allowances and top-up prices here before they go live.</>}
           </p>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-            {BUSINESS_TIERS.filter((t) => t.aiCredits !== null).map((tier) => (
-              <div key={tier.id} className="bg-gray-50 dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800 text-center">
-                <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
-                  {tier.aiCredits!.toLocaleString()}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">AI credits / month</p>
-                <p className="font-semibold text-gray-900 dark:text-white">{tier.name}</p>
-              </div>
-            ))}
-          </div>
-          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
-            Enterprise plans get custom AI credits — <a href="mailto:hello@nowopenafrica.com?subject=Enterprise%20AI%20credits" className="text-purple-600 dark:text-purple-400 underline">talk to us</a>.
-          </p>
+          {/* The per-tier numbers are a promise. They appear only when
+              something can actually grant them. */}
+          {creditsLive === true && (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {BUSINESS_TIERS.filter((t) => t.aiCredits !== null).map((tier) => (
+                <div key={tier.id} className="bg-gray-50 dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800 text-center">
+                  <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
+                    {tier.aiCredits!.toLocaleString()}
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">AI credits / month</p>
+                  <p className="font-semibold text-gray-900 dark:text-white">{tier.name}</p>
+                </div>
+              ))}
+            </div>
+          )}
+          {creditsLive === true && (
+            <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+              Enterprise plans get custom AI credits — <a href="mailto:hello@nowopenafrica.com?subject=Enterprise%20AI%20credits" className="text-purple-600 dark:text-purple-400 underline">talk to us</a>.
+            </p>
+          )}
         </div>
       </section>
 
@@ -374,23 +443,35 @@ export default function Pricing() {
       <section className="bg-white dark:bg-gray-800 border-y border-gray-100 dark:border-gray-800 py-16">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white text-center mb-10">
-            Marketplace pricing at a glance
+            <Editable slot="pricing.marketplace.heading" as="span">Marketplace pricing at a glance</Editable>
           </h2>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 text-center">
             <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <p className="text-3xl font-bold text-blue-600 dark:text-blue-400 mb-2">{format(110, { compact: true })}–{format(900, { compact: true })}<span className="text-base text-gray-500 dark:text-gray-400">/day</span></p>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Ad Placements</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Billboards, digital screens, transit, airports and stadiums — priced per day by location and traffic.</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                <Editable slot="pricing.marketplace.placements.title" as="span">Ad Placements</Editable>
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <Editable slot="pricing.marketplace.placements.body" as="span">Billboards, digital screens, transit, airports and stadiums — priced per day by location and traffic.</Editable>
+              </p>
             </div>
             <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <p className="text-3xl font-bold text-pink-600 dark:text-pink-400 mb-2">{format(15)}–{format(3000, { compact: true })}<span className="text-base text-gray-500 dark:text-gray-400">/project</span></p>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Creative Services</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Photography, video, design, audio and social — transparent per-project or per-deliverable rates.</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                <Editable slot="pricing.marketplace.creative.title" as="span">Creative Services</Editable>
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <Editable slot="pricing.marketplace.creative.body" as="span">Photography, video, design, audio and social — transparent per-project or per-deliverable rates.</Editable>
+              </p>
             </div>
             <div className="p-6 bg-gray-50 dark:bg-gray-900 rounded-xl">
               <p className="text-3xl font-bold text-green-600 dark:text-green-400 mb-2">10%<span className="text-base text-gray-500 dark:text-gray-400"> fee</span></p>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">Secure Bookings</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">One flat platform fee covers verification, escrow-style payments and dispute support. 0% on Business Pro.</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-1">
+                <Editable slot="pricing.marketplace.bookings.title" as="span">Secure Bookings</Editable>
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <Editable slot="pricing.marketplace.bookings.body" as="span">One flat platform fee covers verification, escrow-style payments and dispute support. 0% on Business Pro.</Editable>
+              </p>
             </div>
           </div>
         </div>
@@ -425,7 +506,7 @@ export default function Pricing() {
                 {(tier.monthlyUsd ?? 0) > 0 && <span className="text-gray-500 dark:text-gray-400 text-xs">/month</span>}
               </div>
               <ul className="space-y-2 mb-6 flex-1">
-                {tier.features.map((f) => (
+                {visibleFeatures(tier.features).map((f) => (
                   <li key={f} className="flex items-start gap-2 text-xs text-gray-700 dark:text-gray-300">
                     <Check size={14} className="text-green-500 mt-0.5 flex-shrink-0" />
                     {f}
@@ -622,17 +703,22 @@ export default function Pricing() {
       {/* CTA */}
       <section className="text-white py-14" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
         <div className="max-w-3xl mx-auto px-4 text-center space-y-6">
-          <h2 className="text-2xl md:text-3xl font-bold">Not ready to choose yet?</h2>
+          <h2 className="text-2xl md:text-3xl font-bold">
+          <Editable slot="pricing.cta.heading" as="span">Not ready to choose yet?</Editable>
+        </h2>
           <p className="text-blue-100">
-            Start free today with Free Launch — add modules, AI credits or Promote boosts whenever your
-            business needs them, and upgrade as you grow.
+            <Editable slot="pricing.cta.body" as="span">
+              Start free today with Free Launch — add modules, AI credits or Promote boosts whenever your
+              business needs them, and upgrade as you grow.
+            </Editable>
           </p>
-          <Link
+          <Editable
+            slot="pricing.cta.primary"
             to="/waitlist"
             className="inline-block px-8 py-4 bg-white text-blue-700 font-semibold rounded-lg hover:bg-blue-50 transition shadow-lg"
           >
             Join the Waitlist
-          </Link>
+          </Editable>
         </div>
       </section>
 

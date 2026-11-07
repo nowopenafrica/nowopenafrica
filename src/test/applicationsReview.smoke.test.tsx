@@ -6,8 +6,22 @@ if (!Element.prototype.scrollIntoView) {
 }
 window.scrollTo = () => {};
 
+/*
+ * ── THIS SUITE EXERCISES THE SEED, SO IT MUST ASK FOR THE SEED ───────────
+ *
+ * It used to mock `{ data: [], error: null }` — a table that read perfectly
+ * and happened to be empty — and relied on the panel treating that as a
+ * failure in order to render the bundled seed. That conflation was a real bug:
+ * Launch Control told operators "the os_launches migration isn't applied in
+ * this project yet" about a database that was fine (checked 2026-10-06: every
+ * os_ table exists live with its policies), while showing invented rows whose
+ * edits saved nowhere.
+ *
+ * Empty and unavailable are now different states. These tests are about the
+ * seed, so they mock the state that legitimately produces it: an error.
+ */
 vi.mock('../lib/supabase', () => {
-  const result = { data: [], error: null };
+  const result = { data: null, error: { message: 'relation does not exist' } };
   const chain: any = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),

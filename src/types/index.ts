@@ -16,8 +16,13 @@ export interface Advertisement {
   available_until?: string;
   awards?: string | null;
   status?: string;
+  /** Placement trust lifecycle. 'rejected', 'archived' and 'pending_review' are never listed publicly (isListedPlacement). */
+  lifecycle?: string | null;
+  owner_id?: string | null;
   image_url?: string;
   media_urls?: string[];
+  /** The street or landmark a media owner gave (partner portal); location stays "City, Country". */
+  site_address?: string | null;
   user_id?: string;
   business_id?: string;
   created_at?: string;
@@ -40,6 +45,25 @@ export interface Business {
   email?: string;
   image_url?: string;
   logo_url?: string;
+  /*
+   * WHERE THE LOGO CAME FROM, and why the app needs to know.
+   *
+   * These columns have existed on `businesses` for a while and no TypeScript
+   * ever carried them, so nothing in the product could tell an owner's own
+   * logo from one an importer found. MEASURED 2026-10-21: of 528 logos,
+   * 319 are source 'business' and 209 are 'unknown' with no licence at all.
+   *
+   * That distinction only matters at the moment somebody puts a logo into
+   * artwork they will print and sell — see lib/studio/brandKit.ts, which
+   * uses a logo when the business supplied it and withholds it otherwise.
+   */
+  logo_source?: string | null;
+  logo_licence?: string | null;
+  logo_attribution?: string | null;
+  // Video banner for the profile header (20261103010000_business_cover_video).
+  // A direct file URL or a pasted platform link; `image_url` remains the still
+  // cover everywhere, with this one playing on the profile when set.
+  cover_video_url?: string;
   rating?: number;
   status?: string;
   hours?: string;

@@ -25,6 +25,7 @@
 import { escapeHtml } from './shareRender.js';
 // .js extension: this module is imported by api/business/[slug].ts too.
 import { socialEntries } from './businessProfile.js';
+import { isStockPlaceholder, coverAltText, STOCK_COVER_NOTICE } from './stockImage.js';
 import {
   parseOpeningHours, formatClock, publicOpenState, WEEKDAY_FULL,
   CLOSING_SOON_MINUTES, type OpenState,
@@ -33,6 +34,7 @@ import {
   sortLocations, locationOpenState, locationAddress, locationPhone,
   type BusinessLocation,
 } from './locations.js';
+import { businessWebsiteLink } from './webLink.js';
 
 // Re-exported so the page's tests and callers keep one import, while the state
 // machine itself lives with the rest of the time logic.
@@ -217,7 +219,19 @@ export function openingHoursSpecification(text: string | null | undefined): unkn
 export function profileJsonLd(p: ProfilePage): unknown {
   const b = p.business;
   const url = `${p.siteUrl}${profilePath(b)}`;
-  const image = b.image_url || b.logo_url;
+  /*
+   * A STOCK PLACEHOLDER IS NOT EVIDENCE OF ANYTHING, so it does not go into
+   * structured data.
+   *
+   * schema.org `image` on a LocalBusiness asserts that the photograph depicts
+   * that business. 1,176 profiles carry a licensed stock cover placed by the
+   * enrichment engine as an admitted placeholder — feeding it to a search
+   * engine as the business's image is a stronger claim than the page makes,
+   * and the page now labels it. A logo IS the business's own mark, so it
+   * stands; only the placeholder cover is dropped.
+   */
+  const coverForSchema = isStockPlaceholder(b.image_url) ? null : b.image_url;
+  const image = coverForSchema || b.logo_url;
   const hasRating = typeof b.rating === 'number' && b.rating > 0 && p.reviewCount > 0;
 
   const sameAs = [
@@ -405,7 +419,14 @@ export function renderBusinessPage(p: ProfilePage): string {
   const now = p.now ?? new Date();
   const state = publicOpenState(b, now);
   const url = `${p.siteUrl}${profilePath(b)}`;
-  const image = b.image_url || b.logo_url || `${p.siteUrl}/og-image.png`;
+  /*
+   * Same rule for the share card. A WhatsApp preview showing a stock photo
+   * under a business's name is the most-forwarded surface NowOpen has, and
+   * it carries no room for a caption — so the placeholder is replaced by
+   * NowOpen's own card rather than shown unlabelled.
+   */
+  const ownCover = isStockPlaceholder(b.image_url) ? null : b.image_url;
+  const image = ownCover || b.logo_url || `${p.siteUrl}/og-image.png`;
 
   const title = escapeHtml(profileTitle(p));
   const description = escapeHtml(profileDescription(p));
@@ -413,10 +434,12 @@ export function renderBusinessPage(p: ProfilePage): string {
   const safeUrl = escapeHtml(url);
   const safeImage = escapeHtml(image);
 
+  const site = businessWebsiteLink(b, p.siteUrl);
+
   const contact = [
     b.phone ? `<a href="tel:${escapeHtml(b.phone)}">Call ${escapeHtml(b.phone)}</a>` : '',
     b.email ? `<a href="mailto:${escapeHtml(b.email)}">${escapeHtml(b.email)}</a>` : '',
-    b.website ? `<a href="${escapeHtml(b.website)}" rel="nofollow noopener">Website</a>` : '',
+    site ? `<a href="${escapeHtml(site.href)}" rel="nofollow noopener">Website</a>` : '',
     b.location ? `<a href="https://www.google.com/maps/search/?api=1&amp;query=${encodeURIComponent(b.location)}" rel="nofollow noopener">Directions</a>` : '',
   ].filter(Boolean).join('');
 
@@ -533,7 +556,16 @@ export function renderBusinessPage(p: ProfilePage): string {
 </head>
 <body>
 <main>
-  ${b.image_url ? `<img class="cover" src="${escapeHtml(b.image_url)}" alt="${name}">` : ''}
+  ${b.image_url ? `<img class="cover" src="${escapeHtml(b.image_url)}" alt="${escapeHtml(coverAltText(String(b.name ?? ''), b.image_url))}">${
+    /*
+     * The crawler page renders its own <img>, so it needs the same disclosure
+     * the React profile got. Dropping the placeholder from og:image and from
+     * schema.org was not enough on its own: this is the copy Google reads and
+     * a text-only client displays, and it was still captioned with the
+     * business's name.
+     */
+    isStockPlaceholder(b.image_url) ? `\n  <p class="meta">${escapeHtml(STOCK_COVER_NOTICE)}</p>` : ''
+  }` : ''}
   <h1>${name}${b.verified ? ' <span title="Verified business" aria-label="Verified business">✅</span>' : ''}</h1>
   <p class="meta">${[b.category, b.location].filter(Boolean).map((x) => escapeHtml(String(x))).join(' · ')}</p>
   <p class="status"><span class="dot" style="background:${STATUS_COLOUR[state.kind]}"></span>

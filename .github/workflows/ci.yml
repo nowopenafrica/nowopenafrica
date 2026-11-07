@@ -1,7 +1,17 @@
 name: CI
 
-# Runs the full quality gate on every push to main and every pull request, so
-# a regression can never reach production silently. All four steps must pass.
+# The quality gate, on every push to main and every pull request.
+#
+# ── WHY THIS CHANGED, 2026-10-20 ─────────────────────────────────────────────
+#
+# CI used to run typecheck → lint → test → build. `npm run verify` ran twelve
+# steps. The difference was not cosmetic: nine repository guards had been
+# written precisely because each one encodes a mistake that had already reached
+# production once, and seven of those nine never ran here at all.
+#
+# A guard that only runs when somebody remembers to run it is a convention,
+# not a gate. CI now runs the same `verify` a developer runs, so the two
+# cannot drift apart again, and the guards cost 0.4s together.
 on:
   push:
     branches: [main]
@@ -13,7 +23,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Typecheck · Lint · Test · Build
+    name: Verify · Build
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -28,14 +38,24 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Typecheck
-        run: npm run typecheck
+      # TypeScript's build info and ESLint's cache. Both invalidate on file
+      # CONTENT, not on a timestamp, so a stale entry cannot hide a real error
+      # — and the key includes the lockfile, so changing a dependency throws
+      # the whole cache away rather than reasoning about which parts survived.
+      #
+      # MEASURED locally, 2026-10-20: typecheck 29.3s → 4.4s, lint 21.8s →
+      # 2.6s when the cache is warm.
+      - name: Restore check caches
+        uses: actions/cache@v4
+        with:
+          path: node_modules/.cache
+          key: checks-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-${{ github.sha }}
+          restore-keys: |
+            checks-${{ runner.os }}-${{ hashFiles('package-lock.json') }}-
 
-      - name: Lint
-        run: npm run lint
-
-      - name: Unit tests
-        run: npm run test
+      # typecheck (app + api + edge) → lint → the nine guards → the full suite.
+      - name: Verify
+        run: npm run verify
 
       - name: Production build
         run: npm run build

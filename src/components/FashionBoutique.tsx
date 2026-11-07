@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Shirt, Ruler, Scissors, ShoppingCart, MessageCircle, Plus, Minus, X, Sparkles,
+  Shirt, Ruler, Scissors, ShoppingCart, MessageCircle, Plus, Minus, X, Sparkles, Share2,
 } from 'lucide-react';
 import SmartImg from './SmartImg';
 export interface FashionItem {
@@ -22,6 +22,8 @@ interface Props {
   onAddToCart: (item: FashionItem, qty: number) => void;
   onWhatsApp: (item: FashionItem) => void;
   onEnquire: (context: string) => void;
+  /** Sends this item to the page's share sheet. */
+  onShare?: (item: FashionItem) => void;
 }
 
 const SIZE_GUIDE: [string, string, string, string][] = [
@@ -33,7 +35,7 @@ const SIZE_GUIDE: [string, string, string, string][] = [
   ['XXL', '44–46', '37–39', '47–49'],
 ];
 
-export default function FashionBoutique({ items, hasPhone, onAddToCart, onWhatsApp, onEnquire }: Props) {
+export default function FashionBoutique({ items, hasPhone, onAddToCart, onWhatsApp, onEnquire, onShare }: Props) {
   const [category, setCategory] = useState('All');
   const [showGuide, setShowGuide] = useState(false);
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -97,7 +99,7 @@ export default function FashionBoutique({ items, hasPhone, onAddToCart, onWhatsA
         {filtered.map((item) => {
           const sizes = (item.sizes ?? '').split(',').map((s) => s.trim()).filter(Boolean);
           return (
-            <div key={item.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <div key={item.id} id={`product-${item.id}`} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <div className="relative">
                 {item.image ? (
                   <SmartImg src={item.image} alt={item.name} className="w-full h-40 sm:h-56 object-cover" />
@@ -130,6 +132,9 @@ export default function FashionBoutique({ items, hasPhone, onAddToCart, onWhatsA
                     <button type="button" onClick={() => setItemQty(item.id, getQty(item.id) + 1)} aria-label="Increase" className="p-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"><Plus size={11} /></button>
                   </div>
                   <div className="flex items-center gap-1">
+                    {onShare && (
+                      <button onClick={() => onShare(item)} aria-label={`Share ${item.name}`} className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><Share2 size={13} /></button>
+                    )}
                     {hasPhone && (
                       <button onClick={() => onWhatsApp(item)} aria-label={`Order ${item.name} on WhatsApp`} className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"><MessageCircle size={13} /></button>
                     )}

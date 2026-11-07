@@ -9,9 +9,10 @@ import LiveShareSheet from './LiveShareSheet';
 import LivePinPicker from './LivePinPicker';
 import {
   X, Radio, Mic, MicOff, Video, VideoOff, Subtitles, Loader2, Calendar, History,
-  SwitchCamera, Zap, ZapOff,
+  SwitchCamera, Zap, ZapOff, Scissors,
 } from 'lucide-react';
 import { previewTransform, oppositeFacing, facingLabel } from '../../lib/openReel';
+import { availableLengths, clipFileName, type ClipLength } from '../../lib/live/clip';
 
 interface GoLiveModalProps {
   business: { id: string; name: string; category?: string | null; image_url?: string | null; logo_url?: string | null };
@@ -39,6 +40,36 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
   useEffect(() => {
     if (videoRef.current && broadcaster.localStream) videoRef.current.srcObject = broadcaster.localStream;
   }, [broadcaster.localStream]);
+
+  /**
+   * Save the last N seconds of what is being broadcast.
+   *
+   * No upload and no server: the chunks are already in the browser for the
+   * replay, so a clip is assembled and handed straight to the person. That
+   * also means it costs the broadcast nothing — no second encoder, no extra
+   * bandwidth competing with the viewers' video.
+   */
+  const [clipping, setClipping] = useState<ClipLength | null>(null);
+  const takeClip = (seconds: ClipLength) => {
+    setClipping(seconds);
+    try {
+      const clip = broadcaster.takeClip(seconds);
+      if (!clip) { toast.error('Nothing recorded yet — give it a few seconds.'); return; }
+      const url = URL.createObjectURL(clip.blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = clipFileName(business.name, clip.seconds, clip.extension);
+      a.click();
+      /* Revoked on the next tick: revoking immediately cancels the download
+         on some browsers, and leaking it holds the whole clip in memory. */
+      setTimeout(() => URL.revokeObjectURL(url), 10_000);
+      toast.success(clip.short
+        ? `Saved ${Math.round(clip.seconds)}s — that is everything recorded so far.`
+        : `Saved the last ${Math.round(clip.seconds)} seconds.`);
+    } finally {
+      setClipping(null);
+    }
+  };
 
   const goLiveNow = async () => {
     if (!title.trim()) { toast.error('Give your stream a title'); return; }
@@ -248,6 +279,41 @@ export default function GoLiveModal({ business, onClose }: GoLiveModalProps) {
                     End Stream
                   </button>
                 </div>
+
+                {/*
+                  Clippers.
+
+                  Only shown once there is something to clip — a dead button
+                  in the first seconds of a broadcast reads as a broken one.
+                  Every length stays offered after that, even before it can
+                  be filled: somebody thirty seconds in can still take a 90s
+                  clip and is told it came out short, which is better than
+                  being refused by a control that looks available.
+                */}
+                {availableLengths(broadcaster.recordedSeconds).length > 0 && (
+                  <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5">
+                    <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-gray-700 dark:text-gray-300">
+                      <Scissors size={14} /> Save a clip of what just happened
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {availableLengths(broadcaster.recordedSeconds).map((seconds) => (
+                        <button
+                          key={seconds}
+                          type="button"
+                          onClick={() => takeClip(seconds)}
+                          disabled={clipping !== null}
+                          className="inline-flex min-h-[40px] items-center gap-1.5 rounded-full border border-gray-300 px-4 text-sm font-semibold text-gray-800 transition hover:border-blue-500 hover:text-blue-700 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200 dark:hover:text-blue-300"
+                        >
+                          {clipping === seconds ? <Loader2 size={14} className="animate-spin" /> : null}
+                          Last {seconds}s
+                        </button>
+                      ))}
+                    </div>
+                    <p className="mt-2 text-[11px] text-gray-500">
+                      Saved to this device straight away. The broadcast keeps running.
+                    </p>
+                  </div>
+                )}
 
                 <div className="rounded-xl border border-gray-200 dark:border-gray-700 p-3.5">
                   <LivePinPicker

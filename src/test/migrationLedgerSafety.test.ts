@@ -50,6 +50,37 @@ describe('the migrations that would write rows if replayed', () => {
       '20240617000000_seed_advertising_placements.sql',
       '20240618000000_add_billboard_placements.sql',
       '20240702000000_seed_media_services.sql',
+      /*
+       * ADDED 2026-09-17, deliberately — which is what this list is for.
+       *
+       * It writes category-template SUGGESTIONS ("Account opening", "Event
+       * equipment hire") for unclaimed businesses in six categories that had a
+       * template and no rows. That is generated content, so it belongs here
+       * even though it seeds no invented businesses.
+       *
+       * WHY REPLAYING IT IS SAFE, unlike the three above: each INSERT carries a
+       * per-row `not exists` on a normalised name match against that business's
+       * own rows, so a second run inserts nothing. It is NOT the media-services
+       * trap — that one asks whether the whole TABLE is empty, which stops
+       * being true after the first row and then guards nothing ever again.
+       *
+       * The classifier cannot tell those two shapes apart; both read as
+       * `where not exists`. That is precisely why this list is hand-kept.
+       */
+      '20260927010000_suggestions_for_new_templates.sql',
+      /*
+       * ADDED 2026-09-22, deliberately.
+       *
+       * It moves 43,363 phantom `signin` rows out of analytics_events into a
+       * quarantine table — a write, so it belongs on this list.
+       *
+       * REPLAYING IT IS SAFE, and for a reason worth stating: the rows it
+       * selects are `name = 'signin'` on a path other than /login or /register.
+       * After the first run none remain, so a second run moves nothing. The
+       * table creation is `if not exists`. It is a one-way drain, not a seed —
+       * the failure mode the other three on this list have.
+       */
+      '20261001010000_quarantine_phantom_signins.sql',
     ]);
   });
 

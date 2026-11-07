@@ -10,8 +10,11 @@ import { BUSINESS_CATEGORY_GROUPS, BUSINESS_CATEGORIES } from '../../data/catego
 import { getCategoryFeatures, getModuleByKey, MODULE_LIBRARY } from '../../data/categoryFeatures';
 import { moduleLimitForPlan, getBusinessTier } from '../../data/pricingPlans';
 import { compressImage } from '../../lib/imageCompression';
+import { mediaKindOf } from '../../lib/galleryMedia';
+import VideoEmbedFrame from '../VideoEmbedFrame';
 import { track } from '../../lib/telemetry';
 import { sendWelcomePack } from '../../lib/onboarding';
+import CoverPositionEditor from './CoverPositionEditor';
 import SmartImg from '../SmartImg';
 
 interface BusinessFormProps {
@@ -31,6 +34,7 @@ const USERNAME_REGEX = /^[a-z0-9](?:[a-z0-9-]{1,38}[a-z0-9])?$/;
 // Usernames live at the site root (nowopenafrica.com/<username>), so every
 // top-level route must be reserved to avoid collisions.
 const RESERVED_USERNAMES = [
+  'add-business', 'join',
   'admin', 'adverts', 'advert', 'api', 'app', 'business', 'businesses',
   'contact', 'dashboard', 'digital-forms', 'edit', 'help', 'home', 'login',
   'media', 'new', 'pricing', 'profile', 'register', 'settings', 'signup',
@@ -49,7 +53,12 @@ type UsernameStatus = 'idle' | 'checking' | 'available' | 'taken' | 'invalid';
 export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaimed }: BusinessFormProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
-  const [uploadingField, setUploadingField] = useState<'image_url' | 'logo_url' | null>(null);
+  const [uploadingField, setUploadingField] = useState<'image_url' | 'logo_url' | 'cover_video_url' | null>(null);
+  /*
+   * "I want a video cover", before one has been pasted. Intent only — a
+   * stored video URL always wins, so this can never disagree with the row.
+   */
+  const [wantsVideo, setWantsVideo] = useState(false);
   const [usernameEdited, setUsernameEdited] = useState(false);
   const [usernameStatus, setUsernameStatus] = useState<UsernameStatus>('idle');
   /** The business's owner, once known. Null for an unclaimed listing. */
@@ -69,6 +78,14 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
     email: '',
     image_url: '',
     logo_url: '',
+    cover_video_url: '',
+    /*
+     * Where the cover sits in its frame. NULL means nobody has positioned it
+     * and the renderer centres — which is what every existing cover does, so
+     * an untouched business looks exactly as before.
+     */
+    cover_focal_x: null as number | null,
+    cover_focal_y: null as number | null,
     status: 'open' as 'open' | 'closed',
     // Free text, but written by OpeningHoursEditor so it always parses back.
     opening_hours: '',
@@ -166,6 +183,9 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
         email: data.email || '',
         image_url: data.image_url || '',
         logo_url: data.logo_url || '',
+        cover_video_url: data.cover_video_url || '',
+        cover_focal_x: typeof data.cover_focal_x === 'number' ? data.cover_focal_x : null,
+        cover_focal_y: typeof data.cover_focal_y === 'number' ? data.cover_focal_y : null,
         status: data.status || 'open',
         // `hours` is the older column name some rows still carry.
         opening_hours: data.opening_hours || data.hours || '',
@@ -260,6 +280,61 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
       // allow re-selecting the same file
       if (field === 'image_url' && coverInputRef.current) coverInputRef.current.value = '';
       if (field === 'logo_url' && logoInputRef.current) logoInputRef.current.value = '';
+    }
+  };
+
+  /*
+   * The one field that is genuinely a media slot rather than a photo slot: the
+   * header banner accepts a video. Images still flow through handleImageUpload
+   * into `image_url` (that column stays the cover everywhere else); only a
+   * video lands in `cover_video_url`.
+   *
+   * Size: the banner autoplays, so there is no point holding it to the 5 MB
+   * ceiling that exists to keep thumbnails light. 50 MB matches the
+   * OpenReel gallery cap, so a reel that plays in the gallery can also be the
+   * cover.
+   */
+  const handleCoverVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !user) return;
+
+    if (file.type.startsWith('image/')) {
+      handleImageUpload(e, 'image_url');
+      return;
+    }
+    if (!file.type.startsWith('video/')) {
+      alert('Please choose an image or video file');
+      return;
+    }
+    if (file.size > 50 * 1024 * 1024) {
+      alert('Video is too large — maximum size is 50 MB');
+      return;
+    }
+
+    setUploadingField('cover_video_url');
+    try {
+      const ext = file.name.split('.').pop()?.toLowerCase() || 'mp4';
+      const path = `${user.id}/cover-video-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('business-images')
+        .upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('business-images').getPublicUrl(path);
+      setFormData(prev => ({ ...prev, cover_video_url: data.publicUrl }));
+    } catch (err: any) {
+      console.error('Cover video upload failed:', err);
+      alert(
+        `Video upload failed: ${err.message || 'unknown error'}\n\n` +
+        'If this says the bucket does not exist, run the latest migration ' +
+        '(scripts/sql/apply_all_migrations.sql) in the Supabase SQL editor.'
+      );
+    } finally {
+      setUploadingField(null);
+      // allow re-selecting the same file
+      if (coverInputRef.current) coverInputRef.current.value = '';
     }
   };
 
@@ -366,13 +441,19 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
       let { error } = await save(payload);
       // Gracefully degrade if a new column's migration hasn't been applied
       // yet — retry without it so the rest of the profile still saves.
-      if (error && /enabled_modules|secondary_categories|opening_hours/.test(error.message)) {
-        const missing = ['enabled_modules', 'secondary_categories', 'opening_hours']
+      if (error && /enabled_modules|secondary_categories|opening_hours|cover_video_url|cover_focal_/.test(error.message)) {
+        const missing = ['enabled_modules', 'secondary_categories', 'opening_hours', 'cover_video_url', 'cover_focal_x', 'cover_focal_y']
           .filter((c) => error!.message.includes(c));
-        const { enabled_modules, secondary_categories, opening_hours, ...rest } = payload;
+        const {
+          enabled_modules, secondary_categories, opening_hours, cover_video_url,
+          cover_focal_x, cover_focal_y, ...rest
+        } = payload;
         void enabled_modules;
         void secondary_categories;
         void opening_hours;
+        void cover_video_url;
+        void cover_focal_x;
+        void cover_focal_y;
         ({ error } = await save(rest));
         if (!error) {
           alert(`Saved — but ${missing.join(' and ')} needs the latest migration (scripts/sql/apply_all_migrations.sql) to take effect.`);
@@ -409,6 +490,8 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
       setLoading(false);
     }
   };
+
+  const coverKind: 'photo' | 'video' = formData.cover_video_url || wantsVideo ? 'video' : 'photo';
 
   return (
     <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4">
@@ -808,9 +891,52 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
         />
       </div>
 
-      {/* Cover / banner photo */}
+      {/* Cover / banner media — an image OR a video, uploaded or pasted */}
       <div>
         <label className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Cover Banner</label>
+
+        {/*
+          * One cover, not two.
+          *
+          * The field comment has said "an image OR a video" since this was
+          * written, but nothing enforced it: two independent URL boxes let an
+          * owner fill both and left "which one is my cover?" unanswerable.
+          *
+          * The selected tab is DATA where it can be (a video URL means the
+          * cover is a video) and INTENT only where it cannot — somebody who
+          * has clicked Video but not yet pasted one has nothing in the row to
+          * remember that by. `wantsVideo` is that intent and nothing else; it
+          * never contradicts the data, because a stored video always wins.
+          */}
+        <div className="grid grid-cols-2 gap-1 p-1 mb-2 rounded-lg bg-gray-100 dark:bg-gray-900">
+          {(['photo', 'video'] as const).map((kind) => (
+            <button
+              key={kind}
+              type="button"
+              onClick={() => {
+                if (kind === 'photo') {
+                  /*
+                   * Choosing the other one is what dropping this means. The
+                   * photo is NOT dropped going the other way: it stays as the
+                   * still the directory cards show and the poster the player
+                   * uses while the video loads.
+                   */
+                  setWantsVideo(false);
+                  setFormData((prev) => ({ ...prev, cover_video_url: '' }));
+                } else {
+                  setWantsVideo(true);
+                }
+              }}
+              className={`px-2 py-1.5 rounded-md text-xs font-medium transition min-h-[36px] ${
+                coverKind === kind
+                  ? 'bg-white dark:bg-gray-700 text-gray-900 dark:text-white shadow-sm'
+                  : 'text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-200'
+              }`}
+            >
+              {kind === 'photo' ? 'Photo' : 'Video'}
+            </button>
+          ))}
+        </div>
         <div className="flex items-center gap-4">
           <div className="w-32 h-20 rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900 overflow-hidden flex items-center justify-center flex-shrink-0">
             {formData.image_url ? (
@@ -823,19 +949,19 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
             <input
               ref={coverInputRef}
               type="file"
-              accept="image/*"
-              onChange={(e) => handleImageUpload(e, 'image_url')}
+              accept="image/*,video/*"
+              onChange={handleCoverVideoUpload}
               className="hidden"
             />
             <div className="flex gap-2">
               <button
                 type="button"
                 onClick={() => coverInputRef.current?.click()}
-                disabled={uploadingField === 'image_url'}
+                disabled={uploadingField !== null}
                 className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 dark:border-gray-600 text-gray-700 dark:text-gray-300 font-medium rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm disabled:opacity-50"
               >
-                {uploadingField === 'image_url' ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-                {uploadingField === 'image_url' ? 'Uploading…' : 'Upload Banner'}
+                {uploadingField !== null ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
+                {uploadingField !== null ? 'Uploading…' : 'Upload Banner'}
               </button>
               {formData.image_url && (
                 <button
@@ -844,21 +970,82 @@ export default function BusinessForm({ editingId, onSuccess, onCancel, asUnclaim
                   className="inline-flex items-center gap-1 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition text-sm"
                 >
                   <X size={14} />
-                  Remove
+                  Remove image
+                </button>
+              )}
+              {formData.cover_video_url && (
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, cover_video_url: '' })}
+                  className="inline-flex items-center gap-1 px-3 py-2 text-red-600 dark:text-red-400 hover:bg-red-50 rounded-lg transition text-sm"
+                >
+                  <X size={14} />
+                  Remove video
                 </button>
               )}
             </div>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Wide cover image at the top of your profile, JPG/PNG/WebP up to 5 MB</p>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Wide banner at the top of your profile. Upload an image (JPG/PNG/WebP up to 5&nbsp;MB) or a video (up to 50&nbsp;MB), or paste a link below.
+            </p>
           </div>
         </div>
+        {/* Live preview when a video is set */}
+        {formData.cover_video_url && (
+          <div className="mt-2 max-w-xs overflow-hidden rounded-lg border border-gray-200 dark:border-gray-700">
+            {mediaKindOf(formData.cover_video_url) === 'video' ? (
+              <video
+                src={formData.cover_video_url}
+                muted
+                controls
+                playsInline
+                preload="metadata"
+                className="w-full max-h-40 object-contain bg-black"
+              />
+            ) : (
+              <VideoEmbedFrame url={formData.cover_video_url} showAttribution={false} />
+            )}
+          </div>
+        )}
         {/* Fallback: paste an image URL directly */}
         <input
           type="url"
           value={formData.image_url}
           onChange={(e) => setFormData({ ...formData, image_url: e.target.value })}
-          placeholder="…or paste an image URL"
+          placeholder={coverKind === 'video'
+            ? '…or paste a still image URL — shown on cards and while the video loads'
+            : '…or paste an image URL (JPG, PNG, WebP)'}
           className="mt-2 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
         />
+        {/* Fallback: paste a video URL directly (file or platform link) */}
+        {coverKind === 'video' && (
+        <input
+          type="url"
+          value={formData.cover_video_url}
+          onChange={(e) => setFormData({ ...formData, cover_video_url: e.target.value })}
+          placeholder="…or paste a video URL — .mp4, YouTube, TikTok, Instagram, Vimeo…"
+          className="mt-2 w-full px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+        />
+        )}
+
+        {/*
+          * Position the cover.
+          *
+          * Shown only once there is something to position. The frame is short
+          * and wide and reshapes between phone, tablet, desktop and the
+          * directory card, so the middle of an uploaded photo is often a
+          * doorway or half a face. This stores two integers; the file is
+          * never cropped or re-encoded.
+          */}
+        {(formData.image_url || formData.cover_video_url) && (
+          <div className="mt-3">
+            <CoverPositionEditor
+              src={formData.cover_video_url || formData.image_url}
+              kind={formData.cover_video_url ? 'video' : 'image'}
+              value={{ x: formData.cover_focal_x, y: formData.cover_focal_y }}
+              onChange={(p) => setFormData((prev) => ({ ...prev, cover_focal_x: p.x, cover_focal_y: p.y }))}
+            />
+          </div>
+        )}
       </div>
 
       <div className="flex gap-4 pt-4">

@@ -32,7 +32,7 @@ export const ACCOUNT_KINDS: AccountKind[] = [
   {
     value: 'business',
     label: 'Business',
-    blurb: 'List a business, reach customers and manage it from your dashboard.',
+    blurb: 'Add a business, reach customers and manage it from your dashboard.',
   },
   {
     value: 'media_service',

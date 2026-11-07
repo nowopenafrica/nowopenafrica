@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../contexts/AuthContext';
 import BusinessIntelligencePanel from '../components/admin/BusinessIntelligencePanel';
+import { canAccessIntelligence } from '../lib/permissions';
 import { applySeo } from '../lib/seo';
 
 // Internal operations area. Same gates as the Admin Creator: role re-check on
@@ -49,7 +50,7 @@ export default function BusinessIntelligence() {
     return <div className="min-h-[60vh] flex items-center justify-center text-sm text-gray-400">Checking access…</div>;
   }
 
-  if (role !== 'admin') {
+  if (!canAccessIntelligence(role)) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center px-4">
         <div className="max-w-md text-center">

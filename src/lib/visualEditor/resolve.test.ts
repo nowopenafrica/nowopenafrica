@@ -146,21 +146,36 @@ describe('resolution', () => {
   });
 });
 
-describe('the About page is fully declared', () => {
-  const src = readFileSync('src/pages/About.tsx', 'utf8');
+describe('every adopted page is fully declared', () => {
+  // The React source each page value renders in the editor and in production.
+  const SOURCE: Record<string, string> = {
+    'about': 'src/pages/About.tsx',
+    'home': 'src/pages/Home.tsx',
+    'contact': 'src/pages/Contact.tsx',
+    'pricing': 'src/pages/Pricing.tsx',
+    'founder': 'src/pages/Founder.tsx',
+    'platform': 'src/pages/Platform.tsx',
+    'os': 'src/pages/NowOpenOs.tsx',
+    'waitlist': 'src/pages/Waitlist.tsx',
+    'digital-forms': 'src/pages/DigitalForms.tsx',
+  };
 
-  it('declares every slot the page actually uses', () => {
-    const used = [...src.matchAll(/slot="([^"]+)"/g)].map((m) => m[1]);
-    expect(used.length).toBeGreaterThan(0);
-    const declared = new Set(slotsForPage('about').map((s) => s.id));
-    for (const id of used) expect(declared.has(id), `${id} is used but not declared`).toBe(true);
-  });
+  for (const page of EDITABLE_PAGES) {
+    const src = readFileSync(SOURCE[page.page], 'utf8');
 
-  it('points every CTA at an allowed destination', () => {
-    for (const to of [...src.matchAll(/\sto="([^"]+)"/g)].map((m) => m[1])) {
-      expect(LINK_TARGETS, to).toContain(to);
-    }
-  });
+    it(`${page.page} — declares every slot the page actually uses`, () => {
+      const used = [...src.matchAll(/slot="([^"]+)"/g)].map((m) => m[1]);
+      expect(used.length, page.page).toBeGreaterThan(0);
+      const declared = new Set(slotsForPage(page.page).map((s) => s.id));
+      for (const id of used) expect(declared.has(id), `${id} is used but not declared`).toBe(true);
+    });
+
+    it(`${page.page} — points every CTA at an allowed destination`, () => {
+      for (const to of [...src.matchAll(/\sto="([^"]+)"/g)].map((m) => m[1])) {
+        expect(LINK_TARGETS, `${page.page} → ${to}`).toContain(to);
+      }
+    });
+  }
 });
 
 describe('registry integrity', () => {

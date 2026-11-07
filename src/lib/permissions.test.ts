@@ -3,7 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   canAccessTab, canDelete, canManageRoles, canManagePlans, canVerify, canManageHero,
   canEditBusinessProfile,
-  isStaff, isAdmin, isEditor, EDITOR_TABS, ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS,
+  isStaff, isAdmin, isEditor, EDITOR_TABS, CURATOR_TABS, ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS,
   type AdminTabId, type AppRole,
 } from './permissions';
 
@@ -18,9 +18,10 @@ const ALL_TABS: AdminTabId[] = (() => {
 })();
 
 describe('staff gate', () => {
-  it('admits admins and editors, nobody else', () => {
+  it('admits admins, editors and business curators, nobody else', () => {
     expect(isStaff('admin')).toBe(true);
     expect(isStaff('editor')).toBe(true);
+    expect(isStaff('business_curator')).toBe(true);
     for (const r of ['business', 'media_service', null, undefined, '', 'ADMIN', 'Editor']) {
       expect(isStaff(r as string)).toBe(false);
     }
@@ -62,6 +63,27 @@ describe('tab access', () => {
   it('lists no editor tab that is not a real tab', () => {
     for (const t of EDITOR_TABS) expect(ALL_TABS).toContain(t);
   });
+
+  it('gives curators only the businesses tabs', () => {
+    for (const t of ALL_TABS) {
+      expect(canAccessTab('business_curator', t)).toBe(CURATOR_TABS.includes(t));
+    }
+  });
+
+  // The point of the role: a curator is handed the Businesses tab and nothing
+  // else. If any of these ever pass, the role is exposing accounts, money,
+  // identity documents or content tooling a curator was never given.
+  it('never lets a curator near anything but businesses', () => {
+    for (const t of ['users', 'audit', 'payments', 'subscriptions', 'bookings',
+                     'verification', 'registrations', 'waitlist', 'applications', 'requests',
+                     'adverts', 'media', 'pages', 'hero-videos', 'review-queue', 'imports', 'switches'] as AdminTabId[]) {
+      expect(canAccessTab('business_curator', t)).toBe(false);
+    }
+  });
+
+  it('lists no curator tab that is not a real tab', () => {
+    for (const t of CURATOR_TABS) expect(ALL_TABS).toContain(t);
+  });
 });
 
 describe('privileged actions', () => {
@@ -69,14 +91,16 @@ describe('privileged actions', () => {
     for (const fn of [canDelete, canManageRoles, canManagePlans, canVerify]) {
       expect(fn('admin')).toBe(true);
       expect(fn('editor')).toBe(false);
+      expect(fn('business_curator')).toBe(false);
       expect(fn('business')).toBe(false);
       expect(fn(null)).toBe(false);
     }
   });
 
-  it('gives the hero banner to both staff roles — it is the editor’s job', () => {
+  it('keeps the hero banner to the roles whose job it is', () => {
     expect(canManageHero('admin')).toBe(true);
     expect(canManageHero('editor')).toBe(true);
+    expect(canManageHero('business_curator')).toBe(false);
     expect(canManageHero('business')).toBe(false);
   });
 });
@@ -91,6 +115,10 @@ describe('role metadata', () => {
 
   it('offers editor as an assignable role', () => {
     expect(ASSIGNABLE_ROLES).toContain('editor' as AppRole);
+  });
+
+  it('offers business_curator as an assignable role', () => {
+    expect(ASSIGNABLE_ROLES).toContain('business_curator' as AppRole);
   });
 });
 
@@ -189,6 +217,50 @@ describe('the editor boundary is a database boundary too', () => {
     ]) {
       expect(sql, column).toContain(`NEW.${column}`);
     }
+  });
+});
+
+describe('the curator boundary is a database boundary too', () => {
+  /*
+   * business_curator is the example role "can add and edit businesses". The
+   * React matrix only decides which tabs and buttons render; the migration
+   * decides what the role can actually reach. These tests pin the migration to
+   * the same narrow contract the UI promises.
+   */
+  const sql = readFileSync(
+    'supabase/migrations/20260919020000_business_curator_role.sql',
+    'utf8',
+  );
+
+  it('adds `business_curator` to the users_role_check allowlist', () => {
+    expect(sql).toMatch(/role IN \('business', 'media_service', 'personal', 'business_curator', 'editor', 'admin'\)/);
+  });
+
+  it('gives curators INSERT and UPDATE on businesses, never DELETE', () => {
+    expect(sql).toContain('Curators can create unclaimed businesses');
+    expect(sql).toContain('Curators can edit unclaimed businesses');
+    expect(sql).not.toContain('FOR DELETE');
+  });
+
+  it('constrains curators to unclaimed, ownerless rows', () => {
+    expect(sql).toMatch(/claim_status = 'unclaimed'/);
+    expect(sql).toMatch(/user_id IS NULL/);
+  });
+
+  it('freezes moderation columns from curators by trigger', () => {
+    expect(sql).toContain('guard_curator_business_moderation');
+    for (const column of [
+      'verified', 'verification_status', 'lifecycle_status', 'profile_state',
+      'removal_status', 'data_status', 'trust_score', 'claim_status',
+    ]) {
+      expect(sql, column).toContain(`NEW.${column}`);
+    }
+  });
+
+  it('keeps curators out of the editor-only site_settings write', () => {
+    // is_staff() grants site_settings in the editor migration. If a curator
+    // ever touches it here, this role has silently outgrown "businesses only".
+    expect(sql).not.toMatch(/USING \(public\.is_staff\(\)\)/);
   });
 });
 

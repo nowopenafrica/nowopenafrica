@@ -3,6 +3,7 @@ import { Link, useSearchParams } from 'react-router-dom';
 import { Compass, DoorOpen, Sparkles, Star, Gem, Search, Loader2, Heart, Tag, X, BadgeCheck, ChevronDown } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
+import { SERVER_ROW_CAP } from '../lib/fetchAllBusinesses';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import BusinessCard from '../components/discover/BusinessCard';
@@ -128,12 +129,14 @@ export default function Discover() {
           // the public site would otherwise see 532 listings where a customer
           // sees 32 — and have no way to tell the difference.
           .eq('is_listable', true)
+          // Submissions awaiting review are not browsable yet.
+          .eq('profile_state', 'published')
           // Ordered before the limit: with 532 listings an unordered
           // limit(400) can drop real businesses and keep empty shells.
           .order('listing_score', { ascending: false })
           .order('created_at', { ascending: false })
           .limit(400),
-        supabase.from('business_reviews').select('business_id').limit(5000),
+        supabase.from('business_reviews').select('business_id').limit(SERVER_ROW_CAP),
       ]);
       if (!cancelled) {
         // supabase-js RESOLVES with { data: null, error } instead of throwing,

@@ -10,6 +10,37 @@ export default {
         wider cards or empty margin. These let a layout keep answering the
         question "how many fit?" past that point.
       */
+      /*
+        THE BRAND COLOUR, WHICH DID NOT EXIST.
+        
+        `nowopen-*` was used at 75 call sites across 10 files — every button in
+        Business Intelligence, and the submit button on the PUBLIC
+        /add-business page — and it was never defined here. Tailwind emits
+        nothing for an unknown colour, so `bg-nowopen-500 text-white` rendered
+        as white text on no background: an invisible button. Measured by
+        grepping the built CSS, which contained zero occurrences of any
+        nowopen shade.
+        
+        The values are the brand's own, not invented: 600 is the #2563eb in
+        index.html's theme-color, and 500 is the #3b82f6 the hero gradient
+        starts from. The rest of the ramp follows that hue so any shade a
+        component reaches for resolves.
+      */
+      colors: {
+        nowopen: {
+          50: '#eff6ff',
+          100: '#dbeafe',
+          200: '#bfdbfe',
+          300: '#93c5fd',
+          400: '#60a5fa',
+          500: '#3b82f6',
+          600: '#2563eb',
+          700: '#1d4ed8',
+          800: '#1e40af',
+          900: '#1e3a8a',
+          950: '#172554',
+        },
+      },
       screens: {
         '3xl': '1800px',
         '4xl': '2200px',

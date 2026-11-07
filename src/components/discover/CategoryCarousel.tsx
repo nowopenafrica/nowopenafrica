@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, type LucideIcon } from 'lucide-react';
 
 import { iconFor, shortLabel } from '../../lib/categoryIcons';
 
@@ -20,7 +20,17 @@ export default function CategoryCarousel({
   active,
   onPick,
 }: {
-  groups: { group: string; n: number }[];
+  /*
+   * `icon` and `label` are optional overrides.
+   *
+   * The business directory and Discover both key off lib/categoryIcons, which
+   * covers the twelve business groups. The advertising marketplace browses by
+   * MEDIUM — billboard, transit, radio, print — a different vocabulary with its
+   * own icons already declared in advertCategories.ts. Letting a caller supply
+   * them is what makes one rail serve both, instead of a second rail existing
+   * because the icon lookup did not fit.
+   */
+  groups: { group: string; n: number; icon?: LucideIcon; label?: string }[];
   active: string;
   onPick: (group: string) => void;
 }) {
@@ -55,8 +65,8 @@ export default function CategoryCarousel({
         role="group"
         aria-label="Browse by category"
       >
-        {groups.map(({ group, n }) => {
-          const Icon = iconFor(group);
+        {groups.map(({ group, n, icon, label }) => {
+          const Icon = icon ?? iconFor(group);
           const on = active === group;
           return (
             <button
@@ -81,7 +91,7 @@ export default function CategoryCarousel({
               <span className={`text-[11px] font-medium leading-tight text-center ${
                 on ? 'text-blue-700 dark:text-blue-300' : 'text-gray-700 dark:text-gray-300'
               }`}>
-                {shortLabel(group)}
+                {label ?? shortLabel(group)}
               </span>
               {/* The count is what stops a tile being a guess. */}
               <span className="text-[10px] text-gray-400">{n}</span>

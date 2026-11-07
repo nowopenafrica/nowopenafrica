@@ -115,6 +115,9 @@ vi.mock('../lib/supabase', () => {
       eq: vi.fn(() => c),
       order: vi.fn(() => c),
       limit: vi.fn(() => c),
+      // The queue pages with .range() and breaks created_at ties on id, so the
+      // fake client has to speak both or the list renders empty.
+      range: vi.fn(() => c),
       in: vi.fn(() => c),
       update: (patch: unknown) => { updateSpy?.(patch); return c; },
       insert: (row: unknown) => { insertSpy?.(row); return c; },

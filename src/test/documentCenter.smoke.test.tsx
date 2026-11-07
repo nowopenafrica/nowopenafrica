@@ -2,8 +2,14 @@ import { describe, it, vi, expect } from 'vitest';
 import { render, screen, fireEvent, within } from '@testing-library/react';
 
 vi.mock('../lib/supabase', () => {
-  const tableData: Record<string, unknown[]> = {};
-  const result = { data: tableData.os_documents ?? [], error: null };
+  /*
+   * This suite exercises the bundled seed, so it asks for the state that
+   * legitimately produces it: an error. It previously mocked an EMPTY table
+   * with no error and relied on the panel treating that as a failure — the
+   * conflation that had Launch Control reporting a missing migration about a
+   * database that was fine.
+   */
+  const result = { data: null, error: { message: 'relation does not exist' } };
   const chain: any = {
     select: vi.fn(() => chain),
     eq: vi.fn(() => chain),

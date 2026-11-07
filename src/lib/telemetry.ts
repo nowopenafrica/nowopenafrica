@@ -31,6 +31,19 @@ import { supabase } from './supabase';
 
 /** The events worth having. A closed set, so a typo is a type error. */
 export type EventName =
+  /*
+   * Installing the site as an app.
+   *
+   * Four events, and the gap between them is the point: a CTA click is a
+   * click. Only `install_prompt_accepted` comes from the browser's own
+   * answer, and on iOS there is no answer at all — so an iPhone install can
+   * be offered and never counted. Reading clicks as installs would overstate
+   * the number by whatever share of taps end in somebody changing their mind.
+   */
+  | 'install_cta_clicked'
+  | 'install_instructions_viewed'
+  | 'install_prompt_accepted'
+  | 'install_prompt_dismissed'
   | 'signup'
   | 'signin'
   | 'business_created'
@@ -52,6 +65,32 @@ export type EventName =
   // is genuinely short enough, or whether people still walk away mid-way.
   | 'profile_request_started'
   | 'profile_requested'
+  // The shareable /add-business funnel. Three events because the drop-off
+  // between them is the only way to tell an unappealing landing page from a
+  // form that is too long from an auth gate that loses people.
+  // NowOpen Create. Four events because the drop-off between them is the only
+  // way to tell an unnoticed button from an unconvincing hub from a workflow
+  // people abandon once they reach it.
+  | 'create_hub_opened'
+  | 'create_action_selected'
+  // Somebody picked something they had to sign in for. Paired with
+  // create_hub_opened this says how much of the hub's value is gated.
+  | 'create_auth_required'
+  | 'create_deep_link'
+  | 'creation_started'
+  // Radar found their business before they did, and they acted on it. The
+  // number that says whether discovery is actually converting into owners.
+  | 'create_claim_prompt_followed'
+  // Paired with creation_started, this is the completion rate of a creation
+  // workflow — the number that says whether a hub tile leads anywhere useful,
+  // as opposed to merely leading somewhere.
+  | 'creation_completed'
+  // Somebody shaped their own Create menu. Says whether the shortcuts on offer
+  // are the ones businesses actually reach for, or whether everyone rebuilds it.
+  | 'create_tools_customised'
+  | 'add_business_started'
+  | 'add_business_step'
+  | 'business_submitted'
   // Somebody sent a business that is not theirs. The second acquisition loop:
   // no owner has to be persuaded for a nomination to arrive, so it is counted
   // separately from a request an owner made about themselves.

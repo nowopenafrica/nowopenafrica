@@ -9,6 +9,9 @@ import {
   CAMERA_CONSTRAINTS, MIC_CONSTRAINTS, REPLAY_VIDEO_BITRATE_BPS, computePerViewerBitrate,
 } from '../lib/liveStream';
 import {
+  selectClip, trimClipBuffer, type ClipChunk, type ClipLength,
+} from '../lib/live/clip';
+import {
   coverCropRect, containRect, videoConstraintsFor, oppositeFacing, canFlipCamera,
   applyAutoAdapt, cameraControls, applyPointOfInterest, applyTrackValue,
   nativeZoomTarget, clampToRange, pickRecorderMimeType, formatForMimeType,
@@ -245,6 +248,22 @@ export function useBroadcastStream() {
   // arriving after the pin sees nothing on screen.
   const pinRef = useRef<PinPayload | null>(null);
   const chunksRef = useRef<BlobPart[]>([]);
+  /*
+   * ── THE CLIP BUFFER ──────────────────────────────────────────────────
+   *
+   * The same chunks the replay is made of, with the moment each one arrived
+   * and nothing older than the longest clip we offer. It costs no extra
+   * encoding — the recorder is already running for the replay — which is why
+   * clipping cannot drop a frame of the broadcast.
+   *
+   * `chunksRef` keeps everything, because the replay is the whole session.
+   * This one is trimmed, because ninety seconds is all a clip can ever need
+   * and a two-hour broadcast held in memory is a crashed tab.
+   */
+  const clipChunksRef = useRef<ClipChunk[]>([]);
+  const clipStartRef = useRef<number | null>(null);
+  /* Drives which clip lengths the UI can offer, so it ticks once a second. */
+  const [recordedSeconds, setRecordedSeconds] = useState(0);
   const speechRef = useRef<any | null>(null);
   const allViewersSeenRef = useRef<Set<string>>(new Set());
   const peakViewersRef = useRef(0);
@@ -456,6 +475,9 @@ export function useBroadcastStream() {
           : undefined,
       );
       chunksRef.current = [];
+      clipChunksRef.current = [];
+      clipStartRef.current = null;
+      setRecordedSeconds(0);
       // Recorded through the pump so a camera flip does not end the replay —
       // see createRecordingPump. Falls back to the camera stream where canvas
       // capture is unavailable, which costs the flip its seamlessness but never
@@ -477,7 +499,22 @@ export function useBroadcastStream() {
         videoBitsPerSecond,
         audioBitsPerSecond: AUDIO_BITRATE,
       });
-      recorder.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data); };
+      recorder.ondataavailable = (e) => {
+        if (e.data.size <= 0) return;
+        chunksRef.current.push(e.data);
+        /*
+         * Timed by the clock, not counted. A backgrounded tab is throttled
+         * and its chunks stop arriving every second, so counting them would
+         * hand back a "30 second" clip holding two minutes of video.
+         */
+        const at = Date.now();
+        if (clipStartRef.current === null) clipStartRef.current = at;
+        clipChunksRef.current = trimClipBuffer(
+          [...clipChunksRef.current, { blob: e.data, atMs: at }],
+          at,
+        );
+        setRecordedSeconds(Math.round((at - clipStartRef.current) / 1000));
+      };
       recorder.start(1000);
       recorderRef.current = recorder;
       // recorder.mimeType is only meaningful once started, and is authoritative
@@ -801,8 +838,32 @@ export function useBroadcastStream() {
     setCurrentCaption('');
   }, [localStream]);
 
+  /**
+   * The last `seconds` of this broadcast, as a file.
+   *
+   * Returns null when there is not yet enough recorded — a broadcast two
+   * seconds old has a header and nothing else, and a file containing only a
+   * header is worse than a button that declines.
+   *
+   * `short` is true when the broadcast is younger than the length asked for.
+   * The clip is still real; it is just shorter, and the caller should say so
+   * rather than quietly handing over fifteen seconds labelled ninety.
+   */
+  const takeClip = useCallback((seconds: ClipLength) => {
+    const chosen = selectClip(clipChunksRef.current, seconds, Date.now());
+    if (!chosen) return null;
+    const { ext, contentType } = recordFormatRef.current;
+    return {
+      blob: new Blob(chosen.parts, { type: contentType }),
+      seconds: chosen.seconds,
+      short: chosen.short,
+      extension: ext,
+    };
+  }, []);
+
   return {
     localStream, isLive, viewerCount, micOn, camOn, captionsOn, currentCaption, error,
+    recordedSeconds, takeClip,
     start, stop, toggleMic, toggleCam, toggleCaptions,
     captionsSupported: speechRecognitionSupported(),
     facing, canFlip, flipping, flipCamera,

@@ -35,3 +35,24 @@ export const localDateTimeNow = (date: Date = new Date()): string => {
   const pad = (n: number) => String(n).padStart(2, '0');
   return `${localDateISO(date)}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
 };
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+
+/**
+ * "3 Nov 2026" on the viewer's local calendar, for a date-only string
+ * (`2026-11-03`) or a timestamp (`2026-11-03T09:00:00+00:00`).
+ *
+ * A date-only string is read as that calendar day, not handed to `new Date`,
+ * which parses it as UTC midnight and so prints the day before anywhere west
+ * of Greenwich. Month names are spelled here rather than left to the locale so
+ * the same claim reads the same on every device. An unparseable value comes
+ * back as given rather than as "Invalid Date".
+ */
+export const formatLocalDate = (iso: string): string => {
+  const dateOnly = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso.trim());
+  const d = dateOnly
+    ? new Date(Number(dateOnly[1]), Number(dateOnly[2]) - 1, Number(dateOnly[3]))
+    : new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
+};

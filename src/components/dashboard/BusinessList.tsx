@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
+import { SERVER_ROW_CAP } from '../../lib/fetchAllBusinesses';
 import { useAuth } from '../../contexts/AuthContext';
 import { Business } from '../../types';
-import { Edit2, Trash2, LayoutGrid, Radio, ShieldCheck, Users , Ticket} from 'lucide-react';
+import { Edit2, Trash2, LayoutGrid, Radio, ShieldCheck, Users , Ticket, Megaphone } from 'lucide-react';
 import TrustBadge from '../TrustBadge';
 import ConfirmDialog from '../ConfirmDialog';
 import { roleLabel } from '../../data/roles';
+import { PUBLISHER_ROLES } from '../../lib/businessUpdates';
 
 interface BusinessListProps {
   onEdit: (id: string) => void;
@@ -20,9 +22,11 @@ interface BusinessListProps {
   onManageTeam?: (business: Business) => void;
   /** Open the Offers manager for a business */
   onManageOffers?: (business: Business) => void;
+  /** Open the Business Updates manager (24-hour updates) for a business */
+  onManageUpdates?: (business: Business) => void;
 }
 
-export default function BusinessList({ onEdit, onManageContent, onGoLive, onManageTrust, onManageTeam, onManageOffers }: BusinessListProps) {
+export default function BusinessList({ onEdit, onManageContent, onGoLive, onManageTrust, onManageTeam, onManageOffers, onManageUpdates }: BusinessListProps) {
   const { user } = useAuth();
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [shared, setShared] = useState<{ business: Business; role: string }[]>([]);
@@ -43,7 +47,7 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
         .from('businesses')
         .select('*')
         .eq('user_id', user.id)
-        .limit(50000);
+        .limit(SERVER_ROW_CAP);
       setBusinesses(data || []);
 
       // Which of these already have a pending deletion request?
@@ -118,14 +122,26 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
               <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{business.name}</p>
               <p className="text-[11px] text-gray-500 dark:text-gray-400">{business.category} · Your role: {roleLabel(role)}</p>
             </div>
-            {onManageContent && (
-              <button
-                onClick={() => onManageContent(business)}
-                className="inline-flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-              >
-                <LayoutGrid size={13} /> Manage content
-              </button>
-            )}
+            <div className="flex items-center gap-2 shrink-0">
+              {/* Only roles the database lets publish; the button is a hint, RLS is the rule. */}
+              {onManageUpdates && (PUBLISHER_ROLES as readonly string[]).includes(role) && (
+                <button
+                  onClick={() => onManageUpdates(business)}
+                  aria-label={`Post an update for ${business.name}`}
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-medium border border-amber-500 text-amber-700 dark:text-amber-300 rounded-lg hover:bg-amber-50 dark:hover:bg-amber-900/30"
+                >
+                  <Megaphone size={13} /> Updates
+                </button>
+              )}
+              {onManageContent && (
+                <button
+                  onClick={() => onManageContent(business)}
+                  className="inline-flex items-center gap-1.5 px-3 min-h-[44px] text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700"
+                >
+                  <LayoutGrid size={13} /> Manage content
+                </button>
+              )}
+            </div>
           </div>
         ))}
       </div>
@@ -205,6 +221,16 @@ export default function BusinessList({ onEdit, onManageContent, onGoLive, onMana
                       className="inline-flex items-center justify-center w-[44px] h-[44px] text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 rounded transition"
                     >
                       <ShieldCheck size={16} />
+                    </button>
+                  )}
+                  {onManageUpdates && (
+                    <button
+                      onClick={() => onManageUpdates(business)}
+                      aria-label={`Post an update for ${business.name}`}
+                      title="Updates — public for 24 hours"
+                      className="inline-flex items-center justify-center w-[44px] h-[44px] text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 rounded transition"
+                    >
+                      <Megaphone size={16} />
                     </button>
                   )}
                   {onManageOffers && (

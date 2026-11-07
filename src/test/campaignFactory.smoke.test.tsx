@@ -8,6 +8,20 @@ if (typeof window.matchMedia !== 'function') {
     ({ matches: false, media: query, onchange: null, addListener: () => {}, removeListener: () => {}, addEventListener: () => {}, removeEventListener: () => {}, dispatchEvent: () => false }) as unknown as MediaQueryList;
 }
 
+/*
+ * ── THIS SUITE EXERCISES THE SEED, SO IT MUST ASK FOR THE SEED ───────────
+ *
+ * It used to mock `{ data: [], error: null }` — a table that read perfectly
+ * and happened to be empty — and relied on the panel treating that as a
+ * failure in order to render the bundled seed. That conflation was a real bug:
+ * Launch Control told operators "the os_launches migration isn't applied in
+ * this project yet" about a database that was fine (checked 2026-10-06: every
+ * os_ table exists live with its policies), while showing invented rows whose
+ * edits saved nowhere.
+ *
+ * Empty and unavailable are now different states. These tests are about the
+ * seed, so they mock the state that legitimately produces it: an error.
+ */
 vi.mock('../lib/supabase', () => {
   const orgId = '00000000-0000-4000-8000-00000000a001';
   const campaigns = [
@@ -91,9 +105,9 @@ describe('PlatformCampaigns fallback', () => {
       insert: vi.fn(async () => ({ data: null, error: null })),
       update: vi.fn(() => chain),
       delete: vi.fn(() => chain),
-      then: (onF?: any, onR?: any) => Promise.resolve({ data: [], error: null }).then(onF, onR),
-      catch: (onR?: any) => Promise.resolve({ data: [], error: null }).catch(onR),
-      finally: (onF?: any) => Promise.resolve({ data: [], error: null }).finally(onF),
+      then: (onF?: any, onR?: any) => Promise.resolve({ data: null, error: { message: 'relation does not exist' } }).then(onF, onR),
+      catch: (onR?: any) => Promise.resolve({ data: null, error: { message: 'relation does not exist' } }).catch(onR),
+      finally: (onF?: any) => Promise.resolve({ data: null, error: { message: 'relation does not exist' } }).finally(onF),
     };
     vi.mocked(supabase.from).mockImplementation(() => chain as never);
     render(<PlatformCampaigns />);

@@ -40,6 +40,80 @@ const page = (over: Partial<ProfilePage> = {}): ProfilePage => ({
   ...over,
 });
 
+describe('a stock placeholder never becomes a claim about the business', () => {
+  /*
+   * MEASURED 2026-09-14: 1,176 of 3,059 profiles carry a licensed stock cover
+   * placed by the enrichment engine, which registers it honestly as a
+   * placeholder. The page now labels it — but the crawler page was still
+   * feeding it to schema.org `image` (an assertion that the photograph
+   * depicts the business) and to `og:image` (the WhatsApp share card, which
+   * has no room for a caption and is the most-forwarded surface NowOpen has).
+   */
+  const base = {
+    id: 'b1', username: 'mama-put', name: 'Mama Put', location: 'Lagos',
+    claim_status: 'claimed' as const, listing_score: 80,
+  };
+
+  const render = (over: Record<string, unknown>): string => renderBusinessPage({
+    business: { ...base, ...over } as never,
+    siteUrl: 'https://nowopenafrica.com',
+    products: [], services: [], reviews: [], reviewCount: 0, locations: [],
+  });
+
+  const ldImage = (html: string): unknown => {
+    const blocks = [...html.matchAll(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/g)]
+      .map((m) => JSON.parse(m[1]));
+    return (blocks.find((b) => b['@type'] === 'LocalBusiness') ?? {}).image;
+  };
+  const ogImage = (html: string): string =>
+    (/property="og:image" content="([^"]*)"/.exec(html) ?? ['', ''])[1];
+
+  it('keeps a stock cover out of schema.org image', () => {
+    const html = render({ image_url: 'https://images.pexels.com/photos/1/x.jpg' });
+    expect(JSON.stringify(ldImage(html) ?? '')).not.toContain('pexels');
+  });
+
+  it('keeps a stock cover out of the share card', () => {
+    const html = render({ image_url: 'https://images.pexels.com/photos/1/x.jpg' });
+    expect(ogImage(html)).not.toContain('pexels');
+    // Falls back to NowOpen's own card rather than showing nothing.
+    expect(ogImage(html)).toContain('og-image.png');
+  });
+
+  it("still uses the business's own logo when the cover is stock", () => {
+    // A logo is the business's own mark; only the placeholder cover is dropped.
+    const html = render({
+      image_url: 'https://images.pexels.com/photos/1/x.jpg',
+      logo_url: 'https://mamaput.ng/logo.png',
+    });
+    expect(ogImage(html)).toBe('https://mamaput.ng/logo.png');
+    expect(JSON.stringify(ldImage(html))).toContain('mamaput.ng/logo.png');
+  });
+
+  it('labels the placeholder in the crawler page itself, not only in the metadata', () => {
+    /*
+     * Dropping it from og:image and schema.org was not enough on its own: this
+     * HTML is what Google reads and what a text-only client displays, and its
+     * <img> was still captioned with the business's name.
+     */
+    const html = render({ image_url: 'https://images.pexels.com/photos/1/x.jpg' });
+    expect(html).toMatch(/alt="Stock photograph used as a placeholder cover for Mama Put"/);
+    expect(html).toContain('Stock photo');
+  });
+
+  it('does not caption a real photograph as stock', () => {
+    const html = render({ image_url: 'https://mamaput.ng/shopfront.jpg' });
+    expect(html).toContain('alt="Mama Put"');
+    expect(html).not.toContain('Stock photo');
+  });
+
+  it('leaves a real photograph exactly as it was', () => {
+    const html = render({ image_url: 'https://mamaput.ng/shopfront.jpg' });
+    expect(ogImage(html)).toBe('https://mamaput.ng/shopfront.jpg');
+    expect(JSON.stringify(ldImage(html))).toContain('shopfront.jpg');
+  });
+});
+
 describe('structured data links the business to its own channels', () => {
   /*
    * `sameAs` is how a search engine connects this page to the same business on

@@ -4,6 +4,8 @@ import { ArrowRight, Check, Eye, Info } from 'lucide-react';
 
 import IndustryPageMock from '../components/discover/IndustryPageMock';
 import { applySeo } from '../lib/seo';
+import { sampleProjectsFor } from '../lib/industryProjects';
+import { portfolioLabel } from '../data/categoryTabLabels';
 import {
   INDUSTRY_EXAMPLES, demoPath, exampleBySlug, examplePath, orderedExamples,
   placeholderFor,
@@ -144,6 +146,49 @@ export default function IndustryExamplePage() {
           )}
         </section>
       )}
+
+      {/*
+        Past work, which is what most customers actually compare on.
+
+        These entries are DEMONSTRATIONS, labelled as such below. The rule
+        for this page is that it shows a layout filled from shipped config
+        and named after the INDUSTRY, never after a business — so no sample
+        names a real client, carries a rating, or quotes a customer. See
+        lib/industryProjects.ts.
+      */}
+      <section className="mt-8">
+        <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">
+          {portfolioLabel(example.category)} — what a strong entry looks like
+        </h2>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          {sampleProjectsFor(example.slug).map((project) => (
+            <article
+              key={project.title}
+              className="rounded-xl border border-gray-200 p-3.5 dark:border-gray-700"
+            >
+              <h3 className="text-sm font-bold text-gray-900 dark:text-white">{project.title}</h3>
+              <p className="mt-0.5 text-[11px] text-gray-500">{project.meta}</p>
+              <p className="mt-1.5 text-xs text-gray-600 dark:text-gray-300">{project.summary}</p>
+              <div className="mt-2 flex flex-wrap gap-1">
+                {project.tags.map((tag) => (
+                  <span
+                    key={tag}
+                    className="rounded-full bg-gray-100 px-2 py-0.5 text-[10px] text-gray-600 dark:bg-gray-800 dark:text-gray-300"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+        <p className="mt-2 text-xs text-gray-500">
+          Written as examples, not real jobs — a specific title, the scale, what
+          was actually done, and how it finished. That is the difference between
+          a {portfolioLabel(example.category).toLowerCase()} somebody reads and
+          one they scroll past.
+        </p>
+      </section>
 
       <section className="mt-8">
         <h2 className="text-sm font-bold uppercase tracking-wide text-gray-500">

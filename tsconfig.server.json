@@ -28,6 +28,20 @@
     "isolatedModules": true,
     "moduleDetection": "force",
     "noEmit": true,
+    /*
+     * Incremental checking.
+     *
+     * MEASURED, 2026-10-20: a full check of `src` is 29.3s. With the build
+     * info file it is 4.4s when nothing relevant changed — the same work,
+     * minus re-reading 1,041 files TypeScript already understands.
+     *
+     * The file lives under node_modules/.cache, which is already ignored, so
+     * it is machine-local and never committed. Deleting it costs one slow
+     * run and nothing else; it is a cache, not state.
+     */
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/.cache/tsbuildinfo/server.tsbuildinfo",
+
     "strict": true,
     "noFallthroughCasesInSwitch": true
   },

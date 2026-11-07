@@ -20,7 +20,8 @@ const stripComments = (src: string) => src
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
 const platform = stripComments(readFileSync('src/pages/Platform.tsx', 'utf8'));
-const media = stripComments(readFileSync('src/pages/Media.tsx', 'utf8'));
+/* The creator marketplace moved off /media to /media/services. */
+const media = stripComments(readFileSync('src/pages/MediaServices.tsx', 'utf8'));
 
 describe('the ten capabilities read as one control, not ten cards', () => {
   it('is a tablist, so the ten are a selector', () => {
@@ -136,7 +137,7 @@ describe('the Create marketplace hides controls it cannot honour', () => {
   it('keeps the honest empty state and both ways out', () => {
     expect(media).toMatch(/No creative professionals listed yet/);
     expect(media).toMatch(/until a real person has claimed their profile/);
-    expect(media).toContain('href="#create-designs"');
+    expect(media).toContain('to="/media"');
     expect(media).toMatch(/to="\/waitlist"/);
   });
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isSameLocalDay, localDateISO } from './dates';
+import { formatLocalDate, isSameLocalDay, localDateISO } from './dates';
 
 describe('localDateISO', () => {
   it('formats the local calendar day, not the UTC one', () => {
@@ -41,5 +41,22 @@ describe('isSameLocalDay', () => {
     expect(isSameLocalDay(undefined, now)).toBe(false);
     expect(isSameLocalDay('', now)).toBe(false);
     expect(isSameLocalDay('not-a-date', now)).toBe(false);
+  });
+});
+
+describe('formatLocalDate', () => {
+  it('reads a date-only string as that calendar day, in any offset', () => {
+    // new Date('2026-11-03') is UTC midnight: west of Greenwich it would print 2 Nov.
+    expect(formatLocalDate('2026-11-03')).toBe('3 Nov 2026');
+  });
+
+  it('reads a timestamp on the local calendar', () => {
+    const local = new Date(2026, 10, 3, 12, 0, 0);
+    expect(formatLocalDate(local.toISOString())).toBe('3 Nov 2026');
+    expect(formatLocalDate('2026-01-15T12:00:00+00:00')).toMatch(/^1[456] Jan 2026$/);
+  });
+
+  it('never prints Invalid Date', () => {
+    expect(formatLocalDate('not a date')).not.toMatch(/Invalid|NaN/);
   });
 });

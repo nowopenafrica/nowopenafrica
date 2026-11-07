@@ -9,7 +9,7 @@ import { Editable, PageContentProvider, useEditableSeo } from '../components/edi
 
 const pillars = [
   { key: 'discover', icon: Compass, title: 'Discover', text: 'A living directory of African businesses — searchable by what they do, where they are, and how they’re rated.' },
-  { key: 'advertise', icon: Megaphone, title: 'Advertise', text: 'Book real-world ad placements — billboards, transit, digital screens — and run managed digital campaigns.' },
+  { key: 'advertise', icon: Megaphone, title: 'Advertise', text: 'Plan real-world ad placements — billboards, transit, digital screens — and run managed digital campaigns.' },
   { key: 'create', icon: Palette, title: 'Create', text: 'Hire vetted photographers, designers, videographers and studios across the continent.' },
   { key: 'trust', icon: ShieldCheck, title: 'Trust', text: 'Tiered verification and transparent trust scores so customers can transact with confidence.' },
 ] as const;

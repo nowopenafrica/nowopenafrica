@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import {
   UtensilsCrossed, CalendarCheck, Flame, Star, Plus, Minus, ShoppingCart,
-  MessageCircle, Clock, Users,
+  MessageCircle, Clock, Users, Share2,
 } from 'lucide-react';
 import SmartImg from './SmartImg';
 
@@ -24,13 +24,15 @@ interface Props {
   onAddToCart: (item: MenuItem, qty: number) => void;
   onWhatsApp: (item: MenuItem) => void;
   onEnquire: (context: string) => void;
+  /** Sends this dish to the page's share sheet. */
+  onShare?: (item: MenuItem) => void;
 }
 
 // Preferred display order; unknown categories fall to the end alphabetically.
 const CATEGORY_ORDER = ['Specials', 'Starters', 'Mains', 'Sides', 'Drinks', 'Desserts'];
 
 export default function RestaurantMenu({
-  items, reserveLabel, hasPhone, onReserve, onAddToCart, onWhatsApp, onEnquire,
+  items, reserveLabel, hasPhone, onReserve, onAddToCart, onWhatsApp, onEnquire, onShare,
 }: Props) {
   const [qty, setQty] = useState<Record<string, number>>({});
   const getQty = (id: string | number) => qty[String(id)] ?? 1;
@@ -78,6 +80,11 @@ export default function RestaurantMenu({
           <Plus size={11} />
         </button>
       </div>
+      {onShare && (
+        <button onClick={() => onShare(item)} aria-label={`Share ${item.name}`} className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition">
+          <Share2 size={14} />
+        </button>
+      )}
       {hasPhone && (
         <button onClick={() => onWhatsApp(item)} aria-label={`Order ${item.name} on WhatsApp`} className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition">
           <MessageCircle size={14} />
@@ -136,7 +143,7 @@ export default function RestaurantMenu({
           <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-3 pb-2 border-b border-gray-200 dark:border-gray-700">{category}</h3>
           <ul className="space-y-3">
             {list.map((item) => (
-              <li key={item.id} className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
+              <li key={item.id} id={`product-${item.id}`} className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 dark:border-gray-700 bg-white dark:bg-gray-800">
                 {item.image ? (
                   <SmartImg src={item.image} alt={item.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
                 ) : (

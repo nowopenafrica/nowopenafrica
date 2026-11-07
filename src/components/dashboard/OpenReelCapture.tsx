@@ -25,6 +25,15 @@ interface OpenReelCaptureProps {
    * hasn't resolved the plan yet can never accidentally grant more.
    */
   maxSeconds?: number;
+  /**
+   * Which mode the camera opens in.
+   *
+   * Defaults to 'photo', which is what every existing caller expects. NowOpen
+   * Create passes 'video': somebody who tapped "Record an OpenReel" has
+   * already said what they want, and making them switch mode first is one tap
+   * of friction in the moment they were ready to film.
+   */
+  initialMode?: 'photo' | 'video';
   onCaptured: (url: string, type: 'photo' | 'video') => void;
   onClose: () => void;
 }
@@ -32,7 +41,7 @@ interface OpenReelCaptureProps {
 type Mode = 'photo' | 'video';
 type Stage = 'preview' | 'capture' | 'review';
 
-export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, onClose }: OpenReelCaptureProps) {
+export default function OpenReelCapture({ userId, maxSeconds = 60, initialMode = 'photo', onCaptured, onClose }: OpenReelCaptureProps) {
   const limitSeconds = Math.max(5, Math.round(maxSeconds));
   const videoRef = useRef<HTMLVideoElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -55,7 +64,7 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   // still be stopped before it produces a file the gallery would reject.
   const recordedBytesRef = useRef(0);
 
-  const [mode, setMode] = useState<Mode>('photo');
+  const [mode, setMode] = useState<Mode>(initialMode);
   const [stage, setStage] = useState<Stage>('preview');
   const [recording, setRecording] = useState(false);
   const [paused, setPaused] = useState(false);
@@ -215,7 +224,9 @@ export default function OpenReelCapture({ userId, maxSeconds = 60, onCaptured, o
   }, [applyNativeZoom, limitSeconds]);
 
   useEffect(() => {
-    startCamera('photo');
+    // Opens straight into the requested mode — audio is only requested for
+    // video, so a photo caller is never asked for the microphone.
+    startCamera(initialMode);
     return () => {
       streamRef.current?.getTracks().forEach(t => t.stop());
       if (timerRef.current) clearInterval(timerRef.current);

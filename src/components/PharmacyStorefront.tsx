@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { type TrustClaim } from '../lib/trustClaims';
 import {
   Pill, FileUp, BellRing, MessageCircle, Plus, Minus, ShoppingCart,
-  BadgeCheck, Search, Stethoscope,
+  BadgeCheck, Search, Stethoscope, Share2,
 } from 'lucide-react';
 import SmartImg from './SmartImg';
 
@@ -25,11 +25,13 @@ interface Props {
   onAddToCart: (item: Medicine, qty: number) => void;
   onWhatsApp: (item: Medicine) => void;
   onEnquire: (context: string) => void;
+  /** Sends this medicine to the page's share sheet. */
+  onShare?: (item: Medicine) => void;
   /** Only claims the record actually backs; see lib/trustClaims. */
   claims?: TrustClaim[];
 }
 
-export default function PharmacyStorefront({ items, hasPhone, claims = [], onAddToCart, onWhatsApp, onEnquire }: Props) {
+export default function PharmacyStorefront({ items, hasPhone, claims = [], onAddToCart, onWhatsApp, onEnquire, onShare }: Props) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -124,7 +126,7 @@ export default function PharmacyStorefront({ items, hasPhone, claims = [], onAdd
           {filtered.map((m) => {
             const rx = !!m.requires_prescription;
             return (
-              <div key={m.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+              <div key={m.id} id={`product-${m.id}`} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
                 <div className="flex gap-3 p-3">
                   {m.image ? (
                     <SmartImg src={m.image} alt={m.name} className="w-16 h-16 rounded-lg object-cover flex-shrink-0" />
@@ -153,6 +155,9 @@ export default function PharmacyStorefront({ items, hasPhone, claims = [], onAdd
                       <span className="w-5 text-center text-xs text-gray-700 dark:text-gray-300">{getQty(m.id)}</span>
                       <button type="button" onClick={() => setItemQty(m.id, getQty(m.id) + 1)} aria-label="Increase" className="p-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"><Plus size={11} /></button>
                     </div>
+                    {onShare && (
+                      <button onClick={() => onShare(m)} aria-label={`Share ${m.name}`} className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><Share2 size={14} /></button>
+                    )}
                     {hasPhone && (
                       <button onClick={() => onWhatsApp(m)} aria-label={`Order ${m.name} on WhatsApp`} className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"><MessageCircle size={14} /></button>
                     )}

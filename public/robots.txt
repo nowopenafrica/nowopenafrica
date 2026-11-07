@@ -12,4 +12,4 @@ Disallow: /digital-forms
 Disallow: /reset-password
 Disallow: /forgot-password
 
-Sitemap: https://nowopenafrica.com/sitemap.xml
+Sitemap: https://www.nowopenafrica.com/sitemap.xml

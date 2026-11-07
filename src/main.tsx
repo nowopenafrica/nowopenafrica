@@ -8,6 +8,7 @@ import { CurrencyProvider } from './contexts/CurrencyContext';
 import { I18nProvider } from './contexts/I18nContext';
 import './index.css';
 import { initTelemetry } from './lib/telemetry';
+import { registerServiceWorker } from './lib/pwa/useInstall';
 
 // Warm up the connection to the Supabase origin as early as possible — its
 // project ref isn't known at build time (it's a VITE_ env var), so we inject
@@ -34,6 +35,17 @@ import { initTelemetry } from './lib/telemetry';
 // still reported. Two bugs last month were found by a human clicking
 // rather than by anything reporting them.
 initTelemetry();
+
+/*
+ * Makes the site installable.
+ *
+ * The manifest and the icons have been correct for months; what was missing
+ * is a service worker, and without one Chrome never fires
+ * `beforeinstallprompt`. See public/sw.js for what it does and does not
+ * cache — the short version is static build output only, never anything that
+ * could be one person's data.
+ */
+registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

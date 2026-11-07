@@ -6,7 +6,19 @@
 // Google explicitly that *Adeyemi Odunaike is the Founder of NowOpen Africa*,
 // the single most important machine-readable fact for building an entity.
 
-export const SITE_URL = 'https://nowopenafrica.com';
+/*
+ * The canonical origin, and it must match the host the server actually serves.
+ *
+ * MEASURED 2026-09-14: the bare (non-www) host 308-redirects to the www one.
+ * Declaring the bare host here put a
+ * redirecting URL into every <link rel=canonical>, every og:url, every
+ * structured-data @id and all 1,131 sitemap entries -- the site telling Google
+ * one thing while the server answered another.
+ *
+ * If the canonical host ever changes, change it HERE and in the api/ defaults;
+ * src/test/canonicalHost.test.ts fails on any file that disagrees.
+ */
+export const SITE_URL = 'https://www.nowopenafrica.com';
 
 interface SeoInput {
   title: string;

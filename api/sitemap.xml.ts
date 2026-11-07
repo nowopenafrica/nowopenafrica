@@ -23,14 +23,50 @@
 
 import { discoveryPages, type DiscoverableListing } from '../src/lib/discoveryPages.js';
 import { isIndexableProfile } from '../src/lib/businessPageRender.js';
+/*
+ * The renderer's own threshold, imported rather than restated. A sitemap that
+ * submits a URL the page then answers with `noindex` asks a crawler to consider
+ * something and immediately tells it not to — see the measurement below.
+ */
+import { MIN_INDEXABLE } from '../src/lib/discoveryPageRender.js';
+import { isListedPlacement } from '../src/lib/promote/listing.js';
 
-const SITE_URL = (process.env.APP_BASE_URL || 'https://nowopenafrica.com').replace(/\/$/, '');
+const SITE_URL = (process.env.APP_BASE_URL || 'https://www.nowopenafrica.com').replace(/\/$/, '');
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const SUPABASE_ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 
 /** Sitemaps cap at 50,000 URLs; well under it, but the guard is cheap. */
 const MAX_URLS = 45000;
+
+/**
+ * How many rows we are willing to read per table.
+ *
+ * NOT the number PostgREST will return in one response — see PAGE_SIZE.
+ */
 const PER_TABLE = 5000;
+
+/**
+ * PostgREST's own hard ceiling on a single response, and the reason this file
+ * pages at all.
+ *
+ * MEASURED 2026-09-14 against production: `?limit=5000` returned 1000 rows,
+ * and so did `?limit=2000`. The server's `db-max-rows` setting silently
+ * truncates the result and says nothing about it — no error, no flag, just a
+ * shorter array than you asked for.
+ *
+ * The damage that caused: the sitemap contained exactly 1000 business profiles
+ * while 2,980 cleared the indexability bar. Roughly two thousand real,
+ * qualifying profiles — two thirds of the directory — had never once been
+ * submitted to a search engine, and nothing anywhere reported a problem,
+ * because asking for 5000 and receiving 1000 looks identical to a directory
+ * that only has 1000 businesses in it.
+ *
+ * It also starved the discovery pages: `discoveryPages()` counts listings to
+ * decide which city and category pages are dense enough to exist, so it was
+ * making that judgement on a third of the data. 56 place pages existed against
+ * 277 distinct locations on file.
+ */
+const PAGE_SIZE = 1000;
 
 interface VercelRequest { method?: string }
 interface VercelResponse {
@@ -50,8 +86,23 @@ interface UrlEntry {
 const STATIC_ROUTES: UrlEntry[] = [
   { loc: '/', changefreq: 'daily', priority: '1.0' },
   { loc: '/businesses', changefreq: 'daily', priority: '0.9' },
+  { loc: '/discover', changefreq: 'daily', priority: '0.9' },
+  /*
+   * The acquisition routes. These were absent, which meant the pages whose
+   * entire job is to be found by a business owner searching for how to get
+   * listed were the pages never submitted for indexing.
+   *
+   * /join/business is deliberately NOT here: it is an alias of /add-business
+   * and canonicalises to it, so listing both would submit one page twice.
+   */
+  { loc: '/add-business', changefreq: 'weekly', priority: '0.9' },
+  { loc: '/send-business', changefreq: 'weekly', priority: '0.7' },
+  { loc: '/nominate', changefreq: 'weekly', priority: '0.6' },
+  { loc: '/open-now', changefreq: 'daily', priority: '0.7' },
   { loc: '/adverts', changefreq: 'daily', priority: '0.8' },
   { loc: '/media', changefreq: 'daily', priority: '0.8' },
+  /* Creators, services, packs and credits - split off /media. */
+  { loc: '/media/services', changefreq: 'weekly', priority: '0.7' },
   { loc: '/platform', changefreq: 'weekly', priority: '0.7' },
   { loc: '/pricing', changefreq: 'weekly', priority: '0.7' },
   { loc: '/waitlist', changefreq: 'weekly', priority: '0.6' },
@@ -62,20 +113,60 @@ const STATIC_ROUTES: UrlEntry[] = [
   { loc: '/privacy', changefreq: 'yearly', priority: '0.2' },
 ];
 
-async function rest<T>(path: string): Promise<T[]> {
-  if (!SUPABASE_URL || !SUPABASE_ANON) return [];
+/** One request. `path` must already carry its own select and order. */
+async function restPage<T>(path: string): Promise<T[] | null> {
   try {
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
       headers: { apikey: SUPABASE_ANON, Authorization: `Bearer ${SUPABASE_ANON}` },
     });
-    if (!res.ok) return [];
+    if (!res.ok) return null;
     const rows = await res.json();
-    return Array.isArray(rows) ? (rows as T[]) : [];
+    return Array.isArray(rows) ? (rows as T[]) : null;
   } catch {
-    // A sitemap that omits listings is a bad day; one that 500s tells search
-    // engines the whole site is broken. Degrade to the static routes instead.
-    return [];
+    return null;
   }
+}
+
+/**
+ * Every row up to `cap`, fetched in PAGE_SIZE pages.
+ *
+ * `path` supplies the select and the order; this adds `limit` and `offset`.
+ * The caller's order MUST end in a unique tiebreaker (`id`), because offset
+ * paging over a non-unique sort lets a row shift between requests — showing
+ * one twice and another not at all. A duplicated <loc> is a real defect in a
+ * sitemap, so `dedupe` below is a second belt on the same trousers.
+ *
+ * Stops early on a short page, which is how the last page announces itself.
+ *
+ * On failure it returns what it already has rather than nothing: a sitemap
+ * missing its tail is worth far more to a crawler than one that 500s, which
+ * reads as a site that is broken in its entirety.
+ */
+async function rest<T>(path: string, cap = PER_TABLE): Promise<T[]> {
+  if (!SUPABASE_URL || !SUPABASE_ANON) return [];
+  const out: T[] = [];
+  for (let offset = 0; offset < cap; offset += PAGE_SIZE) {
+    const size = Math.min(PAGE_SIZE, cap - offset);
+    const sep = path.includes('?') ? '&' : '?';
+    const page = await restPage<T>(`${path}${sep}limit=${size}&offset=${offset}`);
+    if (page === null) break;
+    out.push(...page);
+    // A page shorter than requested is the end of the table. It is also what a
+    // server-side row cap looks like, which is why PAGE_SIZE matches that cap
+    // rather than exceeding it.
+    if (page.length < size) break;
+  }
+  return out;
+}
+
+/** Keep the first entry per URL. Belt to the tiebreaker's braces. */
+function dedupe(entries: UrlEntry[]): UrlEntry[] {
+  const seen = new Set<string>();
+  return entries.filter((e) => {
+    if (seen.has(e.loc)) return false;
+    seen.add(e.loc);
+    return true;
+  });
 }
 
 /** XML text escaping. A business called "Bar & Grill" must not break the document. */
@@ -117,15 +208,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return;
   }
 
-  const [allBusinesses, adverts, media] = await Promise.all([
+  const [allBusinesses, adverts, media, projects] = await Promise.all([
+    /*
+     * `id` closes every order below. `updated_at` and `created_at` are not
+     * unique — a bulk import stamps hundreds of rows with the same second —
+     * so without it the page boundaries are undefined and rows fall through
+     * the gaps between requests.
+     */
     rest<BusinessRow>(
-      `businesses?select=id,username,category,location,updated_at,created_at,claim_status,data_status,listing_score&order=updated_at.desc&limit=${PER_TABLE}`,
+      'businesses?select=id,username,category,location,updated_at,created_at,claim_status,data_status,listing_score'
+      + '&order=updated_at.desc,id.asc',
     ),
-    rest<{ id: string; user_id?: string | null; updated_at?: string; created_at?: string }>(
-      `advertisements?select=id,user_id,updated_at,created_at&order=created_at.desc&limit=${PER_TABLE}`,
+    rest<{ id: string; user_id?: string | null; owner_id?: string | null; lifecycle?: string | null; updated_at?: string; created_at?: string }>(
+      'advertisements?select=id,user_id,owner_id,lifecycle,updated_at,created_at&order=created_at.desc,id.asc',
     ),
     rest<{ id: string; updated_at?: string; created_at?: string }>(
-      `media_services?select=id,updated_at,created_at&order=created_at.desc&limit=${PER_TABLE}`,
+      'media_services?select=id,updated_at,created_at&order=created_at.desc,id.asc',
+    ),
+    /*
+     * Project stories. `slug` is the shareable form; rows that predate slugs
+     * fall back to their id, which is what their public URL already uses.
+     * Selecting a column the migration has not created yet returns no rows,
+     * so a fresh environment simply omits projects rather than failing.
+     */
+    rest<{ id: string; slug?: string | null; business_id: string; updated_at?: string; created_at?: string }>(
+      'business_projects?select=id,slug,business_id,updated_at,created_at'
+      + '&published=eq.true&order=created_at.desc,id.asc',
     ),
   ]);
 
@@ -159,12 +267,25 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   // Discovery pages come before individual listings: they are the pages that
   // rank for what people search, and they only exist where the data supports
   // them (see discoveryPages).
-  for (const page of discoveryPages(businesses)) {
+  /*
+   * MEASURED 2026-09-15, BEFORE THIS THRESHOLD WAS PASSED
+   *
+   * discoveryPages() defaulted to MIN_LISTINGS_PER_PAGE (3) while the renderer
+   * required MIN_INDEXABLE (5) accountable listings. The sitemap submitted 220
+   * discovery pages; sampling 40 of them through Googlebot returned `noindex`
+   * on 40 of 40.
+   *
+   * Every row in `businesses` here has already passed isIndexableProfile, so it
+   * is accountable by definition — which makes counting five of THESE at least
+   * as strict as the renderer counting five accountable ones. A page that
+   * reaches the sitemap is therefore guaranteed to be served `index`.
+   */
+  for (const page of discoveryPages(businesses, MIN_INDEXABLE)) {
     entries.push({
       loc: `/${page.path}`,
       changefreq: 'daily',
       // A denser page is a better landing page, and says so.
-      priority: page.count >= 10 ? '0.9' : page.count >= 5 ? '0.8' : '0.7',
+      priority: page.count >= 20 ? '0.9' : page.count >= 10 ? '0.8' : '0.7',
     });
   }
 
@@ -176,6 +297,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       lastmod: isoDay(b.updated_at) ?? isoDay(b.created_at),
       changefreq: 'weekly',
       priority: '0.7',
+    });
+  }
+
+  /*
+   * Published project stories.
+   *
+   * Only for businesses already in the indexable set above: submitting a
+   * project page whose owner profile we would not submit is asking a crawler to
+   * trust a page we do not yet stand behind. Drafts never appear here — the
+   * query filters `published = true`, and the renderer additionally returns
+   * `noindex` for anything it cannot confirm as published.
+   */
+  const indexableBusinesses = new Set(businesses.map((b) => b.id));
+  for (const project of projects) {
+    if (!project.business_id || !indexableBusinesses.has(project.business_id)) continue;
+    entries.push({
+      loc: `/work/${encodeURIComponent(project.slug || project.id)}`,
+      lastmod: isoDay(project.updated_at) ?? isoDay(project.created_at),
+      changefreq: 'monthly',
+      priority: '0.5',
     });
   }
 
@@ -200,7 +341,13 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
    * page's title and a canonical pointing at `/`, so submitting them asked
    * Google to index 97 declared duplicates of the front page.
    */
-  const accountableAdverts = adverts.filter((a) => !!a.user_id);
+  // An accountable owner is either a legacy account (user_id) or a media
+  // owner from the partner portal (owner_id). Portal placements keep user_id
+  // NULL by design, so checking user_id alone kept every one of them out.
+  // And never a placement that is not public: pending_review, rejected or
+  // archived (listing.ts). AdvertDetail answers those with "not listed".
+  const accountableAdverts = adverts.filter((a) => !!a.user_id || !!a.owner_id)
+    .filter(isListedPlacement);
 
   for (const a of accountableAdverts) {
     entries.push({
@@ -223,7 +370,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const body = [
     '<?xml version="1.0" encoding="UTF-8"?>',
     '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">',
-    ...entries.slice(0, MAX_URLS).map(urlXml),
+    ...dedupe(entries).slice(0, MAX_URLS).map(urlXml),
     '</urlset>',
   ].join('\n');
 

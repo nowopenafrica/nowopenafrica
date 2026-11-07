@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Wrench, Siren, Navigation, CalendarCheck, MessageCircle, BadgeCheck,
+  Wrench, Siren, CalendarCheck, MessageCircle, Phone,
 } from 'lucide-react';
 
 export interface Job {
@@ -16,12 +16,20 @@ interface Props {
   ctaLabel: string;
   hasPhone?: boolean;
   phone?: string;
+  /**
+   * Has this business CONFIRMED that it operates round the clock?
+   *
+   * Only `is_24_hours_confirmed` may set this. The platform-wide 24/7 display
+   * default is an assumption, and an assumption must never become a promise
+   * that somebody will answer an emergency call at 3am.
+   */
+  confirmed24h?: boolean;
   onBook: (id: string) => void;
   onWhatsApp: (item: Job) => void;
   onEnquire: (context: string) => void;
 }
 
-export default function ServiceProviders({ jobs, ctaLabel, hasPhone, phone, onBook, onWhatsApp, onEnquire }: Props) {
+export default function ServiceProviders({ jobs, ctaLabel, hasPhone, phone, confirmed24h, onBook, onWhatsApp, onEnquire }: Props) {
   const [type, setType] = useState('All');
 
   const types = useMemo(() => {
@@ -46,19 +54,32 @@ export default function ServiceProviders({ jobs, ctaLabel, hasPhone, phone, onBo
 
   return (
     <div className="animate-fadeIn space-y-6">
-      {/* Actions */}
+      {/* Actions.
+
+          THREE CLAIMS USED TO RENDER HERE UNCONDITIONALLY, on all 190
+          "Professional Services" listings: a red "Emergency call" button wired
+          to the business phone, an "Available now" badge, and "Live ETA on the
+          way". Nothing in the data supported any of them.
+
+          "Available now" asserts live availability nobody measures. "Live ETA"
+          described a feature that does not exist anywhere on the platform. And
+          the emergency button is the same failure found on 1,654 hospital
+          listings (NOA-029) — a promise that somebody will answer at 3am,
+          made on the business's behalf by a page it has never seen. */}
       <div className="flex flex-wrap items-center gap-2">
         {hasPhone && (
-          <a href={`tel:${phone}`} className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition">
-            <Siren size={18} /> Emergency call
-          </a>
+          confirmed24h ? (
+            <a href={`tel:${phone}`} className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition">
+              <Siren size={18} /> Emergency call
+            </a>
+          ) : (
+            <a href={`tel:${phone}`} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition">
+              <Phone size={18} /> Call this business
+            </a>
+          )
         )}
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-2 text-xs font-semibold">
-          <BadgeCheck size={14} /> Available now
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-2 text-xs font-semibold">
-          <Navigation size={14} /> Live ETA on the way
-        </span>
+        {/* "Live ETA on the way" was removed with the badges above: it
+            described a feature that has never existed. */}
       </div>
 
       {/* Type filter */}

@@ -95,7 +95,7 @@ export default function IndustryDirectory({ label = 'businesses', limit = 12, va
             to="/waitlist"
             className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl bg-blue-600 text-white text-sm font-semibold hover:bg-blue-700 transition"
           >
-            List your business <ArrowRight size={16} />
+            Add your business <ArrowRight size={16} />
           </Link>
           <Link
             to="/platform"

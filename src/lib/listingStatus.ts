@@ -117,6 +117,30 @@ export function isListable(b: ListingRecord | null | undefined): boolean {
 }
 
 /**
+ * Is this row part of the public directory right now?
+ *
+ * DELIBERATELY SEPARATE FROM isListable(). `isListable` mirrors the database's
+ * generated `is_listable` column and must keep mirroring it exactly — the
+ * column is referenced by three RLS policies, nine functions and two indexes,
+ * so it is not free to change, and a TS mirror that quietly disagreed with it
+ * would be worse than no mirror at all.
+ *
+ * `profile_state` is the newer, cheaper switch: a business submitted through
+ * the public /add-business form lands `ready_for_review`, and until somebody
+ * looks at it, it should not appear in a grid, a search box or a crawler page.
+ * It is still reachable by direct URL — the submitter has to be able to see
+ * what they created — and `isIndexableProfile` already returns false for it, so
+ * it is not offered to search engines either.
+ */
+export function isPubliclyListed(b: ListingRecord | null | undefined): boolean {
+  if (!isListable(b)) return false;
+  // Rows created before profile_state existed carry NULL and are historic
+  // published listings; absence is not a reason to hide 3,059 of them.
+  const state = (b as { profile_state?: string | null } | null)?.profile_state;
+  return state == null || state === 'published';
+}
+
+/**
  * Should a crawler index this page?
  *
  * Prospects are hidden from the public entirely, so this is belt-and-braces

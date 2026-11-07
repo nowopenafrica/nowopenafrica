@@ -33,6 +33,8 @@ export default function OpenNow() {
    * nearly empty, that is the worst possible confusion to create.
    */
   const [loadError, setLoadError] = useState(false);
+  /** Every listable business, counted in the DATABASE — not in the page that loaded. */
+  const [totalListed, setTotalListed] = useState<number | null>(null);
   /** Bumped by the retry button to re-run the effect. */
   const [reloadKey, setReloadKey] = useState(0);
   const [place, setPlace] = useState('');
@@ -49,9 +51,47 @@ export default function OpenNow() {
     setLoadError(false);
     setLoading(true);
     (async () => {
-      const [biz, reviews] = await Promise.all([
-        supabase.from('businesses').select(DISCOVER_SELECT).limit(400),
-        supabase.from('business_reviews').select('business_id').limit(5000),
+      /*
+       * ONLY ROWS THAT COULD EVER QUALIFY, AND ALL OF THEM.
+       *
+       * This was `.select(DISCOVER_SELECT).limit(400)` with no filters and no
+       * order, which was wrong three separate ways:
+       *
+       *   1. NO VISIBILITY FILTER. Discover and Businesses both apply
+       *      is_listable + profile_state explicitly, and say why: RLS also lets
+       *      an admin or an owner see their own unlisted rows, so the public
+       *      page showed a different directory depending on who was looking.
+       *      This page applied neither.
+       *   2. UNORDERED limit(400). PostgREST returned an arbitrary 400 of
+       *      3,118, so a business with genuinely confirmed hours did not appear
+       *      if it fell outside that slice — on the one page the product is
+       *      named after.
+       *   3. It read 400 rows in order to display two. Only a business with
+       *      stated hours can ever be shown here, so that belongs in the query.
+       *
+       * MEASURED: `hours` is NULL on all 3,118 rows and `opening_hours` on
+       * 3,115, so this `or` returns three rows rather than a page of them.
+       * publicOpenState still makes the real decision — this only avoids
+       * reading the whole table to find the handful that can qualify.
+       */
+      const [biz, reviews, total] = await Promise.all([
+        supabase.from('businesses').select(DISCOVER_SELECT)
+          .eq('is_listable', true)
+          .eq('profile_state', 'published')
+          .or('opening_hours.not.is.null,hours.not.is.null,is_24_hours_confirmed.is.true')
+          .order('listing_score', { ascending: false })
+          .order('id', { ascending: true })
+          .limit(1000),
+        supabase.from('business_reviews').select('business_id').limit(1000),
+        /*
+         * The honest denominator, counted with head:true so it costs no rows.
+         * The previous "N more listed" was computed over the 400 rows that
+         * happened to arrive, so it told a reader the directory held 399
+         * businesses when it holds 3,118.
+         */
+        supabase.from('businesses').select('id', { count: 'exact', head: true })
+          .eq('is_listable', true)
+          .eq('profile_state', 'published'),
       ]);
       if (!cancelled) {
         // supabase-js RESOLVES with { data: null, error } on a network failure
@@ -61,6 +101,7 @@ export default function OpenNow() {
         // The reviews call is only a tally — its failure costs a count, not
         // the page, so it does not set this.
         if (biz.error) setLoadError(true);
+        if (typeof total.count === 'number') setTotalListed(total.count);
         setAll(withReviewCounts(
           (biz.data as DiscoverBusiness[]) || [],
           tallyReviews((reviews.data as { business_id: string }[]) || []),
@@ -82,6 +123,29 @@ export default function OpenNow() {
     const id = setInterval(() => setNow(new Date()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  /**
+   * How many businesses in scope have not confirmed their hours.
+   *
+   * The distinction the empty state depends on. "Nothing is open right now" and
+   * "nobody has told us when they open" are completely different statements,
+   * and only one of them is true here: 3,115 of 3,118 listings carry no hours,
+   * so this page is empty for want of data, not for want of open shops.
+   */
+  const unconfirmed = useMemo(() => {
+    if (totalListed === null) return 0;
+    /*
+     * Everything listed, minus everything that published hours at all.
+     *
+     * `all` now holds only rows carrying an hours signal, so this is the true
+     * size of the gap rather than the size of one page — which is what the
+     * previous version measured, and why it reported 397.
+     *
+     * Not narrowed by `place`: a place-filtered total would need its own query,
+     * and an approximate number presented as exact is the fault being fixed.
+     */
+    return Math.max(0, totalListed - all.length);
+  }, [totalListed, all]);
 
   const results = useMemo(() => {
     const scope = place ? near(all, place) : all;
@@ -134,18 +198,70 @@ export default function OpenNow() {
           <Loader2 size={16} className="animate-spin" /> Checking who is open…
         </div>
       ) : results.length === 0 ? (
+        /*
+         * WHY THIS SAYS WHAT IT SAYS
+         *
+         * It used to read "Nothing is open right now." That was false, and
+         * confidently so: shops across Nigeria were open, NowOpen just did not
+         * know which. The page was previously never empty at all, because an
+         * unconfirmed `default_24_7` counted as open and returned all 3,115
+         * listings at any hour — so this page went from meaning nothing to
+         * showing nothing the moment that default was removed, and the
+         * honest sentence is the one that explains which.
+         *
+         * A directory that admits a gap and asks the reader to help close it is
+         * doing the only useful thing available to it. Guessing is not the
+         * alternative; it is the thing that was wrong.
+         */
         <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
-          <p className="text-sm text-gray-600 dark:text-gray-300">
-            {place ? `Nothing open in ${place} right now.` : 'Nothing is open right now.'}
-          </p>
-          <Link to="/discover" className="inline-block mt-3 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">
-            Discover businesses →
-          </Link>
+          {unconfirmed > 0 ? (
+            <>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                Nothing with confirmed hours{place ? ` in ${place}` : ''} right now.
+              </p>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-300 max-w-md mx-auto">
+                {unconfirmed.toLocaleString()} businesses are listed on NowOpen that have not
+                published their opening hours. We will not guess — a wrong
+                &ldquo;open&rdquo; sends someone to a closed door.
+              </p>
+              <div className="mt-4 flex flex-wrap items-center justify-center gap-2">
+                <Link
+                  to="/add-business"
+                  className="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 px-4 min-h-[44px] text-sm font-semibold text-white hover:bg-emerald-700"
+                >
+                  Add your hours
+                </Link>
+                <Link
+                  to="/businesses"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-gray-300 dark:border-gray-600 px-4 min-h-[44px] text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-800"
+                >
+                  Browse all businesses
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <p className="text-sm text-gray-600 dark:text-gray-300">
+                {place ? `Nothing open in ${place} right now.` : 'Nothing is open right now.'}
+              </p>
+              <Link to="/discover" className="inline-block mt-3 text-sm font-semibold text-blue-600 dark:text-blue-400 hover:underline">
+                Discover businesses &rarr;
+              </Link>
+            </>
+          )}
         </div>
       ) : (
         <>
           <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
             {results.length} open{place ? ` in ${place}` : ''}
+            {/*
+              * Naming what is NOT counted, so a short list does not read as a
+              * short directory. Without it "4 open in Lagos" implies Lagos has
+              * four businesses.
+              */}
+            {unconfirmed > 0 && (
+              <> · {unconfirmed.toLocaleString()} listed without published hours</>
+            )}
           </p>
           <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-3">
             {results.map((b) => <BusinessCard key={b.id} business={b} now={now} />)}

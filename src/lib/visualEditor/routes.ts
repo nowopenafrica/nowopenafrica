@@ -15,6 +15,7 @@
 export const LINK_TARGETS: readonly string[] = [
   '/',
   '/about',
+  '/add-business',
   '/adverts',
   '/businesses',
   '/campaign/founding-1000',

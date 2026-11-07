@@ -9,21 +9,33 @@
    this must ship as an actual webfont rather than a font-family name.) */
 @font-face {
   font-family: 'Coolvetica';
-  src: url('/fonts/coolvetica/Coolvetica-Light.otf') format('opentype');
+  /* woff2 first: 62% smaller than the OTF and understood by every
+     browser since 2016. The OTF stays as a fallback because keeping it
+     costs nothing - it is only fetched if woff2 is unsupported. */
+  src: url('/fonts/coolvetica/Coolvetica-Light.woff2') format('woff2'),
+       url('/fonts/coolvetica/Coolvetica-Light.otf') format('opentype');
   font-weight: 300;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Coolvetica';
-  src: url('/fonts/coolvetica/Coolvetica-Regular.otf') format('opentype');
+  /* woff2 first: 62% smaller than the OTF and understood by every
+     browser since 2016. The OTF stays as a fallback because keeping it
+     costs nothing - it is only fetched if woff2 is unsupported. */
+  src: url('/fonts/coolvetica/Coolvetica-Regular.woff2') format('woff2'),
+       url('/fonts/coolvetica/Coolvetica-Regular.otf') format('opentype');
   font-weight: 400;
   font-style: normal;
   font-display: swap;
 }
 @font-face {
   font-family: 'Coolvetica';
-  src: url('/fonts/coolvetica/Coolvetica-Bold.otf') format('opentype');
+  /* woff2 first: 62% smaller than the OTF and understood by every
+     browser since 2016. The OTF stays as a fallback because keeping it
+     costs nothing - it is only fetched if woff2 is unsupported. */
+  src: url('/fonts/coolvetica/Coolvetica-Bold.woff2') format('woff2'),
+       url('/fonts/coolvetica/Coolvetica-Bold.otf') format('opentype');
   font-weight: 700;
   font-style: normal;
   font-display: swap;
@@ -147,8 +159,29 @@
      spacing across every page (listings, detail pages, dashboards, modals…)
      with no per-page overrides. The homepage video-banner title is exempt —
      it uses a fixed px-based clamp() so it never shrinks with this rule. */
+  /*
+   * ── THE LADDER WAS LOWERED ONE STEP, 2026-10-06 ──────────────────────
+   *
+   * Asked for "2pt smaller". Measured before changing it, at 1652px wide:
+   *
+   *   root                    14.5px
+   *   commonest text on page  11px (794 uses) and 10px (486 uses)
+   *   text-xs resolves to     10.9px
+   *
+   * A literal 2pt is −2.67px — an 18% cut that would take text-xs to 8.9px
+   * and the body ladder below the pinned 9–11px labels it sits beside. So
+   * this drops one pixel per step (≈0.75pt), which is the "little smaller"
+   * asked for second, and leaves every rem size at 10px or above.
+   *
+   * Worth knowing before asking for more: 1,559 places in the app pin their
+   * size in px (`text-[11px]`, `text-[10px]`, 62 at `text-[9px]`). Those do
+   * NOT respond to this lever at all, so this moves roughly the 3,724
+   * rem-based sizes and nothing else. Making the whole site respond to one
+   * number means moving that pinned ladder onto rem — a separate, mechanical
+   * change.
+   */
   html {
-    font-size: 16px;
+    font-size: 15px;
   }
 
   /* Tablet & up (≈768px+): hold a flat, compact "retina-small" scale so the
@@ -157,22 +190,65 @@
      viewport grows. `rem` + a capped max-w container do the rest. */
   @media (min-width: 768px) {
     html {
-      font-size: 15px;
+      font-size: 14px;
     }
   }
   /* Large laptops / QHD (≈1536px+): a touch smaller again so content density
      stays consistent rather than ballooning on the biggest laptop panels. */
   @media (min-width: 1536px) {
     html {
-      font-size: 14.5px;
+      font-size: 13.5px;
     }
   }
 
-  /* Phones: daintier still. */
+  /* Phones: daintier still — but only half a step down, not a full one.
+     A phone is held closer and has the least room, and at 13px a text-xs
+     label would land under 10px. */
   @media (max-width: 640px) {
     html {
-      font-size: 14px;
+      font-size: 13.5px;
     }
+  }
+
+  /*
+   * ── CRISPNESS ON HIGH-DPI SCREENS ────────────────────────────────────
+   *
+   * This matters here more than on most sites: measured 2026-10-06, the
+   * commonest text on a page is 11px and 10px, and 62 places use 9px. At
+   * that size the difference between sub-pixel and grayscale antialiasing
+   * is the difference between legible and smeared.
+   *
+   * `antialiased` renders grayscale rather than sub-pixel. On a 2x display
+   * there are enough physical pixels that grayscale is cleaner — sub-pixel
+   * rendering fringes small glyphs with colour. On a 1x display it would be
+   * the wrong trade, which is why this is inside a DPI query rather than
+   * applied globally as most sites do.
+   */
+  @media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+    body {
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+  }
+
+  /*
+   * iOS inflates text in landscape unless told not to. Without this the
+   * careful ladder above is silently overridden on a rotated iPhone — the
+   * one place the type scale is already tightest.
+   */
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-size-adjust: 100%;
+  }
+
+  /*
+   * Kerning and ligatures stay on for headings, where they are visible and
+   * cheap. NOT `text-rendering: optimizeLegibility` globally: on a long
+   * listing page it forces layout of every glyph pair and is a measurable
+   * cost for an effect nobody can see at 10px.
+   */
+  h1, h2, h3 {
+    text-rendering: optimizeLegibility;
   }
 
   body {
@@ -296,3 +372,23 @@
  * while it slid out of view. The nav no longer moves, so the rule had nothing
  * left to correct and was removed rather than left inert.
  */
+
+/* NowOpen Create — the sheet's entrance.
+ *
+ * CSS rather than an animation library: this mounts on the homepage, and
+ * ~40KB of runtime so a panel can spring would be paid for by every visitor
+ * who never opens it. The cubic-bezier is a settle, not a bounce.
+ *
+ * prefers-reduced-motion removes the movement and keeps the fade, so the
+ * sheet still reads as arriving rather than appearing from nowhere. */
+@keyframes createRise {
+  from { opacity: 0; transform: translateY(16px) scale(0.985); }
+  to   { opacity: 1; transform: translateY(0)    scale(1); }
+}
+@keyframes createFade {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[createRise"] { animation: createFade 120ms ease-out !important; }
+}

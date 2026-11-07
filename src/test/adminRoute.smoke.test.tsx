@@ -19,11 +19,11 @@ const mockedUseRole = vi.mocked(useRole);
 
 const adminContent = <div>admin content</div>;
 
-function renderAtAdmin(adminOnly = false) {
+function renderAtAdmin(adminOnly = false, editorPlus = false) {
   return render(
     <MemoryRouter initialEntries={['/admin']}>
       <Routes>
-        <Route path="/admin" element={<AdminRoute adminOnly={adminOnly}>{adminContent}</AdminRoute>} />
+        <Route path="/admin" element={<AdminRoute adminOnly={adminOnly} editorPlus={editorPlus}>{adminContent}</AdminRoute>} />
         <Route path="/login" element={<div>login page</div>} />
         <Route path="/dashboard" element={<div>dashboard page</div>} />
       </Routes>
@@ -91,5 +91,29 @@ describe('AdminRoute', () => {
     renderAtAdmin(true);
     expect(screen.getByText('admin content')).toBeInTheDocument();
     expect(screen.queryByText('dashboard page')).not.toBeInTheDocument();
+  });
+
+  it('admits an editor through the Business Intelligence gate', () => {
+    mockedUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false } as never);
+    mockedUseRole.mockReturnValue({ role: 'editor', checking: false });
+    renderAtAdmin(false, true);
+    expect(screen.getByText('admin content')).toBeInTheDocument();
+    expect(screen.queryByText('dashboard page')).not.toBeInTheDocument();
+  });
+
+  it('admits an admin through the Business Intelligence gate', () => {
+    mockedUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false } as never);
+    mockedUseRole.mockReturnValue({ role: 'admin', checking: false });
+    renderAtAdmin(false, true);
+    expect(screen.getByText('admin content')).toBeInTheDocument();
+    expect(screen.queryByText('dashboard page')).not.toBeInTheDocument();
+  });
+
+  it('keeps a business curator out of the Business Intelligence gate', () => {
+    mockedUseAuth.mockReturnValue({ user: { id: 'u1' }, loading: false } as never);
+    mockedUseRole.mockReturnValue({ role: 'business_curator', checking: false });
+    renderAtAdmin(false, true);
+    expect(screen.getByText('dashboard page')).toBeInTheDocument();
+    expect(screen.queryByText('admin content')).not.toBeInTheDocument();
   });
 });

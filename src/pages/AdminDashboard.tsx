@@ -6,16 +6,22 @@ import StuckPayments from '../components/admin/StuckPayments';
 import ImportCenter from '../components/admin/ImportCenter';
 import ReviewQueue from '../components/admin/ReviewQueue';
 import FeatureFlagPanel from '../components/admin/FeatureFlagPanel';
+import ServiceCatalogue from '../components/admin/ServiceCatalogue';
 import PageEditor from '../components/admin/PageEditor';
 import ActivationPanel from '../components/admin/ActivationPanel';
 import ProfileRequests from '../components/admin/ProfileRequests';
+import ClaimsPanel from '../components/admin/ClaimsPanel';
 import CreateOrders from '../components/admin/CreateOrders';
 import ClaimReachConsole from '../components/admin/ClaimReachConsole';
+import MediaOwnersPanel from '../components/admin/MediaOwnersPanel';
 import OnboardingMessagingPanel from '../components/admin/OnboardingMessagingPanel';
+import BrandSocialPanel from '../components/admin/BrandSocialPanel';
 import AdminBusinessEditor from '../components/admin/AdminBusinessEditor';
+import AdminAdvertEditor from '../components/admin/AdminAdvertEditor';
+import BusinessIntelligencePanel from '../components/admin/BusinessIntelligencePanel';
 import {
-  canAccessTab, canCreateBusiness, canDelete, canEditBusinessProfile, canManageRoles, canManagePlans,
-  isStaff, isEditor,
+  canAccessTab, canAccessIntelligence, canCreateBusiness, canDelete, canEditBusinessProfile, canEditAdverts, canManageRoles, canManagePlans,
+  isStaff, isEditor, isCurator,
   ASSIGNABLE_ROLES, ROLE_LABELS, ROLE_DESCRIPTIONS, ROLE_CAPABILITIES, type AdminTabId,
 } from '../lib/permissions';
 import { loadHeroSettings, saveHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
@@ -24,9 +30,10 @@ import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import { Business, Advertisement, MediaService, User as UserProfile } from '../types';
 import {
-  Shield, Users, ShoppingBag, Award, Film, Trash2, Search, ArrowLeft, RefreshCw, BadgeCheck,
+  Shield, Users, ShoppingBag, Award, Film, Trash2, Search, SearchCode, ArrowLeft, RefreshCw, BadgeCheck,
   CalendarCheck, CreditCard, ListChecks, FileText, MessageSquare, Upload, Video, LayoutGrid, ShieldCheck,
-  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare, Target, Send, Radio, Pencil, Lock, CheckSquare, Square, Copy, ChevronLeft, ChevronRight, MessageCircle } from 'lucide-react';
+  Crown, Eye, Inbox, History, ClipboardList, Plus, Power, PenSquare, Target, Send, Radio, Pencil, Lock, CheckSquare, Square, Copy, ChevronLeft, ChevronRight, MessageCircle, Tag, Megaphone, Building2,
+} from 'lucide-react';
 import { APPLICATION_STATUS_LABELS, hubRelationshipById } from '../lib/formsEngine';
 import { NOWOPEN_ORG_ID } from '../lib/workforce';
 import TrustPanel from '../components/dashboard/TrustPanel';
@@ -99,6 +106,8 @@ export default function AdminDashboard() {
   const [editBizId, setEditBizId] = useState<string | null>(null);
   /** Admin is creating a fresh unclaimed business. */
   const [creatingBiz, setCreatingBiz] = useState(false);
+  /** The placement an admin is editing, if any. */
+  const [editAdvertId, setEditAdvertId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<{ table: DeletableTable; id: string; label: string } | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [search, setSearch] = useState('');
@@ -111,6 +120,27 @@ export default function AdminDashboard() {
   const [bizPage, setBizPage] = useState(1);
 
   useEffect(() => { setBizPage(1); }, [search, bizCategoryFilter, bizStatusFilter, bizVerifiedFilter, bizDuplicatesOnly]);
+
+  /*
+   * Claims waiting for a decision, counted in the database.
+   *
+   * On the tab itself because a claim is somebody waiting to be told whether
+   * a business is theirs — the one queue on this console where the person at
+   * the other end already acted and is now waiting on us.
+   */
+  const [pendingClaims, setPendingClaims] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    supabase
+      .from('business_claims')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending')
+      .then(({ count, error }) => {
+        // supabase-js resolves with {data,error}; a .catch() here never fires.
+        if (alive && !error) setPendingClaims(count ?? 0);
+      });
+    return () => { alive = false; };
+  }, []);
 
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [businesses, setBusinesses] = useState<Business[]>([]);
@@ -737,10 +767,21 @@ export default function AdminDashboard() {
     { id: 'activation', label: 'Activation', icon: Target, count: 0 },
     // Third: the acquisition queue. People are waiting in it.
     { id: 'profile-requests', label: 'Acquisition', icon: Send, count: 0 },
+    /*
+     * Directly after Acquisition, because it is the step that follows it.
+     * Added 2026-10-06: claims could be filed and no screen rendered them, so
+     * a claim sat in the table with nobody able to see it. Outreach without
+     * this is an invitation through a door that opens onto nothing.
+     */
+    { id: 'claims', label: 'Claims', icon: BadgeCheck, count: pendingClaims },
     { id: 'create-orders', label: 'Create Orders', icon: ShoppingBag, count: 0 },
     // Outreach, and only ever as a plan: the console cannot send.
     { id: 'claimreach', label: 'ClaimReach', icon: Radio, count: 0 },
+    // Who owns a placement, and whether a person has checked. Admin-only (not in EDITOR_TABS).
+    { id: 'media-owners', label: 'Media owners', icon: Building2, count: 0 },
     { id: 'onboarding', label: 'Onboarding', icon: MessageCircle, count: 0 },
+    // The brand's own accounts, through Zoho. Next to the other outreach.
+    { id: 'brand-social', label: 'Brand Social', icon: Megaphone, count: 0 },
     { id: 'users', label: 'Users', icon: Users, count: users.length },
     { id: 'roles', label: 'Roles', icon: Lock, count: 0 },
     { id: 'businesses', label: 'Businesses', icon: ShoppingBag, count: businesses.length },
@@ -757,7 +798,9 @@ export default function AdminDashboard() {
     { id: 'enquiries', label: 'Enquiries', icon: MessageSquare, count: enquiries.length },
     { id: 'review-queue', label: 'Review Queue', icon: Inbox, count: reviewCount },
     { id: 'imports', label: 'Import Center', icon: Upload, count: 0 },
+    { id: 'business-intel', label: 'Business Intelligence', icon: SearchCode, count: 0 },
     { id: 'pages', label: 'Page Editor', icon: PenSquare, count: 0 },
+    { id: 'service-catalogue', label: 'Service Catalogue', icon: Tag, count: 0 },
     { id: 'switches', label: 'Kill Switches', icon: Power, count: 0 },
     { id: 'audit', label: 'Audit Log', icon: History, count: auditLog.length },
     { id: 'hero-videos', label: 'Hero Videos', icon: Video, count: heroVideos.length },
@@ -784,18 +827,47 @@ export default function AdminDashboard() {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-                {isEditor(role) ? 'Editor Panel' : 'Admin Panel'}
+                {isEditor(role) ? 'Editor Panel' : isCurator(role) ? 'Business Curator Panel' : 'Admin Panel'}
               </h1>
               {/* Name the limits rather than leaving an editor to infer them
                   from missing tabs — absence reads as a bug, not a boundary. */}
               <p className="text-gray-600 dark:text-gray-400 text-sm">
                 {isEditor(role)
-                  ? 'Adds and edits unclaimed listings, plus homepage and page content. Accounts, payments, verification, moderation and deletion are admin-only.'
-                  : 'Manage all platform data'}
+                  ? 'Adds and edits unclaimed listings, plus homepage and page content and Business Intelligence. Accounts, payments, verification, moderation and deletion are admin-only.'
+                  : isCurator(role)
+                    ? 'Adds and edits unclaimed business listings. Everything else — users, payments, verification, moderation and deletion — is admin-only.'
+                    : 'Manage all platform data'}
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
+            {/*
+              * THE WAY IN TO BUSINESS INTELLIGENCE.
+              *
+              * /admin/business-intelligence had no link anywhere in the app.
+              * The page itself carries a "Back to Admin" arrow, so it was a
+              * one-way door: you could leave it, but the only way to arrive was
+              * to type the URL from memory. Discovery, the review queue, source
+              * rights, conflicts and the manual extractor all live behind it.
+              *
+              * It sits with Refresh and My Dashboard rather than in the tablist
+              * below, because those tabs switch a panel within this page and
+              * this navigates to a different one. Putting it in the tablist
+              * would make one "tab" behave unlike every other.
+              *
+              * Admin + editor only, matching the route's own `editorPlus` guard.
+              * The narrowest staff role (business_curator) deliberately misses
+              * out: its RLS only covers `businesses`.
+              */}
+            {canAccessIntelligence(role) && (
+              <Link
+                to="/admin/business-intelligence"
+                className="inline-flex items-center gap-2 px-4 min-h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
+              >
+                <SearchCode size={14} />
+                Business Intelligence
+              </Link>
+            )}
             <button
               onClick={fetchAll}
               className="inline-flex items-center gap-2 px-4 min-h-[44px] bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium"
@@ -1104,6 +1176,14 @@ export default function AdminDashboard() {
                     this; the console simply shows what the role may do.
                   </p>
                 </div>
+              )}
+
+              {/* Business Intelligence — embedded console section. Each BI table
+                  is is_staff()-gated, so an editor gets real data; the narrowest
+                  staff role is kept out by canAccessTab. Inner tabs live under
+                  ?busintel= so they never fight the console's own ?tab=. */}
+              {activeTab === 'business-intel' && (
+                <BusinessIntelligencePanel paramKey="busintel" />
               )}
 
               {/* Businesses */}
@@ -1513,10 +1593,14 @@ export default function AdminDashboard() {
               {activeTab === 'imports' && <ImportCenter />}
               {activeTab === 'activation' && <ActivationPanel />}
               {activeTab === 'profile-requests' && <ProfileRequests />}
+              {activeTab === 'claims' && <ClaimsPanel />}
               {activeTab === 'create-orders' && <CreateOrders />}
               {activeTab === 'claimreach' && <ClaimReachConsole />}
+              {activeTab === 'media-owners' && <MediaOwnersPanel />}
               {activeTab === 'onboarding' && <OnboardingMessagingPanel />}
+          {activeTab === 'brand-social' && <BrandSocialPanel />}
               {activeTab === 'pages' && <PageEditor />}
+              {activeTab === 'service-catalogue' && <ServiceCatalogue />}
               {activeTab === 'switches' && <FeatureFlagPanel />}
 
               {activeTab === 'audit' && (
@@ -1644,14 +1728,27 @@ export default function AdminDashboard() {
                           </select>
                         </td>
                         <td className="px-4 py-3 text-sm">
-                          {canDelete(role) && (
-                            <button
-                              onClick={() => deleteRow('advertisements', a.id, a.title)}
-                              className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
-                            >
-                              <Trash2 size={16} />
-                            </button>
-                          )}
+                          <div className="flex items-center gap-1">
+                            {canEditAdverts(role) && (
+                              <button
+                                onClick={() => setEditAdvertId(a.id)}
+                                aria-label={`Edit ${a.title}`}
+                                title="Edit placement"
+                                className="inline-flex items-center justify-center w-[44px] h-[44px] text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded transition"
+                              >
+                                <Pencil size={16} />
+                              </button>
+                            )}
+                            {canDelete(role) && (
+                              <button
+                                onClick={() => deleteRow('advertisements', a.id, a.title)}
+                                aria-label={`Delete ${a.title}`}
+                                className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -2320,6 +2417,15 @@ export default function AdminDashboard() {
 
         />
 
+      )}
+
+      {editAdvertId && (
+        <AdminAdvertEditor
+          advertId={editAdvertId}
+          role={role}
+          onClose={() => setEditAdvertId(null)}
+          onSaved={fetchAll}
+        />
       )}
 
       {trustReviewBiz && (

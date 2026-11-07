@@ -6,14 +6,31 @@ Guidance for AI coding agents working in this repository. Read this before makin
 
 The parent directory `Latest Web UI Updates/` contains **many sibling copies** of this project. The only real working copy is the `- Claude - edit` directory — always scope reads, greps, searches and writes to this directory. Never copy, merge, or "fix" sibling copies.
 
-## Commands (always run before finishing)
+## Commands
 
-- `npm run typecheck` — must pass
-- `npm run lint` — must pass
-- `npm run test` — full Vitest suite; add/update tests for new lib logic
-- `npm run check:csp` — run when touching network calls (new hosts must be added to the Vercel CSP)
-- `npm run verify` — all of the above
-- Full command set lives in `package.json`; never guess a linter/test command that isn't there.
+Two that matter. They are not interchangeable.
+
+- `npm run verify:quick` — **while you work.** Typecheck (incremental), lint
+  and tests scoped to what changed, plus all ten guards. ~5s for one changed
+  leaf module, against 132s for the old full run. Pass paths explicitly with
+  `-- src/lib/x.ts`, or let it read the working tree. It follows the import
+  graph, so it cannot see a test that breaks through a fixture or a snapshot —
+  it is the fast read, not the gate.
+- `npm run verify` — **before finishing, always.** typecheck → lint → ten
+  guards → the full 5,863-test suite. The same command CI runs.
+
+Also:
+
+- `npm run build` — production build, with the guards. `verify` does not
+  include it; run both before a deploy.
+- `npm run check:all` — the ten guards alone, 0.3s.
+- `npm run test` — full Vitest suite; add/update tests for new lib logic.
+- Full command set lives in `package.json`; never guess a linter/test command
+  that isn't there.
+
+Background on all of it, including what is deliberately NOT gated, is in
+`docs/engineering/` — read `quality-gates.md` before assuming something is
+checked.
 
 ## Code style
 
@@ -34,4 +51,11 @@ The parent directory `Latest Web UI Updates/` contains **many sibling copies** o
 
 ## Quality gates in CI
 
-`.github/workflows/ci.yml` runs typecheck → lint → test → build on every PR to `main`. Passing locally (`npm run verify`) is required before committing.
+`.github/workflows/ci.yml` runs `npm run verify` then `npm run build` on every
+push to `main` and every PR — deliberately the same command you run locally,
+so CI and the local gate cannot drift apart. It used to run four steps while
+`verify` ran twelve, and seven guards never ran in CI at all.
+
+Passing `npm run verify` locally is required before committing. **The deploy
+is `npx vercel deploy --prod`, not `git push`** — CI green does not mean
+anything shipped.

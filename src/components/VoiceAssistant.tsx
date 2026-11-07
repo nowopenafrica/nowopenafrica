@@ -99,6 +99,7 @@ async function findBusinessByName(spokenName: string) {
     // Public view only: RLS also shows an admin the unlisted prospects, and the
     // assistant must answer the same way for everybody.
     .eq('is_listable', true)
+    .eq('profile_state', 'published')
     .ilike('name', `%${safe}%`)
     .order('rating', { ascending: false })
     .limit(5);

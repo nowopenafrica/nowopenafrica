@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import toast from 'react-hot-toast';
+import { authErrorText } from '../../lib/authErrors';
 import { Loader2, MessageSquare } from 'lucide-react';
 import { useAuth } from '../../contexts/AuthContext';
 
@@ -32,7 +33,7 @@ export default function PhoneOtpForm({
       toast.success('Phone verified!');
       onVerified();
     } catch (err: any) {
-      toast.error(err.message || 'That code was not valid — try again.');
+      toast.error(authErrorText(err, 'verify-otp'));
     } finally {
       setVerifying(false);
     }
@@ -44,7 +45,7 @@ export default function PhoneOtpForm({
       await resendPhoneOtp(phone);
       toast.success('A new code has been sent.');
     } catch (err: any) {
-      toast.error(err.message || 'Could not resend the code.');
+      toast.error(authErrorText(err, 'resend-otp'));
     } finally {
       setResending(false);
     }

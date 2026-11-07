@@ -21,6 +21,7 @@ interface AuthContextType {
   updatePassword: (newPassword: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signInWithGitHub: () => Promise<void>;
+  signInWithFacebook: () => Promise<void>;
   signOut: () => Promise<void>;
   // Sign out of every device/session, not just this one.
   signOutAllDevices: () => Promise<void>;
@@ -51,6 +52,18 @@ export const normalizePhone = (value: string) => {
   const digits = value.replace(/[^\d+]/g, '');
   return digits.startsWith('+') ? digits : `+${digits}`;
 };
+
+
+/**
+ * How recently the auth server must have stamped `last_sign_in_at` for an
+ * event to count as a real sign-in rather than a restored session.
+ *
+ * Two minutes is generous for a slow OAuth round trip on a poor connection,
+ * and far tighter than the hours-to-days-old timestamp a restored session
+ * carries. The cost of getting it wrong is asymmetric: missing a sign-in
+ * under-counts by one, while counting a restore over-counted by 43,369.
+ */
+const SIGN_IN_FRESHNESS_MS = 2 * 60 * 1000;
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
@@ -94,14 +107,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const userId = session?.user?.id ?? null;
         setTelemetryUser(userId);
 
-        // Still recorded from the auth event rather than the submit handler, so
-        // social and magic-link sign-ins count too — they never touch signIn().
-        // But only for a real transition: see seenFirstAuthEvent above.
+        /*
+         * A SIGN-IN, NOT A SESSION RESTORE.
+         *
+         * MEASURED ON PRODUCTION, 2026-09-22: `signin` was 43,369 of the
+         * 43,745 rows in analytics_events — 99.14% of all telemetry — from
+         * TWO users across 73 sessions, about 594 per session. The paths give
+         * it away: 11,774 on `/`, 11,091 on `/studio`, 5,078 on
+         * `/admin-creator`. Almost none on `/login`.
+         *
+         * Supabase fires SIGNED_IN when it RESTORES a session, not only when
+         * credentials are exchanged — on page load, on tab focus and after a
+         * token refresh. The previous guard tried to catch that with
+         * `!previousUserId.current`, but on a cold load the first event
+         * carries no session, so previousUserId is legitimately null when
+         * SIGNED_IN arrives with the restored user. Every page load counted as
+         * a sign-in.
+         *
+         * `last_sign_in_at` is the only thing here that distinguishes them: it
+         * is stamped by the auth server when credentials are actually
+         * exchanged, and a restored session carries the ORIGINAL value, hours
+         * or days old. A fresh timestamp means a real authentication; anything
+         * older is a restore.
+         *
+         * Still read from the auth event rather than the submit handler, so
+         * social and magic-link sign-ins count too — they never touch signIn().
+         */
+        const lastSignIn = session?.user?.last_sign_in_at;
+        const freshlyAuthenticated =
+          !!lastSignIn && Date.now() - new Date(lastSignIn).getTime() < SIGN_IN_FRESHNESS_MS;
+
         if (
           event === 'SIGNED_IN' &&
           seenFirstAuthEvent.current &&
           !previousUserId.current &&
-          userId
+          userId &&
+          freshlyAuthenticated
         ) {
           track('signin');
         }
@@ -220,7 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // Requires the provider to be enabled in Supabase (Authentication →
   // Providers); otherwise Supabase returns an error shown by the modal.
-  const signInWithOAuth = async (provider: 'google' | 'github') => {
+  const signInWithOAuth = async (provider: 'google' | 'github' | 'facebook') => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider,
       options: { redirectTo: window.location.origin },
@@ -230,6 +271,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signInWithGoogle = () => signInWithOAuth('google');
   const signInWithGitHub = () => signInWithOAuth('github');
+  /*
+   * Facebook, not Instagram.
+   *
+   * Supabase supports 19 social providers and Instagram is NOT one of them --
+   * the server answers "Provider instagram could not be found" (measured
+   * 2026-10-10), so "Sign in with Instagram" cannot be built here however the
+   * button is labelled. An Instagram business account belongs to a Facebook
+   * Page, so this is the Meta-family identity an Instagram business actually
+   * holds. The button only renders once the provider is enabled in the
+   * Supabase dashboard -- see src/lib/authProviders.ts.
+   */
+  const signInWithFacebook = () => signInWithOAuth('facebook');
 
   const signOut = async () => {
     const { error } = await supabase.auth.signOut();
@@ -242,7 +295,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, verifyPhoneOtp, resendPhoneOtp, requestPasswordReset, updatePassword, signInWithGoogle, signInWithGitHub, signOut, signOutAllDevices }}>
+    <AuthContext.Provider value={{ user, session, loading, signUp, signIn, verifyPhoneOtp, resendPhoneOtp, requestPasswordReset, updatePassword, signInWithGoogle, signInWithGitHub, signInWithFacebook, signOut, signOutAllDevices }}>
       {children}
     </AuthContext.Provider>
   );

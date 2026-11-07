@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Sprout, Package, Ship, MapPin, Plus, Minus, ShoppingCart, MessageCircle, Leaf,
+  Sprout, Package, Ship, MapPin, Plus, Minus, ShoppingCart, MessageCircle, Leaf, Share2,
 } from 'lucide-react';
 import SmartImg from './SmartImg';
 export interface Produce {
@@ -21,9 +21,11 @@ interface Props {
   onAddToCart: (item: Produce, qty: number) => void;
   onWhatsApp: (item: Produce) => void;
   onEnquire: (context: string) => void;
+  /** Sends this produce to the page's share sheet. */
+  onShare?: (item: Produce) => void;
 }
 
-export default function AgricultureMarket({ items, hasPhone, onAddToCart, onWhatsApp, onEnquire }: Props) {
+export default function AgricultureMarket({ items, hasPhone, onAddToCart, onWhatsApp, onEnquire, onShare }: Props) {
   const [category, setCategory] = useState('All');
   const [qty, setQty] = useState<Record<string, number>>({});
   const getQty = (id: string | number) => qty[String(id)] ?? 1;
@@ -74,7 +76,7 @@ export default function AgricultureMarket({ items, hasPhone, onAddToCart, onWhat
       {/* Produce */}
       <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
         {filtered.map((p) => (
-          <div key={p.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+          <div key={p.id} id={`product-${p.id}`} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
             <div className="relative">
               {p.image ? (
                 <SmartImg src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
@@ -101,6 +103,9 @@ export default function AgricultureMarket({ items, hasPhone, onAddToCart, onWhat
                   <button type="button" onClick={() => setItemQty(p.id, getQty(p.id) + 1)} aria-label="Increase" className="p-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"><Plus size={10} /></button>
                 </div>
                 <div className="flex items-center gap-1">
+                  {onShare && (
+                    <button onClick={() => onShare(p)} aria-label={`Share ${p.name}`} className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><Share2 size={13} /></button>
+                  )}
                   {hasPhone && (
                     <button onClick={() => onWhatsApp(p)} aria-label={`Order ${p.name} on WhatsApp`} className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"><MessageCircle size={13} /></button>
                   )}

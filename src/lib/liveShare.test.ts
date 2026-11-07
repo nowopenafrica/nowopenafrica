@@ -11,12 +11,12 @@ const base = {
   title: 'Friday market walkthrough',
   businessName: 'Mama Put Kitchen',
   status: 'live' as const,
-  siteUrl: 'https://nowopenafrica.com',
+  siteUrl: 'https://www.nowopenafrica.com',
 };
 
 describe('liveShareUrl', () => {
   it('builds a short, typeable link', () => {
-    expect(liveShareUrl('abc123')).toBe('https://nowopenafrica.com/live/abc123');
+    expect(liveShareUrl('abc123')).toBe('https://www.nowopenafrica.com/live/abc123');
   });
 
   it('does not double the slash when the site url has a trailing one', () => {
@@ -138,12 +138,12 @@ describe('livePosterUrl', () => {
 
 describe('liveWatchUrl', () => {
   it('lands on the live tab with the viewer already opening', () => {
-    expect(liveWatchUrl('https://nowopenafrica.com/mama-put', 'abc123'))
-      .toBe('https://nowopenafrica.com/mama-put?tab=live&watch=abc123');
+    expect(liveWatchUrl('https://www.nowopenafrica.com/mama-put', 'abc123'))
+      .toBe('https://www.nowopenafrica.com/mama-put?tab=live&watch=abc123');
   });
 
   it('appends to a url that already carries a query', () => {
-    expect(liveWatchUrl('https://nowopenafrica.com/b?ref=x', 'abc123'))
-      .toBe('https://nowopenafrica.com/b?ref=x&tab=live&watch=abc123');
+    expect(liveWatchUrl('https://www.nowopenafrica.com/b?ref=x', 'abc123'))
+      .toBe('https://www.nowopenafrica.com/b?ref=x&tab=live&watch=abc123');
   });
 });

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Eye, Phone, TrendingUp, TrendingDown, Users } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
+import { SERVER_ROW_CAP } from '../../lib/fetchAllBusinesses';
 import { useAuth } from '../../contexts/AuthContext';
 import {
   businessInsights, channelLabel, MIN_FOR_TREND,
@@ -45,7 +46,7 @@ export default function BusinessInsights({ businessId }: { businessId: string })
         .eq('business_id', businessId)
         .in('name', ['business_viewed', 'business_contact_clicked'])
         .gte('created_at', since)
-        .limit(5000);
+        .limit(SERVER_ROW_CAP);
       if (err) throw err;
       setData(businessInsights((rows ?? []) as InsightEvent[], {
         days: 30,

@@ -140,3 +140,58 @@ export function websiteLabel(raw: string | null | undefined): string | null {
     return null;
   }
 }
+
+export interface BusinessWebsiteLink {
+  /** The absolute href to put on the anchor. */
+  href: string;
+  /**
+   * What to show a person: the host for a real site, or
+   * `nowopenafrica.com/<handle>` when the NowOpen profile stands in for a
+   * missing one.
+   */
+  label: string;
+  /** True when the NowOpen profile URL is standing in for a missing website. */
+  isDefault: boolean;
+}
+
+interface WebsiteLinkInput {
+  website?: string | null;
+  username?: string | null;
+  id?: string | null;
+  user_id?: string | null;
+  claim_status?: string | null;
+}
+
+/**
+ * What a business's website should be — including NowOpen's own page as the
+ * default for an unclaimed business that has none.
+ *
+ * Most listings are seeded records that nobody has claimed, and plenty carry no
+ * website at all (or a placeholder `websiteHref` already refuses). Answering
+ * "no website" for thousands of profiles is a dead end for the visitor. When
+ * the business is UNCLAIMED and has no real site, the honest default is its own
+ * NowOpen page — the one page known to exist and to describe it.
+ *
+ * A CLAIMED business is left alone: an owner is accountable for the record, and
+ * inventing a website for them would put words in their mouth. The ownership
+ * test mirrors lib/discover (`user_id` OR `claim_status === 'claimed'`) and the
+ * handle rule mirrors `businessHref`/`profilePath`. Both are inlined rather
+ * than imported for one reason: this module is pulled into the server-rendered
+ * profile page, and importing discover would drag the Supabase client into that
+ * bundle.
+ */
+export function businessWebsiteLink(
+  b: WebsiteLinkInput | null | undefined,
+  siteUrl: string,
+): BusinessWebsiteLink | null {
+  const real = websiteHref(b?.website);
+  if (real) return { href: real, label: websiteLabel(b?.website) ?? real, isDefault: false };
+
+  if (b?.user_id || b?.claim_status === 'claimed') return null;
+
+  const path = b?.username ? `/${b.username}` : b?.id ? `/businesses/${b.id}` : null;
+  if (!path) return null;
+
+  const host = siteUrl.replace(/^https?:\/\//i, '').replace(/\/+$/, '');
+  return { href: `${siteUrl}${path}`, label: `${host}${path}`, isDefault: true };
+}

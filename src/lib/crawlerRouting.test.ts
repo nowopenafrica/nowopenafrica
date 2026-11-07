@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
-import { shouldRenderProfile, isCrawler, firstSegment } from '../../middleware';
+import { shouldRenderProfile, shouldRenderProject, isCrawler, firstSegment } from '../../middleware';
 
 const GOOGLE = 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)';
 const WHATSAPP = 'WhatsApp/2.23.20.0 A';
@@ -114,6 +114,53 @@ describe('shouldRenderProfile', () => {
     expect(shouldRenderProfile('/../etc/passwd', GOOGLE)).toBeNull();
     expect(shouldRenderProfile(`/${'x'.repeat(80)}`, GOOGLE)).toBeNull();
     expect(shouldRenderProfile('/has space', GOOGLE)).toBeNull();
+  });
+});
+
+describe('shouldRenderProject', () => {
+  /*
+   * The URL a business sends to a client, pasted into WhatsApp. Without this,
+   * the preview is the generic home card and a search engine gets the JS shell.
+   */
+  it('routes a crawler asking for a project to the project renderer', () => {
+    expect(shouldRenderProject('/work/kalahari-spring-campaign-444444', WHATSAPP))
+      .toBe('kalahari-spring-campaign-444444');
+    expect(shouldRenderProject('/work/kalahari-spring-campaign-444444/', GOOGLE))
+      .toBe('kalahari-spring-campaign-444444');
+  });
+
+  it('also routes the legacy id form', () => {
+    const id = '11111111-2222-3333-4444-555555555555';
+    expect(shouldRenderProject(`/work/${id}`, GOOGLE)).toBe(id);
+  });
+
+  it('leaves people alone entirely', () => {
+    expect(shouldRenderProject('/work/kalahari-spring-campaign-444444', CHROME)).toBeNull();
+    expect(shouldRenderProject('/work/kalahari-spring-campaign-444444', IPHONE)).toBeNull();
+  });
+
+  it('never claims a path that is not exactly /work/<slug>', () => {
+    for (const path of [
+      '/work', '/work/', '/work/a/b', '/works/a', '/profiles/work/a',
+      '/Work/kalahari-spring-campaign-444444',
+    ]) {
+      expect(shouldRenderProject(path, GOOGLE), path).toBeNull();
+    }
+  });
+
+  it('refuses a slug that could not be one', () => {
+    expect(shouldRenderProject('/work/has space', GOOGLE)).toBeNull();
+    expect(shouldRenderProject('/work/../../etc/passwd', GOOGLE)).toBeNull();
+    expect(shouldRenderProject(`/work/${'x'.repeat(200)}`, GOOGLE)).toBeNull();
+  });
+
+  /*
+   * The same guard that protects single-segment app routes applies here: if
+   * "work" ever slipped out of RESERVED, a crawler asking for the literal
+   * /work would be handed the business-profile renderer and 404.
+   */
+  it('keeps /work reserved so it is not mistaken for a business username', () => {
+    expect(shouldRenderProfile('/work', GOOGLE)).toBeNull();
   });
 });
 

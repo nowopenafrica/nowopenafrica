@@ -1,8 +1,12 @@
 import { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { Check, ArrowRight, Layers, ShieldCheck, Sparkles, MapPin, Plus } from 'lucide-react';
 import { applySeo } from '../lib/seo';
-import { PILLARS, INDUSTRIES, UNIVERSAL_FEATURES, liveModulesFor } from '../data/industrySystems';
+import {
+  Editable, PageContentProvider, useEditableText, usePageContent,
+} from '../components/editor/PageContent';
+import { PILLARS, INDUSTRIES, UNIVERSAL_FEATURES } from '../data/industrySystems';
+import { liveModulesFor } from '../data/industryLiveModules';
 import { OS_SHOWCASE } from '../data/osShowcase';
 import { INDUSTRY_EXAMPLES, demoUsernameFor, examplePath } from '../lib/industryExamples';
 import PlatformEnquiryModal from '../components/PlatformEnquiryModal';
@@ -22,7 +26,36 @@ function SectionHeading({ eyebrow, title, sub }: { eyebrow: string; title: strin
 }
 
 export default function Platform() {
-  const [activeSlug, setActiveSlug] = useState(INDUSTRIES[0].slug);
+  return (
+    <PageContentProvider page="platform">
+      <PlatformContent />
+    </PageContentProvider>
+  );
+}
+
+function PlatformContent() {
+  /*
+   * The selected industry lives in the URL.
+   *
+   * It used to be local state only, which meant 42 industry systems shared one
+   * address: nothing could link to "Hospitals", search could not offer one as
+   * a destination, a visitor could not send one to a colleague, and a crawler
+   * saw a single page where there are 42 distinct offerings. An unknown or
+   * missing slug falls back to the first, so a stale link still opens the page
+   * rather than crashing on `find(...)!`.
+   */
+  const [params, setParams] = useSearchParams();
+  const requested = params.get('industry');
+  const activeSlug = INDUSTRIES.some((i) => i.slug === requested)
+    ? (requested as string)
+    : INDUSTRIES[0].slug;
+  const setActiveSlug = (slug: string) => {
+    const next = new URLSearchParams(params);
+    next.set('industry', slug);
+    // `replace` — flipping through industry tabs must not fill the back button
+    // with forty entries the visitor has to press their way out of.
+    setParams(next, { replace: true });
+  };
   const active = INDUSTRIES.find((i) => i.slug === activeSlug)!;
   // Computed from the shipped module map, so this list cannot claim a
   // capability the product does not actually have. See liveModulesFor.
@@ -46,11 +79,20 @@ export default function Platform() {
   const [enquiryOpen, setEnquiryOpen] = useState(false);
   const pillar = PILLARS.find((p) => p.name === activePillar)!;
 
+  // Title and description are editable copy. The JSON-LD below stays built
+  // from code — the editor cannot reach it.
+  const { editing } = usePageContent();
+  const title = useEditableText('platform.seo.title', 'Industry Operating Systems — NowOpen Africa');
+  const description = useEditableText(
+    'platform.seo.description',
+    'NowOpen Africa isn’t a generic directory. Every industry gets a purpose-built operating system — real estate portals, restaurant ordering, hotel booking, creative studios and more — on one platform for African business.',
+  );
+
   useEffect(() => {
+    if (editing) return;
     return applySeo({
-      title: 'Industry Operating Systems — NowOpen Africa',
-      description:
-        'NowOpen Africa isn’t a generic directory. Every industry gets a purpose-built operating system — real estate portals, restaurant ordering, hotel booking, creative studios and more — on one platform for African business.',
+      title,
+      description,
       path: '/platform',
       type: 'website',
       jsonLd: {
@@ -58,10 +100,10 @@ export default function Platform() {
         '@type': 'WebPage',
         name: 'Industry Operating Systems — NowOpen Africa',
         about: INDUSTRIES.map((i) => i.name),
-        isPartOf: { '@type': 'WebSite', name: 'NowOpen Africa', url: 'https://nowopenafrica.com' },
+        isPartOf: { '@type': 'WebSite', name: 'NowOpen Africa', url: 'https://www.nowopenafrica.com' },
       },
     });
-  }, []);
+  }, [editing, title, description]);
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900">
@@ -70,15 +112,17 @@ export default function Platform() {
         <div className="site-container py-16 sm:py-24 text-center">
           <span className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
             <Layers size={16} className="text-yellow-300" />
-            Not a directory. An operating system.
+            <Editable slot="platform.hero.pill" as="span">Not a directory. An operating system.</Editable>
           </span>
           <h1 className="mt-6 text-4xl sm:text-5xl lg:text-6xl font-bold leading-tight max-w-4xl mx-auto">
-            An operating system for every industry
+            <Editable slot="platform.hero.title" as="span">An operating system for every industry</Editable>
           </h1>
           <p className="mt-5 text-lg sm:text-xl text-white/85 max-w-2xl mx-auto">
-            NowOpen Africa doesn’t give businesses one generic profile. Each category gets a
-            purpose-built system of features — so it feels designed specifically for that industry,
-            and impossible to copy as a whole.
+            <Editable slot="platform.hero.sub" as="span">
+              NowOpen Africa doesn’t give businesses one generic profile. Each category gets a
+              purpose-built system of features — so it feels designed specifically for that industry,
+              and impossible to copy as a whole.
+            </Editable>
           </p>
           <div className="mt-8 flex flex-wrap gap-3 justify-center">
             <a href="#industries" className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition">
@@ -441,19 +485,25 @@ export default function Platform() {
           <div className="rounded-3xl overflow-hidden text-white text-center px-8 py-14 sm:py-16" style={{ background: AFRICA_GRADIENT }}>
             <Sparkles size={28} className="mx-auto text-yellow-300" />
             <h2 className="mt-4 text-3xl sm:text-4xl font-bold max-w-2xl mx-auto">
-              Businesses don’t just get listed. They run on NowOpen.
+              <Editable slot="platform.cta.heading" as="span">Businesses don’t just get listed. They run on NowOpen.</Editable>
             </h2>
             <p className="mt-3 text-lg text-white/85 max-w-2xl mx-auto">
-              Discover, book, sell, advertise, broadcast, collaborate and grow — from one platform
-              built for African business.
+              <Editable slot="platform.cta.body" as="span">
+                Discover, book, sell, advertise, broadcast, collaborate and grow — from one platform
+                built for African business.
+              </Editable>
             </p>
             <div className="mt-8 flex flex-wrap gap-3 justify-center">
             <button type="button" onClick={() => setEnquiryOpen(true)} className="inline-flex items-center gap-2 px-6 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition">
               Get early access <ArrowRight size={18} />
             </button>
-              <Link to="/pricing" className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition">
+              <Editable
+                slot="platform.cta.link"
+                to="/pricing"
+                className="inline-flex items-center gap-2 px-6 py-3 bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition"
+              >
                 See pricing
-              </Link>
+              </Editable>
             </div>
           </div>
         </div>

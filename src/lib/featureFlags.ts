@@ -13,7 +13,7 @@
 
 export type FlagKey =
   | 'offers' | 'keeps' | 'live' | 'bookings' | 'ordering'
-  | 'studio_video' | 'ai_director' | 'campaigns' | 'adverts'
+  | 'studio_video' | 'ai_director' | 'editor_prompt' | 'campaigns' | 'adverts'
   | 'outbound_email' | 'outbound_whatsapp' | 'outbound_sms' | 'outbound_instagram'
   | 'payments';
 
@@ -46,6 +46,14 @@ export const FALLBACK: Record<FlagKey, boolean> = {
   ordering: true,
   studio_video: true,
   ai_director: true,
+  /*
+   * ON by default, like everything that neither spends money nor reaches a
+   * customer. The editor's instruction bar runs entirely in the browser: it
+   * calls no model, no provider and no endpoint, so there is nothing for a
+   * connectivity blip to make expensive. The switch exists so an operator
+   * can withdraw the surface, not because using it has a cost.
+   */
+  editor_prompt: true,
   campaigns: true,
   adverts: true,
   outbound_email: false,
@@ -88,7 +96,7 @@ export function isEnabled(flags: FlagMap | null | undefined, key: FlagKey | stri
 export const KILL_SWITCH_ORDER: FlagKey[] = [
   'payments', 'outbound_email', 'outbound_whatsapp', 'outbound_sms', 'outbound_instagram',
   'ordering', 'bookings', 'live',
-  'ai_director', 'studio_video', 'adverts', 'offers', 'campaigns', 'keeps',
+  'ai_director', 'studio_video', 'editor_prompt', 'adverts', 'offers', 'campaigns', 'keeps',
 ];
 
 /**
@@ -106,6 +114,7 @@ export const CONSEQUENCE: Record<FlagKey, string> = {
   ordering: 'Cart and ordering disappear. Existing orders are untouched.',
   studio_video: 'Reel, Video and Motion studios stop loading. These are the heaviest bundles on the platform.',
   ai_director: 'AI creative generation stops. Everything already generated is kept.',
+  editor_prompt: 'The instruction bar under the Studio canvas disappears. Every edit it makes is still available from the panels, and existing designs are untouched.',
   campaigns: 'The Founding 1,000 page and referral links stop working.',
   adverts: 'The ad placements marketplace disappears.',
   outbound_email: 'No automated email leaves the platform. Reminders and nudges silently stop.',

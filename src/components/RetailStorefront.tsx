@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  ShoppingBag, Search, Truck, Plus, Minus, ShoppingCart, MessageCircle, Zap,
+  ShoppingBag, Search, Plus, Minus, ShoppingCart, MessageCircle, Zap, Share2,
 } from 'lucide-react';
 import SmartImg from './SmartImg';
 
@@ -22,9 +22,11 @@ interface Props {
   onAddToCart: (item: RetailItem, qty: number) => void;
   onWhatsApp: (item: RetailItem) => void;
   onEnquire: (context: string) => void;
+  /** Sends this product to the page's share sheet. */
+  onShare?: (item: RetailItem) => void;
 }
 
-export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhatsApp, onEnquire }: Props) {
+export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhatsApp, onEnquire, onShare }: Props) {
   const [query, setQuery] = useState('');
   const [category, setCategory] = useState('All');
   const [qty, setQty] = useState<Record<string, number>>({});
@@ -57,15 +59,17 @@ export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhats
 
   return (
     <div className="animate-fadeIn space-y-5">
-      {/* Trust bar */}
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 px-3 py-1.5 text-xs font-semibold">
-          <Truck size={14} /> Same-day delivery
-        </span>
-        <span className="inline-flex items-center gap-1.5 rounded-full bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-300 px-3 py-1.5 text-xs font-semibold">
-          Cut / packed to order
-        </span>
-      </div>
+      {/* The "trust bar" here used to read "Same-day delivery" and "Cut /
+          packed to order" on EVERY retail listing, unconditionally.
+
+          Both are specific operational promises — one about logistics, one
+          about a butcher's counter — made about businesses that have never
+          seen the page. "Same-day delivery" is on the enrichment engine's own
+          universal forbidden list, so the generator could not have written it
+          while the UI simply displayed it.
+
+          A shop that genuinely offers these can say so once it claims the
+          profile; until then the honest bar is no bar at all. */}
 
       {/* Search + category */}
       <div className="space-y-3">
@@ -84,7 +88,7 @@ export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhats
       {filtered.length > 0 ? (
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3">
           {filtered.map((p) => (
-            <div key={p.id} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
+            <div key={p.id} id={`product-${p.id}`} className="flex flex-col bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden">
               <div className="relative">
                 {p.image ? (
                   <SmartImg src={p.image} alt={p.name} className="w-full h-28 sm:h-36 object-cover" />
@@ -113,6 +117,9 @@ export default function RetailStorefront({ items, hasPhone, onAddToCart, onWhats
                     <button type="button" onClick={() => setItemQty(p.id, getQty(p.id) + 1)} aria-label="Increase" className="p-1 border border-gray-300 dark:border-gray-600 rounded hover:bg-gray-50 dark:hover:bg-gray-700"><Plus size={10} /></button>
                   </div>
                   <div className="flex items-center gap-1">
+                    {onShare && (
+                      <button onClick={() => onShare(p)} aria-label={`Share ${p.name}`} className="p-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"><Share2 size={13} /></button>
+                    )}
                     {hasPhone && (
                       <button onClick={() => onWhatsApp(p)} aria-label={`Order ${p.name} on WhatsApp`} className="p-1.5 bg-green-600 text-white rounded-lg hover:bg-green-700 transition"><MessageCircle size={13} /></button>
                     )}

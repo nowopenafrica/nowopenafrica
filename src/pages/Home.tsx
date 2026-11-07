@@ -6,17 +6,24 @@ import { INDUSTRIES } from '../data/industrySystems';
 import { generateAdverts, generateBusinesses, generateMediaServices } from '../data/populateData';
 import { Advertisement, Business, MediaService } from '../types';
 import { useCacheBuster } from '../hooks/useCacheBuster';
-import { applySeo } from '../lib/seo';
+import { Editable, PageContentProvider, useEditableSeo } from '../components/editor/PageContent';
 import BrandMarquee from '../components/BrandMarquee';
 import HeroSlider from '../components/HeroSlider';
 import ListingExplorer from '../components/home/ListingExplorer';
 import HeroSearch from '../components/home/HeroSearch';
 import SendYourBusiness from '../components/home/SendYourBusiness';
 import { loadHeroSettings, heroBackground, DEFAULT_HERO, type HeroSettings } from '../lib/heroSettings';
+import { isListedPlacement, UNLISTED_LIFECYCLES_IN } from '../lib/promote/listing';
 
-export default function Home() {
+function HomeContent() {
   const { cacheKey } = useCacheBuster();
   const [adverts, setAdverts] = useState<Advertisement[]>([]);
+  /*
+   * What the hero search box holds, so the cards below can narrow as somebody
+   * types. The home page had two separate searches and the prominent one did
+   * nothing to what was on screen.
+   */
+  const [heroFilter, setHeroFilter] = useState({ term: '', place: '' });
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [mediaServices, setMediaServices] = useState<MediaService[]>([]);
   /*
@@ -42,7 +49,13 @@ export default function Home() {
     let alive = true;
     (async () => {
       const q = (t: string) => supabase.from(t).select('id', { count: 'exact', head: true });
-      const [b, a, m] = await Promise.all([q('businesses'), q('advertisements'), q('media_services')]);
+      // Placements waiting for review, rejected or archived are not public, so
+      // they are not counted either (a count has no rows to filter after).
+      const [b, a, m] = await Promise.all([
+        q('businesses'),
+        q('advertisements').not('lifecycle', 'in', UNLISTED_LIFECYCLES_IN),
+        q('media_services'),
+      ]);
       if (!alive) return;
       setCounts({ businesses: b.count ?? null, adverts: a.count ?? null, media: m.count ?? null });
     })().catch(() => { /* a missing count hides its tile; never blocks the page */ });
@@ -58,19 +71,21 @@ export default function Home() {
     return () => { alive = false; };
   }, []);
 
-  useEffect(() => {
-    return applySeo({
-      title: 'NowOpen Africa — The Operating System for Business Growth in Africa',
-      description:
-        // "Verified listings" was untrue — nothing on the platform holds a
-        // verification tier — and this is the description Google shows, which
-        // is the most expensive place to put an unearned claim. It must also
-        // match what api/marketing serves crawlers; a test enforces that.
-        'Find businesses across Africa — what is open now, what is near you, and what they offer. Every listing is claimed by the person who runs it.',
-      path: '/',
-      image: '/og-image.png',
-    });
-  }, []);
+  // Title and description are editable copy and must keep matching what
+  // api/marketing serves crawlers — a test enforces that.
+  useEditableSeo({
+    titleSlot: 'home.seo.title',
+    descriptionSlot: 'home.seo.description',
+    title: 'NowOpen Africa — The Operating System for Business Growth in Africa',
+    description:
+      // "Verified listings" was untrue — nothing on the platform holds a
+      // verification tier — and this is the description Google shows, which
+      // is the most expensive place to put an unearned claim. It must also
+      // match what api/marketing serves crawlers; a test enforces that.
+      'Find businesses across Africa — what is open now, what is near you, and what they offer. Every listing is claimed by the person who runs it.',
+    path: '/',
+    image: '/og-image.png',
+  });
 
   // Free-running fade, used only when the slider is NOT driving the text.
   // Both at once would fight: the timer could hide the headline halfway
@@ -152,13 +167,50 @@ export default function Home() {
        * down is not in the 30 rows fetched, so there is nothing to reorder.
        * They are asked for explicitly.
        */
-      const [advertRes, businessRes, claimedRes, mediaRes] = await Promise.all([
-        supabase.from('advertisements').select('*').order('created_at', { ascending: false }).limit(30),
-        supabase.from('businesses').select('*').order('created_at', { ascending: false }).limit(30),
+      const [advertRes, businessRes, claimedRes, withImageRes, mediaRes] = await Promise.all([
+        // Filtered in the query so the 30 are 30 public placements, and again
+        // below on the rows (isListedPlacement) as the rule every page uses.
+        supabase.from('advertisements').select('*').not('lifecycle', 'in', UNLISTED_LIFECYCLES_IN)
+          .order('created_at', { ascending: false }).limit(30),
+        /*
+         * Both business queries filter visibility explicitly.
+         *
+         * Neither did before, and `Public can view businesses` is USING (true)
+         * — so an admin browsing the site saw rows a customer never would, and
+         * more importantly a profile submitted through /add-business lands
+         * `profile_state = 'ready_for_review'` and would have appeared on the
+         * FRONT PAGE before anybody reviewed it. Nothing was live in that state
+         * when this was fixed (all 3,115 rows were published), so this closes
+         * the hole rather than repairing damage.
+         */
         supabase.from('businesses').select('*')
+          .eq('is_listable', true)
+          .eq('profile_state', 'published')
+          .order('created_at', { ascending: false }).limit(30),
+        supabase.from('businesses').select('*')
+          .eq('is_listable', true)
+          .eq('profile_state', 'published')
           .or('claim_status.eq.claimed,user_id.not.is.null')
           .order('listing_score', { ascending: false })
           .limit(24),
+        /*
+         * Businesses that HAVE a logo or cover, asked for specifically.
+         *
+         * Ranking cannot promote a row that was never fetched. MEASURED
+         * 2026-09-14: of the newest 30 listings, ZERO carry an image, while
+         * 1,825 image-bearing listings sit further down the table. So the
+         * image tier of the sort was empty in practice and the front page led
+         * with blank cards no matter what the comparator said.
+         *
+         * This is the same failure the claimed query above was added to fix —
+         * a priority rule quietly defeated by the fetch that feeds it.
+         */
+        supabase.from('businesses').select('*')
+          .eq('is_listable', true)
+          .eq('profile_state', 'published')
+          .or('logo_url.not.is.null,image_url.not.is.null')
+          .order('listing_score', { ascending: false })
+          .limit(30),
         supabase.from('media_services').select('*').order('created_at', { ascending: false }).limit(30),
       ]);
 
@@ -168,7 +220,8 @@ export default function Home() {
         media: !!mediaRes.error,
       });
 
-      setAdverts(advertRes.data && advertRes.data.length > 0 ? advertRes.data : generateAdverts(30));
+      const listedAdverts = ((advertRes.data ?? []) as Advertisement[]).filter(isListedPlacement);
+      setAdverts(advertRes.data && advertRes.data.length > 0 ? listedAdverts : generateAdverts(30));
 
       /*
        * Claimed first, then the newest, with duplicates removed — a claimed
@@ -180,9 +233,16 @@ export default function Home() {
        * an empty directory and an unreachable one.
        */
       const claimed = claimedRes.error ? [] : (claimedRes.data ?? []);
+      const withImage = withImageRes.error ? [] : (withImageRes.data ?? []);
       const newest = businessRes.data ?? [];
       const seen = new Set<string>();
-      const merged = [...claimed, ...newest].filter((b) => {
+      /*
+       * Claimed, then the ones with a picture, then the newest — the same tier
+       * order `byClaimedThenImageThenVerified` applies in the grid. Merging in
+       * that order is not what enforces it (the comparator does), it is what
+       * makes sure each tier has candidates to draw from.
+       */
+      const merged = [...claimed, ...withImage, ...newest].filter((b) => {
         const id = String((b as { id?: string }).id ?? '');
         if (!id || seen.has(id)) return false;
         seen.add(id);
@@ -208,6 +268,7 @@ export default function Home() {
   // Full class strings (not template-built) so Tailwind's compiler sees them
   const features = [
     {
+      key: 'claimed',
       icon: Shield,
       title: 'Claimed by the owner',
       // Was "Verified Listings / All businesses and advertising placements are
@@ -221,6 +282,7 @@ export default function Home() {
       iconText: 'text-blue-600 dark:text-blue-400',
     },
     {
+      key: 'booking',
       icon: Zap,
       title: 'Instant Booking',
       description: 'Book advertising placements and media services instantly with our streamlined process.',
@@ -228,6 +290,7 @@ export default function Home() {
       iconText: 'text-purple-600 dark:text-purple-400',
     },
     {
+      key: 'targeted',
       icon: Target,
       title: 'Targeted Reach',
       description: 'Reach your ideal audience with precision targeting and analytics-driven insights.',
@@ -235,6 +298,7 @@ export default function Home() {
       iconText: 'text-green-600 dark:text-green-400',
     },
     {
+      key: 'tracking',
       icon: BarChart3,
       title: 'Performance Tracking',
       description: 'Monitor campaign performance in real-time with comprehensive analytics dashboards.',
@@ -252,8 +316,19 @@ export default function Home() {
           while the video is loading or if the file is missing. */}
       {/* height (not min/max-height) so the h-full flex child below can
           actually resolve its percentage height and truly center — CSS only
-          lets height:100% resolve against an ancestor's explicit height. */}
-      <section className="relative text-white overflow-hidden" style={{ height: '450px', background: heroBackground(hero) }}>
+          lets height:100% resolve against an ancestor's explicit height.
+
+          RESPONSIVE, since 2026-10-20. It was a flat 450px on every device.
+          MEASURED on a 375x812 phone: header 55 + hero 450 + search panel 232
+          = 703px of an 812px screen, so a visitor's entire first view was the
+          banner and the search box, and the first actual listing sat below
+          the fold. 330px on a phone gives that 120px back without touching
+          the desktop composition, and the height stays explicit so the
+          h-full centring still resolves. */}
+      <section
+        className="relative text-white overflow-hidden h-[330px] sm:h-[400px] lg:h-[450px]"
+        style={{ background: heroBackground(hero) }}
+      >
         {/* Not mounted at all when switched off, so the videos are never even
             requested — a real saving on the mobile data this audience uses. */}
         {hero.videoEnabled && (
@@ -283,35 +358,46 @@ export default function Home() {
           <div className="text-center space-y-6">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.6)' }}>
               <span className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></span>
-              Built for Africa's 100M+ businesses
+              <Editable slot="home.hero.badge" as="span">Built for Africa's 100M+ businesses</Editable>
             </div>
 
             {/* Fixed px-based fluid size (not rem) so this title is immune to
                 the site-wide mobile font-size reduction below — the video
                 banner headline stays exactly this size on every device. */}
             <h1 className="text-[clamp(28px,4vw_+_15px,41.6px)] font-bold leading-tight">
-              <span style={{ textShadow: '0 2px 12px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.5)' }}>What are you looking for?</span>
+              <span style={{ textShadow: '0 2px 12px rgba(0,0,0,0.7), 0 1px 3px rgba(0,0,0,0.5)' }}>
+                <Editable slot="home.hero.heading" as="span">What are you looking for?</Editable>
+              </span>
               <span className="block text-transparent bg-clip-text bg-gradient-to-r from-yellow-300 to-orange-400">
-                Africa is NowOpen.
+                <Editable slot="home.hero.heading.accent" as="span">Africa is NowOpen.</Editable>
               </span>
             </h1>
 
             {/* max-w-3xl, not 2xl: the fifth phrase pushes "AI." onto a line of
                 its own at common desktop widths. */}
             <p className="text-base md:text-lg text-blue-100 max-w-3xl mx-auto" style={{ textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>
-              Discover customers. Find businesses. Advertise everywhere. Create anything. Grow with AI.
+              <Editable slot="home.hero.lead" as="span">Discover customers. Find businesses. Advertise everywhere. Create anything. Grow with AI.</Editable>
             </p>
           </div>
 
           {/* CTAs fade with the copy — see the wrapper above for why they
               also need visibility, not just opacity. */}
           <div className="flex flex-wrap items-center justify-center gap-3">
-            <Link to="/businesses" className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition shadow-lg">
-              Explore businesses <ArrowRight size={18} />
-            </Link>
-            <Link to="/waitlist" className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition">
-              List your business
-            </Link>
+            <Editable
+              slot="home.hero.cta.primary"
+              to="/businesses"
+              after={<ArrowRight size={18} />}
+              className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition shadow-lg"
+            >
+              Explore businesses
+            </Editable>
+            <Editable
+              slot="home.hero.cta.secondary"
+              to="/waitlist"
+              className="inline-flex items-center gap-2 px-6 min-h-[44px] bg-white/10 backdrop-blur-sm border border-white/25 text-white font-semibold rounded-lg hover:bg-white/20 transition"
+            >
+              Add your business
+            </Editable>
           </div>
         </div>
       </section>
@@ -320,7 +406,7 @@ export default function Home() {
           for. Outside the hero on purpose — the hero fades with the video
           slider, and a search field that disappears mid-typing is worse than
           no search field. */}
-      <HeroSearch />
+      <HeroSearch onFilterChange={setHeroFilter} />
 
 
 
@@ -336,6 +422,8 @@ export default function Home() {
         mediaServices={mediaServices}
         loadFailed={loadFailed}
         onRetry={() => setReloadNonce((n) => n + 1)}
+        externalQuery={heroFilter.term}
+        externalLocation={heroFilter.place}
       />
 
       {/* The directory, honestly.
@@ -348,10 +436,10 @@ export default function Home() {
         <div className="site-container">
           <div className="text-center max-w-2xl mx-auto mb-10">
             <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300 text-xs font-semibold">
-              <Layers size={14} /> The directory is being built
+              <Layers size={14} /> <Editable slot="home.directory.badge" as="span">The directory is being built</Editable>
             </span>
             <h2 className="mt-4 text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">
-              Real businesses, added one at a time
+              <Editable slot="home.directory.heading" as="span">Real businesses, added one at a time</Editable>
             </h2>
             <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
               {/* Three states, not two. `null` means the count has not loaded —
@@ -365,8 +453,10 @@ export default function Home() {
               {' '}No invented profiles and no bought lists — if a name is on NowOpen, you can reach it.
             </p>
             <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
-              Each industry below gets a purpose-built profile — property portals, restaurant menus, repair queues,
-              booking engines — rather than one generic template.
+              <Editable slot="home.directory.body" as="span">
+                Each industry below gets a purpose-built profile — property portals, restaurant menus, repair queues,
+                booking engines — rather than one generic template.
+              </Editable>
             </p>
           </div>
 
@@ -381,14 +471,14 @@ export default function Home() {
                 >
                   {/* One quiet treatment for all fourteen, not fourteen
                       gradients.
-                      
+
                       Each industry carries its own `accent`, and rendering all
                       of them at once turned an evidence grid into a colour
                       chart: fourteen competing gradients, none of which mean
                       anything to a visitor, all of them louder than the names
                       underneath — which are the part that actually says what
                       NowOpen covers.
-                      
+
                       The accent is not lost, only held back: it arrives on
                       hover, where it marks the one thing being pointed at. */}
                   <span className="w-10 h-10 rounded-xl bg-gray-100 dark:bg-gray-700/50 flex items-center justify-center transition-colors group-hover:bg-blue-50 dark:group-hover:bg-blue-900/30">
@@ -410,18 +500,21 @@ export default function Home() {
           <SendYourBusiness fallbackSource="homepage" className="mt-10 max-w-3xl mx-auto" />
 
           <div className="mt-6 flex flex-wrap justify-center gap-3">
-            <Link
+            <Editable
+              slot="home.directory.cta.primary"
               to="/waitlist"
+              after={<ArrowRight size={18} />}
               className="inline-flex items-center gap-2 px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
-              Join the waitlist <ArrowRight size={18} />
-            </Link>
-            <Link
+              Join the waitlist
+            </Editable>
+            <Editable
+              slot="home.directory.cta.secondary"
               to="/platform"
               className="inline-flex items-center gap-2 px-6 min-h-[44px] border border-gray-300 dark:border-gray-600 text-gray-800 dark:text-gray-200 font-semibold rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500"
             >
               Explore the platform
-            </Link>
+            </Editable>
           </div>
         </div>
       </section>
@@ -465,8 +558,12 @@ export default function Home() {
       <section className="py-16 bg-gray-50 dark:bg-gray-900">
         <div className="site-container">
           <div className="text-center max-w-2xl mx-auto mb-10">
-            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">Why businesses choose NowOpen</h2>
-            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">Everything you need to get discovered, book, sell and grow — in one trusted platform.</p>
+            <h2 className="text-xl sm:text-3xl font-bold text-gray-900 dark:text-white">
+              <Editable slot="home.features.heading" as="span">Why businesses choose NowOpen</Editable>
+            </h2>
+            <p className="mt-2 text-sm sm:text-base text-gray-600 dark:text-gray-400">
+              <Editable slot="home.features.sub" as="span">Everything you need to get discovered, book, sell and grow — in one trusted platform.</Editable>
+            </p>
           </div>
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 lg:gap-8">
             {features.map((feature, index) => (
@@ -474,8 +571,12 @@ export default function Home() {
                 <div className={`w-12 h-12 mx-auto mb-4 ${feature.iconBg} rounded-full flex items-center justify-center`}>
                   <feature.icon size={24} className={feature.iconText} />
                 </div>
-                <h3 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white mb-2">{feature.title}</h3>
-                <p className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">{feature.description}</p>
+                <h3 className="text-base lg:text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  <Editable slot={`home.feature.${feature.key}.title`} as="span">{feature.title}</Editable>
+                </h3>
+                <p className="text-xs lg:text-sm text-gray-600 dark:text-gray-400">
+                  <Editable slot={`home.feature.${feature.key}.body`} as="span">{feature.description}</Editable>
+                </p>
               </div>
             ))}
           </div>
@@ -489,35 +590,41 @@ export default function Home() {
       {/* CTA Section */}
       <section className="py-16 text-white" style={{ background: 'linear-gradient(135deg, #1e3a5f 0%, #4c1d95 20%, #831843 40%, #9a3412 60%, #92400e 80%, #166534 100%)' }}>
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-xl sm:text-3xl md:text-4xl font-bold mb-4">Ready to Grow Your Business?</h2>
+          <h2 className="text-xl sm:text-3xl md:text-4xl font-bold mb-4">
+            <Editable slot="home.cta.heading" as="span">Ready to Grow Your Business?</Editable>
+          </h2>
           {/* This read "Join thousands of African businesses already in line
               for launch". The waitlist table has zero rows, so it was simply
               untrue — and an invented number on the most-visited page
               contradicts the standard the rest of the product holds itself to.
               Replaced with what is actually on offer, which needs no count. */}
           <p className="text-lg mb-8 text-blue-100">
-            Invite-only early access. Founding members keep launch pricing for
-            twelve months and a verified badge.
+            <Editable slot="home.cta.body" as="span">
+              Invite-only early access. Founding members keep launch pricing for
+              twelve months and a verified badge.
+            </Editable>
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
-            <Link
+            <Editable
+              slot="home.cta.primary"
               to="/waitlist"
+              after={<ArrowRight size={20} />}
               className="inline-flex items-center justify-center gap-2 px-8 py-4 bg-white text-blue-600 font-semibold rounded-lg hover:bg-blue-50 transition shadow-lg hover:shadow-xl"
             >
               Africa is NowOpen
-              <ArrowRight size={20} />
-            </Link>
-            <Link
+            </Editable>
+            <Editable
+              slot="home.cta.secondary"
               to="/pricing"
               className="inline-flex items-center justify-center gap-2 px-8 py-4 border-2 border-white/30 text-white font-semibold rounded-lg hover:bg-white/10 transition backdrop-blur-sm"
             >
               View Pricing
-            </Link>
+            </Editable>
           </div>
           <p className="mt-6 text-sm text-blue-200">
             Registering a business?{' '}
-            <Link to="/digital-forms" className="inline-flex items-center min-h-[44px] underline hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded">
-              Use our digital forms
+            <Link to="/add-business" className="inline-flex items-center min-h-[44px] underline hover:text-white focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/70 rounded">
+              Add your business
             </Link>
           </p>
         </div>
@@ -530,7 +637,9 @@ export default function Home() {
       <section aria-label="Brands using NowOpen" className="py-14 bg-gray-50 dark:bg-gray-900">
         <div className="site-container">
           <p className="text-center text-sm font-semibold uppercase tracking-wider text-gray-500 dark:text-gray-400 mb-8">
-            Some of the amazing businesses and brands using NowOpen Africa
+            <Editable slot="home.brands.label" as="span">
+              Some of the amazing businesses and brands using NowOpen Africa
+            </Editable>
           </p>
           <BrandMarquee
             brands={businesses.map(b => ({
@@ -542,5 +651,13 @@ export default function Home() {
         </div>
       </section>
     </div>
+  );
+}
+
+export default function Home() {
+  return (
+    <PageContentProvider page="home">
+      <HomeContent />
+    </PageContentProvider>
   );
 }

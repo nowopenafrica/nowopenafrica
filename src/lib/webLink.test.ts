@@ -3,8 +3,9 @@ import { readFileSync } from 'node:fs';
 
 import {
   checkWebsite, websiteHref, websiteLabel, isPlaceholderValue, blankIfPlaceholder,
-  PLACEHOLDER_VALUES,
+  businessWebsiteLink, PLACEHOLDER_VALUES,
 } from './webLink';
+import { SITE_URL } from './seo';
 
 /**
  * The bug this prevents was live on 85 business profiles.
@@ -120,6 +121,49 @@ describe('websiteLabel', () => {
 
   it('has nothing to show for a value that is not a link', () => {
     expect(websiteLabel('UNKNOWN')).toBeNull();
+  });
+});
+
+describe('businessWebsiteLink', () => {
+  it('uses a real website and marks it not-default', () => {
+    const link = businessWebsiteLink({ website: 'zanzibar.ng', username: 'zanzibar' }, SITE_URL);
+    expect(link).toEqual({ href: 'https://zanzibar.ng/', label: 'zanzibar.ng', isDefault: false });
+  });
+
+  it('defaults an unclaimed business with no website to its NowOpen profile', () => {
+    const link = businessWebsiteLink({ username: 'mama-put' }, SITE_URL);
+    expect(link).toEqual({
+      href: `${SITE_URL}/mama-put`,
+      label: `${SITE_URL.replace('https://', '')}/mama-put`,
+      isDefault: true,
+    });
+  });
+
+  it('treats a placeholder value the same as no website', () => {
+    // websiteHref already refuses "UNKNOWN"; the default then takes over.
+    expect(businessWebsiteLink({ website: 'UNKNOWN', username: 'x' }, SITE_URL)?.isDefault).toBe(true);
+  });
+
+  it('falls back to the id path when there is no handle', () => {
+    expect(businessWebsiteLink({ id: 'abc-123' }, SITE_URL)?.href).toBe(`${SITE_URL}/businesses/abc-123`);
+  });
+
+  it('has nothing to default to without a handle or an id', () => {
+    expect(businessWebsiteLink({}, SITE_URL)).toBeNull();
+    expect(businessWebsiteLink(null, SITE_URL)).toBeNull();
+  });
+
+  it('does not invent a website for a claimed business', () => {
+    expect(businessWebsiteLink({ username: 'x', user_id: 'owner-1' }, SITE_URL)).toBeNull();
+    expect(businessWebsiteLink({ username: 'x', claim_status: 'claimed' }, SITE_URL)).toBeNull();
+  });
+
+  it('still shows a claimed business its own real website', () => {
+    const link = businessWebsiteLink(
+      { website: 'golden.ng', username: 'x', user_id: 'owner-1' },
+      SITE_URL,
+    );
+    expect(link).toEqual({ href: 'https://golden.ng/', label: 'golden.ng', isDefault: false });
   });
 });
 

@@ -83,9 +83,21 @@ describe('the operator-facing copy', () => {
   it('covers every flag the database ships', () => {
     // Drift here means a flag exists that no console can turn off.
     expect(Object.keys(FALLBACK).sort()).toEqual([
-      'adverts', 'ai_director', 'bookings', 'campaigns', 'keeps', 'live',
+      'adverts', 'ai_director', 'bookings', 'campaigns', 'editor_prompt', 'keeps', 'live',
       'offers', 'ordering', 'outbound_email', 'outbound_instagram', 'outbound_sms', 'outbound_whatsapp',
       'payments', 'studio_video',
     ]);
+  });
+
+  /*
+   * The instruction bar neither spends money nor reaches a customer, so it
+   * follows the table's rule and defaults ON. An operator switching it off
+   * removes the bar, not the capability — every operation it performs is
+   * also reachable from the editor's own panels.
+   */
+  it('leaves the editor instruction bar on by default', () => {
+    expect(FALLBACK.editor_prompt).toBe(true);
+    expect(CONSEQUENCE.editor_prompt).toMatch(/instruction bar/i);
+    expect(KILL_SWITCH_ORDER).toContain('editor_prompt');
   });
 });

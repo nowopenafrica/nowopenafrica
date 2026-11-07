@@ -1,17 +1,19 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { SERVER_ROW_CAP } from '../lib/fetchAllBusinesses';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { Business, Advert, MediaService } from '../types';
-import { User, ShoppingBag, Award, Film, LogOut, Plus, Shield, LayoutGrid, CalendarCheck, MessageSquare, Inbox, Crown, Check, ArrowUpRight, Sparkles, Activity } from 'lucide-react';
+import { User, ShoppingBag, Award, Film, LogOut, Plus, Shield, LayoutGrid, CalendarCheck, MessageSquare, Inbox, Crown, Check, ArrowUpRight, Sparkles, Activity, Megaphone } from 'lucide-react';
 import { getBusinessTier, getCreativeTier, nextBusinessTier } from '../data/pricingPlans';
 import ProfileCompleteness from '../components/dashboard/ProfileCompleteness';
 import BusinessInsights from '../components/dashboard/BusinessInsights';
 import FoundingPanel from '../components/dashboard/FoundingPanel';
 import BusinessStoryEditor from '../components/dashboard/BusinessStoryEditor';
 import OffersManager from '../components/dashboard/OffersManager';
+import UpdatesManager from '../components/dashboard/UpdatesManager';
 import BusinessForm from '../components/dashboard/BusinessForm';
 import BusinessList from '../components/dashboard/BusinessList';
 import BusinessContentManager from '../components/dashboard/BusinessContentManager';
@@ -23,12 +25,13 @@ import AdvertForm from '../components/dashboard/AdvertForm';
 import AdvertList from '../components/dashboard/AdvertList';
 import MediaForm from '../components/dashboard/MediaForm';
 import MediaList from '../components/dashboard/MediaList';
+import MediaOwnerTab, { type MemberBusiness } from '../components/dashboard/MediaOwnerTab';
 import BusinessClockCard from '../components/dashboard/BusinessClockCard';
 import BusinessTimeline from '../components/BusinessTimeline';
 import { loadClockConfig, getBusinessHealth, profileGaps } from '../lib/businessStatus';
 import { applySeo } from '../lib/seo';
 
-type TabId = 'overview' | 'businesses' | 'adverts' | 'media' | 'inbox';
+type TabId = 'overview' | 'businesses' | 'adverts' | 'media' | 'inbox' | 'media-owner';
 
 const TABS: { id: TabId; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'overview', label: 'Overview', icon: LayoutGrid },
@@ -36,6 +39,8 @@ const TABS: { id: TabId; label: string; icon: typeof LayoutGrid }[] = [
   { id: 'inbox', label: 'Bookings & Enquiries', icon: Inbox },
   { id: 'adverts', label: 'My Adverts', icon: Award },
   { id: 'media', label: 'My Media Services', icon: Film },
+  // Shown only to someone who owns or is a member of a business (see visibleTabs).
+  { id: 'media-owner', label: 'Media owner', icon: Megaphone },
 ];
 
 // Friendly labels for the booking module_key values (mirrors categoryFeatures).
@@ -67,6 +72,27 @@ export default function Dashboard() {
   const { user, signOut } = useAuth();
   const { format } = useCurrency();
   const [businesses, setBusinesses] = useState<Business[]>([]);
+  /*
+   * Has the first fetch finished?
+   *
+   * The deep-link effect below decides "they have exactly one business, open
+   * it" — and an empty array mid-fetch looks identical to having none. There
+   * was no loading flag on this screen because nothing needed to tell those
+   * two states apart before.
+   */
+  const [businessesLoaded, setBusinessesLoaded] = useState(false);
+  /*
+   * Businesses shared with this user as an active team member. Media owner
+   * mode is open to any member (enable_media_owner checks is_business_member),
+   * not only the person whose user_id is on the business, so the Media owner
+   * tab needs both lists. Kept apart from `businesses` so every other panel
+   * here still shows only what the user owns.
+   */
+  const [memberBusinesses, setMemberBusinesses] = useState<MemberBusiness[]>([]);
+  // The memberships read failed: membership is unknown, not "none". The tab
+  // stays and says so, rather than vanishing for a member with no business of
+  // their own.
+  const [membershipsFailed, setMembershipsFailed] = useState(false);
   // Which business's story is open for editing, if any.
   const [storyFor, setStoryFor] = useState<Business | null>(null);
 
@@ -94,7 +120,23 @@ export default function Dashboard() {
    */
   const [searchParams, setSearchParams] = useSearchParams();
   const tabParam = searchParams.get('tab');
-  const activeTab: TabId = TABS.some(t => t.id === tabParam) ? (tabParam as TabId) : 'overview';
+  // Owned first, then shared; one entry per business.
+  const ownerBusinesses: MemberBusiness[] = useMemo(() => {
+    const seen = new Set<string>();
+    const all = [
+      ...businesses.map((b) => ({ id: String(b.id), name: b.name })),
+      ...memberBusinesses,
+    ];
+    return all.filter((b) => (seen.has(b.id) ? false : (seen.add(b.id), true)));
+  }, [businesses, memberBusinesses]);
+  const visibleTabs = TABS.filter((t) => t.id !== 'media-owner' || ownerBusinesses.length > 0 || membershipsFailed);
+  // A ?tab=media-owner deep link is honoured while the business lists are
+  // still loading; deciding "not a member" from an empty mid-fetch list would
+  // drop them on Overview.
+  const activeTab: TabId =
+    visibleTabs.some(t => t.id === tabParam) || (tabParam === 'media-owner' && !businessesLoaded)
+      ? (tabParam as TabId)
+      : 'overview';
   const setActiveTab = (id: TabId) => {
     const next = new URLSearchParams(searchParams);
     if (id === 'overview') next.delete('tab');
@@ -114,6 +156,7 @@ export default function Dashboard() {
   // Business whose Team (members) manager is open
   const [teamBusiness, setTeamBusiness] = useState<Business | null>(null);
   const [offersBusiness, setOffersBusiness] = useState<Business | null>(null);
+  const [updatesBusiness, setUpdatesBusiness] = useState<Business | null>(null);
   // Bumping this remounts the list components so they refetch after a save
   const [refreshKey, setRefreshKey] = useState(0);
 
@@ -122,6 +165,60 @@ export default function Dashboard() {
   // between them from the clock's header. Falls back if the selected business
   // is deleted or the list reloads without it.
   const [clockBusinessId, setClockBusinessId] = useState<string | null>(null);
+
+  /*
+   * ── OPENING SOMETHING DIRECTLY ─────────────────────────────────────────
+   *
+   * `?open=content|offers|live|team|trust|form` opens that panel on arrival,
+   * and `?panel=services|gallery|locations|…` picks the tab inside the content
+   * manager.
+   *
+   * NowOpen Create needs this. Without it every owner action it offers could
+   * do no better than drop somebody on the business LIST — "Add a Service"
+   * would mean: find your business, press Content, find the Services tab. Four
+   * steps after they already said what they wanted.
+   *
+   * `business=<id>` names which business. When it is absent and the person has
+   * exactly one, that one is used — the overwhelmingly common case, and
+   * guessing between several would open the wrong profile, so with several it
+   * deliberately does nothing and leaves them on the list to choose.
+   */
+  const openRequest = searchParams.get('open');
+  const openPanel = searchParams.get('panel');
+  const openBusinessId = searchParams.get('business');
+  // Honour the request ONCE. Without this, closing the panel would re-open it
+  // on the next render because the parameter is still in the URL.
+  const openHandled = useRef(false);
+
+  useEffect(() => {
+    if (!openRequest || openHandled.current) return;
+    // Wait for the list; acting on an empty array would decide "no business"
+    // while the query is still running.
+    if (!businessesLoaded) return;
+
+    const target = openBusinessId
+      ? businesses.find((b) => String(b.id) === openBusinessId)
+      : businesses.length === 1 ? businesses[0] : null;
+
+    // Named a business that is not theirs, or has several and named none.
+    // Leaving them on the list to pick is the honest outcome.
+    if (!target) { openHandled.current = true; return; }
+
+    openHandled.current = true;
+    switch (openRequest) {
+      case 'content': setContentBusiness(target); break;
+      case 'offers': setOffersBusiness(target); break;
+      case 'updates': setUpdatesBusiness(target); break;
+      case 'live': setGoLiveBusiness(target); break;
+      case 'team': setTeamBusiness(target); break;
+      case 'trust': setTrustBusiness(target); break;
+      case 'form': setEditingId(String(target.id)); setShowForm(true); break;
+      // An unknown value is a stale or hand-written link; the business list is
+      // a reasonable place to land and says nothing untrue.
+      default: break;
+    }
+  }, [openRequest, openBusinessId, businesses, businessesLoaded]);
+
   const primaryBusiness =
     businesses.find((b) => String(b.id) === clockBusinessId) ?? businesses[0];
   const primaryHealth = useMemo(
@@ -141,13 +238,31 @@ export default function Dashboard() {
     if (!user) return;
     try {
       const [businessData, advertData, mediaData] = await Promise.all([
-        supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50000),
+        supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(SERVER_ROW_CAP),
         supabase.from('advertisements').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
         supabase.from('media_services').select('*').eq('user_id', user.id).order('created_at', { ascending: false }),
       ]);
 
       const myBusinesses = businessData.data || [];
       setBusinesses(myBusinesses);
+
+      // Fails soft: without memberships the tab still works for owned
+      // businesses, and the Media owner tab says the check failed.
+      const { data: memberships, error: membershipsError } = await supabase
+        .from('business_members')
+        .select('business_id, businesses(id, name)')
+        .eq('user_id', user.id)
+        .eq('status', 'active');
+      // A many-to-one embed arrives as an object; the generated type says
+      // array. Accept either rather than trust one.
+      type Embedded = { id: string; name: string };
+      setMembershipsFailed(!!membershipsError);
+      setMemberBusinesses(
+        ((memberships ?? []) as unknown as { businesses: Embedded | Embedded[] | null }[])
+          .map((m) => (Array.isArray(m.businesses) ? m.businesses[0] : m.businesses))
+          .filter((b): b is Embedded => !!b)
+          .map((b) => ({ id: String(b.id), name: b.name })),
+      );
       setAdverts(advertData.data || []);
       setMediaServices(mediaData.data || []);
 
@@ -166,6 +281,11 @@ export default function Dashboard() {
       }
     } catch (err) {
       console.error('Error fetching user data:', err);
+    } finally {
+      // In `finally` so a failed fetch still unblocks the deep-link effect.
+      // Left unset it would wait forever, and a Create tile would look as if
+      // nothing happened rather than landing somewhere honest.
+      setBusinessesLoaded(true);
     }
   };
 
@@ -375,7 +495,7 @@ export default function Dashboard() {
                 screen reader announced five unrelated links with no group, no
                 selected state and no arrow-key movement between them. */}
             <div role="tablist" aria-label="Dashboard sections" className="flex px-4">
-              {TABS.map((tab, i) => (
+              {visibleTabs.map((tab, i) => (
                 <button
                   key={tab.id}
                   id={`dash-tab-${tab.id}`}
@@ -387,7 +507,7 @@ export default function Dashboard() {
                   onKeyDown={(e) => {
                     if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
                     e.preventDefault();
-                    const next = TABS[(i + (e.key === 'ArrowRight' ? 1 : TABS.length - 1)) % TABS.length];
+                    const next = visibleTabs[(i + (e.key === 'ArrowRight' ? 1 : visibleTabs.length - 1)) % visibleTabs.length];
                     openTab(next.id);
                     document.getElementById(`dash-tab-${next.id}`)?.focus();
                   }}
@@ -723,6 +843,7 @@ export default function Dashboard() {
                     phone={contentBusiness.phone}
                     openingHours={contentBusiness.opening_hours ?? contentBusiness.hours}
                     timezone={contentBusiness.timezone}
+                    initialTab={openPanel ?? undefined}
                     onClose={() => setContentBusiness(null)}
                   />
                 )}
@@ -734,6 +855,7 @@ export default function Dashboard() {
                   onManageTrust={(business) => setTrustBusiness(business)}
                   onManageTeam={(business) => setTeamBusiness(business)}
                   onManageOffers={(business) => setOffersBusiness(business)}
+                  onManageUpdates={(business) => setUpdatesBusiness(business)}
                 />
                 {goLiveBusiness && (
                   <GoLiveModal
@@ -787,6 +909,20 @@ export default function Dashboard() {
               </div>
             )}
 
+            {/* Media owner: sell advertising space, get verified */}
+            {activeTab === 'media-owner' && (
+              businessesLoaded ? (
+                <div className="space-y-4">
+                  {membershipsFailed && (
+                    <p role="status" className="rounded-lg bg-amber-50 dark:bg-amber-900/30 text-amber-800 dark:text-amber-200 text-sm p-3">
+                      We couldn't check your business memberships just now.
+                    </p>
+                  )}
+                  {(ownerBusinesses.length > 0 || !membershipsFailed) && <MediaOwnerTab businesses={ownerBusinesses} />}
+                </div>
+              ) : <p className="text-sm text-gray-500">Loading…</p>
+            )}
+
             {/* Media services */}
             {activeTab === 'media' && (
               <div className="space-y-6">
@@ -821,6 +957,17 @@ export default function Dashboard() {
           businessId={String(offersBusiness.id)}
           businessName={offersBusiness.name}
           onClose={() => setOffersBusiness(null)}
+        />
+      )}
+
+      {/* Business Updates: 24-hour posts. isOwner decides only whether the
+          offer picker is offered; the database decides what may be written. */}
+      {updatesBusiness && (
+        <UpdatesManager
+          businessId={String(updatesBusiness.id)}
+          businessName={updatesBusiness.name}
+          isOwner={String(updatesBusiness.user_id ?? '') === String(user?.id ?? '-')}
+          onClose={() => setUpdatesBusiness(null)}
         />
       )}
 

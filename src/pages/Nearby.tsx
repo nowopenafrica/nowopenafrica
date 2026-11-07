@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MapPin, Loader2, Crosshair, DoorOpen } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
+import { SERVER_ROW_CAP } from '../lib/fetchAllBusinesses';
 import { applySeo } from '../lib/seo';
 import BusinessCard from '../components/discover/BusinessCard';
 import { detectLocation, isGeolocationSupported } from '../lib/geolocation';
@@ -55,7 +56,7 @@ export default function Nearby() {
     (async () => {
       const [biz, reviews] = await Promise.all([
         supabase.from('businesses').select(DISCOVER_SELECT).limit(400),
-        supabase.from('business_reviews').select('business_id').limit(5000),
+        supabase.from('business_reviews').select('business_id').limit(SERVER_ROW_CAP),
       ]);
       if (!cancelled) {
         // supabase-js RESOLVES with { data: null, error } on a network failure

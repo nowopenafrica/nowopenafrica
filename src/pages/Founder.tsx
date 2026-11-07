@@ -8,6 +8,9 @@ import {
 } from 'lucide-react';
 import { applySeo, SITE_URL } from '../lib/seo';
 import { XLogo } from '../components/SocialLinks';
+import {
+  Editable, PageContentProvider, useEditableText, usePageContent,
+} from '../components/editor/PageContent';
 
 /* ---------------------------------------------------------------- brand ---- */
 
@@ -72,14 +75,14 @@ const TIMELINE = [
 ];
 
 const PHILOSOPHY = [
-  { icon: Palette, title: 'Design', text: 'Design is trust made visible. Clarity and craft are how a small business earns a first click.' },
-  { icon: Cpu, title: 'Technology', text: 'Technology should disappear into usefulness — infrastructure that works for people, not the other way round.' },
-  { icon: Globe2, title: 'Africa', text: 'Africa is not a market to be served, but a generation of builders to be equipped. Build with, not for.' },
-  { icon: Rocket, title: 'Entrepreneurship', text: 'Momentum beats perfection. Ship, listen, and let real users shape what comes next.' },
-  { icon: Users, title: 'Leadership', text: 'Leadership is multiplying belief — giving a team the clarity and courage to do their best work.' },
-  { icon: Lightbulb, title: 'Innovation', text: 'Innovation is solving an old problem so well it looks obvious in hindsight.' },
-  { icon: HeartHandshake, title: 'Community', text: 'A platform is only as strong as the community it lifts. Growth that isn’t shared isn’t growth.' },
-];
+  { key: 'design', icon: Palette, title: 'Design', text: 'Design is trust made visible. Clarity and craft are how a small business earns a first click.' },
+  { key: 'technology', icon: Cpu, title: 'Technology', text: 'Technology should disappear into usefulness — infrastructure that works for people, not the other way round.' },
+  { key: 'africa', icon: Globe2, title: 'Africa', text: 'Africa is not a market to be served, but a generation of builders to be equipped. Build with, not for.' },
+  { key: 'entrepreneurship', icon: Rocket, title: 'Entrepreneurship', text: 'Momentum beats perfection. Ship, listen, and let real users shape what comes next.' },
+  { key: 'leadership', icon: Users, title: 'Leadership', text: 'Leadership is multiplying belief — giving a team the clarity and courage to do their best work.' },
+  { key: 'innovation', icon: Lightbulb, title: 'Innovation', text: 'Innovation is solving an old problem so well it looks obvious in hindsight.' },
+  { key: 'community', icon: HeartHandshake, title: 'Community', text: 'A platform is only as strong as the community it lifts. Growth that isn’t shared isn’t growth.' },
+] as const;
 
 const PROJECTS = [
   { icon: Compass, name: 'NowOpen Africa', tag: 'Founder & Brand Designer', text: 'The operating system for African business growth — discovery, verification, advertising, creative services and live commerce in one ecosystem.', to: '/', internal: true },
@@ -245,6 +248,20 @@ function Portrait() {
 /* ------------------------------------------------------------------ page --- */
 
 export default function Founder() {
+  return (
+    <PageContentProvider page="founder">
+      <FounderContent />
+    </PageContentProvider>
+  );
+}
+
+function FounderContent() {
+  // Title and description are editable copy. The name, role and structured
+  // data stay coded — the JSON-LD below is built from code, not overrides.
+  const { editing } = usePageContent();
+  const title = useEditableText('founder.seo.title', PAGE_TITLE);
+  const description = useEditableText('founder.seo.description', CANONICAL_DESCRIPTOR + ' ' + SHORT_BIO);
+
   useEffect(() => {
     // The portrait is optional — the page falls back to a monogram when
     // public/founder-portrait.jpg is absent, which it is by default. Metadata
@@ -284,15 +301,16 @@ export default function Founder() {
       mainEntity: { '@type': 'Person', name: FOUNDER_NAME, jobTitle: FOUNDER_ROLE },
       about: { '@type': 'Organization', name: 'NowOpen Africa', founder: { '@type': 'Person', name: FOUNDER_NAME } },
     };
+    if (editing) return;
     return applySeo({
-      title: PAGE_TITLE,
-      description: CANONICAL_DESCRIPTOR + ' ' + SHORT_BIO,
+      title,
+      description,
       path: '/founder',
       image: '/og-image.png',
       type: 'profile',
       jsonLd: [person, profilePage],
     });
-  }, []);
+  }, [editing, title, description]);
 
   return (
     <div className="bg-gray-50 dark:bg-gray-900 scroll-smooth">
@@ -312,8 +330,10 @@ export default function Founder() {
             <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold tracking-tight leading-[1.05]">{FOUNDER_NAME}</h1>
             <p className="text-xl font-medium text-white/90">{FOUNDER_ROLE}</p>
             <p className="text-lg text-white/80 max-w-xl mx-auto lg:mx-0">
-              Building the digital infrastructure that helps African businesses become discoverable,
-              trusted and ready to grow — across Africa and beyond.
+              <Editable slot="founder.hero.intro" as="span">
+                Building the digital infrastructure that helps African businesses become discoverable,
+                trusted and ready to grow — across Africa and beyond.
+              </Editable>
             </p>
             <div className="flex flex-wrap gap-3 justify-center lg:justify-start pt-2">
               {/* One primary, three quiet. Four buttons of equal weight is
@@ -363,10 +383,12 @@ export default function Founder() {
           <div className="grid lg:grid-cols-3 gap-10">
             <div className="lg:col-span-2 space-y-5 text-lg leading-relaxed text-gray-700 dark:text-gray-300">
               <p>
-                It started with a fascination — the way a mark, a motion, a well-made interface can make
-                a stranger feel they can trust something. That fascination became a craft: years spent
-                building brands, motion graphics and digital products for people with big ambitions and
-                small budgets.
+                <Editable slot="founder.story.p1" as="span">
+                  It started with a fascination — the way a mark, a motion, a well-made interface can make
+                  a stranger feel they can trust something. That fascination became a craft: years spent
+                  building brands, motion graphics and digital products for people with big ambitions and
+                  small budgets.
+                </Editable>
               </p>
               <p>
                 The deeper Adeyemi worked with African businesses, the clearer one problem became. The
@@ -375,9 +397,11 @@ export default function Founder() {
                 extraordinary businesses that customers simply couldn’t find, or couldn’t be sure of.
               </p>
               <p>
-                Africa had marketplaces and directories, but nothing that unified discovery, verification,
-                advertising and creative services into one place a business could actually grow from. That
-                gap became a conviction, and the conviction became a company.
+                <Editable slot="founder.story.p3" as="span">
+                  Africa had marketplaces and directories, but nothing that unified discovery, verification,
+                  advertising and creative services into one place a business could actually grow from. That
+                  gap became a conviction, and the conviction became a company.
+                </Editable>
               </p>
               <p>
                 <span className="font-semibold text-gray-900 dark:text-white">NowOpen Africa</span> is that
@@ -389,7 +413,9 @@ export default function Founder() {
             <div className="rounded-2xl p-8 text-white self-start" style={{ background: AFRICA_GRADIENT }}>
               <Quote size={28} className="text-white/70" />
               <p className="mt-4 text-xl font-medium leading-relaxed">
-                Africa isn’t a market to be served. It’s a generation of builders to be equipped.
+                <Editable slot="founder.quote" as="span">
+                  Africa isn’t a market to be served. It’s a generation of builders to be equipped.
+                </Editable>
               </p>
               <p className="mt-5 text-sm text-white/80">{FOUNDER_NAME}</p>
               <p className="text-sm text-white/60">{FOUNDER_ROLE}</p>
@@ -420,13 +446,17 @@ export default function Founder() {
         <div className="site-container">
           <SectionHeading eyebrow="Philosophy" title="What guides the work" />
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-5">
-            {PHILOSOPHY.map(({ icon: Icon, title, text }) => (
+            {PHILOSOPHY.map(({ key, icon: Icon, title, text }) => (
               <div key={title} className="bg-white dark:bg-gray-800 rounded-2xl p-6 shadow-sm border border-gray-100 dark:border-gray-700 hover:shadow-md transition">
                 <div className="w-11 h-11 rounded-xl bg-blue-50 dark:bg-blue-900/30 flex items-center justify-center">
                   <Icon size={22} className="text-blue-600 dark:text-blue-400" />
                 </div>
-                <h3 className="mt-4 text-lg font-bold text-gray-900 dark:text-white">{title}</h3>
-                <p className="mt-1.5 text-gray-600 dark:text-gray-400">{text}</p>
+                <h3 className="mt-4 text-lg font-bold text-gray-900 dark:text-white">
+                  <Editable slot={`founder.philosophy.${key}.title`} as="span">{title}</Editable>
+                </h3>
+                <p className="mt-1.5 text-gray-600 dark:text-gray-400">
+                  <Editable slot={`founder.philosophy.${key}.body`} as="span">{text}</Editable>
+                </p>
               </div>
             ))}
           </div>
@@ -532,8 +562,10 @@ export default function Founder() {
           <div className="rounded-2xl border border-dashed border-gray-300 dark:border-gray-700 p-10 text-center">
             <Newspaper size={32} className="mx-auto text-gray-400 dark:text-gray-500" />
             <p className="mt-3 text-gray-600 dark:text-gray-400 max-w-md mx-auto">
-              Building the press room. For interviews, podcasts or media enquiries, get in touch — a full
-              media kit and fact sheet are ready below.
+              <Editable slot="founder.press.body" as="span">
+                Building the press room. For interviews, podcasts or media enquiries, get in touch — a full
+                media kit and fact sheet are ready below.
+              </Editable>
             </p>
             <a href="mailto:hello@nowopenafrica.com?subject=Press%20enquiry%20%E2%80%94%20Adeyemi%20Odunaike" className="mt-5 inline-flex items-center gap-2 px-5 py-2.5 bg-gray-900 dark:bg-white text-white dark:text-gray-900 font-semibold rounded-lg hover:opacity-90 transition">
               <Mail size={16} /> Media enquiries
@@ -610,10 +642,14 @@ export default function Founder() {
         <div className="site-container">
           <div className="rounded-3xl overflow-hidden text-white" style={{ background: AFRICA_GRADIENT }}>
             <div className="px-8 py-12 sm:px-12 sm:py-16 text-center max-w-2xl mx-auto">
-              <h2 className="text-3xl sm:text-4xl font-bold">Follow the build</h2>
+              <h2 className="text-3xl sm:text-4xl font-bold">
+                <Editable slot="founder.connect.heading" as="span">Follow the build</Editable>
+              </h2>
               <p className="mt-3 text-lg text-white/85">
-                Product updates, founder lessons and the story of building Africa’s business
-                infrastructure — in the open.
+                <Editable slot="founder.connect.body" as="span">
+                  Product updates, founder lessons and the story of building Africa’s business
+                  infrastructure — in the open.
+                </Editable>
               </p>
               <div className="mt-7 flex flex-wrap justify-center gap-3">
                 <a href="https://linkedin.com/company/nowopenafrica" target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 px-5 py-3 bg-white text-gray-900 font-semibold rounded-lg hover:bg-gray-100 transition">

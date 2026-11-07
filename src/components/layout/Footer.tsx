@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import { Mail, Phone, MapPin } from 'lucide-react';
+import InstallApp from '../InstallApp';
 import SocialLinks from '../SocialLinks';
 import { useT } from '../../contexts/I18nContext';
 
@@ -28,6 +29,9 @@ const explore = [
 ];
 
 const company = [
+  // The install page, in the footer rather than as a banner: somebody who has
+  // scrolled this far has already decided they like the thing.
+  { to: '/install', key: 'footer.install' },
   { to: '/about', key: 'footer.about' },
   { to: '/founder', key: 'footer.founder' },
   { to: '/os', key: 'nav.os' },
@@ -35,6 +39,16 @@ const company = [
 ];
 
 const getStarted = [
+  /*
+   * FIRST, because it is the only row here that adds supply.
+   *
+   * /send-business was reachable from the home page and the Open Now page and
+   * nowhere else — not the footer, which is on every page. A business owner
+   * who arrives on a listing or a search result, which is how most people
+   * arrive, had no way to add themselves without going back to the home page
+   * and finding it. `profile_requests` holds 2 rows, against 3,970 listings.
+   */
+  { to: '/send-business', key: 'footer.listYourBusiness' },
   { to: '/forms', key: 'nav.join' },
   { to: '/waitlist', key: 'nav.africaNowOpen' },
   { to: '/register', key: 'footer.createAccount' },
@@ -70,6 +84,18 @@ export default function Footer() {
           <div className="col-span-2 md:col-span-1">
             <h3 className="text-white font-bold text-sm mb-2">NowOpen Africa</h3>
             <p className="text-xs leading-relaxed text-gray-400 mb-3">{t('footer.blurb')}</p>
+
+            {/*
+              Install, in the footer rather than as a banner.
+
+              A page that interrupts a first visit to ask for a home-screen
+              icon is asking before it has given anybody a reason. Down here
+              it is found by people who have already decided they like the
+              thing. It renders nothing at all once installed.
+            */}
+            <div className="mb-3">
+              <InstallApp />
+            </div>
 
             {/* Contact sits here rather than in its own column: two items could
                 never fill one, and these read better beside the brand. */}

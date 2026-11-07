@@ -16,7 +16,7 @@
 
 import { marketingPageFor, renderMarketingPage } from '../src/lib/marketingPageRender.js';
 
-const SITE_URL = process.env.APP_BASE_URL || 'https://nowopenafrica.com';
+const SITE_URL = process.env.APP_BASE_URL || 'https://www.nowopenafrica.com';
 
 interface VercelRequest {
   method?: string;

@@ -1,6 +1,7 @@
     import { useState } from 'react';
     import { Link, useLocation } from 'react-router-dom';
-    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, LayoutGrid, Store, Heart, Sparkles, BadgeDollarSign, Cpu, UserPlus } from 'lucide-react';
+    import { Menu, X, LogOut, LogIn, User, Loader2, ChevronDown, Store, Heart, Sparkles, Download
+} from 'lucide-react';
     import { useAuth } from '../../contexts/AuthContext';
     import { useRole } from '../../hooks/useRole';
     import AuthModal from '../auth/AuthModal';
@@ -10,7 +11,7 @@
 import LanguageSelector from '../LanguageSelector';
 import { useT } from '../../contexts/I18nContext';
 import { useAudience } from '../../hooks/useAudience';
-import { PRIMARY_NAV, menuFor, menuLabel, isNavItemActive } from '../../lib/navigation';
+import { PRIMARY_NAV, NAV_ACCENT_CLASS, AFRICA_MENU, AFRICA_TONE_CLASS, menuFor, menuLabel, isNavItemActive } from '../../lib/navigation';
 import AudienceSwitch from './AudienceSwitch';
 
     export default function Navigation() {
@@ -67,15 +68,14 @@ import AudienceSwitch from './AudienceSwitch';
                   <div className="hidden lg:flex items-center gap-4 xl:gap-8">
                     {PRIMARY_NAV.map((item) => {
                       const active = isNavItemActive(item, location.pathname, location.search);
+                      const accent = NAV_ACCENT_CLASS[item.accent ?? 'blue'];
                       return (
                         <Link
                           key={item.to}
                           to={item.to}
                           aria-current={active ? 'page' : undefined}
                           className={`whitespace-nowrap transition text-sm font-medium ${
-                            active
-                              ? 'text-blue-600 dark:text-blue-400'
-                              : 'text-gray-700 dark:text-gray-300 hover:text-blue-600'
+                            active ? accent.active : accent.idle
                           }`}
                         >
                           {item.label}
@@ -130,7 +130,7 @@ import AudienceSwitch from './AudienceSwitch';
                               for rather than simply hiding it. */}
                           {!user && !isBusinessView && (
                             <>
-                              <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
+                          <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
                               <Link to="/register" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
                                 <Heart size={18} className="text-rose-500 mt-0.5 flex-shrink-0" />
                                 <span>
@@ -154,42 +154,33 @@ import AudienceSwitch from './AudienceSwitch';
                       </Link>
                       <div className="absolute right-0 top-full pt-2 hidden group-hover:block group-focus-within:block">
                         <div className="w-64 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl shadow-lg py-2">
-                          <Link to="/platform" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <LayoutGrid size={18} className="text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                            <span>
-                              <span className="block text-sm font-medium text-gray-900 dark:text-white">{t('nav.platform')}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">{t('nav.platform.desc')}</span>
-                            </span>
-                          </Link>
-                          <Link to="/os" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <Cpu size={18} className="text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" />
-                            <span>
-                              <span className="block text-sm font-medium text-gray-900 dark:text-white">{t('nav.os')}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">{t('nav.os.desc')}</span>
-                            </span>
-                          </Link>
-                          <Link to="/forms" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <UserPlus size={18} className="text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" />
-                            <span>
-                              <span className="block text-sm font-medium text-gray-900 dark:text-white">{t('nav.join')}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">{t('nav.join.desc')}</span>
-                            </span>
-                          </Link>
-                          <Link to="/waitlist" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <Sparkles size={18} className="text-purple-600 dark:text-purple-400 mt-0.5 flex-shrink-0" />
-                            <span>
-                              <span className="block text-sm font-medium text-gray-900 dark:text-white">{t('nav.africaNowOpen')}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">{t('nav.vision.desc')}</span>
-                            </span>
-                          </Link>
-                          <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
-                          <Link to="/pricing" className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
-                            <BadgeDollarSign size={18} className="text-emerald-600 dark:text-emerald-400 mt-0.5 flex-shrink-0" />
-                            <span>
-                              <span className="block text-sm font-medium text-gray-900 dark:text-white">{t('nav.pricing')}</span>
-                              <span className="block text-xs text-gray-500 dark:text-gray-400">{t('nav.pricing.desc')}</span>
-                            </span>
-                          </Link>
+                          {/*
+                            * One array, two renderers. AFRICA_MENU in
+                            * src/lib/navigation.ts is the source of truth for
+                            * both this dropdown and the mobile menu below.
+                            * The two were once written separately and drifted:
+                            * Instagram and "Add your business" existed only on
+                            * the pointer, so a phone could reach neither.
+                            */}
+                          {AFRICA_MENU.map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <div key={item.to}>
+                                {item.dividerBefore && (
+                                  <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
+                                )}
+                                <Link to={item.to} className="flex items-start gap-3 px-4 py-2.5 hover:bg-gray-50 dark:hover:bg-gray-700">
+                                  <Icon size={18} className={`${AFRICA_TONE_CLASS[item.tone]} mt-0.5 flex-shrink-0`} />
+                                  <span>
+                                    <span className="block text-sm font-medium text-gray-900 dark:text-white">{t(item.labelKey)}</span>
+                                    {item.descKey && (
+                                      <span className="block text-xs text-gray-500 dark:text-gray-400">{t(item.descKey)}</span>
+                                    )}
+                                  </span>
+                                </Link>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
@@ -275,12 +266,19 @@ import AudienceSwitch from './AudienceSwitch';
                   {/* Primary lineup, same as the desktop bar. */}
                   {PRIMARY_NAV.map((item) => {
                     const Icon = item.icon;
+                    const active = isNavItemActive(item, location.pathname, location.search);
+                    const accent = NAV_ACCENT_CLASS[item.accent ?? 'blue'];
                     return (
                       <Link
                         key={item.to}
                         to={item.to}
                         onClick={closeMenu}
-                        className="flex items-center gap-2.5 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm"
+                        aria-current={active ? 'page' : undefined}
+                        className={`flex items-center gap-2.5 px-4 py-2 rounded text-sm ${
+                          active
+                            ? `${accent.active} bg-gray-100 dark:bg-gray-700`
+                            : `${accent.idle} hover:bg-gray-100 dark:hover:bg-gray-700`
+                        }`}
                       >
                         <Icon size={16} /> {item.label}
                       </Link>
@@ -319,20 +317,39 @@ import AudienceSwitch from './AudienceSwitch';
 
                   <>
                       <p className="px-4 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide text-gray-400">{t('nav.africaNowOpen')}</p>
-                      <Link to="/platform" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                        {t('nav.platform')}
-                      </Link>
-                      <Link to="/os" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                        {t('nav.os')}
-                      </Link>
-                      <Link to="/forms" onClick={closeMenu} className="block px-4 py-2 text-purple-600 dark:text-purple-400 font-medium hover:bg-purple-50 dark:hover:bg-purple-900/30 rounded text-sm">
-                        {t('nav.joinMobile')}
-                      </Link>
-                      <Link to="/waitlist" onClick={closeMenu} className="block px-4 py-2 text-blue-600 dark:text-blue-400 font-medium hover:bg-blue-50 dark:hover:bg-blue-900/30 rounded text-sm">
-                        {t('nav.waitlistMobile')}
-                      </Link>
-                      <Link to="/pricing" onClick={closeMenu} className="block px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
-                        {t('nav.pricing')}
+                      {/*
+                        The same AFRICA_MENU the desktop dropdown renders, so
+                        nothing can be pointer-only: an invitation missing here
+                        is an invitation a phone cannot accept. Only /install
+                        below is mobile-specific — it stays a phone concern.
+                      */}
+                      {AFRICA_MENU.map((item) => {
+                        const Icon = item.icon;
+                        return (
+                          <div key={item.to}>
+                            {item.dividerBefore && (
+                              <div className="my-2 border-t border-gray-100 dark:border-gray-700" />
+                            )}
+                            <Link
+                              to={item.to}
+                              onClick={closeMenu}
+                              className="flex items-center gap-2.5 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm"
+                            >
+                              <Icon size={16} className={AFRICA_TONE_CLASS[item.tone]} />
+                              {t(item.mobileLabelKey ?? item.labelKey)}
+                            </Link>
+                          </div>
+                        );
+                      })}
+                      {/*
+                        The app, in the menu rather than only in the footer.
+
+                        It was one link among twenty-six at the very bottom of
+                        the page — present, and not findable. This is where
+                        somebody goes when they are looking for something.
+                      */}
+                      <Link to="/install" onClick={closeMenu} className="flex items-center gap-2.5 px-4 py-2 text-gray-700 dark:text-gray-300 hover:bg-gray-100 dark:hover:bg-gray-700 rounded text-sm">
+                        <Download size={16} /> {t('footer.install')}
                       </Link>
                   </>
                   {user ? (

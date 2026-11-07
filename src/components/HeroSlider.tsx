@@ -245,18 +245,41 @@ export default function HeroSlider({ overlayStyle, onTextVisibilityChange }: Her
       )}
 
       {/* Dots indicator */}
+      {/*
+        * ── A SMALL DOT WITH A BIG TARGET ───────────────────────────────
+        *
+        * The dot is `w-2.5 h-2.5` — rem-based, so it measured 8px after the
+        * root font ladder was lowered on 2026-10-06 (and only 9px before).
+        * Nobody reliably hits an 8px target on a phone.
+        *
+        * The fix is padding, not a bigger dot. The button carries a 44px
+        * minimum hit area with the dot drawn inside it, so the control is
+        * easy to press and still looks like a dot. Explicit px for the
+        * target because this is a physical-fingertip measurement and must
+        * not move with the type scale again — the same reason 869 other
+        * controls in this app pin theirs.
+        *
+        * -m-[17px] pulls the enlarged boxes back together so the row still
+        * reads as evenly spaced dots rather than a gappy strip.
+      */}
       {videos.length > 1 && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex gap-2">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2">
           {videos.map((_, idx) => (
             <button
               key={idx}
               onClick={() => setCurrent(idx)}
               aria-label={`Banner ${idx + 1} of ${videos.length}`}
               aria-current={idx === current ? 'true' : undefined}
-              className={`w-2.5 h-2.5 rounded-full transition-all duration-300 ${
-                idx === current ? 'bg-white scale-110' : 'bg-white/40 hover:bg-white/60'
-              }`}
-            />
+              className="min-w-[44px] min-h-[44px] -mx-[17px] flex items-center justify-center
+                         rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-white/80"
+            >
+              <span
+                aria-hidden="true"
+                className={`block w-2.5 h-2.5 rounded-full transition-all duration-300 ${
+                  idx === current ? 'bg-white scale-110' : 'bg-white/40 hover:bg-white/60'
+                }`}
+              />
+            </button>
           ))}
         </div>
       )}

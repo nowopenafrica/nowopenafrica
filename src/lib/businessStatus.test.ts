@@ -144,10 +144,30 @@ describe('businessStatus — effective status', () => {
 });
 
 describe('businessStatus — timeline', () => {
-  it('builds a deterministic timeline with the now marker when open', () => {
+  /*
+   * `biz` has no opening_hours, like 3,115 of the 3,118 rows in production, so
+   * its timeline is deliberately empty — see the no-hours test below. The
+   * timeline tests that check ORDERING need a business that actually stated its
+   * hours, otherwise they are asserting the shape of a fabrication.
+   */
+  const bizWithHours: Business = { ...biz, opening_hours: 'Mon–Sun: 7AM–11PM' };
+
+  it('shows nothing when nobody has stated the hours', () => {
+    /*
+     * The defect this pins, measured on production 2026-09-14:
+     * /salem-university-lokoja displayed "8:00 AM — Opened for the day" and
+     * "6:00 PM — Closed for the day" as facts about that day. Both came from
+     * defaultAutoHours(category). Nobody had ever said them.
+     */
     const config = defaultClockConfig(biz);
-    const a = buildBusinessTimeline(biz, config, nineAM);
-    const b = buildBusinessTimeline(biz, config, nineAM);
+    expect(config.hoursAreAssumed).toBe(true);
+    expect(buildBusinessTimeline(biz, config, nineAM)).toEqual([]);
+  });
+
+  it('builds a deterministic timeline with the now marker when open', () => {
+    const config = defaultClockConfig(bizWithHours);
+    const a = buildBusinessTimeline(bizWithHours, config, nineAM);
+    const b = buildBusinessTimeline(bizWithHours, config, nineAM);
     expect(a).toEqual(b);
     expect(a.length).toBeGreaterThan(0);
     expect(a[0].kind).toBe('opened');
@@ -155,8 +175,8 @@ describe('businessStatus — timeline', () => {
   });
 
   it('only includes events up to the current minute', () => {
-    const config = defaultClockConfig(biz);
-    for (const e of buildBusinessTimeline(biz, config, nineAM)) {
+    const config = defaultClockConfig(bizWithHours);
+    for (const e of buildBusinessTimeline(bizWithHours, config, nineAM)) {
       const mins = parseMinutes(e.time);
       expect(mins).not.toBeNull();
       expect((mins as number)).toBeLessThanOrEqual(9 * 60);
@@ -205,11 +225,26 @@ describe('businessStatus — honest public status', () => {
     expect(resolvePublicStatus(biz, tuesdayNoonUtc)).toBeNull();
   });
 
-  it('a default_24_7 unclaimed business is open', () => {
-    // No hours and NowOpen's safe default applies: never closed, so open.
+  it('a default_24_7 unclaimed business has NO public status', () => {
+    /*
+     * REVERSED 2026-09-15 — see openingHours.test.ts for the measurement.
+     * 3,115 of 3,118 production rows look exactly like this one, and the
+     * platform was calling every one of them open on the strength of a column
+     * default. An unknown status is the true answer and the callers already
+     * render it as "Hours not confirmed".
+     */
     expect(
       resolvePublicStatus(
         { ...biz, availability_mode: 'default_24_7', is_24_hours: true, is_24_hours_confirmed: false },
+        tuesdayNoonUtc,
+      ),
+    ).toBeNull();
+  });
+
+  it('a CONFIRMED 24/7 business is still open', () => {
+    expect(
+      resolvePublicStatus(
+        { ...biz, availability_mode: 'default_24_7', is_24_hours: true, is_24_hours_confirmed: true },
         tuesdayNoonUtc,
       ),
     ).toBe('open');

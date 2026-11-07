@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { type TrustClaim } from '../lib/trustClaims';
 import {
   Car, Gauge, Fuel, Cog, Calendar, BadgeCheck, CalendarCheck,
-  MessageCircle, X, ChevronLeft, ChevronRight, Calculator, Hash,
+  MessageCircle, X, ChevronLeft, ChevronRight, Calculator, Hash, Share2,
 } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
 import SmartImg from './SmartImg';
@@ -34,6 +34,8 @@ interface Props {
   onBookTestDrive: (id: string) => void;
   onWhatsApp: (vehicle: Vehicle) => void;
   onEnquire: (context: string) => void;
+  /** Sends this vehicle to the page's share sheet. */
+  onShare?: (vehicle: Vehicle) => void;
   /** Only claims the record actually backs; see lib/trustClaims. */
   claims?: TrustClaim[];
 }
@@ -48,7 +50,7 @@ type Filter = 'all' | 'New' | 'Foreign Used' | 'Nigerian Used';
 
 export default function CarDealerInventory({
   vehicles, ctaLabel, dealerName, claims = [], hasPhone,
-  onBookTestDrive, onWhatsApp, onEnquire,
+  onBookTestDrive, onWhatsApp, onEnquire, onShare,
 }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const [openId, setOpenId] = useState<string | number | null>(null);
@@ -108,7 +110,7 @@ export default function CarDealerInventory({
       {filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {filtered.map((v) => (
-            <VehicleCard key={v.id} v={v} onOpen={() => setOpenId(v.id)} />
+            <VehicleCard key={v.id} v={v} onOpen={() => setOpenId(v.id)} onShare={onShare} />
           ))}
         </div>
       ) : (
@@ -124,6 +126,7 @@ export default function CarDealerInventory({
           onClose={() => setOpenId(null)}
           onBookTestDrive={() => { onBookTestDrive(String(open.id)); setOpenId(null); }}
           onWhatsApp={() => onWhatsApp(open)}
+          onShare={onShare ? () => onShare(open) : undefined}
         />
       )}
     </div>
@@ -146,33 +149,46 @@ function Specs({ v }: { v: Vehicle }) {
   );
 }
 
-function VehicleCard({ v, onOpen }: { v: Vehicle; onOpen: () => void }) {
+function VehicleCard({ v, onOpen, onShare }: { v: Vehicle; onOpen: () => void; onShare?: (v: Vehicle) => void }) {
   return (
-    <button onClick={onOpen} className="text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow group">
-      <div className="relative">
-        {v.image ? (
-          <SmartImg src={v.image} alt={v.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
-        ) : (
-          <div className="w-full h-44 bg-gradient-to-br from-slate-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
-            <Car size={36} className="text-slate-400 dark:text-gray-400" />
+    <div className="relative">
+      <button id={`product-${v.id}`} onClick={onOpen} className="w-full text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow group">
+        <div className="relative">
+          {v.image ? (
+            <SmartImg src={v.image} alt={v.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
+          ) : (
+            <div className="w-full h-44 bg-gradient-to-br from-slate-200 to-gray-300 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
+              <Car size={36} className="text-slate-400 dark:text-gray-400" />
+            </div>
+          )}
+          <div className="absolute top-2 left-2"><ConditionBadge v={v} /></div>
+        </div>
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{v.price}</div>
+            {onShare && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onShare(v); }}
+                aria-label={`Share ${v.name}`}
+                className="-mt-1 -mr-1 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              >
+                <Share2 size={16} />
+              </button>
+            )}
           </div>
-        )}
-        <div className="absolute top-2 left-2"><ConditionBadge v={v} /></div>
-      </div>
-      <div className="p-4">
-        <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{v.price}</div>
-        <h3 className="mt-0.5 font-semibold text-gray-900 dark:text-white line-clamp-1">{v.name}</h3>
-        <div className="mt-2"><Specs v={v} /></div>
-      </div>
-    </button>
+          <h3 className="mt-0.5 font-semibold text-gray-900 dark:text-white line-clamp-1">{v.name}</h3>
+          <div className="mt-2"><Specs v={v} /></div>
+        </div>
+      </button>
+    </div>
   );
 }
 
 function VehicleModal({
-  v, ctaLabel, dealerName, hasPhone, onClose, onBookTestDrive, onWhatsApp,
+  v, ctaLabel, dealerName, hasPhone, onClose, onBookTestDrive, onWhatsApp, onShare,
 }: {
   v: Vehicle; ctaLabel: string; dealerName: string; hasPhone?: boolean;
-  onClose: () => void; onBookTestDrive: () => void; onWhatsApp: () => void;
+  onClose: () => void; onBookTestDrive: () => void; onWhatsApp: () => void; onShare?: () => void;
 }) {
   const images = (v.gallery && v.gallery.length > 0 ? v.gallery : v.image ? [v.image] : []).filter(Boolean) as string[];
   const [idx, setIdx] = useState(0);
@@ -235,6 +251,11 @@ function VehicleModal({
             {hasPhone && (
               <button onClick={onWhatsApp} className="inline-flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition">
                 <MessageCircle size={18} /> WhatsApp dealer
+              </button>
+            )}
+            {onShare && (
+              <button onClick={onShare} aria-label={`Share ${v.name}`} className="inline-flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-3 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                <Share2 size={18} /> Share
               </button>
             )}
           </div>

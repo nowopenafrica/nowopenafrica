@@ -12,18 +12,19 @@
 // result whether or not the tab is hidden. Hiding the tab is honesty about what
 // they can do; the policy is what makes it true.
 
-export type AppRole = 'business' | 'media_service' | 'personal' | 'editor' | 'admin';
+export type AppRole = 'business' | 'media_service' | 'personal' | 'business_curator' | 'editor' | 'admin';
 
 /** Roles that may open the Admin Console at all. */
-export const STAFF_ROLES: AppRole[] = ['admin', 'editor'];
+export const STAFF_ROLES: AppRole[] = ['admin', 'editor', 'business_curator'];
 
 /** Assignable from the Users panel. Order is the order shown in the dropdown. */
-export const ASSIGNABLE_ROLES: AppRole[] = ['business', 'media_service', 'personal', 'editor', 'admin'];
+export const ASSIGNABLE_ROLES: AppRole[] = ['business', 'media_service', 'personal', 'business_curator', 'editor', 'admin'];
 
 export const ROLE_LABELS: Record<AppRole, string> = {
   business: 'Business',
   media_service: 'Media service',
   personal: 'Personal',
+  business_curator: 'Business curator',
   editor: 'Editor',
   admin: 'Admin',
 };
@@ -32,6 +33,7 @@ export const ROLE_DESCRIPTIONS: Record<AppRole, string> = {
   business: 'Owns business listings. No admin access.',
   media_service: 'Offers creative services. No admin access.',
   personal: 'Personal profile. No business listing, no admin access.',
+  business_curator: 'Adds and edits UNCLAIMED business listings. Cannot edit claimed listings, users, payments, verification, moderation or deletion — and no homepage, page or advertising access.',
   editor: 'Creates and edits UNCLAIMED business listings, plus homepage and page content. Cannot see users, payments or verification, and cannot delete or touch moderation.',
   admin: 'Full access, including roles, billing, verification and deletion.',
 };
@@ -44,11 +46,19 @@ export const ROLE_CAPABILITIES: Record<AppRole, string[]> = {
   business: ['Owns and updates its claimed listing', 'Dashboard, bookings and trust tools', 'No admin access'],
   media_service: ['Offers creative services', 'Dashboard tools', 'No admin access'],
   personal: ['Personal profile', 'No business listing', 'No admin access'],
+  business_curator: [
+    'Admin Console (Overview + Businesses only)',
+    'Add new unclaimed businesses',
+    'Edit unclaimed businesses until an owner claims them',
+    'Cannot edit claimed listings, users, payments, verification, moderation or deletion',
+    'No homepage, page content or advertising access',
+  ],
   editor: [
     'Admin Console (limited to content tabs)',
     'Add new unclaimed businesses',
     'Edit unclaimed businesses until an owner claims them',
     'Homepage and page content',
+    'Business Intelligence (discovery, review and campaigns)',
     'Cannot edit claimed listings, users, payments, verification, moderation or deletion',
   ],
   admin: ['Full Admin Console', 'Roles, plans, billing and verification', 'Moderation and deletion'],
@@ -59,7 +69,13 @@ export type AdminTabId =
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
   | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
   | 'review-queue' | 'imports' | 'switches' | 'pages' | 'activation'
-  | 'profile-requests' | 'create-orders' | 'claimreach' | 'onboarding';
+  | 'profile-requests' | 'create-orders' | 'claimreach' | 'claims' | 'onboarding'
+  // Admin only: posting as the brand is the founder's call, and every
+  // brand_social_* table is is_admin()-gated, so an editor would see nothing.
+  | 'brand-social'
+  // Admin only: verifying a media owner is a trust decision, and every table behind it is is_admin()-gated.
+  | 'media-owners'
+  | 'business-intel' | 'service-catalogue';
 
 /**
  * What an editor may open.
@@ -89,6 +105,7 @@ export const EDITOR_TABS: AdminTabId[] = [
   // Owners asking to be listed. Content work, and the queue only pays off if
   // somebody actually works it — so an editor can.
   'profile-requests',
+  'claims',
   // Create orders carry a customer's contact and what they want made. Content
   // work, and the queue only pays off if somebody actually prices it.
   'create-orders',
@@ -101,7 +118,23 @@ export const EDITOR_TABS: AdminTabId[] = [
   'media',
   'enquiries',
   'hero-videos',
+  // Business Intelligence, embedded in the console as a tab. Every table it
+  // reads is `is_staff()`-gated in the database, so an editor gets real data,
+  // and the narrowest staff role misses out: its RLS only covers `businesses`.
+  'business-intel',
 ];
+
+/**
+ * What a business curator may open.
+ *
+ * The narrowest staff role: overview for context, and the Businesses tab where
+ * the job happens (add unclaimed listings, edit them until claimed). Everything
+ * else — users, payments, verification, moderation, adverts, hero videos or
+ * pages — is deliberately absent. This matches the database: 20260919020000
+ * gives curators RLS only on `businesses`, and they are not recognised by
+ * `is_staff()` there, so nothing else returns data or accepts writes.
+ */
+export const CURATOR_TABS: AdminTabId[] = ['overview', 'businesses'];
 
 export const isStaff = (role: string | null | undefined): boolean =>
   STAFF_ROLES.includes(role as AppRole);
@@ -110,9 +143,25 @@ export const isAdmin = (role: string | null | undefined): boolean => role === 'a
 
 export const isEditor = (role: string | null | undefined): boolean => role === 'editor';
 
+export const isCurator = (role: string | null | undefined): boolean => role === 'business_curator';
+
+/**
+ * Who may open Business Intelligence (/admin/business-intelligence).
+ *
+ * The internal discovery/ops area: radar candidates, source rights, campaign
+ * management, compliance toggles. The database gates every table it reads on
+ * `is_staff()` (businesses, radar_candidates, radar_sources, radar_config,
+ * business_discovery_campaigns, candidate evidence, suppressions), so the
+ * frontend gate is admin + editor — staff minus the narrowest role, whose RLS
+ * only covers `businesses`.
+ */
+export const canAccessIntelligence = (role: string | null | undefined): boolean =>
+  isAdmin(role) || isEditor(role);
+
 export function canAccessTab(role: string | null | undefined, tab: AdminTabId): boolean {
   if (isAdmin(role)) return true;
   if (isEditor(role)) return EDITOR_TABS.includes(tab);
+  if (isCurator(role)) return CURATOR_TABS.includes(tab);
   return false;
 }
 
@@ -125,9 +174,24 @@ export function canAccessTab(role: string | null | undefined, tab: AdminTabId): 
  */
 export const canDelete = (role: string | null | undefined): boolean => isAdmin(role);
 
+/**
+ * Editing a placement in the admin console.
+ *
+ * Admin only, because that is exactly what the database allows:
+ * `Admins can manage advertisements` (20240701000000_admin_access.sql) is
+ * `FOR ALL ... USING (is_admin())`, and no later migration widens it to
+ * `is_staff()`. An editor can see the Adverts tab and read every row through
+ * the public SELECT policy, but an edit saved from their session is refused by
+ * RLS — so offering the button would produce a failure that looks like a bug.
+ *
+ * A placement is inventory with a price on it. The wrong price is a wrong
+ * quote to a customer, which is why this is a considered write and every edit
+ * is logged.
+ */
+export const canEditAdverts = (role: string | null | undefined): boolean => isAdmin(role);
+
 /** Granting a role is granting the platform. Admin only, forever. */
 export const canManageRoles = (role: string | null | undefined): boolean => isAdmin(role);
-
 /** Plans are revenue. Admin only. */
 export const canManagePlans = (role: string | null | undefined): boolean => isAdmin(role);
 
@@ -140,8 +204,8 @@ export const canVerify = (role: string | null | undefined): boolean => isAdmin(r
  */
 export const canCreateBusiness = (role: string | null | undefined): boolean => isStaff(role);
 
-/** The homepage banner and its videos — the editor's actual remit. */
-export const canManageHero = (role: string | null | undefined): boolean => isStaff(role);
+/** The homepage banner and its videos — the editor's remit, not every staff role's. */
+export const canManageHero = (role: string | null | undefined): boolean => isAdmin(role) || isEditor(role);
 
 /* ---------------------------------------------------------------------------
  * Editing a business somebody else may one day own

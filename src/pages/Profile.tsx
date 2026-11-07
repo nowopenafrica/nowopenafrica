@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
+import { SERVER_ROW_CAP } from '../lib/fetchAllBusinesses';
 import { websiteHref, websiteLabel } from '../lib/webLink';
 import { useAuth } from '../contexts/AuthContext';
 import { User, Business, MediaService } from '../types';
@@ -9,6 +10,7 @@ import { ArrowLeft, User as UserIcon, Clock, MapPin, Phone, Mail, Globe, Star, I
 import { applySeo } from '../lib/seo';
 import MyKeeps from '../components/MyKeeps';
 import SmartImg from '../components/SmartImg';
+import { UNLISTED_LIFECYCLES_IN } from '../lib/promote/listing';
 
 export default function Profile() {
   const { user: authUser } = useAuth();
@@ -62,17 +64,20 @@ export default function Profile() {
         .from('businesses')
         .select('*')
         .eq('user_id', profileId)
-        .limit(50000);
+        .limit(SERVER_ROW_CAP);
 
       const { data: mediaData } = await supabase
         .from('media_services')
         .select('*')
         .eq('user_id', profileId);
 
+      // A public page: placements waiting for review, rejected or archived are
+      // not counted (listing.ts).
       const { count: advertsTotal } = await supabase
         .from('advertisements')
         .select('id', { count: 'exact', head: true })
-        .eq('user_id', profileId);
+        .eq('user_id', profileId)
+        .not('lifecycle', 'in', UNLISTED_LIFECYCLES_IN);
 
       if (userData) {
         setUser(userData);

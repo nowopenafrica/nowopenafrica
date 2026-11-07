@@ -5,10 +5,14 @@ import OpenStateBadge from '../OpenStateBadge';
 import VerifiedBadge from '../VerifiedBadge';
 import KeepButton from '../KeepButton';
 import {
-  businessHref, directionsHref, secondaryCategories, displayWebsite,
+  businessHref, directionsHref, secondaryCategories,
   type DiscoverBusiness,
 } from '../../lib/discover';
 import SmartImg from '../SmartImg';
+import { focalToCss } from '../../lib/coverPosition';
+import { coverAltText } from '../../lib/stockImage';
+import { businessWebsiteLink } from '../../lib/webLink';
+import { SITE_URL } from '../../lib/seo';
 
 /**
  * A business as a person sees it.
@@ -43,17 +47,51 @@ export default function BusinessCard({
   const imageFallback = business.image_url && business.logo_url ? business.logo_url : null;
   const directions = directionsHref(business);
   const alsoIn = secondaryCategories(business);
-  const site = displayWebsite(business.website);
+  const site = businessWebsiteLink(business, SITE_URL)?.label ?? null;
 
   return (
     <div className="group rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden hover:shadow-lg hover:border-blue-300 dark:hover:border-blue-500/50 transition flex flex-col">
-      <Link to={href} className="block h-24 overflow-hidden shrink-0">
+      {/*
+        * Hidden from assistive tech, and out of the tab order with it.
+        *
+        * Two things were wrong. A card for a business with no image rendered
+        * this as a link wrapping a bare gradient <div> — a link with no
+        * accessible name at all, which a screen reader announces as "link"
+        * and nothing else (31 of them on the mobile homepage). And where
+        * there IS an image it duplicates the very next link, so a
+        * screen-reader user heard every business twice.
+        *
+        * The text link below carries the name and the same destination, so
+        * this one is decorative. `aria-hidden` alone would leave a focusable
+        * element hidden from the accessibility tree, which is its own
+        * violation — hence tabIndex -1 as well.
+        */}
+      <Link
+        to={href}
+        className="block h-24 overflow-hidden shrink-0"
+        aria-hidden="true"
+        tabIndex={-1}
+      >
         {image ? (
           <SmartImg
             src={image}
             fallback={imageFallback}
-            alt={business.name}
+            /*
+             * Not `business.name`: 1,176 listings carry a licensed stock
+             * placeholder, and naming the business asserts the photograph
+             * shows it. See lib/stockImage.ts.
+             */
+            alt={coverAltText(business.name, image)}
             className="w-full h-full object-cover group-hover:scale-110 transition duration-300"
+            /*
+             * The card crops the same picture to a different shape again, so
+             * it has to honour the owner's focal point too — otherwise a
+             * cover positioned correctly on the profile is wrong here.
+             */
+            style={{ objectPosition: focalToCss(
+              (business as { cover_focal_x?: number | null }).cover_focal_x,
+              (business as { cover_focal_y?: number | null }).cover_focal_y,
+            ) }}
           />
         ) : (
           <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600" />

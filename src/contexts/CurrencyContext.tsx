@@ -10,6 +10,7 @@ import {
 } from '../lib/currency';
 
 const STORAGE_KEY = 'nowopen-currency';
+const NGN_FALLBACK = CURRENCIES.find((c) => c.code === 'NGN')?.fallbackRate ?? 1;
 
 interface CurrencyContextType {
   /** Active display currency code, e.g. 'NGN' */
@@ -21,6 +22,12 @@ interface CurrencyContextType {
   formatUsd: (usd: number) => string;
   /** USD → active currency rate */
   rate: number;
+  /**
+   * USD → NGN, from the same rates this provider loads (bundled fallback until
+   * live rates arrive). The Promote mix costs plans in naira whatever the
+   * display currency, so it needs this rate rather than `rate`.
+   */
+  ngnPerUsd: number;
   /** True once real exchange rates are loaded (vs bundled fallbacks) */
   ratesLive: boolean;
   currencies: CurrencyInfo[];
@@ -68,6 +75,7 @@ export function CurrencyProvider({ children }: { children: ReactNode }) {
       format: (usd, opts) => formatUsdAmount(usd, currency, rate, opts),
       formatUsd: (usd) => formatUsdAmount(usd, 'USD', 1),
       rate,
+      ngnPerUsd: rates.NGN ?? NGN_FALLBACK,
       ratesLive,
       currencies: CURRENCIES,
       info: currencyInfo(currency),

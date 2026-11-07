@@ -295,18 +295,43 @@ describe('time input conversion', () => {
 describe('publicOpenState — the 24/7 default vs confirmed 24/7', () => {
   const noon = new Date('2026-08-10T12:00:00Z'); // Monday midday
 
-  it('a default_24_7 row is open, honestly marked as the default', () => {
-    // Unclaimed, no hours: a listing that is never closed is open. The detail
-    // line keeps the honesty — it says the answer comes from the platform
-    // default, not from anything the owner ever said.
+  it('a default_24_7 row is NOT open — nobody said so', () => {
+    /*
+     * REVERSED 2026-09-15. This asserted kind 'open' with the detail
+     * "Open 24 hours · default".
+     *
+     * MEASURED IN PRODUCTION:
+     *   availability_mode = 'default_24_7'    3,115 of 3,118 businesses
+     *   is_24_hours_confirmed = true              0
+     *   any opening-hours text                    3
+     *
+     * The honest detail line did not save it. The platform was telling every
+     * visitor that 1,669 hospitals, 536 schools and 11 tailors were open at
+     * every hour of every day, from a column default; /open-now returned all
+     * 3,115 at three in the morning; and the server-rendered profile said
+     * "Hours not confirmed" for the same business, because its SELECT omits
+     * availability_mode — so a crawler and a person were told different
+     * things about the same fact.
+     *
+     * The founder's own rule is the one applied here: opening hours are
+     * "verified or explicitly 'hours not confirmed'".
+     */
     const s = publicOpenState(
       { opening_hours: null, hours: null, availability_mode: 'default_24_7', is_24_hours: true, is_24_hours_confirmed: false },
       noon,
     );
+    expect(s.kind).toBe('unknown');
+    expect(s.label).toBe('Hours not confirmed');
+  });
+
+  it('a CONFIRMED 24/7 is still open, which is the whole distinction', () => {
+    // One is something a business said; the other is something nobody said.
+    const s = publicOpenState(
+      { opening_hours: null, hours: null, availability_mode: 'default_24_7', is_24_hours: true, is_24_hours_confirmed: true },
+      noon,
+    );
     expect(s.kind).toBe('open');
-    expect(s.label).toBe('Open now');
-    expect(s.detail).toBe('Open 24 hours · default');
-    expect(s.detail).not.toBe('Open 24 hours');
+    expect(s.detail).toBe('Open 24 hours');
   });
 
   it('a plain unknown row (no hours, no default) stays "Hours not confirmed"', () => {

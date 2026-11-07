@@ -18,18 +18,11 @@ export default function OpeningHoursPanel({
   hours,
   timeZone,
   className = '',
-  availabilityDefault = false,
 }: {
   hours?: string | null;
   /** IANA timezone of the business — makes "Open now" mean their local clock. */
   timeZone?: string | null;
   className?: string;
-  /**
-   * True when the row carries Business Intelligence's safe 24/7 default
-   * (availability_mode = 'default_24_7'). Rendered explicitly as an
-   * assumption, never as confirmed hours.
-   */
-  availabilityDefault?: boolean;
 }) {
   const parsed = parseOpeningHours(hours);
   const now = new Date();
@@ -49,15 +42,20 @@ export default function OpeningHoursPanel({
               As written by the business — we can’t confirm whether they’re open right now.
             </p>
           </>
-        ) : availabilityDefault ? (
-          <>
-            <p className="mt-1.5 text-sm text-gray-800 dark:text-gray-100">Open 24/7 — assumed</p>
-            <p className="mt-1 inline-flex items-start gap-1 text-[10px] text-gray-400">
-              <AlertCircle size={11} className="mt-0.5 flex-shrink-0" />
-              No hours confirmed yet, so we show the 24/7 default. The business can confirm real hours.
-            </p>
-          </>
         ) : (
+          /*
+           * REMOVED 2026-09-15: a branch that rendered "Open 24/7 — assumed"
+           * for rows with availability_mode = 'default_24_7'.
+           *
+           * 3,115 of 3,118 businesses carried that flag and none had confirmed
+           * it, so this panel was stating 24-hour opening for 1,669 hospitals,
+           * 536 schools and 11 tailors — while the status badge beside it,
+           * reading the same row through publicOpenState, said "Hours not
+           * confirmed". One screen, two answers, and the confident one was the
+           * invented one.
+           *
+           * There is one answer now, and it is the true one.
+           */
           <p className="mt-1.5 text-[11px] text-gray-400">
             This business hasn’t published its hours yet.
           </p>

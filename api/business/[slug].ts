@@ -18,7 +18,7 @@ import type {
 } from '../../src/lib/businessPageRender.js';
 import type { BusinessLocation } from '../../src/lib/locations.js';
 
-const SITE_URL = process.env.APP_BASE_URL || 'https://nowopenafrica.com';
+const SITE_URL = process.env.APP_BASE_URL || 'https://www.nowopenafrica.com';
 const SUPABASE_URL = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL || '';
 const SUPABASE_ANON = process.env.VITE_SUPABASE_ANON_KEY || process.env.SUPABASE_ANON_KEY || '';
 

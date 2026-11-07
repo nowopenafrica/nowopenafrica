@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Mail, Phone, MapPin, Clock, Send } from 'lucide-react';
 import SocialLinks from '../components/SocialLinks';
-import { applySeo } from '../lib/seo';
+import { Editable, PageContentProvider, useEditableSeo } from '../components/editor/PageContent';
 
 const SUPPORT_EMAIL = 'hello@nowopenafrica.com';
 
@@ -13,19 +13,29 @@ const channels = [
 ];
 
 export default function Contact() {
+  return (
+    <PageContentProvider page="contact">
+      <ContactContent />
+    </PageContentProvider>
+  );
+}
+
+function ContactContent() {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [message, setMessage] = useState('');
 
-  useEffect(() => {
-    return applySeo({
-      title: 'Contact NowOpen Africa',
-      description:
-        'Questions, partnerships or press — reach the NowOpen Africa team by email, phone or WhatsApp. We respond within 1–2 business days.',
-      path: '/contact',
-      image: '/og-image.png',
-    });
-  }, []);
+  // The title and description are editable copy. The channels below are facts,
+  // not copy, and stay coded.
+  useEditableSeo({
+    titleSlot: 'contact.seo.title',
+    descriptionSlot: 'contact.seo.description',
+    title: 'Contact NowOpen Africa',
+    description:
+      'Questions, partnerships or press — reach the NowOpen Africa team by email, phone or WhatsApp. We respond within 1–2 business days.',
+    path: '/contact',
+    image: '/og-image.png',
+  });
 
   // Opens the visitor's email client pre-filled — no backend dependency, so it
   // works reliably regardless of database state.
@@ -40,9 +50,13 @@ export default function Contact() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-14">
         <div className="text-center mb-10">
-          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">Get in touch</h1>
+          <h1 className="text-3xl md:text-4xl font-bold text-gray-900 dark:text-white">
+            <Editable slot="contact.hero.title" as="span">Get in touch</Editable>
+          </h1>
           <p className="mt-3 text-gray-600 dark:text-gray-400 max-w-xl mx-auto">
-            Questions, partnerships, or press — we'd love to hear from you. Reach us directly or send a message below.
+            <Editable slot="contact.hero.lead" as="span">
+              Questions, partnerships, or press — we'd love to hear from you. Reach us directly or send a message below.
+            </Editable>
           </p>
         </div>
 

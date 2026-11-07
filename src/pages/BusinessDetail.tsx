@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, Link, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
@@ -36,11 +36,23 @@ import {
   orientationOf, type GalleryFilter, type MediaKind,
 } from '../lib/galleryMedia';
 import { shareReel } from '../lib/reelShare';
-import { firstPublishedUrl, mergePublishedGallery, type MediaAssetLite } from '../lib/mediaIntelligence';
+import ShareSheet from '../components/ShareSheet';
+import {
+  businessProfileUrl, productShareUrl, productShareText, productShareTitle,
+} from '../lib/productShare';
+import { firstPublishedUrl, mergePublishedGallery, sortMediaNewestFirst, type MediaAssetLite } from '../lib/mediaIntelligence';
 import VideoEmbedFrame from '../components/VideoEmbedFrame';
 import GalleryThumb from '../components/GalleryThumb';
+import ProjectsTab from '../components/business/ProjectsTab';
+import { fetchProjects, type ProjectsRead } from '../lib/businessProjects';
+import { portfolioLabel } from '../data/categoryTabLabels';
 import EmbedThumb from '../components/EmbedThumb';
 import SmartImg from '../components/SmartImg';
+import OpenRing from '../components/business/OpenRing';
+import ImageCredit, { requiresCredit } from '../components/business/ImageCredit';
+import {
+  isStockPlaceholder, coverAltText, STOCK_COVER_NOTICE, STOCK_COVER_EXPLANATION,
+} from '../lib/stockImage';
 import { getActiveFeatures, type CategoryFeatureConfig } from '../data/categoryFeatures';
 import { getTabLabel } from '../data/categoryTabLabels';
 import RealEstatePortal from '../components/RealEstatePortal';
@@ -125,9 +137,12 @@ const EDUCATION_CATEGORIES = ['School & Education', 'Training & Tutoring'];
 // made the header badge contradict the Trust Panel. withDemoTrustAll gives them
 // earned signals; real rows are untouched.
 const SPOTLIGHTS: Record<string, any> = withDemoTrustAll({ ...SPOTLIGHT_BUSINESSES, ...MENU_SPOTLIGHTS, ...HOTEL_SPOTLIGHTS, ...CAR_SPOTLIGHTS, ...PHARMACY_SPOTLIGHTS, ...FITNESS_SPOTLIGHTS, ...BEAUTY_SPOTLIGHTS, ...HEALTH_SPOTLIGHTS, ...FASHION_SPOTLIGHTS, ...EDUCATION_SPOTLIGHTS, ...PHOTO_SPOTLIGHTS, ...TRANSPORT_SPOTLIGHTS, ...EVENT_SPOTLIGHTS, ...RETAIL_SPOTLIGHTS, ...AGRICULTURE_SPOTLIGHTS, ...LEGAL_SPOTLIGHTS, ...SERVICE_PROVIDER_SPOTLIGHTS, ...FINANCE_SPOTLIGHTS, ...MANUFACTURING_SPOTLIGHTS, ...CONSTRUCTION_SPOTLIGHTS, ...TRAVEL_SPOTLIGHTS, ...AUTOMOTIVE_SPOTLIGHTS, ...CHILDCARE_SPOTLIGHTS, ...MUSIC_SPOTLIGHTS, ...DESIGN_SPOTLIGHTS, ...INSURANCE_SPOTLIGHTS, ...ACCOUNTING_SPOTLIGHTS, ...MARKETING_SPOTLIGHTS, ...MONEY_SPOTLIGHTS, ...SOFTWARE_SPOTLIGHTS, ...REPAIR_SPOTLIGHTS, ...NEW_INDUSTRY_SPOTLIGHTS, ...MORE_SPOTLIGHTS });
-import { ArrowLeft, ShoppingBag, Clock, MapPin, Phone, Mail, Globe, Star, Tag, Image, Grid, Package, Users2, Navigation, Loader2, Send, MessageCircle, CalendarCheck, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, Radio, Play, Share2 , Info} from 'lucide-react';
+import { ArrowLeft, ShoppingBag, Clock, MapPin, Phone, Mail, Globe, Star, Tag, Image, Grid, Package, Users2, Navigation, Loader2, Send, MessageCircle, CalendarCheck, ShoppingCart, Minus, Plus, X, ChevronLeft, ChevronRight, Radio, Play, Share2 , Info, ImageOff, FolderOpen} from 'lucide-react';
 import { telHref, whatsappHref } from '../lib/phone';
-import { websiteHref, websiteLabel } from '../lib/webLink';
+import { websiteHref, businessWebsiteLink } from '../lib/webLink';
+import { publicContent } from '../lib/contentProvenance';
+import { focalToCss } from '../lib/coverPosition';
+import SuggestedContentNotice from '../components/business/SuggestedContentNotice';
 
 interface TabConfig {
   id: string;
@@ -247,6 +262,43 @@ export default function BusinessDetail() {
   const [cartOpen, setCartOpen] = useState(false);
   const [productQty, setProductQty] = useState<Record<string, number>>({});
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  /**
+   * The product currently open in the share sheet, or null.
+   *
+   * One sheet for the whole page: the grid, each category layout and the
+   * property/vehicle modals all just hand the item here, so every surface
+   * shares the same link the same way instead of each growing its own.
+   */
+  const [shareItem, setShareItem] = useState<any | null>(null);
+  const openShare = useCallback((item: any) => setShareItem(item), []);
+  /*
+   * Finished work — "Portfolio" or "Projects" depending on the trade.
+   *
+   * Starts as `unavailable` rather than an empty list, so the first render
+   * of a profile never asserts "no work" before the read has happened. That
+   * assertion is the one thing this tab must not get wrong: it is a claim
+   * about somebody's business, on their public page.
+   */
+  const [projects, setProjects] = useState<ProjectsRead>({ state: 'unavailable', reason: 'Loading…' });
+
+  /*
+   * Above every early return.
+   *
+   * This first went in beside `ownerStatus`, which sits AFTER the loading
+   * and not-found returns — so on a profile that was still loading React
+   * rendered fewer hooks than on one that had arrived, and threw "Rendered
+   * more hooks than during the previous render". Hooks are positional; an
+   * early return above one is a conditional hook however it reads.
+   */
+  useEffect(() => {
+    const id = business?.id;
+    if (!id) return;
+    let cancelled = false;
+    void fetchProjects(id).then((read) => { if (!cancelled) setProjects(read); });
+    return () => { cancelled = true; };
+  }, [business?.id, reloadKey]);
+
+
   const [galleryFilter, setGalleryFilter] = useState<GalleryFilter>('all');
   const [galleryDims, setGalleryDims] = useState<Record<string, { w: number; h: number }>>({});
   const noteGalleryDim = useCallback((url: string, w: number, h: number) => {
@@ -460,7 +512,7 @@ export default function BusinessDetail() {
       const [svc, prod, gal, rev] = await Promise.all([
         supabase.from('business_services').select('*').eq('business_id', businessId).order('created_at'),
         supabase.from('business_products').select('*').eq('business_id', businessId).order('created_at'),
-        supabase.from('business_gallery').select('*').eq('business_id', businessId).order('created_at'),
+        supabase.from('business_gallery').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
         supabase.from('business_reviews').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
       ]);
 
@@ -477,10 +529,17 @@ export default function BusinessDetail() {
        */
       setContentFailed(!!svc.error || !!prod.error || !!gal.error || !!rev.error);
 
+      /*
+       * `publicContent` sorts owner-confirmed content above source-derived
+       * above category suggestions, and filters anything the public should not
+       * see. RLS already refuses the latter, so this is the DISPLAY rule rather
+       * than the security one — order is the quietest honest signal available,
+       * and it needs no badge to work.
+       */
       setContent({
-        services: svc.data ?? [],
-        products: prod.data ?? [],
-        gallery: gal.data ?? [],
+        services: publicContent(svc.data ?? []),
+        products: publicContent(prod.data ?? []),
+        gallery: publicContent(gal.data ?? []),
         reviews: rev.data ?? [],
       });
     } catch (err) {
@@ -502,6 +561,43 @@ export default function BusinessDetail() {
     }
   }, [business, fetchContent]);
 
+  /*
+   * A new Instagram post appearing on the page without a refresh.
+   *
+   * ── WHAT IS ACTUALLY REALTIME HERE ──────────────────────────────────
+   *
+   * Meta has no webhook that fires when an account publishes a post —
+   * fifteen Instagram webhook fields and not one of them is publication
+   * (checked 2026-10-09). So the POST reaches us when the scheduled refresh
+   * asks for it. What this subscription makes instant is the second leg: the
+   * moment a permalink lands in business_gallery, every open listing page
+   * shows it, with nobody pressing anything.
+   *
+   * ── IT RE-READS RATHER THAN TRUSTING THE EVENT ──────────────────────
+   *
+   * The payload is deliberately ignored. This codebase's rule for Realtime
+   * is to carry identifiers and resolve the row under RLS, because a
+   * payload is not a permission check — and re-reading also runs the new row
+   * through publicContent(), which is what decides a visitor may see it at
+   * all. One extra query on an event that fires a few times a day is
+   * nothing; rendering an unvetted row on a real business's listing is not.
+   */
+  useEffect(() => {
+    if (!business || isSampleId(String(business.id))) return;
+    const businessId = String(business.id);
+
+    const channel = supabase
+      .channel(`business-gallery:${businessId}`)
+      .on(
+        'postgres_changes',
+        { event: 'INSERT', schema: 'public', table: 'business_gallery', filter: `business_id=eq.${businessId}` },
+        () => { void fetchContent(businessId); },
+      )
+      .subscribe();
+
+    return () => { void supabase.removeChannel(channel); };
+  }, [business, fetchContent]);
+
   // Published enrichment assets — a person moderated these, so they are safe
   // to render as cover/logo fallback or appended gallery. RLS only ever lets
   // the public see published assets of listable businesses, holding back
@@ -514,7 +610,7 @@ export default function BusinessDetail() {
       try {
         const { data } = await supabase
           .from('business_media_assets')
-          .select('asset_type, caption, source_uri, status')
+          .select('asset_type, caption, source_uri, status, created_at')
           .eq('business_id', business.id)
           .eq('status', 'published');
         if (cancelled) return;
@@ -529,7 +625,7 @@ export default function BusinessDetail() {
   // Lightweight header indicator only — the Live tab itself does its own,
   // more detailed fetch (current viewers, scheduled/replay state, etc.).
   useEffect(() => {
-    if (business && business.verified && !isSampleId(String(business.id))) {
+    if (business && !isSampleId(String(business.id))) {
       supabase
         .from('business_streams')
         .select('id')
@@ -641,6 +737,42 @@ export default function BusinessDetail() {
         // retail / agriculture attributes
         product_category: p.product_category ?? null, unit: p.unit ?? null,
       }));
+  /**
+   * The public URL of this profile — the base every product share link is
+   * built on. Null until the business (hence its handle or id) has loaded.
+   */
+  const shareProfileUrl = businessProfileUrl(business, SITE_URL);
+
+  /**
+   * Honour ?product=<id> from a shared link: open the products tab, scroll the
+   * shared item into view and flash it. The tab is set first; the scroll runs
+   * on a later pass, once the grid exists, and only once per id so re-renders
+   * do not keep re-flashing the card.
+   */
+  const deepLinkProductId = searchParams.get('product');
+  const scrolledProductRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!deepLinkProductId) return undefined;
+    if (activeTab !== 'products') {
+      setActiveTab('products');
+      return undefined;
+    }
+    if (scrolledProductRef.current === deepLinkProductId) return undefined;
+    const el = document.getElementById(`product-${deepLinkProductId}`);
+    if (!el) return undefined;
+    scrolledProductRef.current = deepLinkProductId;
+    el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const prevOutline = el.style.outline;
+    const prevOffset = el.style.outlineOffset;
+    el.style.outline = '3px solid rgba(59,130,246,0.85)';
+    el.style.outlineOffset = '3px';
+    const timer = window.setTimeout(() => {
+      el.style.outline = prevOutline;
+      el.style.outlineOffset = prevOffset;
+    }, 2600);
+    return () => window.clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [deepLinkProductId, activeTab, products.length]);
   // Category-driven modules — a category can have more than one at once
   // (e.g. Restaurant gets both a reservation module and a cart module).
   const features = getActiveFeatures(business?.category, business?.enabled_modules);
@@ -739,7 +871,7 @@ export default function BusinessDetail() {
   };
   // `id` is the business_gallery row id, needed to build the /r/<id> share URL.
   // Sample items have none — they aren't real rows, so they aren't shareable.
-  const baseGallery: { id?: string; url: string; caption?: string; type: MediaKind }[] = isSample
+  const baseGallery: { id?: string; url: string; caption?: string; created_at?: string; type: MediaKind }[] = isSample
     // Industry-appropriate photography rather than three identical
     // placeholders on every demo profile.
     ? demoGallery(business?.category).map(url => ({ url, type: 'photo' as const }))
@@ -752,22 +884,37 @@ export default function BusinessDetail() {
           id: g.id,
           url: g.image_url,
           caption: g.caption || undefined,
+          created_at: g.created_at,
           type: mediaKindOf(g.image_url),
         }));
 
-  // Enrichment assets a person published APPEND after the owner's own gallery,
-  // never before it and never in place of it.
-  const gallery = mergePublishedGallery(baseGallery, mediaAssets, (asset) => ({
+  // Published enrichment assets join the same timeline. They no longer just
+  // APPEND after the owner's gallery: the whole grid sorts newest first
+  // regardless of which side a post came from. A gallery is a timeline, not a
+  // claims list — recency is the organisation a visitor expects here.
+  const gallery = sortMediaNewestFirst(mergePublishedGallery(baseGallery, mediaAssets, (asset) => ({
     url: asset.source_uri as string,
     caption: asset.caption ?? undefined,
+    created_at: asset.created_at,
     type: mediaKindOf(asset.source_uri),
-  }));
+  })));
 
-  // Cover and logo are photo-shaped slots — a published video can never
-  // masquerade as a still image on the profile header.
+  // Enrichment covers stay photo-shaped — a published video can never masquerade
+  // as a still image on the profile header. A VIDEO banner is an owner choice:
+  // it lives in its own column (`cover_video_url`), never in `image_url`, which
+  // keeps the photo slot on side and lets everywhere else keep reading a still.
   const photoFirst = (url: string | null) => (url && mediaKindOf(url) === 'photo' ? url : null);
   const publishedCover = photoFirst(firstPublishedUrl(mediaAssets, 'cover'));
   const publishedLogo = photoFirst(firstPublishedUrl(mediaAssets, 'logo'));
+  // Header banner: an owner-set video beats the still cover when present. A
+  // direct file plays in a <video> (with image_url as its poster); a pasted
+  // platform link plays in that platform's own player.
+  // This block runs on the very first render, before the load guard below, so
+  // `business` is still null here — read it defensively.
+  const coverVideo = business?.cover_video_url ?? null;
+  const coverVideoKind = mediaKindOf(coverVideo);
+  const coverIsVideo = Boolean(coverVideo) && (coverVideoKind === 'video' || coverVideoKind === 'embed');
+  const coverPhoto = business?.image_url || publishedCover;
 
   // Intrinsic size per URL, reported by the browser once each item loads. Only
   // the browser knows it, so the orientation filters populate as the grid
@@ -850,10 +997,30 @@ export default function BusinessDetail() {
     { id: 'overview', label: 'Overview', icon: <Grid size={18} /> },
     { id: 'services', label: getTabLabel(business?.category, 'services', 'Services'), icon: <ShoppingBag size={18} />, count: tabCount(services.length) },
     { id: 'products', label: getTabLabel(business?.category, 'products', 'Products'), icon: <Package size={18} />, count: tabCount(products.length) },
+    /*
+      Past work, on every profile.
+
+      The LABEL changes by trade and the data does not: a photographer's
+      portfolio and a builder's projects are the same record — a job that was
+      done, for somebody, worth showing the next customer.
+
+      The count is only given when we actually know it. `projects.state` is
+      'unavailable' until the read lands, and a tab reading "Projects 0" for
+      a builder with thirty of them is the same lie the tab bar used to tell
+      about Gallery after a failed load.
+    */
+    {
+      id: 'projects',
+      label: portfolioLabel(business?.category),
+      icon: <FolderOpen size={18} />,
+      count: projects.state === 'ready' ? tabCount(projects.projects.length) : undefined,
+    },
     { id: 'gallery', label: getTabLabel(business?.category, 'gallery', 'Gallery'), icon: <Image size={18} />, count: tabCount(gallery.length) },
-    // Premium, verified-only feature — unconfigured/unverified businesses
-    // keep the plain tab set.
-    ...(business?.verified ? [{ id: 'live', label: '🔴 Live', icon: <Radio size={18} /> }] : []),
+
+    // Live is available to every listing, claimed or unclaimed. The stream
+    // content still comes from business_streams, so the empty state is the
+    // honest answer for a business that has never gone live.
+    { id: 'live', label: '🔴 Live', icon: <Radio size={18} /> },
     { id: 'reviews', label: 'Reviews', icon: <Star size={18} />, count: tabCount(reviews.length) },
     { id: 'contact', label: 'Contact', icon: <Phone size={18} /> },
   ];
@@ -983,20 +1150,145 @@ export default function BusinessDetail() {
           {/* Cover Image */}
           <div className="relative">
             <div className="h-36 sm:h-72 md:h-96 bg-gray-200 dark:bg-gray-700 overflow-hidden">
-              {business.image_url || publishedCover ? (
+              {coverIsVideo ? (
+                coverVideoKind === 'video' ? (
+                  /*
+                   * Autoplaying banner. The same media-fragment trick that
+                   * gives reels a poster (see lib/galleryMedia) is not needed
+                   * here: `image_url` is the poster when an image exists, and
+                   * autoplay+loop makes a first frame appear on its own.
+                   */
+                  <video
+                    src={coverVideo!}
+                    poster={coverPhoto || undefined}
+                    autoPlay
+                    muted
+                    loop
+                    playsInline
+                    preload="metadata"
+                    aria-label={`${business.name} cover banner`}
+                    className="w-full h-full object-cover"
+                    /*
+                     * Where the owner put it. NULL focal values mean nobody
+                     * positioned this, and focalToCss returns centre — which
+                     * is exactly what this rendered before the field existed.
+                     */
+                    style={{ objectPosition: focalToCss(business.cover_focal_x, business.cover_focal_y) }}
+                  />
+                ) : (
+                  <VideoEmbedFrame
+                    url={coverVideo!}
+                    fill
+                    title={`${business.name} video banner`}
+                    showAttribution={false}
+                    className="w-full h-full"
+                  />
+                )
+              ) : coverPhoto ? (
                 <SmartImg
-                  src={business.image_url || publishedCover}
-                  alt={business.name}
+                  src={coverPhoto}
+                  /*
+                   * NOT `business.name`. 1,176 profiles carry a licensed stock
+                   * cover placed by the enrichment engine, and naming the
+                   * business in the alt text asserts to a screen-reader user
+                   * that the photograph shows that business. It does not.
+                   */
+                  alt={coverAltText(business.name, coverPhoto)}
                   className="w-full h-full object-cover"
+                    /*
+                     * Where the owner put it. NULL focal values mean nobody
+                     * positioned this, and focalToCss returns centre — which
+                     * is exactly what this rendered before the field existed.
+                     */
+                    style={{ objectPosition: focalToCss(business.cover_focal_x, business.cover_focal_y) }}
                 />
               ) : (
                 <div className="w-full h-full bg-gradient-to-br from-blue-400 to-blue-600" />
+              )}
+
+              {/*
+                * Say it on the picture, not only in the alt text.
+                *
+                * The engine records the asset honestly — `business_media_assets`
+                * calls it a licensed placeholder and the proposal says "replace
+                * it with the real image" — but none of that reached the page,
+                * so a visitor saw a stock photo presented as a shopfront.
+                *
+                * A video cover is the owner's own media, never a placeholder,
+                * so the notice only hangs over a photo.
+                */}
+              {!coverIsVideo && isStockPlaceholder(coverPhoto) && (
+                <div className="absolute bottom-0 inset-x-0 bg-black/55 backdrop-blur-[2px] px-3 py-1.5">
+                  <p
+                    className="text-[11px] sm:text-xs text-white/90 flex items-center gap-1.5"
+                    title={STOCK_COVER_EXPLANATION}
+                  >
+                    <ImageOff size={12} aria-hidden="true" />
+                    {STOCK_COVER_NOTICE}
+                  </p>
+                </div>
+              )}
+
+              {/*
+                * THE CREDIT IS A LICENCE CONDITION, NOT A COURTESY.
+                *
+                * Photographs recovered from Wikimedia Commons arrive under
+                * CC BY-SA 3.0/4.0, which require the author and licence to be
+                * shown wherever the work is displayed. We store the credit on
+                * the business; rendering it is what makes storing it lawful.
+                *
+                * Rendered over the image rather than tucked below the fold —
+                * "wherever the work is shown" means beside the work.
+                */}
+              {/*
+                * THE CREDIT IS A LICENCE CONDITION, NOT A COURTESY.
+                *
+                * Photographs recovered from Wikimedia Commons arrive under
+                * CC BY-SA 3.0/4.0, which require the author and licence to be
+                * shown wherever the work is displayed. We store the credit on
+                * the business; rendering it is what makes storing it lawful.
+                *
+                * ── WHY THIS DOES NOT HANDLE STOCK ──────────────────────────
+                *
+                * Stock covers are already labelled by the block directly above
+                * (isStockPlaceholder → "Stock photo — not this business"), which
+                * matches images.pexels.com and friends by HOST and so catches
+                * all 2,763 of them regardless of what any column says.
+                *
+                * I briefly added `image_source === 'stock'` to this condition
+                * too, having checked the data (2,708 rows marked 'stock') but
+                * not the other render. The result was two notices stacked on
+                * the same image. Provenance is said once, by the check that
+                * reads the URL itself.
+                *
+                * What WAS wrong here: `source` was hardcoded to "business", so
+                * a Wikimedia photograph was credited as though the business had
+                * published it. That is fixed below.
+                */}
+              {(business.image_attribution || requiresCredit(business.image_licence)) && (
+                <div className="absolute bottom-0 inset-x-0 bg-black/55 backdrop-blur-[2px] px-3 py-1">
+                  <ImageCredit
+                    source={business.image_source ?? 'unknown'}
+                    attribution={business.image_attribution}
+                    licence={business.image_licence}
+                    sourceUrl={business.image_source_url}
+                    className="!text-white/85"
+                  />
+                </div>
               )}
             </div>
 
             {/* Business Logo — sits outside the cover image's overflow-hidden so it isn't clipped */}
             <div className="absolute -bottom-8 sm:-bottom-16 left-4 sm:left-8">
-              <div className="relative">
+              {/*
+                * The NowOpen ring, lit only while the business is actually
+                * open. "Hours not confirmed" counts as OFF — see
+                * src/lib/openRing.ts: 4,006 of 4,050 listings have unconfirmed
+                * hours, so a ring that glowed for those would assert something
+                * nobody checked about almost every business on the platform,
+                * and the few that mean it would look identical to the rest.
+                */}
+              <OpenRing business={business} thickness={4} className="relative">
                 <div className="w-16 h-16 sm:w-32 sm:h-32 bg-gray-300 dark:bg-gray-600 rounded-full border-2 sm:border-4 border-white dark:border-gray-800 shadow-lg flex items-center justify-center overflow-hidden">
                   {business.logo_url || publishedLogo ? (
                     <SmartImg
@@ -1014,7 +1306,7 @@ export default function BusinessDetail() {
                     <ShoppingBag className="w-5 h-5 sm:w-10 sm:h-10 text-blue-600 dark:text-blue-400" />
                   )}
                 </div>
-              </div>
+              </OpenRing>
             </div>
           </div>
 
@@ -1402,7 +1694,6 @@ export default function BusinessDetail() {
                     <OpeningHoursPanel
                       hours={business.opening_hours || business.hours}
                       timeZone={business.timezone}
-                      availabilityDefault={business.availability_mode === 'default_24_7'}
                     />
                   </div>
                 </div>
@@ -1445,6 +1736,15 @@ export default function BusinessDetail() {
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">
                   {isHotel ? 'Rooms & facilities' : isFitness ? 'Memberships & classes' : isBeauty ? 'Services & stylists' : isHealth ? 'Departments & doctors' : isEducation ? 'Programmes & admissions' : isPhoto ? 'Portfolio & packages' : isTransport ? 'Routes & schedules' : isEvents ? 'Vendors & bundles' : isLegal ? 'Legal services' : isServiceProvider ? 'Book a service' : isFinance ? 'Financial products' : isConstruction ? 'Projects & services' : isTravel ? 'Holiday packages' : isAutomotive ? 'Workshop services' : isChildcare ? 'Programmes & care' : isMusic ? 'Acts & performances' : isDesign ? 'Work & services' : isInsurance ? 'Policies & cover' : isAccounting ? 'Services & advisory' : isMarketing ? 'Services & results' : isMoney ? 'Agent services' : isSoftware ? 'Services & delivery' : isRepair ? 'Repairs & services' : `Our ${getTabLabel(business.category, 'services', 'Services')}`}
                 </h2>
+
+                {/*
+                  * `content.services`, not the mapped `services` above: the
+                  * mapped array is shaped for the category renderers and has
+                  * dropped the provenance columns. It is also empty for a
+                  * sample profile, which is correct — demo data is not an
+                  * unconfirmed claim about a real business.
+                  */}
+                <SuggestedContentNotice items={content.services} noun="services" />
 
                 {isRepair && bookingModule ? (
                   <RepairShop
@@ -1599,6 +1899,7 @@ export default function BusinessDetail() {
                     ctaLabel={bookingModule.ctaLabel}
                     hasPhone={!!business.phone}
                     phone={business.phone}
+                    confirmed24h={business.is_24_hours_confirmed === true}
                     onBook={(sid) => setBooking({ moduleKey: bookingModule.key, itemId: sid })}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
@@ -1643,11 +1944,16 @@ export default function BusinessDetail() {
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
                   />
                 ) : isHealth && bookingModule ? (
+                  /* `confirmed24h`: only a CONFIRMED round-the-clock facility
+                     gets the emergency treatment. The platform's 24/7 display
+                     default is an assumption, and an assumption must never
+                     become an emergency-care claim. */
                   <HealthCenter
                     doctors={services}
                     ctaLabel={bookingModule.ctaLabel}
                     hasPhone={!!business.phone}
                     phone={business.phone}
+                    confirmed24h={business.is_24_hours_confirmed === true}
                     onBook={(sid) => setBooking({ moduleKey: bookingModule.key, itemId: sid })}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
@@ -1750,6 +2056,7 @@ export default function BusinessDetail() {
                     onAddToCart={(item, q) => addToCart(item, q)}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : isAgriculture ? (
                   <AgricultureMarket
@@ -1758,6 +2065,7 @@ export default function BusinessDetail() {
                     onAddToCart={(item, q) => addToCart(item, q)}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : isRetail ? (
                   <RetailStorefront
@@ -1766,6 +2074,7 @@ export default function BusinessDetail() {
                     onAddToCart={(item, q) => addToCart(item, q)}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : isFashion ? (
                   <FashionBoutique
@@ -1774,6 +2083,7 @@ export default function BusinessDetail() {
                     onAddToCart={(item, q) => addToCart(item, q)}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : isPharmacy ? (
                   <PharmacyStorefront
@@ -1783,6 +2093,7 @@ export default function BusinessDetail() {
                     onAddToCart={(item, q) => addToCart(item, q)}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : isCarDealer && productBookingModule ? (
                   <CarDealerInventory
@@ -1794,6 +2105,7 @@ export default function BusinessDetail() {
                     onBookTestDrive={(vid) => setBooking({ moduleKey: productBookingModule.key, itemId: vid })}
                     onWhatsApp={(v) => handleWhatsAppOrder(v)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : isMenu ? (
                   <RestaurantMenu
@@ -1804,6 +2116,7 @@ export default function BusinessDetail() {
                     onAddToCart={(item, q) => addToCart(item, q)}
                     onWhatsApp={(item) => handleWhatsAppOrder(item)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : isRealEstate && productBookingModule ? (
                   <RealEstatePortal
@@ -1816,6 +2129,7 @@ export default function BusinessDetail() {
                     onBookViewing={(pid) => setBooking({ moduleKey: productBookingModule.key, itemId: pid })}
                     onWhatsApp={(prop) => handleWhatsAppOrder(prop)}
                     onEnquire={(ctx) => setEnquiry({ context: ctx })}
+                    onShare={openShare}
                   />
                 ) : contentFailed ? (
                   <div className="py-4">
@@ -1824,7 +2138,7 @@ export default function BusinessDetail() {
                 ) : products.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 sm:gap-6">
                     {products.map((product) => (
-                      <div key={product.id} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
+                      <div key={product.id} id={`product-${product.id}`} className="bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow">
                         {product.image ? (
                           <SmartImg
                             src={product.image}
@@ -1870,6 +2184,13 @@ export default function BusinessDetail() {
                           <div className="flex items-center justify-between gap-1.5">
                             <span className="text-sm sm:text-lg font-bold text-blue-600 dark:text-blue-400 truncate">{product.price}</span>
                             <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <button
+                                onClick={() => openShare(product)}
+                                aria-label={`Share ${product.name}`}
+                                className="p-1.5 sm:p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition"
+                              >
+                                <Share2 size={14} />
+                              </button>
                               {business.phone && (
                                 <button
                                   onClick={() => handleWhatsAppOrder(product)}
@@ -1929,6 +2250,20 @@ export default function BusinessDetail() {
             )}
 
             {/* Gallery Tab */}
+            {activeTab === 'projects' && (
+              <div className="animate-fadeIn">
+                <h2 className="mb-4 text-lg font-bold text-gray-900 sm:mb-6 sm:text-2xl dark:text-white">
+                  {portfolioLabel(business.category)}
+                </h2>
+                <ProjectsTab
+                  read={projects}
+                  label={portfolioLabel(business.category)}
+                  isOwner={!!user && user.id === business.user_id}
+                  businessId={String(business.id)}
+                />
+              </div>
+            )}
+
             {activeTab === 'gallery' && (
               <div className="animate-fadeIn">
                 <h2 className="text-lg sm:text-2xl font-bold text-gray-900 dark:text-white mb-4 sm:mb-6">{getTabLabel(business.category, 'gallery', 'OpenReels')}</h2>
@@ -2069,8 +2404,8 @@ export default function BusinessDetail() {
               </div>
             )}
 
-            {/* Live Tab — premium, verified-only */}
-            {activeTab === 'live' && business.verified && (
+            {/* Live Tab — every listing, claimed or unclaimed */}
+            {activeTab === 'live' && (
               <LiveSection
                 business={business}
                 onBook={(moduleKey, itemId) => setBooking({ moduleKey, itemId })}
@@ -2259,9 +2594,9 @@ export default function BusinessDetail() {
                           </div>
                         </a>
                       )}
-                      {websiteHref(business.website) && (
+                      {businessWebsiteLink(business, SITE_URL) && (
                         <a
-                          href={websiteHref(business.website)!}
+                          href={businessWebsiteLink(business, SITE_URL)!.href}
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={() => trackContact('website')}
@@ -2270,7 +2605,7 @@ export default function BusinessDetail() {
                           <Globe size={20} className="text-blue-600 dark:text-blue-400 mt-1 flex-shrink-0" />
                           <div className="min-w-0">
                             <p className="text-xs font-medium text-gray-600 dark:text-gray-400">Website</p>
-                            <p className="text-sm text-blue-600 dark:text-blue-400 break-all">{websiteLabel(business.website)}</p>
+                            <p className="text-sm text-blue-600 dark:text-blue-400 break-all">{businessWebsiteLink(business, SITE_URL)!.label}</p>
                           </div>
                         </a>
                       )}
@@ -2378,6 +2713,15 @@ export default function BusinessDetail() {
           onSuccess={() => setCart([])}
         />
       )}
+
+      <ShareSheet
+        open={!!shareItem}
+        onClose={() => setShareItem(null)}
+        url={shareItem && shareProfileUrl ? productShareUrl(shareProfileUrl, shareItem.id) : ''}
+        title={productShareTitle(business?.name ?? 'NowOpen Africa', shareItem ?? {})}
+        text={productShareText(business?.name ?? 'NowOpen Africa', shareItem ?? {})}
+        subtitle={shareItem?.name ? String(shareItem.name) : undefined}
+      />
 
       {lightboxIndex !== null && visibleGallery[lightboxIndex] && (
         <div

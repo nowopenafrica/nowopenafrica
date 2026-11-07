@@ -1,7 +1,8 @@
 import { readFileSync, readdirSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
-import { INDUSTRIES, liveModulesFor } from '../data/industrySystems';
+import { INDUSTRIES } from '../data/industrySystems';
+import { liveModulesFor } from '../data/industryLiveModules';
 import { parseSchemaSql } from '../../scripts/lib/parseSchemaSql.mjs';
 
 /**
@@ -201,7 +202,7 @@ describe('advertising inventory is held to the accountability rule', () => {
      * real third-party sites with day rates — and all 97 were in the sitemap,
      * every one of them canonicalising to the home page.
      */
-    expect(sitemap).toContain('const accountableAdverts = adverts.filter((a) => !!a.user_id)');
+    expect(sitemap).toContain('const accountableAdverts = adverts.filter((a) => !!a.user_id || !!a.owner_id)');
     expect(sitemap).toMatch(/for \(const a of accountableAdverts\)/);
   });
 

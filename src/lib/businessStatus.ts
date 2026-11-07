@@ -152,6 +152,38 @@ export interface WeekdayHours {
   closed?: boolean;
 }
 
+/**
+ * Did a person or an authorised source actually state this business's hours?
+ *
+ * This is the question `defaultAutoHours` below cannot answer and must not be
+ * asked to. It invents a plausible week from the category name so that an
+ * OWNER configuring their own clock starts from something sensible; the moment
+ * that invention is shown to a visitor as fact, it is a fabricated claim about
+ * a real business.
+ *
+ * MEASURED IN PRODUCTION, 2026-09-14: 3,115 of 3,118 businesses carry
+ * `availability_mode = 'default_24_7'` with `is_24_hours_confirmed = false`,
+ * and only 3 rows in the whole table have any opening-hours text. So for
+ * practically every profile on the site, this returns false — which is exactly
+ * why the answer has to be checked rather than assumed.
+ */
+export function hasStatedHours(business: Pick<Business,
+  'opening_hours' | 'hours' | 'is_24_hours' | 'is_24_hours_confirmed'>): boolean {
+  return !!(
+    (business.opening_hours ?? '').trim()
+    || (business.hours ?? '').trim()
+    // A confirmed 24/7 IS stated hours. An unconfirmed one is the default.
+    || (business.is_24_hours && business.is_24_hours_confirmed)
+  );
+}
+
+/**
+ * A plausible week for a category, for an OWNER to start from.
+ *
+ * Never a source of fact about a specific business — see hasStatedHours above,
+ * and `hoursAreAssumed` on BusinessClockConfig, which is how callers tell the
+ * difference.
+ */
 export function defaultAutoHours(category?: string): WeekdayHours[] {
   const cat = (category || '').toLowerCase();
   const includesAny = (...keys: string[]) => keys.some((k) => cat.includes(k));
@@ -188,6 +220,15 @@ export function autoStatusForTime(hours: WeekdayHours[], now: Date): 'open' | 'c
 export interface BusinessClockConfig {
   manualOverride?: 'open' | 'closed' | null;
   autoHours: WeekdayHours[];
+  /**
+   * True when `autoHours` came from defaultAutoHours(category) rather than from
+   * the business.
+   *
+   * Carried on the config rather than recomputed by each caller because the
+   * config is what gets passed around, and a caller holding one has no other
+   * way to know whether the times in it mean anything.
+   */
+  hoursAreAssumed?: boolean;
   liveNow?: boolean;
   deliveryActive?: boolean;
   appointmentOnly?: boolean;
@@ -206,6 +247,7 @@ export function defaultClockConfig(business: Business): BusinessClockConfig {
   return {
     manualOverride: null,
     autoHours: defaultAutoHours(business.category),
+    hoursAreAssumed: !hasStatedHours(business),
     liveNow: false,
     deliveryActive: false,
     appointmentOnly: false,
@@ -230,7 +272,17 @@ export function loadClockConfig(business: Business): BusinessClockConfig {
     const raw = localStorage.getItem(clockStorageKey(business.id));
     if (!raw) return base;
     const saved = JSON.parse(raw) as Partial<BusinessClockConfig>;
-    return { ...base, ...saved, autoHours: saved.autoHours || base.autoHours };
+    return {
+      ...base,
+      ...saved,
+      autoHours: saved.autoHours || base.autoHours,
+      /*
+       * Hours the owner saved themselves are stated hours, whatever the row
+       * says. Without this line an owner who set their clock would still see
+       * their own timeline suppressed.
+       */
+      hoursAreAssumed: saved.autoHours ? false : base.hoursAreAssumed,
+    };
   } catch {
     return base;
   }
@@ -341,6 +393,39 @@ export interface TimelineEvent {
 
 
 export function buildBusinessTimeline(business: Business, config: BusinessClockConfig, now: Date): TimelineEvent[] {
+  /*
+   * THE DEFECT THIS PREVENTS, MEASURED ON PRODUCTION 2026-09-14
+   *
+   * /salem-university-lokoja — a real Nigerian university, unclaimed, with no
+   * opening hours on file — showed a visitor:
+   *
+   *     Today's Activity
+   *       8:00 AM  🟢  Opened for the day
+   *       6:00 PM  🔚  Closed for the day
+   *
+   * as statements of fact about that day. Nobody had ever said those times.
+   * They came from defaultAutoHours('Schools & Training'), which returns
+   * Mon–Fri 08:00–18:00 for anything it does not recognise. The panel directly
+   * beside it read "Open 24/7 — assumed", so the page contradicted itself as
+   * well as the business.
+   *
+   * This is the same fault openingHours.ts was written to fix for the status
+   * badge — a status invented from the category and shown as observation —
+   * reappearing in the component that was not part of that change. It affected
+   * every one of the 3,115 profiles with no stated hours.
+   *
+   * An empty timeline is honest and the component already renders "No activity
+   * recorded yet today." A wrong one sends somebody to a closed building.
+   */
+  /*
+   * Falls back to the business itself when a caller built a config by hand and
+   * did not set the flag. Deriving it here rather than trusting `undefined`
+   * makes the gate fail CLOSED: a new caller that forgets the flag shows no
+   * timeline, instead of quietly reintroducing the fabrication.
+   */
+  const assumed = config.hoursAreAssumed ?? !hasStatedHours(business);
+  if (assumed) return [];
+
   const day = now.getDay();
   const slot = config.autoHours[day] || { open: '', close: '', closed: true };
   const openAt = parseMinutes(slot.open);

@@ -4,7 +4,10 @@ import { AtSign, Lock } from 'lucide-react';
 import PasswordToggle from '../components/PasswordToggle';
 import { useAuth } from '../contexts/AuthContext';
 import toast from 'react-hot-toast';
+import { authErrorText } from '../lib/authErrors';
 import { applySeo } from '../lib/seo';
+import { authRedirectTarget } from '../lib/safeNext';
+import { takePendingIntent } from '../lib/universalCreate/pendingIntent';
 
 export default function Login() {
   const [identifier, setIdentifier] = useState('');
@@ -45,14 +48,23 @@ export default function Login() {
        * would make this an open redirect — a sign-in page that forwards to
        * wherever an attacker's link says is a credible phishing hop.
        */
-      const from = (location.state as { from?: { pathname?: string; search?: string } } | null)?.from;
-      const next = new URLSearchParams(location.search).get('next');
-      const safeNext = next && /^\/(?!\/)/.test(next) ? next : null;
-      const target = safeNext ?? ((from?.pathname || '/') + (from?.search || ''));
+      /*
+       * A creation the person started before we interrupted them to sign in.
+       *
+       * Passed as the FALLBACK, not ahead of ?next=: somebody who clicked a
+       * specific "sign in to claim this business" link meant that link, and a
+       * remembered intent from earlier must not hijack it.
+       */
+      const pending = takePendingIntent();
+      const target = authRedirectTarget(
+        location.search,
+        location.state as { from?: { pathname?: string; search?: string } } | null,
+        pending?.destination ?? '/',
+      );
       navigate(target, { replace: true });
     } catch (error: any) {
       console.error('Login error:', error);
-      toast.error(error.message || 'Failed to sign in. Please check your credentials.');
+      toast.error(authErrorText(error, 'login'));
     } finally {
       setLoading(false);
     }

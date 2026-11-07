@@ -32,7 +32,16 @@ vi.mock('../lib/supabase', () => {
   ];
   const approvals = [
     { id: 'ap-1', org_id: orgId, work_item_id: 'wi-1', requested_by: 'ai-2', reason: 'Sign off.', status: 'pending' },
-    { id: 'ap-2', org_id: orgId, work_item_id: 'wi-3', requested_by: 'ai-3', reason: 'Sign off.', status: 'approved', decided_at: new Date(Date.now() - 5 * 60 * 1000).toISOString() },
+    /*
+     * Decided TODAY, in local time — the assertion below is "1 decision signed
+     * today", and decisionsToday counts against the local day.
+     *
+     * This was `Date.now() - 5 minutes`, which is today for 1,435 minutes out
+     * of every 1,440 and yesterday for the other five. The suite ran at 00:02
+     * and the count fell to zero. Clamped to the start of the local day so it
+     * is always today, without ever being in the future.
+     */
+    { id: 'ap-2', org_id: orgId, work_item_id: 'wi-3', requested_by: 'ai-3', reason: 'Sign off.', status: 'approved', decided_at: new Date(Math.max(new Date().setHours(0, 0, 0, 0), Date.now() - 5 * 60 * 1000)).toISOString() },
   ];
   const knowledge = [
     { id: 'kb-1', org_id: orgId, category: 'Brand', title: 'Brand voice', summary: 'S', body: [], tags: [], source: 'sop' },

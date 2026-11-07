@@ -49,9 +49,13 @@ const RESERVED = new Set([
   'security', 'settings', 'about', 'contact', 'pricing', 'plans', 'terms',
   'privacy', 'founder', 'media', 'blog', 'help', 'support', 'search',
   'digital-forms', 'reset-password', 'forgot-password', 'live', 'r', 'sitemap.xml',
+  // /install is the page that tells people how to add the app to their home
+  // screen. Unreserved, a crawler asking for it is rewritten to the business
+  // profile renderer and served a 404 for a business nobody has.
+  'install',
   // Consumer surfaces. Without these a crawler asking for /keeps is rewritten
   // to the business-profile renderer and served a 404 profile instead of a page.
-  'keeps', 'nearby', 'open-now', 'offers', 'waitlist', 'os', 'forms', 'adverts',
+  'keeps', 'nearby', 'open-now', 'offers', 'waitlist', 'os', 'forms', 'adverts', 'advertise', 'unsubscribe',
   // Campaign surfaces. /join and /founding-1000 are the short URLs meant for
   // posters, QR codes and videos, which makes them exactly the ones that must
   // not be mistaken for a business slug — and a 404 here also kills the
@@ -61,26 +65,93 @@ const RESERVED = new Set([
   // so: this is the link the whole acquisition push points at, and a 404 here
   // also kills the WhatsApp preview.
   'send-business', 'send-your-business', 'yourbusiness', 'nominate',
+  'add-business', 'join',
   // Industry page examples. Reserved so a crawler asking for /example is not
   // handed the business-profile renderer.
   'example',
   // Create order tracking. A reference is a bearer token, so this must never be
   // handed to the profile renderer and must never be indexed.
   'order',
+  // NOWOPEN | INSTAGRAM, the handle-entry door. Reserved for the usual reason
+  // and one more: a crawler handed this to the profile renderer would be served
+  // a 404 for a business called "instagram", losing the page that exists to be
+  // found by businesses searching for exactly that word.
+  'instagram',
+  // Project stories. /work/:slug is a public page with its own shareable URL,
+  // so it must be reserved AND rendered, not mistaken for a business profile.
+  'work',
 ]);
+
+/**
+ * Search engines and the SEO tools that behave like them.
+ *
+ * Matched on the user agent, which is spoofable — and that is fine. The worst a
+ * spoofer gets is the same public profile in plainer HTML.
+ */
+const SEARCH_CRAWLER =
+  /(googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|slurp|google-inspectiontool|petalbot|ia_archiver|semrushbot|ahrefsbot|screaming frog|lighthouse|chrome-lighthouse|w3c_validator)/i;
+
+/**
+ * The preview crawlers behind every link anyone shares — WhatsApp, Facebook, X,
+ * LinkedIn, Telegram, Slack, Discord, iMessage.
+ *
+ * These matter more here than anywhere else in Africa: WhatsApp is where a
+ * business link actually travels, and a shared profile with no preview card
+ * looks broken before anybody clicks it.
+ */
+const PREVIEW_CRAWLER =
+  /(facebookexternalhit|facebookcatalog|twitterbot|linkedinbot|whatsapp|telegrambot|slackbot|discordbot|redditbot|pinterest|embedly|quora link preview|skypeuripreview|nuzzel|bitlybot|vkshare|developers\.google\.com\/\+\/web\/snippet)/i;
+
+/**
+ * The AI assistants and their retrieval crawlers.
+ *
+ * MEASURED ON PRODUCTION, 2026-09-14, before this list existed:
+ *
+ *   Googlebot     → /businesses/in/lagos  38,715 bytes, <h1>Businesses in Lagos</h1>
+ *   GPTBot        → the same URL           7,495 bytes, no <h1>, home page title
+ *   OAI-SearchBot → the same URL           7,495 bytes, no <h1>, home page title
+ *   ClaudeBot     → the same URL           7,495 bytes, no <h1>, home page title
+ *   PerplexityBot → the same URL           7,495 bytes, no <h1>, home page title
+ *
+ * 7,495 bytes is the JavaScript shell. Every one of these crawlers was reaching
+ * the site — robots.txt allows them all under `User-agent: *` — reading the
+ * sentence "NowOpen Africa needs JavaScript enabled to run", and leaving. The
+ * pipeline that renders profiles and city pages had simply never been pointed
+ * at them.
+ *
+ * WHAT THIS DOES AND DOES NOT BUY
+ *
+ * It makes the content readable. That is a precondition for an assistant being
+ * able to describe a business accurately, and nothing more than a precondition:
+ * no entry on this list causes NowOpen to be cited, recommended or ranked by
+ * anyone, and no claim of the sort should be made anywhere in the product.
+ * What can honestly be said is the narrow thing — before, these crawlers could
+ * not read the directory at all; now they can.
+ *
+ * Kept as its own constant rather than folded into the search list because the
+ * two are governed differently. If NowOpen ever chooses to restrict AI training
+ * use, that is a decision about THIS list, and it should be one edit in one
+ * place rather than a hunt through a sixty-term regex.
+ */
+const AI_CRAWLER =
+  /(gptbot|oai-searchbot|chatgpt-user|claudebot|claude-web|claude-searchbot|claude-user|anthropic-ai|perplexitybot|perplexity-user|ccbot|amazonbot|bytespider|meta-externalagent|meta-externalfetcher|cohere-ai|cohere-training-data-crawler|youbot|duckassistbot|mistralai-user|google-cloudvertexbot|timpibot|diffbot|omgili|webzio-extended)/i;
+
+export const isSearchCrawler = (userAgent: string | null): boolean =>
+  !!userAgent && SEARCH_CRAWLER.test(userAgent);
+
+export const isAiCrawler = (userAgent: string | null): boolean =>
+  !!userAgent && AI_CRAWLER.test(userAgent);
 
 /**
  * Does this request come from something that will not run JavaScript?
  *
- * Matched on the user agent, which is spoofable — and that is fine. The worst a
- * spoofer gets is the same public profile in plainer HTML. The list covers the
- * search engines plus the preview crawlers behind every link anyone shares:
- * WhatsApp, Facebook, X, LinkedIn, Telegram, Slack, Discord, iMessage.
+ * All three families get identical HTML. Serving an AI crawler something a
+ * person cannot see would be cloaking, and it would also be the fastest way to
+ * put a wrong fact about a real business into an assistant's answer.
  */
-const CRAWLER = /(googlebot|bingbot|yandex|duckduckbot|baiduspider|applebot|slurp|facebookexternalhit|facebookcatalog|twitterbot|linkedinbot|whatsapp|telegrambot|slackbot|discordbot|redditbot|pinterest|embedly|quora link preview|skypeuripreview|nuzzel|bitlybot|vkshare|w3c_validator|developers\.google\.com\/\+\/web\/snippet|google-inspectiontool|petalbot|ia_archiver|semrushbot|ahrefsbot|screaming frog|lighthouse|chrome-lighthouse)/i;
-
 export const isCrawler = (userAgent: string | null): boolean =>
-  !!userAgent && CRAWLER.test(userAgent);
+  isSearchCrawler(userAgent) || isAiCrawler(userAgent)
+  || (!!userAgent && PREVIEW_CRAWLER.test(userAgent));
 
 /** The first path segment, or '' for the root. */
 export function firstSegment(pathname: string): string {
@@ -128,6 +199,27 @@ export function shouldRenderProfile(pathname: string, userAgent: string | null):
   const slug = segments[0];
   if (RESERVED.has(slug.toLowerCase())) return null;
   if (!/^[A-Za-z0-9._-]{1,64}$/.test(slug)) return null;
+  return slug;
+}
+
+/**
+ * Should this request be answered with a rendered project story?
+ *
+ * `/work/:slug` is a public page whose whole point is to be shared and found.
+ * Left to the SPA, a WhatsApp preview gets the generic home card and a search
+ * engine gets the JavaScript shell — on the URL a business sends to a client.
+ *
+ * Exported for the same reason the other decisions are: this is the part with
+ * the edge cases, and middleware itself is awkward to exercise.
+ */
+export function shouldRenderProject(pathname: string, userAgent: string | null): string | null {
+  if (!isCrawler(userAgent)) return null;
+  const segments = pathname.replace(/^\/+|\/+$/g, '').split('/').filter(Boolean);
+  if (segments.length !== 2 || segments[0] !== 'work') return null;
+  const slug = segments[1];
+  // Long enough for a readable title slug plus the id fragment; short enough
+  // that a pathological URL is not worth a database round trip.
+  if (!/^[A-Za-z0-9._-]{1,128}$/.test(slug)) return null;
   return slug;
 }
 
@@ -192,6 +284,9 @@ export default function middleware(request: Request) {
 
   const slug = shouldRenderProfile(url.pathname, ua);
   if (slug) return rewrite(new URL(`/api/business/${encodeURIComponent(slug)}`, request.url));
+
+  const project = shouldRenderProject(url.pathname, ua);
+  if (project) return rewrite(new URL(`/api/project/${encodeURIComponent(project)}`, request.url));
 
   const discovery = shouldRenderDiscovery(url.pathname, ua);
   if (discovery) {

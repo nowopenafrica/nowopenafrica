@@ -10,6 +10,7 @@ export default function ConfirmDialog({
   confirmLabel = 'Confirm',
   cancelLabel = 'Cancel',
   busy = false,
+  confirmDisabled = false,
   tone = 'primary',
   onConfirm,
   onCancel,
@@ -20,6 +21,8 @@ export default function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   busy?: boolean;
+  /** Keeps the confirm button inert until the caller's own precondition (e.g. a typed reason) holds. */
+  confirmDisabled?: boolean;
   tone?: 'primary' | 'danger';
   onConfirm: () => void;
   onCancel: () => void;
@@ -49,7 +52,7 @@ export default function ConfirmDialog({
           </button>
           <button
             onClick={onConfirm}
-            disabled={busy}
+            disabled={busy || confirmDisabled}
             className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50 ${confirmClasses}`}
           >
             {busy && <Loader2 size={15} className="animate-spin" />}

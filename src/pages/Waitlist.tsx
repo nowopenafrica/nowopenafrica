@@ -1,8 +1,10 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import { supabase } from '../lib/supabase';
-import { applySeo } from '../lib/seo';
+import {
+  Editable, PageContentProvider, useEditableSeo,
+} from '../components/editor/PageContent';
 import { CheckCircle, Mail, Rocket, BadgeCheck, Gift, Users, ArrowRight, Sparkles } from 'lucide-react';
 
 const BUSINESS_TYPES = [
@@ -23,16 +25,19 @@ const COUNTRIES = [
 
 const perks = [
   {
+    key: 'pricing',
     icon: Gift,
     title: 'Founding member pricing',
     text: 'Lock in launch pricing for 12 months on any plan.',
   },
   {
+    key: 'badge',
     icon: BadgeCheck,
     title: 'Free verified badge',
     text: 'Skip the queue — founding businesses get verified free.',
   },
   {
+    key: 'early',
     icon: Rocket,
     title: 'Early access',
     text: 'Invites go out in order of signup, market by market.',
@@ -40,19 +45,29 @@ const perks = [
 ];
 
 export default function Waitlist() {
+  return (
+    <PageContentProvider page="waitlist">
+      <WaitlistContent />
+    </PageContentProvider>
+  );
+}
+
+function WaitlistContent() {
   const [form, setForm] = useState({ name: '', email: '', business_type: '', country: '' });
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
-  useEffect(() => {
-    return applySeo({
-      title: 'Join the Waitlist — NowOpen Africa',
-      description:
-        'Get early access to NowOpen Africa in your market. Founding members lock in launch pricing, a free verified badge and early invites.',
-      path: '/waitlist',
-      image: '/og-image.png',
-    });
-  }, []);
+  // The pitch copy is editable. The form fields, countries and business
+  // types stay coded — the selector options are data, not copy.
+  useEditableSeo({
+    titleSlot: 'waitlist.seo.title',
+    descriptionSlot: 'waitlist.seo.description',
+    title: 'Join the Waitlist — NowOpen Africa',
+    description:
+      'Get early access to NowOpen Africa in your market. Founding members lock in launch pricing, a free verified badge and early invites.',
+    path: '/waitlist',
+    image: '/og-image.png',
+  });
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -139,26 +154,32 @@ export default function Waitlist() {
           <div className="space-y-6 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/10 backdrop-blur-sm rounded-full text-sm font-medium">
               <Sparkles size={16} className="text-yellow-300" />
-              Invite-only early access
+              <Editable slot="waitlist.hero.pill" as="span">Invite-only early access</Editable>
             </div>
             <h1 className="text-3xl md:text-5xl font-bold leading-tight">
-              Be first when Africa's business growth ecosystem goes live
+              <Editable slot="waitlist.hero.title" as="span">Be first when Africa's business growth ecosystem goes live</Editable>
             </h1>
             <p className="text-blue-100 text-base md:text-lg">
-              NowOpen Africa connects businesses, advertising placements and creative
-              professionals across 20+ African markets. Join the waitlist and we'll send
-              your invite as we open your market.
+              <Editable slot="waitlist.hero.lead" as="span">
+                NowOpen Africa connects businesses, advertising placements and creative
+                professionals across 20+ African markets. Join the waitlist and we'll send
+                your invite as we open your market.
+              </Editable>
             </p>
             <div className="flex items-center justify-center lg:justify-start gap-3 text-sm text-blue-100">
               <Users size={18} className="flex-shrink-0" />
-              Businesses, advertisers and creators across Africa are joining the line.
+              <Editable slot="waitlist.hero.note" as="span">Businesses, advertisers and creators across Africa are joining the line.</Editable>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
-              {perks.map(perk => (
-                <div key={perk.title} className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
-                  <perk.icon size={20} className="text-yellow-300 mb-2 mx-auto lg:mx-0" />
-                  <h3 className="font-semibold text-sm mb-1">{perk.title}</h3>
-                  <p className="text-xs text-blue-100">{perk.text}</p>
+              {perks.map(({ key, icon: PerkIcon, title, text }) => (
+                <div key={title} className="bg-white/10 backdrop-blur-sm rounded-xl p-4">
+                  <PerkIcon size={20} className="text-yellow-300 mb-2 mx-auto lg:mx-0" />
+                  <h3 className="font-semibold text-sm mb-1">
+                    <Editable slot={`waitlist.perk.${key}.title`} as="span">{title}</Editable>
+                  </h3>
+                  <p className="text-xs text-blue-100">
+                    <Editable slot={`waitlist.perk.${key}.body`} as="span">{text}</Editable>
+                  </p>
                 </div>
               ))}
             </div>
@@ -166,8 +187,12 @@ export default function Waitlist() {
 
           {/* Form */}
           <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-2xl p-8 text-gray-900 dark:text-white">
-            <h2 className="text-xl font-bold mb-1 text-center sm:text-left">African is NowOpen</h2>
-            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 text-center sm:text-left">Takes 30 seconds. No payment needed.</p>
+            <h2 className="text-xl font-bold mb-1 text-center sm:text-left">
+              <Editable slot="waitlist.form.title" as="span">African is NowOpen</Editable>
+            </h2>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mb-6 text-center sm:text-left">
+              <Editable slot="waitlist.form.sub" as="span">Takes 30 seconds. No payment needed.</Editable>
+            </p>
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label htmlFor="waitlist-name" className="block text-xs font-medium text-gray-700 dark:text-gray-300 mb-1">Full name</label>
@@ -248,20 +273,24 @@ export default function Waitlist() {
       {/* How it works */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-16">
         <h2 className="text-2xl md:text-3xl font-bold text-gray-900 dark:text-white text-center mb-10">
-          How the invite rollout works
+          <Editable slot="waitlist.steps.heading" as="span">How the invite rollout works</Editable>
         </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {[
-            { step: '1', title: 'Join the list', text: 'Tell us who you are and where you operate — that decides your rollout wave.' },
-            { step: '2', title: 'Get your invite', text: 'We open market by market, starting with Nigeria, Kenya, Ghana, South Africa and Egypt.' },
-            { step: '3', title: 'Launch day setup', text: 'Claim your profile, get verified free, and start listing, booking or selling from day one.' },
+            { key: '1', step: '1', title: 'Join the list', text: 'Tell us who you are and where you operate — that decides your rollout wave.' },
+            { key: '2', step: '2', title: 'Get your invite', text: 'We open market by market, starting with Nigeria, Kenya, Ghana, South Africa and Egypt.' },
+            { key: '3', step: '3', title: 'Launch day setup', text: 'Claim your profile, get verified free, and start listing, booking or selling from day one.' },
           ].map(s => (
             <div key={s.step} className="bg-white dark:bg-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 shadow-sm p-6 text-center sm:text-left">
               <div className="w-10 h-10 bg-blue-600 text-white rounded-full flex items-center justify-center font-bold mb-4 mx-auto sm:mx-0">
                 {s.step}
               </div>
-              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">{s.title}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">{s.text}</p>
+              <h3 className="font-semibold text-gray-900 dark:text-white mb-2">
+                <Editable slot={`waitlist.steps.${s.key}.title`} as="span">{s.title}</Editable>
+              </h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400">
+                <Editable slot={`waitlist.steps.${s.key}.body`} as="span">{s.text}</Editable>
+              </p>
             </div>
           ))}
         </div>

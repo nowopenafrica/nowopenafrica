@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
-import { X, Github } from 'lucide-react';
+import { X, Github, Facebook, Instagram } from 'lucide-react';
+import { providerEnabled } from '../../lib/authProviders';
 import PasswordToggle from '../PasswordToggle';
 import { useAuth, isEmail, normalizePhone } from '../../contexts/AuthContext';
 import PhoneOtpForm from './PhoneOtpForm';
@@ -44,7 +45,21 @@ export default function AuthModal({ onClose }: AuthModalProps) {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
-  const { signUp, signIn, signInWithGoogle, signInWithGitHub } = useAuth();
+  const { signUp, signIn, signInWithGoogle, signInWithGitHub, signInWithFacebook } = useAuth();
+  /*
+   * Facebook is supported by Supabase but has to be switched on in the
+   * dashboard, which code cannot see. So the button asks before it offers
+   * itself, and stays hidden until the answer is yes -- a sign-in that fails
+   * in front of somebody is worse than one that is not there.
+   */
+  const [facebookReady, setFacebookReady] = useState(false);
+
+  useEffect(() => {
+    let live = true;
+    void providerEnabled(import.meta.env.VITE_SUPABASE_URL ?? '', 'facebook')
+      .then((ok) => { if (live) setFacebookReady(ok); });
+    return () => { live = false; };
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -80,13 +95,15 @@ export default function AuthModal({ onClose }: AuthModalProps) {
     navigate('/forgot-password');
   };
 
-  const handleSocialLogin = async (provider: 'google' | 'github') => {
+  const handleSocialLogin = async (provider: 'google' | 'github' | 'facebook') => {
     setError('');
     setLoading(true);
 
     try {
       if (provider === 'google') {
         await signInWithGoogle();
+      } else if (provider === 'facebook') {
+        await signInWithFacebook();
       } else {
         await signInWithGitHub();
       }
@@ -196,6 +213,37 @@ export default function AuthModal({ onClose }: AuthModalProps) {
               GitHub
             </button>
           </div>
+
+          {facebookReady && (
+            <button
+              type="button"
+              onClick={() => handleSocialLogin('facebook')}
+              disabled={loading}
+              className="mt-2 w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              <Facebook size={16} />
+              Continue with Facebook
+            </button>
+          )}
+
+          {/*
+            * NOT a "Sign in with Instagram" button, because there is no such
+            * thing: Supabase supports 19 social providers and Instagram is not
+            * among them -- the server answers "Provider instagram could not be
+            * found". Dressing a link as an OAuth button would be a sign-in
+            * that cannot sign anybody in.
+            *
+            * This is the route that does work for an Instagram business: find
+            * the listing NowOpen already holds, no login required to look.
+            */}
+          <Link
+            to="/instagram"
+            onClick={onClose}
+            className="mt-2 w-full py-2 border border-gray-300 dark:border-gray-600 rounded-lg hover:bg-gray-50 dark:hover:bg-gray-700 transition text-sm font-medium flex items-center justify-center gap-2"
+          >
+            <Instagram size={16} className="text-pink-600" />
+            Find my business from Instagram
+          </Link>
         </div>
 
         <div className="px-6 pb-6 border-t border-gray-200 dark:border-gray-700">

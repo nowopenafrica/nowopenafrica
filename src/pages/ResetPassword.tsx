@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Lock } from 'lucide-react';
 import PasswordToggle from '../components/PasswordToggle';
 import toast from 'react-hot-toast';
+import { authErrorText } from '../lib/authErrors';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabase';
 import { applySeo } from '../lib/seo';
@@ -51,7 +52,7 @@ export default function ResetPassword() {
       toast.success('Password updated — you can sign in now.');
       navigate('/dashboard');
     } catch (err: any) {
-      toast.error(err.message || 'Could not update your password. The link may have expired — request a new one.');
+      toast.error(authErrorText(err, 'reset-password'));
     } finally {
       setLoading(false);
     }

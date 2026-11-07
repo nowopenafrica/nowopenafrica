@@ -32,3 +32,6 @@ supabase/.temp/
 # Local dev server logs
 dev-server.log
 dev-server.err.log
+
+# Scratch copy of Creative System artboards used for a one-off catalogue import.
+.tmp-artboards/

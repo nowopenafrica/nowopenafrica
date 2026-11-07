@@ -3,12 +3,17 @@ import { Link, useNavigate } from 'react-router-dom';
 import { Search, SlidersHorizontal, ChevronRight, ChevronLeft, MapPin, X } from 'lucide-react';
 import { InfiniteSlider } from '../InfiniteSlider';
 import BusinessCard from '../discover/BusinessCard';
-import { isClaimed, hasListingImage, byImageThenClaimedThenVerified, shuffle } from '../../lib/discover';
+import { isClaimed, hasListingImage, byClaimedThenImageThenVerified, shuffle } from '../../lib/discover';
 import type { DiscoverBusiness } from '../../lib/discover';
 import type { Advertisement, Business, MediaService } from '../../types';
 import { track } from '../../lib/telemetry';
 import { byDivision, priceLabel } from '../../lib/create/catalogue';
-import IndustryExamples from '../discover/IndustryExamples';
+/*
+ * Deferred: this section pulled categoryFeatures.ts (39.8 kB, every category's
+ * live modules) into the entry bundle, for content that sits below the
+ * listings grid. See LazyIndustryExamples.
+ */
+import IndustryExamples from '../discover/LazyIndustryExamples';
 import LoadFailure from '../LoadFailure';
 
 // The homepage browse section, laid out the way a creative marketplace does it:
@@ -33,7 +38,7 @@ type SortKey = 'recommended' | 'newest' | 'rating';
 const TYPES: { key: ListingType; label: string; viewAll: string }[] = [
   { key: 'businesses', label: 'Businesses', viewAll: '/businesses' },
   { key: 'adverts', label: 'Ad Placements', viewAll: '/adverts' },
-  { key: 'media', label: 'Creative Services', viewAll: '/media' },
+  { key: 'media', label: 'Creative Services', viewAll: '/media/services' },
 ];
 
 /**
@@ -45,7 +50,7 @@ const TYPES: { key: ListingType; label: string; viewAll: string }[] = [
 const EMPTY_HELP: Record<ListingType, { help: string; cta: string; to: string; second: string }> = {
   businesses: {
     help: 'Every listing here is claimed by the person who runs it, which is why there are not many yet.',
-    cta: 'Browse what NowOpen is for', to: '/platform', second: 'List your business',
+    cta: 'Browse what NowOpen is for', to: '/platform', second: 'Add your business',
   },
   adverts: {
     help: 'Placements across outdoor, transit, digital and broadcast are on the Promote page.',
@@ -108,6 +113,8 @@ export default function ListingExplorer({
   mediaServices,
   loadFailed,
   onRetry,
+  externalQuery,
+  externalLocation,
 }: {
   businesses: Business[];
   adverts: Advertisement[];
@@ -121,6 +128,19 @@ export default function ListingExplorer({
    */
   loadFailed?: Record<ListingType, boolean>;
   onRetry?: () => void;
+  /**
+   * What the hero search box currently holds.
+   *
+   * The page had TWO searches: this component's own box, and the big one in
+   * the hero above it. Typing in the obvious one did nothing to the cards, so
+   * the headline feature of the home page looked broken and the working box
+   * was the one nobody saw first.
+   *
+   * These seed the filters rather than replacing them: the local box keeps
+   * working, and when the hero changes, both agree.
+   */
+  externalQuery?: string;
+  externalLocation?: string;
 }) {
   const navigate = useNavigate();
   const [type, setType] = useState<ListingType>('businesses');
@@ -215,6 +235,21 @@ export default function ListingExplorer({
   // One clock for the whole grid, refreshed each minute: a homepage that says
   // "open" is making a claim about right now, and it goes stale while somebody
   // reads it.
+  /*
+   * Follow the hero box.
+   *
+   * Only when the value actually CHANGES, so somebody typing in this
+   * component's own field is never interrupted by a stale hero value being
+   * pushed back over what they wrote.
+   */
+  useEffect(() => {
+    if (externalQuery !== undefined) setQuery(externalQuery);
+  }, [externalQuery]);
+
+  useEffect(() => {
+    if (externalLocation !== undefined) setLocation(externalLocation);
+  }, [externalLocation]);
+
   const [now, setNow] = useState(() => new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 60_000);
@@ -260,7 +295,7 @@ export default function ListingExplorer({
        * the day — including under the "All" chip, where everything is supposed
        * to be on show.
        */
-      out = [...out].sort(byImageThenClaimedThenVerified);
+      out = [...out].sort(byClaimedThenImageThenVerified);
     }
     return out;
   }, [shuffledRows, rows, query, category, location, sort, type]);
@@ -473,7 +508,7 @@ export default function ListingExplorer({
               <p className="text-sm text-gray-600 dark:text-gray-300">
                 No {active.label.toLowerCase()} listed yet — the directory is being built.
               </p>
-              {/* The way out has to suit the tab. "List your business" under
+              {/* The way out has to suit the tab. "Add your business" under
                   Creative Services sent a photographer to a business waitlist,
                   and — worse — left the visitor with nothing to look at when
                   NowOpen Create already answers exactly what they came for. An
@@ -490,7 +525,7 @@ export default function ListingExplorer({
                   {byDivision('create').filter((i) => i.free).slice(0, 5).map((i) => (
                     <Link
                       key={i.sku}
-                      to="/media"
+                      to="/media/services"
                       className="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 text-xs font-semibold text-gray-800 dark:text-gray-200 hover:border-pink-400 transition"
                     >
                       {i.name}

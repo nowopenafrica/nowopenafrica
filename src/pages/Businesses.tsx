@@ -1,27 +1,30 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
+import { relatedFacets, hasFacets } from '../lib/relatedFacets';
 import { Link, useSearchParams } from 'react-router-dom';
 import { fetchAllBusinesses } from '../lib/fetchAllBusinesses';
 import { generateBusinesses } from '../data/populateData';
 import type { Business } from '../types';
 import {
   Search, MapPin, Star, Phone, Globe, X, ArrowRight, Store,
-  UtensilsCrossed, ShoppingBag, Laptop, HeartPulse, Briefcase, Wrench, GraduationCap, Palette,
-  type LucideIcon,
 } from 'lucide-react';
 import VerifiedBadge from '../components/VerifiedBadge';
 import IndustryDirectory, { THIN_DIRECTORY } from '../components/home/IndustryDirectory';
 import IndustryExamples from '../components/discover/IndustryExamples';
+import CategoryCarousel from '../components/discover/CategoryCarousel';
 import LocationAutocomplete from '../components/LocationAutocomplete';
 import LoadFailure from '../components/LoadFailure';
 import OpenStateBadge from '../components/OpenStateBadge';
 import SmartImg from '../components/SmartImg';
 import { normalize } from '../lib/search';
+import { businessesOffering } from '../lib/universalSearch';
 import { BUSINESS_CATEGORY_GROUPS, businessCategories, matchesCategory } from '../data/categories';
 import {
   isOrderingCategory, buildBusinessPulse, statusSortRank,
 } from '../lib/businessStatus';
 import { parseOpeningHours, publicOpenState, type OpenState } from '../lib/openingHours';
 import { shuffle, isClaimed } from '../lib/discover';
+import { businessWebsiteLink } from '../lib/webLink';
+import { SITE_URL } from '../lib/seo';
 
 /**
  * Collapse the four-state open model onto the two the sort ranks by.
@@ -36,27 +39,11 @@ import { applySeo } from '../lib/seo';
 import { track } from '../lib/telemetry';
 
 // Icon + accent + one-liner per business category group (keyed by group label).
-const GROUP_META: Record<string, { icon: LucideIcon; accent: string; description: string }> = {
-  'Food & Hospitality': { icon: UtensilsCrossed, accent: 'amber', description: 'Restaurants, hotels, catering and events' },
-  'Retail & Commerce': { icon: ShoppingBag, accent: 'blue', description: 'Shops, supermarkets, fashion and online stores' },
-  'Technology & Media': { icon: Laptop, accent: 'violet', description: 'Software, telecoms, marketing and photography' },
-  'Health & Wellness': { icon: HeartPulse, accent: 'rose', description: 'Clinics, pharmacies, gyms and salons' },
-  'Professional Services': { icon: Briefcase, accent: 'cyan', description: 'Legal, accounting, finance and real estate' },
-  'Trades & Industry': { icon: Wrench, accent: 'emerald', description: 'Construction, automotive, logistics and repair' },
-  'Education & Community': { icon: GraduationCap, accent: 'indigo', description: 'Schools, tutoring, childcare and NGOs' },
-  'Arts & Entertainment': { icon: Palette, accent: 'pink', description: 'Music, art, design and travel' },
-};
-
-const ACCENT: Record<string, { grad: string; text: string }> = {
-  amber: { grad: 'from-amber-500 to-amber-600', text: 'text-amber-600 dark:text-amber-400' },
-  blue: { grad: 'from-blue-500 to-blue-600', text: 'text-blue-600 dark:text-blue-400' },
-  violet: { grad: 'from-violet-500 to-violet-600', text: 'text-violet-600 dark:text-violet-400' },
-  rose: { grad: 'from-rose-500 to-rose-600', text: 'text-rose-600 dark:text-rose-400' },
-  cyan: { grad: 'from-cyan-500 to-cyan-600', text: 'text-cyan-600 dark:text-cyan-400' },
-  emerald: { grad: 'from-emerald-500 to-emerald-600', text: 'text-emerald-600 dark:text-emerald-400' },
-  indigo: { grad: 'from-indigo-500 to-indigo-600', text: 'text-indigo-600 dark:text-indigo-400' },
-  pink: { grad: 'from-pink-500 to-pink-600', text: 'text-pink-600 dark:text-pink-400' },
-};
+/*
+ * The icon and short name for each group live in lib/categoryIcons.ts, shared
+ * with Discover's rail. This page used to keep its own map and it covered only
+ * eight of the twelve groups.
+ */
 
 // Live-status quick filters for the directory. Open/Open-24 come from each
 // business's own stored hours (honest public status). Busy/Available/Live/
@@ -101,8 +88,23 @@ const h = (s: string): number => {
  */
 const DIRECTORY_FETCH_LIMIT = 100_000;
 
+/**
+ * How many cards are rendered before "Load more".
+ *
+ * MEASURED 2026-09-15: the page rendered every matching business at once.
+ * With 3,118 listable businesses that is 3,118 cards, each with an image, a
+ * status badge and four contact rows, built in a single pass. On the mobile
+ * connections this audience uses it is a long freeze before anything is
+ * usable, and almost all of that work is for cards nobody scrolls to.
+ *
+ * The fetch is unchanged — every business is still loaded, so filtering,
+ * counting and search stay accurate across the whole directory. This caps only
+ * what is DRAWN.
+ */
+const CARDS_PER_PAGE = 300;
+
 export default function Businesses() {
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [businesses, setBusinesses] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [truncated, setTruncated] = useState(false);
@@ -127,6 +129,43 @@ export default function Businesses() {
   const [categoryFilter, setCategoryFilter] = useState('');
   const [statusFilter, setStatusFilter] = useState<string[]>([]);
   const [now, setNow] = useState(() => new Date());
+
+  /*
+   * ── Offering filter: ?service=… / ?product=… ────────────────────────────
+   *
+   * This page filters on name, description and category. A service is none of
+   * those — it lives in business_services — so before this, arriving from a
+   * "Diagnostic tests" suggestion ran a text search for that phrase across
+   * business NAMES and found nothing. A platform offering a suggestion that
+   * leads to an empty page is worse than one offering no suggestion at all.
+   *
+   * The ids are resolved server-side by businesses_offering() and intersected
+   * with the listings already fetched, rather than introducing a second,
+   * parallel definition of what a listing is.
+   */
+  const offeringName = searchParams.get('service') ?? searchParams.get('product') ?? '';
+  const offeringKind: 'service' | 'product' = searchParams.get('product') ? 'product' : 'service';
+  const [offeringIds, setOfferingIds] = useState<Set<string> | null>(null);
+  const [offeringFailed, setOfferingFailed] = useState(false);
+
+  useEffect(() => {
+    if (!offeringName.trim()) { setOfferingIds(null); setOfferingFailed(false); return; }
+    let live = true;
+    setOfferingIds(null);
+    setOfferingFailed(false);
+    businessesOffering(offeringName, offeringKind).then(({ ids, failed }) => {
+      if (!live) return;
+      setOfferingFailed(failed);
+      /*
+       * On failure the filter is DROPPED, not applied as an empty set. An
+       * empty set renders "no businesses offer this" — a factual claim about
+       * the directory manufactured by a network error. The notice says the
+       * filter could not be applied instead.
+       */
+      setOfferingIds(failed ? null : ids);
+    });
+    return () => { live = false; };
+  }, [offeringName, offeringKind]);
 
   useEffect(() => {
     return applySeo({
@@ -200,6 +239,35 @@ export default function Businesses() {
     fetchBusinesses();
   }, [reloadKey]);
 
+  /**
+   * How many cards to draw. Reset whenever the result set changes, so a new
+   * filter opens at the top rather than 900 cards deep in the previous one.
+   */
+  const [visibleCount, setVisibleCount] = useState(CARDS_PER_PAGE);
+
+  /*
+   * Categories and places the query actually points at, counted from the
+   * whole directory rather than the current page — a count taken from one
+   * page of results would understate every facet and send somebody past the
+   * category that holds what they want.
+   */
+  const facets = useMemo(
+    () => relatedFacets(businesses, search, { category: categoryFilter, location }),
+    [businesses, search, categoryFilter, location],
+  );
+
+  /*
+   * Back to the first page whenever the result set changes.
+   *
+   * Without this, someone who pressed "Show more" twice and then typed a search
+   * would keep the taller window: narrowing is harmless, but CLEARING the
+   * filter afterwards would silently draw 900 cards again without anybody
+   * asking for them.
+   */
+  useEffect(() => {
+    setVisibleCount(CARDS_PER_PAGE);
+  }, [categoryFilter, activeGroup, location, search, statusFilter]);
+
   const groupCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     // Count a business under every group one of its categories (primary or
@@ -214,6 +282,20 @@ export default function Businesses() {
     }
     return counts;
   }, [businesses]);
+
+  /**
+   * The groups worth offering, in the order the category data declares them.
+   *
+   * Filtered to those that actually hold something: CategoryCarousel's contract
+   * is that the CALLER drops empty groups, because a tile leading to an empty
+   * page is worse than one fewer tile. Six of the twelve are empty today.
+   */
+  const browseGroups = useMemo(
+    () => BUSINESS_CATEGORY_GROUPS
+      .map((g) => ({ group: g.group, n: groupCounts[g.group] ?? 0 }))
+      .filter((g) => g.n > 0),
+    [groupCounts],
+  );
 
   const activeGroupObj = BUSINESS_CATEGORY_GROUPS.find((g) => g.group === activeGroup) ?? null;
   const hasFilters = !!search.trim() || !!location.trim() || !!activeGroup || !!categoryFilter || statusFilter.length > 0;
@@ -294,6 +376,9 @@ export default function Businesses() {
     filteredBusinesses = filteredBusinesses.filter((b) =>
       normalize(b.name ?? '').includes(q) || normalize(b.description ?? '').includes(q) || businessCategories(b).some((cat) => normalize(cat).includes(q))
     );
+  }
+  if (offeringIds) {
+    filteredBusinesses = filteredBusinesses.filter((b) => offeringIds.has(b.id));
   }
   if (statusFilter.length > 0) {
     filteredBusinesses = filteredBusinesses.filter(matchStatus);
@@ -441,6 +526,36 @@ export default function Businesses() {
               ))}
             </select>
           </div>
+          {/* The offering filter lives in the URL, not in a control on this
+              page, so without a chip there is nothing on screen explaining why
+              3,141 listings became 1,600 — and no way back. */}
+          {offeringName.trim() ? (
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full bg-teal-50 dark:bg-teal-900/30 border border-teal-200 dark:border-teal-800 px-3 py-1.5 text-sm font-medium text-teal-800 dark:text-teal-200">
+                {offeringKind === 'product' ? 'Lists' : 'Offers'}: {offeringName}
+                <button
+                  onClick={() => {
+                    const next = new URLSearchParams(searchParams);
+                    next.delete('service'); next.delete('product');
+                    setSearchParams(next);
+                  }}
+                  aria-label={`Remove the ${offeringName} filter`}
+                  className="text-teal-600 dark:text-teal-300 hover:text-teal-900 dark:hover:text-white"
+                >
+                  <X size={14} />
+                </button>
+              </span>
+              {offeringIds === null && !offeringFailed && (
+                <span className="text-xs text-gray-500 dark:text-gray-400">Finding businesses…</span>
+              )}
+              {offeringFailed && (
+                <span className="text-xs text-amber-700 dark:text-amber-400">
+                  This filter could not be applied, so every listing is shown.
+                </span>
+              )}
+            </div>
+          ) : null}
+
           {hasFilters ? (
             <div className="mt-2 flex justify-end">
               <button onClick={() => { setSearch(''); setLocation(''); setActiveGroup(null); setCategoryFilter(''); setStatusFilter([]); }} className="inline-flex items-center gap-1.5 text-sm font-medium text-gray-600 dark:text-gray-300 hover:text-gray-900 dark:hover:text-white">
@@ -473,37 +588,40 @@ export default function Businesses() {
           </div>
         </div>
 
-        {/* Category browse gallery. Hidden until the directory has enough in it
-            to browse: twelve category cards, ten of them reading "0
-            businesses", is a wall of dead ends whether the count is 0 or 2.
-            IndustryDirectory below already answers "what is NowOpen for", and
-            it does it without inviting a click that goes nowhere. */}
-        <div className={`mb-10 ${businesses.length < THIN_DIRECTORY ? 'hidden' : ''}`}>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-4">Browse by category</h2>
-          {/* Six across, matching the Promote and Create pages — the three
-              category rails read as one system rather than three layouts. */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            {BUSINESS_CATEGORY_GROUPS.map((g) => {
-              const meta = GROUP_META[g.group] ?? { icon: Store, accent: 'blue', description: '' };
-              const a = ACCENT[meta.accent];
-              const active = activeGroup === g.group;
-              const Icon = meta.icon;
-              return (
-                <button
-                  key={g.group}
-                  onClick={() => { setActiveGroup(active ? null : g.group); setCategoryFilter(''); }}
-                  className={`text-left rounded-2xl border p-4 transition ${active ? 'border-blue-500 ring-2 ring-blue-500/30 bg-white dark:bg-gray-800' : 'border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 hover:-translate-y-0.5 hover:shadow-md'}`}
-                >
-                  <div className={`w-10 h-10 rounded-xl bg-gradient-to-br ${a.grad} flex items-center justify-center`}>
-                    <Icon size={20} className="text-white" />
-                  </div>
-                  <p className="mt-3 font-bold text-sm text-gray-900 dark:text-white leading-tight">{g.group}</p>
-                  <p className="mt-1 text-[11px] text-gray-500 dark:text-gray-400 line-clamp-2">{meta.description}</p>
-                  <p className={`mt-2 text-[11px] font-semibold ${a.text}`}>{groupCounts[g.group] ?? 0} businesses</p>
-                </button>
-              );
-            })}
-          </div>
+        {/*
+          * BROWSE BY CATEGORY — ONE LINE.
+          *
+          * This was a twelve-card grid: two rows of tiles carrying an icon, the
+          * group name, a two-line description and a count. It filled most of a
+          * screen before a single business was visible, and six of the twelve
+          * groups hold nothing, so half that space argued for clicking into
+          * an empty result.
+          *
+          * It is now the same CategoryCarousel that Discover uses: one
+          * horizontal rail, swiped on a phone, arrows on a pointer device, and
+          * only the groups that actually hold businesses. The descriptions went
+          * with it — "Restaurants, hotels, catering and events" is what the
+          * group name already says, at four times the height.
+          *
+          * Reusing the component rather than writing a second rail also fixed
+          * four groups quietly. This page kept its own icon map and it covered
+          * eight of the twelve; Home & Personal Services, Fashion & Beauty,
+          * Local & Everyday Business and Logistics & Mobility fell through to a
+          * generic shop glyph. categoryIcons.ts has all twelve, and a test
+          * asserts that it does.
+          *
+          * Still hidden while the directory is thin: a browse surface over
+          * almost nothing is a wall of dead ends, and IndustryDirectory below
+          * already answers "what is NowOpen for" without inviting a click that
+          * goes nowhere.
+          */}
+        <div className={`mb-8 ${businesses.length < THIN_DIRECTORY ? 'hidden' : ''}`}>
+          <h2 className="text-lg font-bold text-gray-900 dark:text-white mb-3">Browse by category</h2>
+          <CategoryCarousel
+            groups={browseGroups}
+            active={activeGroup ?? ''}
+            onPick={(g) => { setActiveGroup(g || null); setCategoryFilter(''); }}
+          />
         </div>
 
         {/* Results */}
@@ -535,10 +653,79 @@ export default function Businesses() {
           <div className="text-center py-16">
             <Store size={40} className="mx-auto text-gray-300 dark:text-gray-600 mb-3" />
             <p className="text-gray-600 dark:text-gray-400">No businesses match your filters.</p>
+            {/*
+              * The whole point of the facets: "hospital" found nothing by
+              * NAME while 1,769 businesses sat under "Hospital & Clinic".
+              * Every chip carries its count, so none of them is another
+              * empty page.
+              */}
+            {hasFacets(facets) && (
+              <div className="mt-6 max-w-2xl mx-auto">
+                <p className="text-sm text-gray-500 dark:text-gray-400 mb-3">
+                  There are businesses under these, though:
+                </p>
+                <div className="flex flex-wrap gap-2 justify-center">
+                  {facets.categories.map((f) => (
+                    <button
+                      key={`c-${f.value}`}
+                      onClick={() => { setSearch(''); setCategoryFilter(f.value); setActiveGroup(null); }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:border-blue-500 hover:text-blue-600"
+                    >
+                      {f.value}
+                      <span className="text-xs text-gray-500">{f.count}</span>
+                    </button>
+                  ))}
+                  {facets.locations.map((f) => (
+                    <button
+                      key={`l-${f.value}`}
+                      onClick={() => { setSearch(''); setLocation(f.value); setActiveGroup(null); }}
+                      className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 dark:border-gray-600 px-3 py-1.5 text-sm hover:border-blue-500 hover:text-blue-600"
+                    >
+                      <MapPin size={12} className="text-gray-400" />
+                      {f.value}
+                      <span className="text-xs text-gray-500">{f.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         ) : (
+          <>
+          {/*
+            * Related, when there ARE results: the categories and places these
+            * matches sit in, each a one-click narrowing. Only rendered while
+            * a search is active — with no query there is no "related", just
+            * the filters already on screen.
+            */}
+          {hasFacets(facets) && (
+            <div className="mb-5 flex flex-wrap items-center gap-2">
+              <span className="text-xs font-semibold uppercase tracking-wide text-gray-400">Related</span>
+              {facets.categories.slice(0, 4).map((f) => (
+                <button
+                  key={`rc-${f.value}`}
+                  onClick={() => { setCategoryFilter(f.value); setActiveGroup(null); }}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 px-3 py-1 text-[13px] hover:border-blue-500 hover:text-blue-600"
+                >
+                  {f.value}
+                  <span className="text-[11px] text-gray-500">{f.count}</span>
+                </button>
+              ))}
+              {facets.locations.slice(0, 3).map((f) => (
+                <button
+                  key={`rl-${f.value}`}
+                  onClick={() => setLocation(f.value)}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700 px-3 py-1 text-[13px] hover:border-blue-500 hover:text-blue-600"
+                >
+                  <MapPin size={11} className="text-gray-400" />
+                  {f.value}
+                  <span className="text-[11px] text-gray-500">{f.count}</span>
+                </button>
+              ))}
+            </div>
+          )}
           <div className="grid grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5 3xl:grid-cols-6 gap-3 md:gap-6">
-            {rankedBusinesses.map((business, index) => (
+            {rankedBusinesses.slice(0, visibleCount).map((business, index) => (
               <Link
                 key={business.id}
                 to={business.username ? `/${business.username}` : `/businesses/${business.id}`}
@@ -598,8 +785,8 @@ export default function Businesses() {
                     {business.phone && (
                       <div className="flex items-center gap-1.5"><Phone size={14} className="text-gray-500 dark:text-gray-400" /><span>{business.phone}</span></div>
                     )}
-                    {business.website && (
-                      <div className="flex items-center gap-1.5"><Globe size={14} className="text-gray-500 dark:text-gray-400" /><span className="line-clamp-1">{business.website}</span></div>
+                    {businessWebsiteLink(business, SITE_URL) && (
+                      <div className="flex items-center gap-1.5"><Globe size={14} className="text-gray-500 dark:text-gray-400" /><span className="line-clamp-1">{businessWebsiteLink(business, SITE_URL)!.label}</span></div>
                     )}
                   </div>
 
@@ -620,6 +807,31 @@ export default function Businesses() {
                 </div>
               </Link>
             ))}
+          </div>
+          </>
+        )}
+
+        {/*
+          * Load more.
+          *
+          * Outside the grid so it does not become a grid cell. The count is on
+          * the button because "Load more" alone cannot tell a reader whether
+          * pressing it is worth the wait, and the button leaves once there is
+          * nothing left to load rather than sitting there doing nothing.
+          */}
+        {!loading && rankedBusinesses.length > visibleCount && (
+          <div className="mt-8 flex flex-col items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setVisibleCount((n) => n + CARDS_PER_PAGE)}
+              className="inline-flex items-center gap-2 rounded-xl border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-800 px-6 min-h-[44px] text-sm font-semibold text-gray-800 dark:text-gray-100 hover:bg-gray-50 dark:hover:bg-gray-700 transition"
+            >
+              Show {Math.min(CARDS_PER_PAGE, rankedBusinesses.length - visibleCount).toLocaleString()} more
+              <ArrowRight size={15} />
+            </button>
+            <p className="text-xs text-gray-500 dark:text-gray-400">
+              Showing {visibleCount.toLocaleString()} of {rankedBusinesses.length.toLocaleString()}
+            </p>
           </div>
         )}
 

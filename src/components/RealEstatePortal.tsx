@@ -4,7 +4,7 @@ import { type TrustClaim } from '../lib/trustClaims';
 import {
   Bed, Bath, Maximize, MapPin, BadgeCheck, CalendarCheck,
   MessageCircle, Calculator, X, ChevronLeft, ChevronRight, Home, Star,
-  Building2, TrendingUp,
+  Building2, TrendingUp, Share2,
 } from 'lucide-react';
 import { useCurrency } from '../contexts/CurrencyContext';
 import SmartImg from './SmartImg';
@@ -35,6 +35,8 @@ interface Props {
   onBookViewing: (id: string) => void;
   onWhatsApp: (property: PortalProperty) => void;
   onEnquire: (context: string) => void;
+  /** Sends this property to the page's share sheet. */
+  onShare?: (property: PortalProperty) => void;
   /** Only claims the record actually backs; see lib/trustClaims. */
   claims?: TrustClaim[];
 }
@@ -49,7 +51,7 @@ type Filter = 'all' | 'sale' | 'rent' | 'shortlet';
 
 export default function RealEstatePortal({
   properties, ctaLabel, agentName, agentLocation, claims = [], hasPhone,
-  onBookViewing, onWhatsApp, onEnquire,
+  onBookViewing, onWhatsApp, onEnquire, onShare,
 }: Props) {
   const [filter, setFilter] = useState<Filter>('all');
   const [openId, setOpenId] = useState<string | number | null>(null);
@@ -110,7 +112,7 @@ export default function RealEstatePortal({
           </div>
           <div className="grid sm:grid-cols-2 gap-4">
             {featured.map((p) => (
-              <FeaturedCard key={p.id} p={p} onOpen={() => setOpenId(p.id)} />
+              <FeaturedCard key={p.id} p={p} onOpen={() => setOpenId(p.id)} onShare={onShare} />
             ))}
           </div>
         </section>
@@ -137,7 +139,7 @@ export default function RealEstatePortal({
         {filtered.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((p) => (
-              <PropertyCard key={p.id} p={p} onOpen={() => setOpenId(p.id)} />
+              <PropertyCard key={p.id} p={p} onOpen={() => setOpenId(p.id)} onShare={onShare} />
             ))}
           </div>
         ) : (
@@ -159,6 +161,7 @@ export default function RealEstatePortal({
           onClose={() => setOpenId(null)}
           onBookViewing={() => { onBookViewing(String(open.id)); setOpenId(null); }}
           onWhatsApp={() => onWhatsApp(open)}
+          onShare={onShare ? () => onShare(open) : undefined}
         />
       )}
     </div>
@@ -190,84 +193,109 @@ function ListingBadge({ p }: { p: PortalProperty }) {
   return <span className={`text-white text-[11px] font-semibold px-2 py-1 rounded-md ${meta.cls}`}>{meta.label}</span>;
 }
 
-function PropertyCard({ p, onOpen }: { p: PortalProperty; onOpen: () => void }) {
+function PropertyCard({ p, onOpen, onShare }: { p: PortalProperty; onOpen: () => void; onShare?: (p: PortalProperty) => void }) {
   return (
-    <button
-      onClick={onOpen}
-      className="text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow group"
-    >
-      <div className="relative">
-        {p.image ? (
-          <SmartImg src={p.image} alt={p.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
-        ) : (
-          <div className="w-full h-44 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
-            <Home size={36} className="text-blue-400 dark:text-gray-400" />
+    <div className="relative">
+      <button
+        id={`product-${p.id}`}
+        onClick={onOpen}
+        className="w-full text-left bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-xl overflow-hidden hover:shadow-lg transition-shadow group"
+      >
+        <div className="relative">
+          {p.image ? (
+            <SmartImg src={p.image} alt={p.name} className="w-full h-44 object-cover group-hover:scale-[1.02] transition-transform" />
+          ) : (
+            <div className="w-full h-44 bg-gradient-to-br from-blue-100 to-blue-200 dark:from-gray-700 dark:to-gray-600 flex items-center justify-center">
+              <Home size={36} className="text-blue-400 dark:text-gray-400" />
+            </div>
+          )}
+          <div className="absolute top-2 left-2 flex gap-1.5">
+            <ListingBadge p={p} />
           </div>
-        )}
-        <div className="absolute top-2 left-2 flex gap-1.5">
-          <ListingBadge p={p} />
+          {p.verified_property && (
+            <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-white/90 dark:bg-gray-900/90 text-blue-700 dark:text-blue-300 text-[11px] font-semibold px-2 py-1 rounded-md">
+              <BadgeCheck size={12} /> Verified
+            </span>
+          )}
         </div>
-        {p.verified_property && (
-          <span className="absolute top-2 right-2 inline-flex items-center gap-1 bg-white/90 dark:bg-gray-900/90 text-blue-700 dark:text-blue-300 text-[11px] font-semibold px-2 py-1 rounded-md">
-            <BadgeCheck size={12} /> Verified
-          </span>
-        )}
-      </div>
-      <div className="p-4">
-        <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{p.price}</div>
-        <h3 className="mt-0.5 font-semibold text-gray-900 dark:text-white line-clamp-1">{p.name}</h3>
-        {p.property_location && (
-          <div className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
-            <MapPin size={13} /> <span className="line-clamp-1">{p.property_location}</span>
+        <div className="p-4">
+          <div className="flex items-start justify-between gap-2">
+            <div className="text-lg font-bold text-blue-600 dark:text-blue-400">{p.price}</div>
+            {onShare && (
+              <button
+                onClick={(e) => { e.stopPropagation(); onShare(p); }}
+                aria-label={`Share ${p.name}`}
+                className="-mt-1 -mr-1 p-1.5 rounded-lg text-gray-400 hover:text-blue-600 dark:hover:text-blue-400 hover:bg-gray-100 dark:hover:bg-gray-700 transition"
+              >
+                <Share2 size={16} />
+              </button>
+            )}
           </div>
-        )}
-        <Specs p={p} className="mt-3" />
-      </div>
-    </button>
+          <h3 className="mt-0.5 font-semibold text-gray-900 dark:text-white line-clamp-1">{p.name}</h3>
+          {p.property_location && (
+            <div className="mt-1 flex items-center gap-1 text-xs text-gray-500 dark:text-gray-400">
+              <MapPin size={13} /> <span className="line-clamp-1">{p.property_location}</span>
+            </div>
+          )}
+          <Specs p={p} className="mt-3" />
+        </div>
+      </button>
+    </div>
   );
 }
 
-function FeaturedCard({ p, onOpen }: { p: PortalProperty; onOpen: () => void }) {
+function FeaturedCard({ p, onOpen, onShare }: { p: PortalProperty; onOpen: () => void; onShare?: (p: PortalProperty) => void }) {
   return (
-    <button
-      onClick={onOpen}
-      className="text-left relative rounded-2xl overflow-hidden group h-56 w-full"
-    >
-      {p.image ? (
-        <SmartImg src={p.image} alt={p.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
-      ) : (
-        <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600" />
+    <div className="relative h-56 w-full">
+      <button
+        onClick={onOpen}
+        className="text-left relative rounded-2xl overflow-hidden group h-56 w-full"
+      >
+        {p.image ? (
+          <SmartImg src={p.image} alt={p.name} className="absolute inset-0 w-full h-full object-cover group-hover:scale-[1.03] transition-transform" />
+        ) : (
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-500 to-indigo-600" />
+        )}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
+        <div className="absolute top-3 left-3 flex gap-1.5">
+          <ListingBadge p={p} />
+          {p.verified_property && (
+            <span className="inline-flex items-center gap-1 bg-white/90 text-blue-700 text-[11px] font-semibold px-2 py-1 rounded-md">
+              <BadgeCheck size={12} /> Verified
+            </span>
+          )}
+        </div>
+        <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
+          <div className="text-xl font-bold">{p.price}</div>
+          <div className="font-semibold line-clamp-1">{p.name}</div>
+          {p.property_location && (
+            <div className="mt-0.5 flex items-center gap-1 text-xs text-white/80">
+              <MapPin size={12} /> <span className="line-clamp-1">{p.property_location}</span>
+            </div>
+          )}
+          <Specs p={p} className="mt-2 !text-white/90" />
+        </div>
+      </button>
+      {onShare && (
+        <button
+          onClick={() => onShare(p)}
+          aria-label={`Share ${p.name}`}
+          className="absolute top-3 right-3 z-10 p-2 rounded-lg bg-black/40 text-white hover:bg-black/60 transition"
+        >
+          <Share2 size={16} />
+        </button>
       )}
-      <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-transparent" />
-      <div className="absolute top-3 left-3 flex gap-1.5">
-        <ListingBadge p={p} />
-        {p.verified_property && (
-          <span className="inline-flex items-center gap-1 bg-white/90 text-blue-700 text-[11px] font-semibold px-2 py-1 rounded-md">
-            <BadgeCheck size={12} /> Verified
-          </span>
-        )}
-      </div>
-      <div className="absolute bottom-0 left-0 right-0 p-4 text-white">
-        <div className="text-xl font-bold">{p.price}</div>
-        <div className="font-semibold line-clamp-1">{p.name}</div>
-        {p.property_location && (
-          <div className="mt-0.5 flex items-center gap-1 text-xs text-white/80">
-            <MapPin size={12} /> <span className="line-clamp-1">{p.property_location}</span>
-          </div>
-        )}
-        <Specs p={p} className="mt-2 !text-white/90" />
-      </div>
-    </button>
+    </div>
   );
 }
 
 /* ------------------------------------------------------------- modal -------- */
 
 function PropertyModal({
-  p, ctaLabel, agentName, agentLocation, hasPhone, onClose, onBookViewing, onWhatsApp,
+  p, ctaLabel, agentName, agentLocation, hasPhone, onClose, onBookViewing, onWhatsApp, onShare,
 }: {
   p: PortalProperty; ctaLabel: string; agentName: string; agentLocation?: string; hasPhone?: boolean;
-  onClose: () => void; onBookViewing: () => void; onWhatsApp: () => void;
+  onClose: () => void; onBookViewing: () => void; onWhatsApp: () => void; onShare?: () => void;
 }) {
   const images = (p.gallery && p.gallery.length > 0 ? p.gallery : p.image ? [p.image] : []).filter(Boolean) as string[];
   const [idx, setIdx] = useState(0);
@@ -351,6 +379,11 @@ function PropertyModal({
             {hasPhone && (
               <button onClick={onWhatsApp} className="inline-flex items-center justify-center gap-2 bg-green-600 text-white px-4 py-3 rounded-lg font-semibold hover:bg-green-700 transition">
                 <MessageCircle size={18} /> WhatsApp agent
+              </button>
+            )}
+            {onShare && (
+              <button onClick={onShare} aria-label={`Share ${p.name}`} className="inline-flex items-center justify-center gap-2 bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-4 py-3 rounded-lg font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+                <Share2 size={18} /> Share
               </button>
             )}
           </div>

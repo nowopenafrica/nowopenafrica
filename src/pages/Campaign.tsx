@@ -32,7 +32,7 @@ import {
  * true and a better argument than a fabricated crowd.
  */
 
-const ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://nowopenafrica.com';
+const ORIGIN = typeof window !== 'undefined' ? window.location.origin : 'https://www.nowopenafrica.com';
 
 /** Where a referral code is parked until the visitor has an account to attach it to. */
 const REF_KEY = 'noa.campaign.ref';
@@ -97,6 +97,7 @@ export default function Campaign() {
         supabase.rpc('campaign_stats', { p_campaign: CAMPAIGN_SLUG }),
         supabase.from('businesses').select(DISCOVER_SELECT)
           .eq('is_listable', true)
+          .eq('profile_state', 'published')
           .order('listing_score', { ascending: false })
           .limit(60),
       ]);

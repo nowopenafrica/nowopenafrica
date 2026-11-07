@@ -2,13 +2,14 @@ import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import toast from 'react-hot-toast';
 import {
   X, Plus, Trash2, Loader2, Upload, Tag, Package, Image as ImageIcon, Star, Inbox, Mail, Phone,
-  Check, Ban, CalendarClock, ShoppingCart, Camera, Play, Share2, Building2, Pencil, XCircle,
+  Check, Ban, CalendarClock, ShoppingCart, Camera, Play, Share2, Building2, Pencil, XCircle, FolderOpen,
 } from 'lucide-react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../contexts/AuthContext';
 import LocationsManager from './LocationsManager';
 import { getActiveFeatures } from '../../data/categoryFeatures';
-import { getTabLabel } from '../../data/categoryTabLabels';
+import { getTabLabel, portfolioLabel } from '../../data/categoryTabLabels';
+import PortfolioManager from './PortfolioManager';
 import { compressImage } from '../../lib/imageCompression';
 import OpenReelCapture from './OpenReelCapture';
 import { reelLimitForPlan, DEFAULT_BUSINESS_PLAN, TRIAL_TIER } from '../../data/pricingPlans';
@@ -24,6 +25,8 @@ import AiGenerateToggle from '../studio/AiGenerateToggle';
 import SmartImg from '../SmartImg';
 
 interface BusinessContentManagerProps {
+  /** Open straight onto this tab (services, gallery, locations, …). */
+  initialTab?: ContentTab;
   businessId: string;
   businessName: string;
   category: string;
@@ -44,7 +47,15 @@ const BASE_TAB_DEFS = [
   { id: 'enquiries' as const, defaultLabel: 'Enquiries', icon: Inbox, labelKey: 'enquiries' as const },
   { id: 'services' as const, defaultLabel: 'Services', icon: Tag, labelKey: 'services' as const },
   { id: 'products' as const, defaultLabel: 'Products', icon: Package, labelKey: 'products' as const },
+  /*
+    Past work, in the same place it sits on the public profile — just
+    before Gallery. The label is decided by trade (Portfolio for a
+    photographer, Projects for a builder), so `labelKey` is left out and the
+    label is resolved below with `portfolioLabel`.
+  */
+  { id: 'portfolio' as const, defaultLabel: 'Projects', icon: FolderOpen, labelKey: undefined },
   { id: 'gallery' as const, defaultLabel: 'Gallery', icon: ImageIcon, labelKey: 'gallery' as const },
+
   { id: 'reviews' as const, defaultLabel: 'Reviews', icon: Star, labelKey: undefined },
   { id: 'locations' as const, defaultLabel: 'Branches', icon: Building2, labelKey: undefined },
 ];
@@ -58,7 +69,7 @@ const STATUS_STYLES: Record<string, string> = {
 
 export default function BusinessContentManager({
   businessId, businessName, category, enabledModules, onClose,
-  location, phone, openingHours, timezone,
+  location, phone, openingHours, timezone, initialTab,
 }: BusinessContentManagerProps) {
   const { user } = useAuth();
   const features = getActiveFeatures(category, enabledModules);
@@ -137,7 +148,9 @@ export default function BusinessContentManager({
   const tabs = useMemo(() => {
     const base = BASE_TAB_DEFS.map(t => ({
       id: t.id as ContentTab,
-      label: t.labelKey ? getTabLabel(category, t.labelKey, t.defaultLabel) : t.defaultLabel,
+      label: t.id === 'portfolio'
+        ? portfolioLabel(category)
+        : t.labelKey ? getTabLabel(category, t.labelKey, t.defaultLabel) : t.defaultLabel,
       icon: t.icon,
     }));
     const moduleTabs = getActiveFeatures(category, enabledModules).map(f => ({
@@ -148,7 +161,21 @@ export default function BusinessContentManager({
     return [...base, ...moduleTabs];
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [category, enabledModules]);
-  const [tab, setTab] = useState<ContentTab>('enquiries');
+  /*
+   * `initialTab` lets a caller open straight onto services, gallery, posts or
+   * locations. NowOpen Create uses it: somebody who chose "Add a Service"
+   * should land on services, not on enquiries with four more clicks to go.
+   *
+   * Falls back to 'enquiries' when the requested tab is not available for this
+   * business's category — module tabs are category-dependent, so a link can
+   * legitimately name one this business does not have.
+   */
+  const [tab, setTab] = useState<ContentTab>(initialTab ?? 'enquiries');
+  useEffect(() => {
+    if (!initialTab) return;
+    if (tabs.some((t) => t.id === initialTab)) setTab(initialTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTab, tabs]);
   // Only the count, so the tab can show it without this component owning the
   // branch list — LocationsManager loads and manages its own.
   const [locationCount, setLocationCount] = useState(0);
@@ -268,7 +295,7 @@ export default function BusinessContentManager({
       const [svc, prod, gal, rev, enq, bkg] = await Promise.all([
         supabase.from('business_services').select('*').eq('business_id', businessId).order('created_at'),
         supabase.from('business_products').select('*').eq('business_id', businessId).order('created_at'),
-        supabase.from('business_gallery').select('*').eq('business_id', businessId).order('created_at'),
+        supabase.from('business_gallery').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
         supabase.from('business_reviews').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
         supabase.from('business_enquiries').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
         supabase.from('business_bookings').select('*').eq('business_id', businessId).order('created_at', { ascending: false }),
@@ -825,6 +852,14 @@ export default function BusinessContentManager({
                     ))}
                   </ul>;
             })()}
+
+            {tab === 'portfolio' && (
+              <PortfolioManager
+                businessId={businessId}
+                businessName={businessName}
+                label={portfolioLabel(category)}
+              />
+            )}
 
             {tab === 'locations' && (
               <LocationsManager

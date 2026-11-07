@@ -9,6 +9,9 @@ import {
 } from 'lucide-react';
 import { XLogo } from '../components/SocialLinks';
 import { applySeo } from '../lib/seo';
+import {
+  Editable, PageContentProvider, useEditableText, usePageContent,
+} from '../components/editor/PageContent';
 
 type DayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun';
 interface DayHours {
@@ -117,20 +120,38 @@ const FORM_SECTIONS: { id: string; label: string; icon: React.ReactNode }[] = [
 ];
 
 export default function DigitalForms() {
+  return (
+    <PageContentProvider page="digital-forms">
+      <DigitalFormsContent />
+    </PageContentProvider>
+  );
+}
+
+function DigitalFormsContent() {
   const [formData, setFormData] = useState<FormData>(EMPTY_FORM);
   const [activeSection, setActiveSection] = useState('basic');
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  // Title and description are editable copy. The form fields, sections and
+  // privacy stance (noindex) stay coded. Edits are limited to the two header
+  // lines; the editor must never touch the form structure itself.
+  const { editing } = usePageContent();
+  const title = useEditableText('digital-forms.seo.title', 'Add Your Business to NowOpen Africa');
+  const description = useEditableText(
+    'digital-forms.seo.description',
+    'Add your African business to NowOpen Africa — a purpose-built listing with category features, opening hours, booking and more.',
+  );
+
   useEffect(() => {
+    if (editing) return;
     return applySeo({
-      title: 'List Your Business on NowOpen Africa',
-      description:
-        'Add your African business to NowOpen Africa — a purpose-built listing with category features, opening hours, booking and more.',
+      title,
+      description,
       path: '/digital-forms',
       robots: 'noindex, nofollow',
     });
-  }, []);
+  }, [editing, title, description]);
 
   const toggleInArray = (field: 'paymentMethods' | 'languages', value: string) => {
     setFormData(prev => ({
@@ -254,11 +275,13 @@ export default function DigitalForms() {
         {/* Header */}
         <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl p-8 mb-8">
           <h1 className="text-xl sm:text-3xl md:text-4xl font-bold text-gray-900 dark:text-white mb-2">
-            Full Business Onboarding
+            <Editable slot="digital-forms.hero.title" as="span">Full Business Onboarding</Editable>
           </h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Register your business, operating details, services, and products in one comprehensive form —
-            everything below (except Basic Info) is optional and can be completed later from your dashboard.
+            <Editable slot="digital-forms.hero.lead" as="span">
+              Register your business, operating details, services, and products in one comprehensive form —
+              everything below (except Basic Info) is optional and can be completed later from your dashboard.
+            </Editable>
           </p>
         </div>
 

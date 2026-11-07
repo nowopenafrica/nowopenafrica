@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { AtSign, Lock } from 'lucide-react';
 import PasswordToggle from '../components/PasswordToggle';
 import { useAuth, isEmail, normalizePhone } from '../contexts/AuthContext';
 import PhoneOtpForm from '../components/auth/PhoneOtpForm';
 import toast from 'react-hot-toast';
+import { authErrorMessage } from '../lib/authErrors';
 import { applySeo } from '../lib/seo';
+import { authRedirectTarget, safeNextPath } from '../lib/safeNext';
+import { takePendingIntent } from '../lib/universalCreate/pendingIntent';
 import { ACCOUNT_KINDS, DEFAULT_SIGNUP_ROLE, SignupRole } from '../lib/accountRoles';
 
 export default function Register() {
@@ -17,6 +20,17 @@ export default function Register() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
   const [pendingPhone, setPendingPhone] = useState<string | null>(null);
+  /*
+   * A phone signup failed because OUR sms provider failed, not because of
+   * anything the visitor typed.
+   *
+   * MEASURED 2026-09-22: every phone signup on production returned
+   * sms_send_failed, and zero of the 16 accounts ever created had a phone
+   * number. Somebody in that state has done nothing wrong and cannot fix it by
+   * retyping — so the form stops implying they can, and points at the route
+   * that works.
+   */
+  const [providerFault, setProviderFault] = useState(false);
   /**
    * Which fields the person has finished with.
    *
@@ -28,11 +42,12 @@ export default function Register() {
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const { signUp } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
     return applySeo({
       title: 'Create an Account — NowOpen Africa',
-      description: 'Create your NowOpen Africa account to discover businesses, keep the ones you like, or list a business of your own.',
+      description: 'Create your NowOpen Africa account to discover businesses, keep the ones you like, or add a business of your own.',
       path: '/register',
       robots: 'noindex, nofollow',
     });
@@ -92,21 +107,40 @@ export default function Register() {
     }
 
     setLoading(true);
+    // Declared outside the try: the catch needs it to decide whether a
+    // provider failure is one the visitor can route around.
+    const usingEmail = isEmail(identifier);
 
     try {
-      const usingEmail = isEmail(identifier);
       await signUp(identifier, password, role);
       if (usingEmail) {
         toast.success('Account created! Please check your email to verify.');
-        navigate('/login');
+        /*
+         * Carry the destination through to sign-in.
+         *
+         * Registering is a step on the way to something — submitting a
+         * business, claiming a profile — and this page used to drop that
+         * destination on the floor: `navigate('/login')` sent the user to a
+         * sign-in page that then sent them to the home page, having forgotten
+         * what they came to do. Login has honoured ?next= for a while; only
+         * Register never passed it on.
+         */
+        const next = safeNextPath(new URLSearchParams(location.search).get('next'));
+        navigate(next ? `/login?next=${encodeURIComponent(next)}` : '/login');
       } else {
         // Phone signup — show the SMS code step instead of leaving the page.
         toast.success('We sent a verification code to your phone.');
         setPendingPhone(normalizePhone(identifier));
       }
-    } catch (error: any) {
-      console.error('Registration error:', error);
-      toast.error(error.message || 'Failed to create account');
+    } catch (error: unknown) {
+      /*
+       * authErrorMessage logs the real error and returns something a person
+       * can act on. It also says whether the fault is OURS — and when it is,
+       * the phone field is not the route to push them down.
+       */
+      const mapped = authErrorMessage(error, 'register');
+      toast.error(mapped.message);
+      setProviderFault(mapped.ours && !usingEmail);
     } finally {
       setLoading(false);
     }
@@ -130,7 +164,10 @@ export default function Register() {
         </div>
 
         {pendingPhone ? (
-          <PhoneOtpForm phone={pendingPhone} onVerified={() => navigate('/dashboard')} />
+          <PhoneOtpForm phone={pendingPhone} onVerified={() => navigate(authRedirectTarget(location.search, null,
+            /* Back to whatever they were opening before we asked them to
+               register; the dashboard only when there was nothing. */
+            takePendingIntent()?.destination ?? '/dashboard'))} />
         ) : (
         <form
           className="mt-8 space-y-6"
@@ -157,7 +194,7 @@ export default function Register() {
                   required
                   maxLength={120}
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  onChange={(e) => { setIdentifier(e.target.value); setProviderFault(false); }}
                   onBlur={() => setTouched((t) => ({ ...t, identifier: true }))}
                   aria-invalid={showError('identifier') ? true : undefined}
                   aria-describedby={showError('identifier') ? 'identifier-error' : 'identifier-hint'}
@@ -174,6 +211,12 @@ export default function Register() {
                 <p id="identifier-error" role="alert" className="mt-1 text-xs font-medium text-red-600 dark:text-red-400">{showError('identifier')}</p>
               ) : (
                 <p id="identifier-hint" className="mt-1 text-xs text-gray-500 dark:text-gray-400">Sign up with an email or a phone number — include the country code for phone (e.g. +234).</p>
+              )}
+              {providerFault && (
+                <p role="status" className="mt-2 rounded-lg border border-amber-200 dark:border-amber-900 bg-amber-50 dark:bg-amber-900/20 px-3 py-2 text-xs text-amber-800 dark:text-amber-300">
+                  Text messages are not going out at the moment — this is on our side, not yours.
+                  Sign up with an email address above and you can add your phone number later.
+                </p>
               )}
             </div>
 

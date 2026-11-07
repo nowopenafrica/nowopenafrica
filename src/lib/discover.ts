@@ -103,15 +103,27 @@ export const hasListingImage = (b: Pick<DiscoverBusiness, 'logo_url' | 'image_ur
  */
 /**
  * The rule for a grid whose rows have already been flattened, and the same
- * order the homepage explorer and the featured rails follow: businesses that
- * LOOK finished come first.
+ * order the homepage explorer and the featured rails follow.
  *
- * THE ORDER CHANGED, 2026-09-13. The old rule ranked claimed listings above
- * everything else and folded the image tier in between claim and verification.
- * The enrichment pipeline now attaches licensed covers to unclaimed listings,
- * and the owner wants the front pages to lead with finished-looking cards, so
- * a business that shows an image leads whatever its claim state. Claim is now
- * the second tier, verification the third.
+ * THE ORDER, IN WORDS: a claimed business first, whatever it looks like. Then
+ * an unclaimed business that has a logo or cover. Then everything else.
+ *
+ * IT HAS CHANGED TWICE, AND BOTH REASONS ARE WORTH KEEPING.
+ *
+ * Originally claim led. On 2026-09-13 image was promoted above it, because the
+ * enrichment pipeline had begun attaching licensed covers to unclaimed
+ * listings and the front pages should lead with cards that look finished.
+ *
+ * On 2026-09-14 claim was put back on top, deliberately. A claimed profile is
+ * a business that turned up: somebody proved they run it and maintains what it
+ * says. Leading with a prettier guess tells every owner that claiming buys
+ * them nothing, and claiming is the single thing the platform is asking for.
+ *
+ * THE TRADE IS SMALLER THAN IT SOUNDS, and it was measured before the change.
+ * Of 3,115 listable published rows: 1 claimed WITH an image, 1 claimed
+ * without, 1,825 unclaimed with, 1,288 unclaimed without. So exactly ONE card
+ * — the single claimed listing with no photo — moves ahead of a
+ * finished-looking one. The 2026-09-13 goal survives almost intact.
  *
  * Exported so there is one place to read "what the front pages lead with",
  * and so a test can hold every surface to it.
@@ -124,16 +136,24 @@ export interface ImageClaimedVerifiedRow {
   verified?: boolean;
 }
 
-export function byImageThenClaimedThenVerified(
+export function byClaimedThenImageThenVerified(
   a: ImageClaimedVerifiedRow,
   b: ImageClaimedVerifiedRow,
 ): number {
-  const image = Number(b.hasImage ?? false) - Number(a.hasImage ?? false);
-  if (image !== 0) return image;
   const claim = Number(b.claimed ?? false) - Number(a.claimed ?? false);
   if (claim !== 0) return claim;
+  const image = Number(b.hasImage ?? false) - Number(a.hasImage ?? false);
+  if (image !== 0) return image;
   return Number(b.verified ?? false) - Number(a.verified ?? false);
 }
+
+/**
+ * The previous name, kept so nothing breaks silently on an old import.
+ *
+ * @deprecated The order is claim-first now. Use byClaimedThenImageThenVerified;
+ * the old name describes a ranking this no longer performs.
+ */
+export const byImageThenClaimedThenVerified = byClaimedThenImageThenVerified;
 
 /**
  * Fisher–Yates shuffle on a copy — the random slice the front pages lead with.
@@ -176,7 +196,7 @@ export function claimedFirst<T extends Pick<DiscoverBusiness, 'claim_status' | '
  * The tier every featured rail shares, for rows that are still full
  * business objects: logo/cover first, then claimed, then verified — the same
  * primary rule the homepage grid applies to its flattened rows. See
- * `byImageThenClaimedThenVerified` for why image leads.
+ * `byClaimedThenImageThenVerified` for the full tier order.
  *
  * STABLE. A rail arrives ordered by its own meaning (rating, recency, …) and
  * the sort only lifts businesses within each tier, so "Top rated" still ranks

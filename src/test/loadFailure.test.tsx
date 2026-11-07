@@ -29,7 +29,7 @@ const PAGES = [
   ['src/pages/OpenNow.tsx', 'open now'],
   ['src/pages/Nearby.tsx', 'nearby'],
   ['src/pages/Discover.tsx', 'discover'],
-  ['src/pages/Media.tsx', 'create'],
+  ['src/pages/MediaServices.tsx', 'create services'],
   ['src/pages/BusinessDetail.tsx', 'a business profile'],
 ] as const;
 
@@ -146,7 +146,7 @@ describe('a business profile is the worst place to get this wrong', () => {
 });
 
 describe("the create marketplace's real emptiness is not a licence to lie", () => {
-  const src = readFileSync('src/pages/Media.tsx', 'utf8');
+  const src = readFileSync('src/pages/MediaServices.tsx', 'utf8');
 
   it('does not report "nobody listed yet" when the read failed', () => {
     /*

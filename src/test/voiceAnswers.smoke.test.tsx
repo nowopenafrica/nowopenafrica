@@ -16,23 +16,21 @@ vi.mock('../lib/geolocation', () => ({
 
 /** One business the assistant can find, with hours it can reason about. */
 let dbRows: Record<string, unknown>[] = [];
-vi.mock('../lib/supabase', () => ({
-  supabase: {
-    from: () => ({
-      select: () => ({
-        // .eq('is_listable', true) — the assistant answers with the public view,
-        // so an admin asking gets the same answer a customer would.
-        eq: () => ({
-        ilike: () => ({
-          order: () => ({
-            limit: async () => ({ data: dbRows }),
-          }),
-        }),
-        }),
-      }),
-    }),
-  },
-}));
+vi.mock('../lib/supabase', () => {
+  /*
+   * `eq` is chainable because the assistant applies TWO filters: `is_listable`
+   * and `profile_state`. It answers with the public view, so an admin asking
+   * gets the same answer a customer would -- and a business still awaiting
+   * review is not one the assistant should read out as though it were real.
+   */
+  const chain: Record<string, unknown> = {
+    eq: () => chain,
+    ilike: () => chain,
+    order: () => chain,
+    limit: async () => ({ data: dbRows }),
+  };
+  return { supabase: { from: () => ({ select: () => chain }) } };
+});
 
 import VoiceAssistant from '../components/VoiceAssistant';
 

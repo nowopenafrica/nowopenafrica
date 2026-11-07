@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import {
-  Stethoscope, Video, Clock, CalendarCheck, MessageCircle, Ambulance, Building2,
+  Stethoscope, Video, Clock, CalendarCheck, MessageCircle, Ambulance, Building2, Phone,
 } from 'lucide-react';
 import SmartImg from './SmartImg';
 
@@ -20,13 +20,37 @@ interface Props {
   ctaLabel: string;
   hasPhone?: boolean;
   phone?: string;
+  /**
+   * Has this facility CONFIRMED round-the-clock opening?
+   *
+   * Only `is_24_hours_confirmed` may set this. The platform-wide 24/7 default
+   * is an assumption for display, and an assumption must never become an
+   * emergency-care claim: somebody reading it may drive to a clinic at 2am.
+   */
+  confirmed24h?: boolean;
   onBook: (id: string) => void;
   onWhatsApp: (item: Doctor) => void;
   onEnquire: (context: string) => void;
 }
 
-export default function HealthCenter({ doctors, ctaLabel, hasPhone, phone, onBook, onWhatsApp, onEnquire }: Props) {
+export default function HealthCenter({ doctors, ctaLabel, hasPhone, phone, confirmed24h, onBook, onWhatsApp, onEnquire }: Props) {
   const [dept, setDept] = useState('All');
+
+  /*
+   * Both derived from the services the facility actually lists, so the button
+   * appears because something on this page supports it — not because the
+   * category is "hospital".
+   */
+  const hasTelemedicine = useMemo(
+    () => doctors.some((d) => d.is_telemedicine === true),
+    [doctors],
+  );
+
+  const hasLab = useMemo(
+    () => doctors.some((d) => /\blab(oratory|s)?\b|pathology|blood test|diagnostic/i
+      .test(`${d.name ?? ''} ${d.service_category ?? ''}`)),
+    [doctors],
+  );
 
   const departments = useMemo(() => {
     const set = new Set<string>();
@@ -50,18 +74,45 @@ export default function HealthCenter({ doctors, ctaLabel, hasPhone, phone, onBoo
 
   return (
     <div className="animate-fadeIn space-y-6">
-      {/* Care actions */}
+      {/* Care actions.
+          
+          EVERY ONE OF THESE USED TO RENDER UNCONDITIONALLY, on all 1,654
+          unclaimed hospital listings: a red "24/7 Emergency" button wired to
+          the business phone, plus "Video consultation" and "Laboratory &
+          results". Nothing in the data said any facility offered any of them.
+          
+          That is the most consequential false claim the platform could make —
+          somebody may drive to a clinic at 2am on the strength of it — and
+          "24/7" and "ambulance" are both on the enrichment engine's own
+          forbidden-claims list. The generator could not have produced this
+          sentence; the UI simply asserted it.
+          
+          Each is now either derived from the services actually listed, or
+          asked as a question rather than stated as a fact. */}
       <div className="flex flex-wrap items-center gap-2">
         {hasPhone && (
-          <a href={`tel:${phone}`} className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition">
-            <Ambulance size={18} /> 24/7 Emergency
-          </a>
+          confirmed24h ? (
+            <a href={`tel:${phone}`} className="inline-flex items-center gap-2 bg-red-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-red-700 transition">
+              <Ambulance size={18} /> 24/7 Emergency
+            </a>
+          ) : (
+            <a href={`tel:${phone}`} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition">
+              <Phone size={18} /> Call this facility
+            </a>
+          )
         )}
-        <button onClick={() => onEnquire('a video consultation (telemedicine)')} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition">
-          <Video size={18} /> Video consultation
-        </button>
-        <button onClick={() => onEnquire('lab tests & results')} className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-2 text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition">
-          Laboratory & results
+        {hasTelemedicine && (
+          <button onClick={() => onEnquire('a video consultation (telemedicine)')} className="inline-flex items-center gap-2 bg-blue-600 text-white px-4 py-2.5 rounded-lg font-semibold hover:bg-blue-700 transition">
+            <Video size={18} /> Video consultation
+          </button>
+        )}
+        {hasLab && (
+          <button onClick={() => onEnquire('lab tests & results')} className="inline-flex items-center gap-1.5 rounded-full bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 px-3 py-2 text-xs font-semibold hover:bg-gray-200 dark:hover:bg-gray-600 transition">
+            Laboratory & results
+          </button>
+        )}
+        <button onClick={() => onEnquire('appointments and available services')} className="inline-flex items-center gap-1.5 rounded-full border border-gray-300 dark:border-gray-600 px-3 py-2 text-xs font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-gray-700 transition">
+          Ask what this facility offers
         </button>
       </div>
 

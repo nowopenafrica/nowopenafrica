@@ -1,16 +1,27 @@
 import React, { useState, useEffect } from 'react';
 import toast from 'react-hot-toast';
 import { supabase } from '../../lib/supabase';
+import { SERVER_ROW_CAP } from '../../lib/fetchAllBusinesses';
 import { useAuth } from '../../contexts/AuthContext';
 import { ADVERT_CATEGORIES } from '../../data/advertCategories';
 
 interface AdvertFormProps {
   editingId: string | null;
+  /**
+   * Console mode: an admin correcting somebody else's placement.
+   *
+   * The owner path is scoped by `user_id` at every step — the businesses you
+   * may link, the advert you may read, and the row the update is allowed to
+   * touch. An admin is exempt from that scoping by database policy, so the
+   * filter has to be dropped here too; leaving it on would return null from
+   * the read and update zero rows, both silently.
+   */
+  asAdmin?: boolean;
   onSuccess: () => void;
   onCancel: () => void;
 }
 
-export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFormProps) {
+export default function AdvertForm({ editingId, asAdmin, onSuccess, onCancel }: AdvertFormProps) {
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [businesses, setBusinesses] = useState<{ id: string; name: string }[]>([]);
@@ -34,23 +45,25 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [editingId]);
 
-  // Load the user's businesses so a campaign can be linked to one
+  // Load the businesses a campaign can be linked to. An owner sees their own;
+  // an admin sees the whole directory, since the placement may belong to any
+  // listing (or to none).
   useEffect(() => {
     if (!user) return;
-    supabase
+    let query = supabase
       .from('businesses')
       .select('id, name')
-      .eq('user_id', user.id)
-      .limit(50000)
-      .then(({ data }) => setBusinesses(data || []));
-  }, [user]);
+      .limit(SERVER_ROW_CAP);
+    if (!asAdmin) query = query.eq('user_id', user.id);
+    query.then(({ data }) => setBusinesses(data || []));
+  }, [user, asAdmin]);
 
   const fetchAdvert = async () => {
     let query = supabase
       .from('advertisements')
       .select('*')
       .eq('id', editingId);
-    if (user) query = query.eq('user_id', user.id);
+    if (!asAdmin && user) query = query.eq('user_id', user.id);
     const { data } = await query.maybeSingle();
 
     if (data) {
@@ -86,18 +99,28 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
         duration: parseInt(formData.duration) || 0
       };
 
-      const { error } = editingId
-        ? await supabase
-            .from('advertisements')
-            .update(advertData)
-            .eq('id', editingId)
-            .eq('user_id', user.id)
-        : await supabase
-            .from('advertisements')
-            .insert([{ ...advertData, user_id: user.id }]);
+      let error;
+      if (editingId) {
+        let update = supabase
+          .from('advertisements')
+          .update(advertData)
+          .eq('id', editingId);
+        // An owner may only touch their own row. The console edits by policy,
+        // so applying the same filter there would match nothing.
+        if (!asAdmin) update = update.eq('user_id', user.id);
+        ({ error } = await update);
+      } else {
+        ({ error } = await supabase
+          .from('advertisements')
+          .insert([{ ...advertData, user_id: user.id }]));
+      }
 
       if (error) throw error;
-      toast.success(editingId ? 'Campaign updated' : 'Campaign created');
+      toast.success(
+        editingId
+          ? (asAdmin ? 'Placement updated' : 'Campaign updated')
+          : 'Campaign created',
+      );
       onSuccess();
     } catch (error: any) {
       console.error('Error saving advertisement:', error);
@@ -110,7 +133,9 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
   return (
     <form onSubmit={handleSubmit} className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 p-6 space-y-4">
       <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-4">
-        {editingId ? 'Edit Campaign' : 'Create Campaign'}
+        {asAdmin
+          ? 'Edit placement'
+          : editingId ? 'Edit Campaign' : 'Create Campaign'}
       </h3>
 
       <div>
@@ -273,7 +298,7 @@ export default function AdvertForm({ editingId, onSuccess, onCancel }: AdvertFor
           disabled={loading}
           className="px-6 py-2 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition text-sm"
         >
-          {loading ? 'Saving...' : 'Save Campaign'}
+          {loading ? 'Saving...' : asAdmin ? 'Save placement' : 'Save Campaign'}
         </button>
         <button
           type="button"

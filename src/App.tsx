@@ -1,17 +1,24 @@
 import { Suspense } from 'react';
 import { lazyRoute } from './lib/lazyRoute';
 import { Routes, Route, useLocation } from 'react-router-dom';
+import AdvertiseRedirect from './components/promote/AdvertiseRedirect';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/layout/Navigation';
+import InstallBanner from './components/InstallBanner';
 import Footer from './components/layout/Footer';
 import ScrollToTop from './components/ScrollToTop';
+import UniversalCreateButton from './components/universalCreate/UniversalCreateButton';
 import ErrorBoundary from './components/ErrorBoundary';
 import ProtectedRoute from './components/ProtectedRoute';
 import AdminRoute from './components/AdminRoute';
-import ChatBot from './components/ChatBot';
-import VoiceAssistant from './components/VoiceAssistant';
-import TrialPromoModal from './components/TrialPromoModal';
 import CookieConsent from './components/CookieConsent';
+/*
+ * ChatBot, VoiceAssistant and TrialPromoModal are no longer imported here.
+ * They were in the entry bundle, so every visitor downloaded an unopened chat
+ * panel and a speech-recognition runtime before the first paint. See
+ * DeferredOverlays for how a voice opt-in is still honoured immediately.
+ */
+import DeferredOverlays from './components/DeferredOverlays';
 import RouteAnnouncer from './components/RouteAnnouncer';
 import { useI18n } from './contexts/I18nContext';
 import { contentLocale } from './lib/i18n';
@@ -29,14 +36,28 @@ const Offers = lazyRoute(() => import('./pages/Offers'));
 const Founding = lazyRoute(() => import('./pages/Founding'));
 const Campaign = lazyRoute(() => import('./pages/Campaign'));
 const BusinessDetail = lazyRoute(() => import('./pages/BusinessDetail'));
+const ProjectDetail = lazyRoute(() => import('./pages/ProjectDetail'));
 const Adverts = lazyRoute(() => import('./pages/Adverts'));
+const MediaPlan = lazyRoute(() => import('./pages/MediaPlan'));
+const Unsubscribe = lazyRoute(() => import('./pages/Unsubscribe'));
 const AdvertDetail = lazyRoute(() => import('./pages/AdvertDetail'));
 const Media = lazyRoute(() => import('./pages/Media'));
+const MediaServices = lazyRoute(() => import('./pages/MediaServices'));
 const MediaDetail = lazyRoute(() => import('./pages/MediaDetail'));
 const OrderStatus = lazyRoute(() => import('./pages/OrderStatus'));
 const SendBusiness = lazyRoute(() => import('./pages/SendBusiness'));
 const Nominate = lazyRoute(() => import('./pages/Nominate'));
+/*
+ * These three sat as bare `import` statements in the middle of the lazyRoute
+ * list — no comment, no test, every neighbouring route lazy. Measured in the
+ * entry chunk: AddBusiness 23.5 kB, and CreateRoute dragged CreateHub (11.5 kB)
+ * in with it, defeating the `lazy()` that UniversalCreateButton already had.
+ */
+const AddBusiness = lazyRoute(() => import('./pages/AddBusiness'));
+const InstagramOnboarding = lazyRoute(() => import('./pages/InstagramOnboarding'));
+const CreateRoute = lazyRoute(() => import('./pages/CreateRoute'));
 const IndustryExamplePage = lazyRoute(() => import('./pages/IndustryExamplePage'));
+const StudioEditor = lazyRoute(() => import('./pages/StudioEditor'));
 const Login = lazyRoute(() => import('./pages/Login'));
 const Register = lazyRoute(() => import('./pages/Register'));
 const Profile = lazyRoute(() => import('./pages/Profile'));
@@ -59,6 +80,7 @@ const ResetPassword = lazyRoute(() => import('./pages/ResetPassword'));
 const Terms = lazyRoute(() => import('./pages/Terms'));
 const Privacy = lazyRoute(() => import('./pages/Privacy'));
 const About = lazyRoute(() => import('./pages/About'));
+const Install = lazyRoute(() => import('./pages/Install'));
 const Contact = lazyRoute(() => import('./pages/Contact'));
 const NotFound = lazyRoute(() => import('./pages/NotFound'));
 
@@ -119,6 +141,15 @@ function App() {
       <header className="sticky top-0 z-50">
         <Navbar />
       </header>
+      {/*
+        Below the sticky header, so it never covers the navigation.
+
+        It renders NOTHING unless the browser has actually handed over an
+        install prompt — see InstallBanner. The install code suppresses
+        Chrome's own prompt to show a nicer one, and that only works if a
+        nicer one is genuinely shown.
+      */}
+      <InstallBanner />
       {/* tabIndex={-1} so the skip target can actually receive focus; without it
           the browser scrolls but focus stays in the nav. */}
       {/* lang on <main>, not just <html>: the chrome is translated and the page
@@ -158,14 +189,34 @@ function App() {
               <Route path="/businesses/in/:place" element={<DiscoveryPage />} />
               <Route path="/businesses/:category/in/:place" element={<DiscoveryPage />} />
               <Route path="/businesses/:id" element={<BusinessDetail />} />
+              {/* A project story, with its own shareable URL. Declared before
+                  /:username so a business called "work" cannot swallow it. */}
+              <Route path="/work/:slug" element={<ProjectDetail />} />
               {/* Friendly profile URLs at the root, e.g. /kalahari-films.
                   Static routes above always win over this dynamic segment.
                   /business/:username is kept for backwards compatibility. */}
               <Route path="/business/:username" element={<BusinessDetail />} />
               <Route path="/:username" element={<BusinessDetail />} />
+              {/* /advertise folded into the Promote hub (/adverts); old links
+                  land on its On NowOpen section. The plan builder stays. */}
+              <Route path="/advertise" element={<AdvertiseRedirect />} />
+              <Route path="/advertise/plan" element={<MediaPlan />} />
+              <Route path="/advertise/plan/:id" element={<MediaPlan />} />
+              {/* Reached from a link in an outreach email. No account, no
+                  login — the recipient never asked to have one. */}
+              <Route path="/unsubscribe" element={<Unsubscribe />} />
               <Route path="/adverts" element={<Adverts />} />
               <Route path="/adverts/:id" element={<AdvertDetail />} />
               <Route path="/media" element={<Media />} />
+              {/*
+                * The Creative Studio workspace. Declared BEFORE /media/:id so
+                * "studio" is not swallowed as a media id.
+                */}
+              <Route path="/media/studio" element={<StudioEditor />} />
+              <Route path="/media/studio/:id" element={<StudioEditor />} />
+              {/* Hire a creator, services, packs and credits - off the Create page.
+                  Also before /media/:id, or "services" would be read as a media id. */}
+              <Route path="/media/services" element={<MediaServices />} />
               <Route path="/media/:id" element={<MediaDetail />} />
               {/* Tracking a Create order. Placed without an account, so the
                   reference in the URL is the only way back to it. Static
@@ -179,6 +230,7 @@ function App() {
               <Route path="/terms" element={<Terms />} />
               <Route path="/privacy" element={<Privacy />} />
               <Route path="/about" element={<About />} />
+              <Route path="/install" element={<Install />} />
               <Route path="/contact" element={<Contact />} />
               <Route path="/digital-forms" element={<DigitalForms />} />
               <Route path="/pricing" element={<Pricing />} />
@@ -192,6 +244,23 @@ function App() {
               <Route path="/send-your-business" element={<SendBusiness />} />
               <Route path="/yourbusiness" element={<SendBusiness />} />
               <Route path="/nominate" element={<Nominate />} />
+              {/*
+                * The shareable acquisition link. Static paths outrank the
+                * /:username catch-all in react-router's ranking, so these do not
+                * collide with a business called "add-business".
+                */}
+              {/* NowOpen Create, deep-linkable. /create/:type forwards to the real
+                  workflow using the same destinations the hub uses. */}
+              <Route path="/create" element={<CreateRoute />} />
+              <Route path="/create/:type" element={<CreateRoute />} />
+              <Route path="/add-business" element={<AddBusiness />} />
+              {/*
+                * NOWOPEN | INSTAGRAM. Declared before the /:username catch-all
+                * for the same reason /add-business is: a business called
+                * "instagram" would otherwise take the route.
+                */}
+              <Route path="/instagram" element={<InstagramOnboarding />} />
+              <Route path="/join/business" element={<AddBusiness />} />
               {/* Industry page examples. NOT under /business/ — that namespace
                   belongs to real businesses, and an example living there would
                   put an invented company one URL away from looking real. */}
@@ -241,7 +310,7 @@ function App() {
                 </AdminRoute>
               } />
               <Route path="/admin/business-intelligence" element={
-                <AdminRoute adminOnly>
+                <AdminRoute editorPlus>
                   <BusinessIntelligence />
                 </AdminRoute>
               } />
@@ -254,11 +323,13 @@ function App() {
         </ErrorBoundary>
       </main>
       <Footer />
-      <ChatBot />
+      {/* Always reachable, outside the dashboard — the brief's core
+          requirement. It hides itself on routes where it would compete with
+          an existing creation surface (see the component). */}
+      <UniversalCreateButton />
       {/* Hides itself on browsers without SpeechRecognition (notably most of
           Safari), so it never offers a control that cannot work. */}
-      <VoiceAssistant />
-      <TrialPromoModal />
+      <DeferredOverlays />
       <CookieConsent />
       <Toaster position="top-right" />
     </div>

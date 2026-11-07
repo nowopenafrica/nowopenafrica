@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { fetchAllBusinesses } from '../lib/fetchAllBusinesses';
 import { commandCenterStats, scanLocalPipeline, type CommandRaw, type CommandStats } from '../lib/adminCreator';
 
 // Shared by every department that needs "the state of the platform": fetch
@@ -59,9 +60,32 @@ export function useCommandData(): CommandData {
         regsRes, enquiriesRes, waitlistRes, publishLogRes,
       ] = await Promise.all([
         supabase.from('users').select('created_at, plan_status'),
-        supabase.from('businesses').select('verified, created_at, category').limit(50000),
+        /*
+         * Paged, not `.limit(50000)`.
+         *
+         * MEASURED 2026-10-09: 4,010 businesses. A single request is truncated
+         * at PostgREST's 1,000-row cap with no error, so every figure this
+         * dashboard reported about businesses — counts, verified share,
+         * category mix — was computed from a quarter of the table and
+         * presented as the state of the platform.
+         *
+         * The other tables here are read in one request on purpose: measured
+         * the same day, the largest is 15 rows. If any of them ever approaches
+         * a thousand it needs this treatment too.
+         */
+        fetchAllBusinesses<CommandRaw['businesses'][number]>({ columns: 'verified, created_at, category' }),
         supabase.from('payment_intents').select('status, amount_local, currency, created_at'),
-        supabase.from('verification_docs').select('status'),
+        /*
+         * `verification_documents`, not `verification_docs`.
+         *
+         * MEASURED 2026-10-09: the table queried here has never existed. The
+         * whole request errored, `?? []` below turned that into an empty
+         * slice, and the Command Center reported "0 pending verifications"
+         * — which happened to be true while the real table held 0 rows, and
+         * would have stayed 0 forever as documents arrived. TrustPanel and
+         * AdminDashboard both had the name right; only this did not.
+         */
+        supabase.from('verification_documents').select('status'),
         supabase.from('business_registrations').select('status'),
         supabase.from('platform_enquiries').select('id'),
         supabase.from('waitlist').select('invited'),
@@ -69,7 +93,30 @@ export function useCommandData(): CommandData {
       ]);
       // The core platform tables must resolve — anything else is ancillary and
       // degrades to an empty slice rather than dumping the whole dashboard.
-      if (usersRes.error || businessRes.error) throw usersRes.error ?? businessRes.error;
+      if (usersRes.error) throw usersRes.error;
+      // The walk reports its failure as a message, not an error object.
+      if (businessRes.error) throw new Error(businessRes.error);
+
+      /*
+       * Degrading to an empty slice is deliberate. Doing it SILENTLY is what
+       * let a table name that never existed read as "0 pending verifications"
+       * indefinitely: `?? []` gives an error and an empty table exactly the
+       * same shape, so nothing anywhere could tell them apart.
+       *
+       * Empty is a finding. Unavailable is a fault. They are not the same,
+       * and this is the line that says which one happened.
+       */
+      const ancillary: { table: string; error: { message: string } | null }[] = [
+        { table: 'payment_intents', error: paymentsRes.error },
+        { table: 'verification_documents', error: docsRes.error },
+        { table: 'business_registrations', error: regsRes.error },
+        { table: 'platform_enquiries', error: enquiriesRes.error },
+        { table: 'waitlist', error: waitlistRes.error },
+        { table: 'social_publish_log', error: publishLogRes.error },
+      ];
+      for (const { table, error } of ancillary) {
+        if (error) console.warn(`[command-center] ${table} is unavailable and is being counted as empty: ${error.message}`);
+      }
       const backendPublished = (publishLogRes.data ?? [])
         .filter((l) => l.status === 'ok' || l.status === 'simulated').length;
       setStats(commandCenterStats({
