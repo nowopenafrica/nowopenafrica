@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { render, screen, fireEvent } from '@testing-library/react';
 import TemplateSurface from './TemplateSurface';
-import { DESIGN_TEMPLATES, templateByKey, settleTime } from '../../lib/designTemplates';
+import { DESIGN_TEMPLATES, templateByKey, settleTime, typePx, slotOf } from '../../lib/designTemplates';
 
 const CONTENT = {
   brand: 'Mama Put Kitchen',
@@ -51,9 +51,30 @@ describe('TemplateSurface — still rendering', () => {
       void container;
       return size;
     };
-    // Square and story share a 1080 short edge, so the headline matches.
-    expect(read(1080, 1080)).toBe(read(1080, 1920));
-    // Print is larger.
+    /*
+     * CHANGED 2026-09-15. This asserted square and story render the headline at
+     * exactly the same size, because they share a 1080 short edge.
+     *
+     * That held while nothing could ever shrink. Type is now fitted to the room
+     * the layout leaves above the next slot — and a 1920-tall story genuinely
+     * has more of it than a 1080 square, so the same headline can sit at full
+     * size on one and must come down on the other. Which is the point: the
+     * alternative is the overlap this fixed, where "Two plates for the price of
+     * one" printed straight through the line beneath it.
+     *
+     * The principle the test protects is intact and asserted below: the size a
+     * template ASKS for is proportional to the short edge, and fitting only
+     * ever takes away, never adds.
+     */
+    const base = typePx(slotOf(templateByKey('statement'), 'headline')!.size, 1080, 1080);
+    expect(typePx(slotOf(templateByKey('statement'), 'headline')!.size, 1080, 1920)).toBe(base);
+
+    // Fitting only shrinks — it never inflates type past what the layout asked.
+    expect(read(1080, 1080)).toBeLessThanOrEqual(base);
+    expect(read(1080, 1920)).toBeLessThanOrEqual(base);
+    // A taller canvas has more room, so it is never the tighter of the two.
+    expect(read(1080, 1920)).toBeGreaterThanOrEqual(read(1080, 1080));
+    // Print is larger, because the short edge is larger.
     expect(read(2480, 3508)).toBeGreaterThan(read(1080, 1080));
   });
 

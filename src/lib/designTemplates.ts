@@ -181,6 +181,11 @@ export { FONT_STACKS, fontStack, nearestWeight } from './design/typefaces';
 
 import type { FontKey } from './design/typefaces';
 import type { StyleTag, TemplateUse } from './design/tags';
+// Type-only on purpose: look.ts imports VALUES from this file, so a value import
+// back would be a cycle (the same reason catalogueTemplates.ts avoids one).
+import type { Look, GradientSpec } from './design/look';
+import type { PaletteRole } from './design/palettes';
+import { CATALOGUE_TEMPLATES } from './design/catalogueTemplates';
 
 export interface SlotMotion {
   in: MotionIn;
@@ -206,7 +211,13 @@ export interface SlotSpec {
   /** Letter spacing in em. Negative tightens display type. */
   tracking?: number;
   treatment?: Treatment;
-  tone?: 'onSurface' | 'accent' | 'muted';
+  tone?: 'onSurface' | 'accent' | 'muted' | 'primary' | 'secondary' | 'highlight';
+  /**
+   * Which palette role this slot's text sits ON. Defaults to 'ground'. A slot
+   * set over a primary-coloured band says so here, so it gets the ink that is
+   * readable on that band rather than on the ground.
+   */
+  on?: PaletteRole;
   /** Anchor from the bottom instead of the top, so footers stay pinned. */
   fromBottom?: boolean;
   /** Overrides the template font for this slot — a mono eyebrow over a serif headline. */
@@ -235,14 +246,14 @@ export interface SlotSpec {
 //
 // Painted between the surface and the type, in array order.
 
-export type ShapeTone = 'accent' | 'ink' | 'base' | 'white' | 'black';
+export type ShapeTone = 'accent' | 'ink' | 'base' | 'white' | 'black' | 'primary' | 'secondary' | 'highlight';
 
 export type ShapeSpec =
   /** Right-angled triangle filling one corner. The diagonal-cut look. */
   | { kind: 'wedge'; corner: 'tl' | 'tr' | 'bl' | 'br'; w: number; h: number; tone: ShapeTone; alpha?: number }
   /** Band, panel or footer bar. `skew` shears the vertical edges for an angled block. */
-  | { kind: 'rect'; x: number; y: number; w: number; h: number; tone: ShapeTone; alpha?: number; radius?: number; skew?: number }
-  | { kind: 'circle'; cx: number; cy: number; r: number; tone: ShapeTone; alpha?: number }
+  | { kind: 'rect'; x: number; y: number; w: number; h: number; tone: ShapeTone; alpha?: number; radius?: number; skew?: number; fill?: GradientSpec }
+  | { kind: 'circle'; cx: number; cy: number; r: number; tone: ShapeTone; alpha?: number; fill?: GradientSpec }
   /** Outline circle — a photo frame or a decorative orbit. */
   | { kind: 'ring'; cx: number; cy: number; r: number; tone: ShapeTone; alpha?: number; thickness?: number }
   /** Rotated bar, for accent slashes that cross the layout. */
@@ -292,10 +303,38 @@ export interface DesignTemplate {
   /** Default family for every slot. Individual slots may override it. */
   font?: FontKey;
   surface: SurfaceSpec;
+  /**
+   * Palette + gradient + pattern + type, chosen together. Absent means the
+   * template renders exactly as it always has (resolveLook's fallback path).
+   */
+  look?: Look;
   /** A slow move over the whole frame, for the motion renderers. Stills ignore it. */
   camera?: CameraSpec;
   /** Painted between surface and type, in order. */
   shapes?: ShapeSpec[];
+  /**
+   * This layout is built around a photograph.
+   *
+   * Opt-in rather than automatic: a dense price list or a certificate is worse
+   * with a picture behind it, and a gallery that put one on all 47 would be
+   * making that mistake 47 times. See design/previewMedia.ts.
+   */
+  photoLed?: boolean;
+  /**
+   * Further sides or pages, after the first.
+   *
+   * ── ONE MECHANISM, SEVERAL PRODUCTS ─────────────────────────────────
+   *
+   * A business card has a back. A menu runs over pages. A brochure has
+   * panels. They are the same thing: a design whose slots do not all fit on
+   * one surface. Rather than special-casing "double-sided", a template may
+   * declare any number of further pages and the document builder makes one
+   * page each — so the editor's page tabs, the PDF exporter's page loop and
+   * the save format all work on them already, with no further changes.
+   *
+   * Absent means one page, which is what every existing layout has.
+   */
+  extraPages?: { name: string; slots: SlotSpec[] }[];
   slots: SlotSpec[];
 }
 
@@ -312,6 +351,261 @@ export const unitOf = (w: number, h: number): number => Math.min(w, h);
 
 export function typePx(size: number | undefined, w: number, h: number): number {
   return Math.round((size ?? 0.05) * unitOf(w, h));
+}
+
+/**
+ * Roughly how wide one character is, as a fraction of the font size.
+ *
+ * Deliberately approximate and deliberately PURE. Measuring real glyph advances
+ * would be more accurate and would also break the one rule this file exists to
+ * keep: the DOM preview and the canvas exporter must lay text out identically,
+ * and only one of them can measure. A shared estimate that is slightly wrong in
+ * both places beats an exact measurement in one.
+ *
+ * Values are per display face, because the spread is large enough to matter —
+ * Archivo Black is nearly half again as wide as Bebas Neue at the same size,
+ * which is exactly how a headline that fits in one face overflows in another.
+ */
+const ADVANCE: Record<string, number> = {
+  heavy: 0.62,      // Archivo Black — very wide
+  serif: 0.50,      // Playfair Display
+  editorial: 0.48,  // DM Serif Display
+  soft: 0.52,       // Fraunces
+  grotesk: 0.55,    // Space Grotesk
+  sans: 0.53,       // Outfit
+  mono: 0.60,       // Space Mono — monospaced, so this one is exact
+  condensed: 0.38,  // Bebas Neue — tall and narrow
+};
+
+/**
+ * Shrink a headline until it fits the lines its layout budgeted for it.
+ *
+ * THE DEFECT THIS FIXES, seen on the live gallery 2026-09-15.
+ *
+ * Nothing anywhere measured or constrained text. A slot carried a fixed size
+ * and a fixed y, so a headline that needed three lines where the layout assumed
+ * two simply grew downward and printed over the subline beneath it. On the
+ * Megaphone style — Archivo Black, set 1.14x and in capitals — "YOUR HEADLINE
+ * HERE" collided with its own body copy on five of the twelve designs on the
+ * first screen.
+ *
+ * That is worse than a plain design. A plain design is a design; overlapping
+ * text is a defect, and it was the first thing anybody saw of the library.
+ *
+ * Shrinking rather than clipping or wrapping wider: the layout's geometry is
+ * the thing being sold, so the type yields, not the grid. The floor is 62% —
+ * below that a display face stops being a display face, and the honest answer
+ * is that the headline is too long for that layout.
+ */
+export function fittedTypePx(
+  text: string | undefined,
+  slot: SlotSpec,
+  w: number,
+  h: number,
+  maxLines = 3,
+): number {
+  // See fitSlotSize below, which works out maxLines from the layout instead of
+  // guessing it. This entry point stays for callers that know their own budget.
+
+  const base = typePx(slot.size, w, h);
+  const chars = (text ?? '').trim().length;
+  if (!chars || !base) return base;
+
+  const widthPx = Math.max(1, Math.min(1, slot.w) * w);
+  const advance = ADVANCE[slot.font ?? 'sans'] ?? 0.53;
+  // Tracking widens or tightens every character, so it belongs in the estimate.
+  const per = advance + (slot.tracking ?? 0);
+
+  const linesAt = (size: number) => {
+    const perLine = Math.max(1, Math.floor(widthPx / Math.max(1, size * per)));
+    return Math.ceil(chars / perLine);
+  };
+
+  let size = base;
+  const floor = Math.round(base * 0.62);
+  // One step at a time so the result is stable and easy to reason about; a
+  // headline needs a handful of iterations at most.
+  while (size > floor && linesAt(size) > maxLines) size -= Math.max(1, Math.round(base * 0.04));
+  return Math.max(floor, size);
+}
+
+/**
+ * How many lines this text will take at this size, in this slot.
+ *
+ * The SAME estimate `fittedTypePx` shrinks against, exposed because a second
+ * reader needs it: the editor's document model stores a box height, and it was
+ * computing one line unless the text contained a newline. A headline that
+ * WRAPPED to two lines was therefore drawn into a one-line box and clipped —
+ * which is most of why a template opened in the editor looked broken next to
+ * the card that was clicked.
+ *
+ * Paragraphs are counted separately and summed, because an explicit break
+ * always starts a new line however short the text before it.
+ */
+export function estimateLines(
+  text: string | undefined,
+  slot: SlotSpec,
+  sizePx: number,
+  w: number,
+): number {
+  const body = (text ?? '').trim();
+  if (!body || sizePx <= 0) return 1;
+
+  const widthPx = Math.max(1, Math.min(1, slot.w) * w);
+  const per = (ADVANCE[slot.font ?? 'sans'] ?? 0.53) + (slot.tracking ?? 0);
+  const perLine = Math.max(1, Math.floor(widthPx / Math.max(1, sizePx * per)));
+
+  return body
+    .split(String.fromCharCode(10))
+    .reduce((n, para) => n + Math.max(1, Math.ceil(para.trim().length / perLine)), 0);
+}
+
+/**
+ * The line height the renderers use. Big type sets tight, small type sets open.
+ *
+ * Duplicated nowhere: TemplateSurface reads this, drawTemplate reads this, and
+ * the fit below reasons with it. Three copies of one number is how a preview
+ * stops matching an export.
+ */
+export const lineHeightFor = (size: number | undefined): number =>
+  (size ?? 0.05) > 0.07 ? 1.03 : 1.25;
+
+/**
+ * Fit a slot's type to the room the LAYOUT actually leaves it.
+ *
+ * WHY maxLines CANNOT BE A CONSTANT — the second attempt at this bug.
+ *
+ * The first version capped every headline at three lines. "Your headline here"
+ * is two, so nothing shrank and the gallery collided exactly as before. The
+ * budget was never a number of lines: it is the vertical gap between this slot
+ * and whatever the template puts beneath it. A layout that starts its subline
+ * at y 0.52 with a headline at y 0.40 has room for one line of 0.11 type, and
+ * no amount of line-counting discovers that without looking at the neighbour.
+ *
+ * So the gap is measured, in the slot's own fractional coordinates, and turned
+ * into a line budget. Slots with nothing below them keep a generous cap — the
+ * frame edge is the only thing to respect there.
+ */
+/**
+ * The smallest type this system will ever set.
+ *
+ * Below roughly this, a printed line stops being readable at arm's length
+ * and a phone screen gives up on it entirely. If a slot cannot hold its text
+ * at this size the template is wrong, and shrinking further only hides that.
+ */
+export const MIN_TYPE_PX = 9;
+
+export function fitSlotSize(
+  slot: SlotSpec,
+  slots: SlotSpec[],
+  text: string | undefined,
+  w: number,
+  h: number,
+): number {
+  const size = typePx(slot.size, w, h);
+  if (!size) return size;
+
+  /*
+   * `fromBottom` MEASURES FROM THE OTHER EDGE, and forgetting that was a real
+   * bug in the first version of this function.
+   *
+   * slotBox resolves `top = fromBottom ? h - y : y`. A CTA declared at y 0.21
+   * with fromBottom therefore sits at 0.79 down the canvas, not 0.21. Comparing
+   * raw `y` made it look like a neighbour 1% below the headline, so the fitter
+   * computed an 11px line budget on a 1080 canvas and shrank headlines against
+   * a slot that was nowhere near them. Four templates were affected —
+   * why-choose-us, numbered-services, flash-sale and swiss-grid — which is
+   * exactly the set that still looked collided after the first fix.
+   */
+  const topOf = (o: SlotSpec) => (o.fromBottom ? 1 - o.y : o.y);
+  const mine = topOf(slot);
+
+  /*
+   * The next slot that starts below this one and shares any horizontal space
+   * with it. A caption in a right-hand column cannot be collided with by a
+   * headline on the left, so it must not constrain it.
+   */
+  /*
+   * A MEANINGFUL overlap, not a touching edge.
+   *
+   * flash-sale puts the headline across 0.08-0.64 and a round CTA disc at
+   * 0.63-0.92: they share one percent of the width, which is two columns
+   * sitting side by side, not a collision. Treating that as "below" gave the
+   * headline a 22px budget and shrank it to nothing. A tenth of the narrower
+   * slot is the threshold for calling it a real obstruction.
+   */
+  const overlapsX = (o: SlotSpec) => {
+    const left = Math.max(o.x, slot.x);
+    const right = Math.min(o.x + o.w, slot.x + slot.w);
+    const shared = right - left;
+    return shared > Math.min(o.w, slot.w) * 0.1;
+  };
+  const below = slots
+    .filter((o) => o !== slot && topOf(o) > mine && overlapsX(o))
+    .reduce<number | null>((min, o) => (min === null || topOf(o) < min ? topOf(o) : min), null);
+
+  // Down to the frame when nothing sits underneath, less a small margin.
+  const bottom = below ?? 0.94;
+  const roomPx = Math.max(0, (bottom - mine) * h);
+  const lineHeight = lineHeightFor(slot.size);
+  const lineBudget = Math.max(1, Math.floor(roomPx / (size * lineHeight)));
+
+  const fitted = fittedTypePx(text, slot, w, h, lineBudget);
+
+  /*
+   * Even ONE line has to fit.
+   *
+   * The budget floors at one line, so a slot with less than a full line of room
+   * asked for one line and then never shrank — story-caption needed 96px of
+   * height in 86px of room and came out unchanged. Capping by the room itself
+   * closes that: the line budget governs how many lines, this governs whether
+   * a single one can be drawn at all.
+   */
+  const capped = roomPx > 0 ? Math.floor(roomPx / lineHeight) : fitted;
+  let px = Math.min(fitted, capped);
+
+  /*
+   * ── AND THEN ALL OF THEM HAVE TO FIT ─────────────────────────────────
+   *
+   * `capped` only guarantees that ONE line fits the room. A slot holding
+   * five lines of price list got a size that fitted one of them and
+   * overflowed the other four straight through whatever sat underneath.
+   *
+   * There used to be a floor here as well — `max(nominal * 0.62, …)` — which
+   * meant the fitter was forbidden from shrinking past 62% of the template's
+   * nominal size even when the room demanded it. Between the two, 27 slots
+   * across 21 layouts asked for more height than existed above the next slot,
+   * the worst by a factor of 2.34 (price-drop's price list: 0.538 of the page
+   * wanted, 0.230 available).
+   *
+   * In the gallery that read as crowding. In the editor it was worse: every
+   * one of those became a text box literally on top of another text box — six
+   * of them overlapping by 100%, one box entirely inside another — so
+   * clicking a headline selected and dragged something else. That is what
+   * "opening a template scatters it" actually was.
+   *
+   * The room wins now. A design whose words do not fit the space the template
+   * drew for them gets smaller words, which is what a person would do.
+   */
+  /*
+   * The SAME gap the document applies, or the two disagree by exactly it.
+   *
+   * A multi-line role (a price list, a three-line contact block) is set with
+   * extra air between its lines. The fitter did not know that and the box
+   * builder did, so six slots still overran after the line-height fix —
+   * price-drop's five-line price by a factor of 1.47. One rule, read twice.
+   */
+  const gapFactor = text && text.includes(String.fromCharCode(10))
+    ? (slot.gap ?? 1.4) / 1.4
+    : 1;
+
+  if (roomPx > 0 && text) {
+    while (px > MIN_TYPE_PX
+      && estimateLines(text, slot, px, w) * px * lineHeight * gapFactor > roomPx) {
+      px -= 1;
+    }
+  }
+  return Math.max(MIN_TYPE_PX, px);
 }
 
 export interface SlotBox {
@@ -436,6 +730,43 @@ export const hexAlpha = (hex: string, a: number): string => {
   return `rgba(${r}, ${g}, ${b}, ${Math.max(0, Math.min(1, a))})`;
 };
 
+const rgbOf = (hex: string): [number, number, number] => {
+  const clean = (hex || '').replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map(c => c + c).join('') : clean;
+  const n = parseInt(full.length === 6 ? full : '000000', 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+const toHex = (r: number, g: number, b: number): string =>
+  '#' + [r, g, b].map((v) => Math.max(0, Math.min(255, Math.round(v)))
+    .toString(16).padStart(2, '0')).join('');
+
+/**
+ * Mix a colour toward black (`amount` > 0 darkens) or toward white (< 0).
+ *
+ * WHY A SURFACE NEEDS THIS AT ALL — the flatness bug, found 2026-09-15.
+ *
+ * Every one of the 376 generated designs rendered as a single flat block of the
+ * brand colour, whatever style was chosen. The cause was not the style system,
+ * which is sound; it was that the surface painter built its gradients from
+ * `accent` and `base`, and styleColours() returns base === accent for the
+ * `brand` colour rule whenever the brand is already readable — which is the
+ * default Signature style on most brands. So every gradient ran blue to blue,
+ * every spotlight faded blue into blue, and the whole library collapsed into
+ * one look with the words moved around.
+ *
+ * Deriving the stops instead of reading two colours that may be the same
+ * guarantees a visible tonal range no matter what the business's brand is, and
+ * is what separates a printed-looking ground from a `background-color`.
+ */
+const shade = (hex: string, amount: number): string => {
+  const [r, g, b] = rgbOf(hex);
+  const t = Math.max(-1, Math.min(1, amount));
+  return t >= 0
+    ? toHex(r * (1 - t), g * (1 - t), b * (1 - t))
+    : toHex(r + (255 - r) * -t, g + (255 - g) * -t, b + (255 - b) * -t);
+};
+
 /** Multiply the alpha of an rgba() string produced by hexAlpha. */
 function scaleAlpha(rgba: string, scale: number): string {
   const m = /^rgba\(([^,]+),([^,]+),([^,]+),([^)]+)\)$/.exec(rgba);
@@ -478,37 +809,114 @@ export function surfaceSpecLayers(
   const k = s.intensity ?? 0.5;
   const out: SurfaceLayer[] = [];
 
+  /*
+   * A light-scheme design writes in near-black on a pale ground; a dark one
+   * writes in white on a deep one. They therefore need depth built in OPPOSITE
+   * directions: lifting a pale ground toward white keeps dark type readable,
+   * while lifting a deep ground toward white would eat the white type sitting
+   * on it. Every ramp below is expressed as "deeper" and "lighter" relative to
+   * the scheme, so one set of numbers serves both.
+   */
+  const light = tpl.scheme === 'light';
+  /** Away from the ink: darker on a dark scheme, paler on a light one. */
+  const deeper = (hex: string, amt: number) => shade(hex, light ? -amt : amt);
+  /** Toward the ink. Used sparingly — this is the direction that costs contrast. */
+  const lifted = (hex: string, amt: number) => shade(hex, light ? amt * 0.5 : -amt);
+
+  /*
+   * Does the ground carry a colour of its own, or is it the accent again?
+   *
+   * styleColours() returns base === accent for the `brand` rule on a readable
+   * brand, and a genuinely different hue for `duotone` and `mono`. A gradient
+   * that always ends in a darkened accent would throw the second hue away — so
+   * the far stop is the GROUND when there is one to use, and a deepened accent
+   * only when there is not. That keeps Duotone a two-colour design while still
+   * refusing to collapse on the single-colour case.
+   */
+  const rgbDistance = (a: string, b: string) => {
+    const [ar, ag, ab] = rgbOf(a);
+    const [br, bg, bb] = rgbOf(b);
+    return Math.abs(ar - br) + Math.abs(ag - bg) + Math.abs(ab - bb);
+  };
+  const groundIsOwnColour = rgbDistance(accent, base) > 60;
+  /** The colour a ramp travels toward. */
+  const far = groundIsOwnColour ? deeper(base, 0.1) : deeper(accent, 0.45);
+
   switch (s.kind) {
     case 'solid':
     case 'frame':
-      out.push({ kind: 'linear', angle: 0, stops: [
-        { at: 0, color: hexAlpha(base, 0.92) },
-        { at: 1, color: hexAlpha(base, 0.92) },
+      /*
+       * Flat, but not a `background-color`. A printed ink area is never one
+       * value: it catches light at the top and settles at the bottom, and a
+       * design that ignores that reads as a coloured <div> rather than as a
+       * poster. The move is deliberately small — this is the style people pick
+       * when they want plain.
+       */
+      out.push({ kind: 'linear', angle: 168, stops: [
+        { at: 0, color: hexAlpha(lifted(base, 0.10), 0.95) },
+        { at: 0.55, color: hexAlpha(base, 0.95) },
+        { at: 1, color: hexAlpha(deeper(base, 0.12), 0.95) },
+      ] });
+      // A soft off-centre light, so the block has a source.
+      out.push({ kind: 'radial', cx: 0.22, cy: 0.1, r: 0.95, stops: [
+        { at: 0, color: hexAlpha(lifted(base, 0.16), 0.5) },
+        { at: 1, color: hexAlpha(base, 0) },
       ] });
       break;
+
     case 'spotlight':
-      out.push({ kind: 'radial', cx: 0.5, cy: 0.12, r: 1.1, stops: [
-        { at: 0, color: hexAlpha(accent, k) },
-        { at: 0.68, color: hexAlpha(base, 0.94) },
-        { at: 1, color: hexAlpha(base, 0.97) },
+      /*
+       * One light, off centre, falling off hard. The old version put the source
+       * dead centre at 68% falloff into the ground, which is a vignette rather
+       * than a spotlight — nothing was actually lit.
+       */
+      out.push({ kind: 'linear', angle: 180, stops: [
+        { at: 0, color: hexAlpha(deeper(base, 0.35), 0.98) },
+        { at: 1, color: hexAlpha(deeper(base, 0.55), 0.98) },
+      ] });
+      out.push({ kind: 'radial', cx: 0.28, cy: 0.14, r: 0.85, stops: [
+        { at: 0, color: hexAlpha(lifted(accent, 0.22), k) },
+        { at: 0.45, color: hexAlpha(accent, k * 0.5) },
+        { at: 1, color: hexAlpha(accent, 0) },
       ] });
       break;
+
     case 'wash':
-      out.push({ kind: 'linear', angle: (s.angle ?? 180) + 90, stops: [
-        { at: 0, color: hexAlpha(accent, k * 0.6) },
-        { at: 0.7, color: hexAlpha(accent, 0) },
-      ] });
+      /*
+       * Editorial: mostly clean ground, with one confident sweep of colour
+       * rather than a whisper of it. The previous wash ran the accent at
+       * intensity x 0.6 and faded it out by 70%, which at thumbnail size was
+       * indistinguishable from no wash at all.
+       */
       out.push({ kind: 'linear', angle: s.angle ?? 180, stops: [
-        { at: 0, color: hexAlpha(base, 0.2) },
-        { at: 1, color: hexAlpha(base, 0.94) },
+        { at: 0, color: hexAlpha(lifted(base, 0.05), 0.97) },
+        { at: 1, color: hexAlpha(deeper(base, 0.06), 0.97) },
+      ] });
+      out.push({ kind: 'linear', angle: (s.angle ?? 180) + 115, stops: [
+        { at: 0, color: hexAlpha(accent, Math.min(0.5, k * 1.6)) },
+        { at: 0.42, color: hexAlpha(accent, k * 0.35) },
+        { at: 0.75, color: hexAlpha(accent, 0) },
       ] });
       break;
+
     case 'gradient':
     default:
-      out.push({ kind: 'linear', angle: s.angle ?? 160, stops: [
-        { at: 0, color: hexAlpha(accent, k) },
-        { at: 0.72, color: hexAlpha(base, 0.95) },
-        { at: 1, color: hexAlpha(base, 0.98) },
+      /*
+       * A real two-tone. The old ramp handed over to the ground by 72%, so on
+       * the common case where base and accent are the same colour it produced
+       * nothing at all. This holds the accent across the canvas and lands in a
+       * deepened version of ITSELF, which cannot collapse however the brand
+       * colour and the ground relate.
+       */
+      out.push({ kind: 'linear', angle: s.angle ?? 155, stops: [
+        { at: 0, color: hexAlpha(lifted(accent, 0.14), k) },
+        { at: 0.5, color: hexAlpha(accent, k) },
+        { at: 1, color: hexAlpha(far, Math.max(k, 0.96)) },
+      ] });
+      // A corner lift, the thing that stops a gradient looking like a ramp.
+      out.push({ kind: 'radial', cx: 0.12, cy: 0.06, r: 0.8, stops: [
+        { at: 0, color: hexAlpha(lifted(accent, 0.3), 0.38) },
+        { at: 1, color: hexAlpha(accent, 0) },
       ] });
       break;
   }
@@ -568,9 +976,19 @@ export const inkFor = (tpl: DesignTemplate): string => (tpl.scheme === 'dark' ? 
 // canvas painter and the DOM painter cannot disagree about where a wedge sits.
 // The canvas strokes these as paths; the DOM turns polygons into clip-path.
 
-export function shapeColor(tone: ShapeTone, accent: string, ink: string, base: string): string {
+export function shapeColor(
+  tone: ShapeTone,
+  accent: string,
+  ink: string,
+  base: string,
+  /** Resolved palette roles. Without them the role tones fall back to the accent. */
+  roles?: Record<PaletteRole, string>,
+): string {
   switch (tone) {
-    case 'accent': return accent;
+    case 'primary': return roles?.primary ?? accent;
+    case 'secondary': return roles?.secondary ?? accent;
+    case 'highlight': return roles?.highlight ?? accent;
+    case 'accent': return roles?.primary ?? accent;
     case 'ink': return ink;
     case 'base': return base;
     case 'white': return '#ffffff';
@@ -719,9 +1137,33 @@ const STAT = 0.034;
 /** Footer contact strip. Small on purpose: it is reference, not reading. */
 const CONTACT = 0.019;
 
+/*
+ * ── WHICH LAYOUTS CARRY A PHOTOGRAPH ─────────────────────────────────────
+ *
+ * `photoLed` is opt-in, and it stays opt-in. The flyers African businesses
+ * actually pay for are photo-led — a plate of food, a finished haircut, the
+ * person whose service is being sold — and 50 of the 59 layouts previewed as
+ * type on a flat colour, which is why the library read as basic rather than
+ * as something you would print.
+ *
+ * It is NOT switched on for everything, for two reasons that both matter.
+ *
+ * READABILITY: a price list, a menu, a certificate, an opening-hours card, a
+ * ticket or a business card is harder to read over a photograph, not easier.
+ * Those carry dense information and keep a clean ground. An automated pass
+ * over "has no list slots" put a photo behind `price-block` and both ticket
+ * layouts; a guard in previewMedia.test.ts caught it, correctly.
+ *
+ * BANDWIDTH: every photo-led card is a remote image on exactly the mobile
+ * connections this audience is using, which is why the same guard holds the
+ * total under half the library. That ceiling is a cost decision, not a
+ * stylistic one, and it is not to be raised to fit a bigger number.
+ */
 export const DESIGN_TEMPLATES: DesignTemplate[] = [
   {
     key: 'editorial-split',
+    look: { palette: 'midnight-silk', type: 'editorial', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Editorial Split',
     desc: 'Magazine masthead, accent rule, low headline',
     use: 'marketing',
@@ -730,6 +1172,9 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     surface: { kind: 'wash', angle: 200, intensity: 0.4, vignette: 0.3 },
     // A photograph wants a drift. Nothing else moves in this layout.
     camera: { move: 'drift', amount: 0.05 },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.014, h: 1, tone: 'primary' },
+    ],
     slots: [
       { role: 'brand', x: 0.08, y: 0.09, w: 0.5, size: 0.05, motion: { in: 'fade', at: 0, dur: 0.5 } },
       { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.5, size: EYEBROW, upper: true, tracking: 0.22, treatment: 'bar', tone: 'accent', font: 'mono', motion: { in: 'wipe', at: 0.3, dur: 0.6 } },
@@ -741,6 +1186,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'statement',
+    photoLed: true,
     label: 'Statement',
     desc: 'One enormous centred line',
     use: 'social',
@@ -760,6 +1206,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'quiet-luxe',
+    look: { palette: 'red-earth', type: 'luxury' },
     label: 'Quiet Luxe',
     desc: 'Airy light layout, thin rules, wide tracking',
     use: 'business', industries: ['Fashion & Beauty', 'Professional Services'],
@@ -768,6 +1215,10 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     surface: { kind: 'solid' },
     // Settling back is the restrained option, and this layout is restraint.
     camera: { move: 'pull', amount: 0.04 },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0.985, w: 0.7, h: 0.015, tone: 'secondary' },
+      { kind: 'rect', x: 0.7, y: 0.985, w: 0.3, h: 0.015, tone: 'highlight' },
+    ],
     slots: [
       { role: 'brand', x: 0.1, y: 0.11, w: 0.5, size: 0.042, motion: { in: 'fade', at: 0, dur: 0.6 } },
       { role: 'eyebrow', x: 0.1, y: 0.26, w: 0.6, size: 0.022, upper: true, tracking: 0.34, tone: 'muted', motion: { in: 'wipe', at: 0.3, dur: 0.7 } },
@@ -779,6 +1230,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'street-poster',
+    look: { palette: 'baobab', type: 'street', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Street Poster',
     desc: 'Hard frame, stacked caps, high contrast',
     use: 'event', industries: ['Arts & Entertainment'],
@@ -787,6 +1240,9 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     surface: { kind: 'frame', frame: 0.035, intensity: 0.5, vignette: 0.22 },
     // Louder than the rest, deliberately.
     camera: { move: 'push', amount: 0.06 },
+    shapes: [
+      { kind: 'rect', x: 0.1, y: 0.265, w: 0.16, h: 0.008, tone: 'secondary' },
+    ],
     slots: [
       { role: 'eyebrow', x: 0.1, y: 0.14, w: 0.8, size: 0.026, upper: true, tracking: 0.3, treatment: 'outline', motion: { in: 'drop', at: 0, dur: 0.5 } },
       { role: 'headline', x: 0.1, y: 0.3, w: 0.8, size: 0.108, weight: 900, upper: true, tracking: -0.03, motion: { in: 'wipe', at: 0.35, dur: 0.7 } },
@@ -797,6 +1253,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'warm-offer',
+    photoLed: true,
     label: 'Warm Offer',
     desc: 'Panel-backed detail and a clear call to action',
     use: 'marketing', industries: ['Food & Hospitality', 'Local & Everyday Business'],
@@ -815,12 +1272,16 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'minimal-grid',
+    look: { palette: 'lagoon', type: 'modern', pattern: { key: 'topography', role: 'primary', opacity: 0.06, scale: 0.3 } },
     label: 'Minimal Grid',
     desc: 'Left rail, generous space, underlined heading',
     use: 'business', industries: ['Professional Services', 'Technology & Media'],
     styles: ['minimal', 'swiss', 'corporate'], tags: ['clean', 'grid', 'corporate'],
     mood: 'minimal', scheme: 'light', font: 'sans',
     surface: { kind: 'solid' },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.014, h: 1, tone: 'primary' },
+    ],
     slots: [
       { role: 'brand', x: 0.12, y: 0.12, w: 0.4, size: 0.04, motion: { in: 'fade', at: 0, dur: 0.5 } },
       { role: 'eyebrow', x: 0.12, y: 0.24, w: 0.5, size: 0.021, upper: true, tracking: 0.28, tone: 'accent', motion: { in: 'wipe', at: 0.2, dur: 0.5 } },
@@ -831,6 +1292,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'soft-glass',
+    photoLed: true,
     label: 'Soft Glass',
     desc: 'Frosted panel over a soft-focus photo',
     use: 'social', industries: ['Technology & Media'],
@@ -848,6 +1310,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'mesh-accent',
+    photoLed: true,
     label: 'Mesh Accent',
     desc: 'Layered colour bloom, tight modern sans',
     use: 'social', industries: ['Technology & Media'],
@@ -865,6 +1328,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'gallery-serif',
+    photoLed: true,
     label: 'Gallery Serif',
     desc: 'Exhibition card - light, serif, wide margins',
     use: 'event', industries: ['Arts & Entertainment', 'Fashion & Beauty'],
@@ -900,17 +1364,42 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'story-caption',
+    look: { palette: 'deep-sea', type: 'modern', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Story Caption',
     desc: 'Built for 9:16 - copy low and thumb-safe',
     use: 'social',
     styles: ['soft', 'playful', 'youth'], tags: ['story', 'whatsapp', 'status', 'vertical'],
     mood: 'warm', scheme: 'dark', font: 'sans',
     surface: { kind: 'wash', angle: 190, intensity: 0.3, vignette: 0.44 },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 1, h: 0.008, tone: 'primary' },
+    ],
     slots: [
       { role: 'brand', x: 0.09, y: 0.08, w: 0.6, size: 0.04, motion: { in: 'fade', at: 0, dur: 0.5 } },
       // Anchored low so copy clears a story's own UI at the top and bottom.
-      { role: 'eyebrow', x: 0.09, y: 0.42, w: 0.5, size: 0.021, upper: true, tracking: 0.28, font: 'mono', tone: 'accent', fromBottom: true, motion: { in: 'wipe', at: 0.3, dur: 0.5 } },
-      { role: 'headline', x: 0.09, y: 0.3, w: 0.82, size: 0.09, weight: 800, tracking: -0.025, fromBottom: true, motion: { in: 'rise', at: 0.45, dur: 0.7 } },
+      /*
+       * 0.46, not 0.42 — the headline is at 0.42.
+       *
+       * Both were on the SAME anchor, so both resolved to 0.58 down the
+       * canvas and the eyebrow was drawn inside the headline: the only pair
+       * in the whole library overlapping by 100%. The note under the headline
+       * explains it was raised from 0.3 to 0.42 to clear the subline, and it
+       * landed exactly on top of the line above it instead.
+       *
+       * fromBottom, so a LARGER y is higher up the page. 0.46 puts the
+       * eyebrow's foot a hair clear of the headline's crown.
+       */
+      { role: 'eyebrow', x: 0.09, y: 0.46, w: 0.5, size: 0.021, upper: true, tracking: 0.28, font: 'mono', tone: 'accent', fromBottom: true, motion: { in: 'wipe', at: 0.3, dur: 0.5 } },
+      /*
+       * Raised from y 0.3 to 0.42 (measured from the bottom, so UP the canvas).
+       *
+       * At 0.3 the headline sat 0.08 above the subline — 86px on a 1080 square
+       * — while asking for 97px of type. The template was authored to collide
+       * at a single line, before any content was long. It now has 0.20 of room,
+       * which holds two lines of its own type size.
+       */
+      { role: 'headline', x: 0.09, y: 0.42, w: 0.82, size: 0.09, weight: 800, tracking: -0.025, fromBottom: true, motion: { in: 'rise', at: 0.45, dur: 0.7 } },
       { role: 'subline', x: 0.09, y: 0.22, w: 0.7, size: 0.03, tone: 'muted', fromBottom: true, motion: { in: 'rise', at: 0.9, dur: 0.55 } },
       { role: 'cta', x: 0.09, y: 0.12, w: 0.44, size: 0.029, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
     ],
@@ -927,7 +1416,12 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { role: 'brand', x: 0.09, y: 0.1, w: 0.5, size: 0.042, motion: { in: 'fade', at: 0, dur: 0.5 } },
       { role: 'eyebrow', x: 0.09, y: 0.26, w: 0.55, size: 0.022, upper: true, tracking: 0.24, treatment: 'pill', tone: 'accent', font: 'mono', motion: { in: 'pop', at: 0.2, dur: 0.5 } },
       { role: 'headline', x: 0.09, y: 0.36, w: 0.7, size: 0.13, weight: 900, tracking: -0.04, motion: { in: 'pop', at: 0.4, dur: 0.65 } },
-      { role: 'subline', x: 0.09, y: 0.62, w: 0.62, size: 0.032, tone: 'muted', motion: { in: 'rise', at: 0.85, dur: 0.55 } },
+      /*
+       * Lowered from 0.62. The headline above is set at 0.13 of the short edge
+       * and had 0.26 of room — enough for two lines of it, not three, so a
+       * normal-length headline ran into this line. 0.68 buys the third.
+       */
+      { role: 'subline', x: 0.09, y: 0.68, w: 0.62, size: 0.032, tone: 'muted', motion: { in: 'rise', at: 0.85, dur: 0.55 } },
       { role: 'cta', x: 0.09, y: 0.18, w: 0.46, size: 0.032, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.05, dur: 0.45 } },
       { role: 'meta', x: 0.09, y: 0.1, w: 0.6, size: 0.02, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 1.2, dur: 0.45 } },
       { role: 'qr', x: 0.77, y: 0.17, w: 0.14, fromBottom: true, motion: { in: 'pop', at: 1.1, dur: 0.45 } },
@@ -965,6 +1459,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'why-choose-us',
+    look: { palette: 'moss-stone', type: 'modern' },
     label: 'Why Choose Us',
     desc: 'Ticked reasons to trust, light and corporate',
     use: 'marketing',
@@ -974,14 +1469,14 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     shapes: [
       { kind: 'wedge', corner: 'tr', w: 0.5, h: 0.16, tone: 'accent', alpha: 0.9 },
       { kind: 'stripe', x: 0.04, y: 0.145, w: 0.16, h: 0.008, angle: 0, tone: 'accent' },
-      { kind: 'rect', x: 0, y: 0.9, w: 1, h: 0.1, tone: 'accent', alpha: 0.12 },
+      { kind: 'rect', x: 0, y: 0.9, w: 1, h: 0.1, tone: 'secondary', alpha: 0.12 },
     ],
     slots: [
       { role: 'brand', x: 0.08, y: 0.08, w: 0.44, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
       { role: 'headline', x: 0.08, y: 0.2, w: 0.76, size: HEAD, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.25, dur: 0.6 } },
       { role: 'subline', x: 0.08, y: 0.4, w: 0.7, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.5 } },
       { role: 'services', x: 0.08, y: 0.51, w: 0.82, size: LIST, weight: 600, bullet: 'check', gap: 2.05, max: 4, motion: { in: 'rise', at: 0.8, dur: 0.6 } },
-      { role: 'cta', x: 0.08, y: 0.21, w: 0.5, size: 0.03, weight: 700, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.2, dur: 0.45 } },
+      { role: 'cta', x: 0.08, y: 0.21, w: 0.5, size: 0.03, weight: 700, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.2, dur: 0.45 } },
       { role: 'contact', x: 0.07, y: 0.05, w: 0.86, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.35, dur: 0.4 } },
     ],
   },
@@ -1029,6 +1524,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'speaker-card',
+    look: { palette: 'midnight-silk', type: 'editorial', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Speaker Card',
     desc: 'Portrait ring, name, role and the date',
     use: 'event', industries: ['Education & Community', 'Professional Services'],
@@ -1041,19 +1538,20 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       // that looks like it failed to load. Filled, it is a portrait vignette
       // that works with a photo behind it and still looks deliberate without.
       { kind: 'circle', cx: 0.5, cy: 0.29, r: 0.19, tone: 'white', alpha: 0.07 },
-      { kind: 'ring', cx: 0.5, cy: 0.29, r: 0.19, tone: 'accent', alpha: 0.85, thickness: 0.008 },
+      { kind: 'ring', cx: 0.5, cy: 0.29, r: 0.19, tone: 'secondary', alpha: 0.85, thickness: 0.008 },
     ],
     slots: [
-      { role: 'eyebrow', x: 0.1, y: 0.085, w: 0.8, size: EYEBROW, align: 'center', upper: true, tracking: 0.24, tone: 'accent', motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.1, y: 0.085, w: 0.8, size: EYEBROW, align: 'center', upper: true, tracking: 0.24, motion: { in: 'fade', at: 0, dur: 0.5 } },
       { role: 'headline', x: 0.1, y: 0.53, w: 0.8, size: 0.082, weight: 800, align: 'center', tracking: -0.02, motion: { in: 'rise', at: 0.45, dur: 0.6 } },
       { role: 'subline', x: 0.12, y: 0.665, w: 0.76, size: 0.03, align: 'center', tone: 'accent', upper: true, tracking: 0.12, motion: { in: 'fade', at: 0.75, dur: 0.5 } },
       { role: 'meta', x: 0.15, y: 0.745, w: 0.7, size: META, align: 'center', treatment: 'pill', motion: { in: 'pop', at: 0.95, dur: 0.45 } },
       { role: 'cta', x: 0.2, y: 0.155, w: 0.6, size: 0.028, weight: 700, align: 'center', treatment: 'outline', fromBottom: true, motion: { in: 'pop', at: 1.15, dur: 0.45 } },
-      { role: 'brand', x: 0.1, y: 0.075, w: 0.8, size: 0.024, align: 'center', upper: true, tracking: 0.18, tone: 'muted', fromBottom: true, motion: { in: 'fade', at: 1.3, dur: 0.4 } },
+      { role: 'brand', x: 0.1, y: 0.075, w: 0.8, size: 0.024, align: 'center', upper: true, tracking: 0.18, fromBottom: true, motion: { in: 'fade', at: 1.3, dur: 0.4 } },
     ],
   },
   {
     key: 'promo-burst',
+    photoLed: true,
     label: 'Promo Burst',
     desc: 'The discount is the hero - dates and a deadline',
     use: 'marketing', industries: ['Retail & Commerce'],
@@ -1078,6 +1576,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'consulting-clean',
+    look: { palette: 'harbour-blue', type: 'editorial' },
     label: 'Consulting Clean',
     desc: 'Left rail, quiet type, services and a number to call',
     use: 'business', industries: ['Professional Services'],
@@ -1089,16 +1588,33 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { kind: 'rect', x: 0.115, y: 0.885, w: 0.82, h: 0.002, tone: 'ink', alpha: 0.2 },
     ],
     slots: [
+      /*
+        ── A DIFFERENT DIRECTION, NOT A DIFFERENT PALETTE ─────────────────
+
+        MEASURED by scripts/audit-templates.mjs: this shared a composition
+        signature with `numbered-services` — same headline anchor, same type
+        scale, same slot list, same stack order. Two templates in the same
+        category that a shopper cannot tell apart are one template.
+
+        So the composition changed rather than the colour. This is now an
+        asymmetric two-column statement: the claim held low-left in a narrow
+        measure, its proof listed in a right-hand column beside it. That is
+        how a consultancy's own literature is usually set, and it reads
+        nothing like the numbered list it used to duplicate.
+      */
       { role: 'brand', x: 0.115, y: 0.09, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
       { role: 'eyebrow', x: 0.115, y: 0.19, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
-      { role: 'headline', x: 0.115, y: 0.25, w: 0.76, size: 0.086, weight: 700, tracking: -0.02, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
-      { role: 'subline', x: 0.115, y: 0.45, w: 0.7, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.65, dur: 0.5 } },
-      { role: 'services', x: 0.115, y: 0.56, w: 0.78, size: LIST, weight: 600, bullet: 'bar', gap: 2.0, max: 4, motion: { in: 'rise', at: 0.85, dur: 0.6 } },
+      /* Low and narrow: deliberate empty space above it is the whole point. */
+      { role: 'headline', x: 0.115, y: 0.46, w: 0.4, size: 0.078, weight: 700, tracking: -0.02, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
+      { role: 'subline', x: 0.115, y: 0.68, w: 0.38, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.65, dur: 0.5 } },
+      /* The proof column, beside the claim rather than under it. */
+      { role: 'services', x: 0.58, y: 0.46, w: 0.35, size: LIST, weight: 600, bullet: 'bar', gap: 2.0, max: 4, motion: { in: 'rise', at: 0.85, dur: 0.6 } },
       { role: 'contact', x: 0.115, y: 0.075, w: 0.82, size: CONTACT, weight: 600, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.4 } },
     ],
   },
   {
     key: 'report-cover',
+    look: { palette: 'paper-ink', type: 'editorial' },
     label: 'Report Cover',
     desc: 'Annual-report restraint - year, title, one rule',
     use: 'business', industries: ['Professional Services', 'Education & Community'],
@@ -1107,14 +1623,14 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     surface: { kind: 'frame', frame: 0.045 },
     shapes: [
       { kind: 'rect', x: 0.12, y: 0.455, w: 0.2, h: 0.004, tone: 'accent' },
-      { kind: 'rect', x: 0, y: 0.78, w: 1, h: 0.22, tone: 'accent', alpha: 0.08 },
+      { kind: 'rect', x: 0, y: 0.78, w: 1, h: 0.22, tone: 'secondary', alpha: 0.08 },
     ],
     slots: [
       { role: 'brand', x: 0.12, y: 0.13, w: 0.5, size: 0.028, weight: 700, upper: true, tracking: 0.2, font: 'sans', motion: { in: 'fade', at: 0, dur: 0.5 } },
       { role: 'eyebrow', x: 0.12, y: 0.24, w: 0.5, size: 0.05, weight: 400, tone: 'accent', font: 'sans', motion: { in: 'rise', at: 0.25, dur: 0.5 } },
       { role: 'headline', x: 0.12, y: 0.3, w: 0.74, size: 0.088, weight: 500, tracking: -0.015, motion: { in: 'rise', at: 0.4, dur: 0.65 } },
       { role: 'subline', x: 0.12, y: 0.51, w: 0.62, size: 0.032, tone: 'muted', font: 'sans', motion: { in: 'fade', at: 0.75, dur: 0.55 } },
-      { role: 'stats', x: 0.12, y: 0.83, w: 0.76, size: 0.03, direction: 'row', align: 'left', max: 3, font: 'sans', motion: { in: 'rise', at: 0.95, dur: 0.55 } },
+      { role: 'stats', x: 0.12, y: 0.83, w: 0.76, size: 0.04, direction: 'row', align: 'left', max: 3, font: 'sans', motion: { in: 'rise', at: 0.95, dur: 0.55 } },
       { role: 'meta', x: 0.12, y: 0.075, w: 0.6, size: META, tone: 'muted', font: 'sans', fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.45 } },
     ],
   },
@@ -1128,6 +1644,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
 
   {
     key: 'flash-sale',
+    look: { palette: 'carnival', type: 'street', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Flash Sale',
     desc: 'The discount is a badge and nothing competes with it',
     use: 'marketing', industries: ['Retail & Commerce', 'Fashion & Beauty'],
@@ -1143,7 +1661,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { role: 'eyebrow', x: 0.08, y: 0.19, w: 0.55, size: EYEBROW, upper: true, tracking: 0.22, treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 0.2, dur: 0.45 } },
       { role: 'headline', x: 0.08, y: 0.28, w: 0.56, size: 0.086, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.35, dur: 0.55 } },
       // The badge: a disc whose diameter is this slot's width.
-      { role: 'cta', x: 0.63, y: 0.3, w: 0.29, size: 0.05, weight: 800, align: 'center', upper: true, treatment: 'disc', tone: 'accent', motion: { in: 'pop', at: 0.55, dur: 0.5 } },
+      { role: 'cta', x: 0.63, y: 0.3, w: 0.29, size: 0.05, weight: 800, align: 'center', upper: true, treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 0.55, dur: 0.5 } },
       { role: 'subline', x: 0.08, y: 0.56, w: 0.72, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.8, dur: 0.5 } },
       { role: 'meta', x: 0.08, y: 0.68, w: 0.6, size: META, upper: true, tracking: 0.1, treatment: 'bar', tone: 'accent', motion: { in: 'wipe', at: 1, dur: 0.45 } },
       { role: 'contact', x: 0.08, y: 0.055, w: 0.84, size: CONTACT, weight: 700, direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.2, dur: 0.4 } },
@@ -1151,6 +1669,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'price-list',
+    look: { palette: 'cola-nut', type: 'modern' },
     label: 'Price List',
     desc: 'Menu-style rows, leader rules, prices right',
     use: 'industry', industries: ['Food & Hospitality', 'Home & Personal Services'],
@@ -1158,14 +1677,23 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     mood: 'editorial', scheme: 'dark', font: 'sans',
     surface: { kind: 'spotlight', intensity: 0.36, vignette: 0.32 },
     shapes: [
-      { kind: 'rect', x: 0.06, y: 0.3, w: 0.88, h: 0.53, tone: 'white', alpha: 0.06, radius: 0.03 },
+      { kind: 'rect', x: 0, y: 0.985, w: 0.7, h: 0.015, tone: 'primary' },
+      { kind: 'rect', x: 0.7, y: 0.985, w: 0.3, h: 0.015, tone: 'secondary' },
     ],
+    extraPages: [{
+      name: 'Page 2',
+      slots: [
+        { role: 'headline', x: 0.08, y: 0.12, w: 0.84, size: 0.058, weight: 700, motion: { in: 'rise', at: 0, dur: 0.5 } },
+        { role: 'price', x: 0.08, y: 0.26, w: 0.84, size: 0.034, motion: { in: 'rise', at: 0.2, dur: 0.6 } },
+        { role: 'contact', x: 0.08, y: 0.1, w: 0.84, size: 0.026, fromBottom: true, tone: 'muted', motion: { in: 'fade', at: 0.5, dur: 0.4 } },
+      ],
+    }],
     slots: [
       { role: 'brand', x: 0.08, y: 0.085, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
       { role: 'eyebrow', x: 0.08, y: 0.16, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
       { role: 'headline', x: 0.08, y: 0.205, w: 0.8, size: 0.072, weight: 800, tracking: -0.02, motion: { in: 'rise', at: 0.3, dur: 0.55 } },
       { role: 'price', x: 0.1, y: 0.35, w: 0.8, size: 0.031, weight: 600, gap: 2.1, max: 5, motion: { in: 'rise', at: 0.55, dur: 0.6 } },
-      { role: 'cta', x: 0.08, y: 0.2, w: 0.54, size: 0.03, weight: 700, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 1.05, dur: 0.45 } },
+      { role: 'cta', x: 0.08, y: 0.2, w: 0.54, size: 0.03, weight: 700, treatment: 'pill', fromBottom: true, motion: { in: 'pop', at: 1.05, dur: 0.45 } },
       { role: 'contact', x: 0.08, y: 0.085, w: 0.84, size: CONTACT, weight: 600, tone: 'muted', direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.25, dur: 0.4 } },
     ],
   },
@@ -1197,6 +1725,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'countdown-post',
+    photoLed: true,
     label: 'Countdown',
     desc: 'Days to go, huge — then where and when',
     use: 'event',
@@ -1242,6 +1771,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'testimonial-card',
+    look: { palette: 'paper-ink', type: 'editorial', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Client Review',
     desc: 'A quote, who said it, and a rating',
     use: 'marketing',
@@ -1250,13 +1781,13 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     surface: { kind: 'solid' },
     shapes: [
       { kind: 'rect', x: 0, y: 0, w: 0.06, h: 1, tone: 'accent', alpha: 0.9 },
-      { kind: 'circle', cx: 0.86, cy: 0.16, r: 0.1, tone: 'accent', alpha: 0.12 },
+      { kind: 'circle', cx: 0.86, cy: 0.16, r: 0.1, tone: 'secondary', alpha: 0.12 },
     ],
     slots: [
       { role: 'brand', x: 0.13, y: 0.09, w: 0.5, size: 0.026, weight: 800, upper: true, tracking: 0.18, font: 'sans', motion: { in: 'fade', at: 0, dur: 0.45 } },
-      { role: 'eyebrow', x: 0.13, y: 0.2, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, tone: 'accent', font: 'sans', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.13, y: 0.2, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, font: 'sans', motion: { in: 'rise', at: 0.2, dur: 0.45 } },
       { role: 'headline', x: 0.13, y: 0.27, w: 0.76, size: 0.062, weight: 500, tracking: -0.01, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
-      { role: 'subline', x: 0.13, y: 0.6, w: 0.66, size: 0.03, weight: 700, upper: true, tracking: 0.1, tone: 'accent', font: 'sans', motion: { in: 'fade', at: 0.8, dur: 0.5 } },
+      { role: 'subline', x: 0.13, y: 0.6, w: 0.66, size: 0.03, weight: 700, upper: true, tracking: 0.1, font: 'sans', motion: { in: 'fade', at: 0.8, dur: 0.5 } },
       { role: 'meta', x: 0.13, y: 0.67, w: 0.6, size: META, tone: 'muted', font: 'sans', motion: { in: 'fade', at: 0.95, dur: 0.45 } },
       { role: 'stats', x: 0.13, y: 0.8, w: 0.74, size: 0.028, direction: 'row', align: 'left', max: 3, font: 'sans', motion: { in: 'rise', at: 1.05, dur: 0.5 } },
       { role: 'contact', x: 0.13, y: 0.075, w: 0.8, size: CONTACT, weight: 600, direction: 'row', max: 3, fromBottom: true, font: 'sans', motion: { in: 'fade', at: 1.25, dur: 0.4 } },
@@ -1264,6 +1795,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'coming-soon',
+    look: { palette: 'twilight-pastel', type: 'statement', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Coming Soon',
     desc: 'One promise, a date, and room to breathe',
     use: 'marketing', industries: ['Technology & Media', 'Retail & Commerce'],
@@ -1293,6 +1826,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
 
   {
     key: 'property-listing',
+    look: { palette: 'graphite', type: 'modern', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Property Listing',
     desc: 'Price badge, spec strip, address — a listing that reads at a glance',
     use: 'industry', industries: ['Professional Services', 'Retail & Commerce'],
@@ -1319,6 +1854,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'before-after',
+    photoLed: true,
     label: 'Before & After',
     desc: 'Split down the middle, one label each side',
     use: 'marketing', industries: ['Fashion & Beauty', 'Trades & Industry', 'Home & Personal Services', 'Logistics & Mobility'],
@@ -1343,6 +1879,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'opening-hours',
+    look: { palette: 'red-earth', type: 'warmth', pattern: { key: 'dots', role: 'secondary', opacity: 0.06, scale: 0.06 } },
     label: 'Opening Hours',
     desc: 'A week of hours, laid out to be read from a doorway',
     use: 'business',
@@ -1354,7 +1891,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     ],
     slots: [
       { role: 'brand', x: 0.08, y: 0.1, w: 0.6, size: 0.034, weight: 800, motion: { in: 'fade', at: 0, dur: 0.45 } },
-      { role: 'eyebrow', x: 0.08, y: 0.18, w: 0.6, size: EYEBROW, upper: true, tracking: 0.26, tone: 'accent', font: 'mono', motion: { in: 'wipe', at: 0.2, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.08, y: 0.18, w: 0.6, size: EYEBROW, upper: true, tracking: 0.26, font: 'mono', motion: { in: 'wipe', at: 0.2, dur: 0.5 } },
       { role: 'headline', x: 0.08, y: 0.22, w: 0.8, size: 0.062, weight: 800, tracking: -0.02, motion: { in: 'rise', at: 0.3, dur: 0.55 } },
       // Hours are a price list with times where the money goes: label left,
       // value right, leader between. Reusing the row engine rather than
@@ -1365,6 +1902,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'vacancy',
+    look: { palette: 'adire-clay', type: 'modern', pattern: { key: 'grid', role: 'primary', opacity: 0.05, scale: 0.08 } },
     label: 'We Are Hiring',
     desc: 'Role, requirements, and exactly how to apply',
     use: 'business', industries: ['Professional Services', 'Education & Community', 'Technology & Media'],
@@ -1373,11 +1911,11 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     surface: { kind: 'gradient', angle: 165, intensity: 0.7, vignette: 0.2 },
     shapes: [
       { kind: 'wedge', corner: 'tr', w: 0.42, h: 0.2, tone: 'accent', alpha: 0.2 },
-      { kind: 'rect', x: 0, y: 0.88, w: 1, h: 0.12, tone: 'accent', alpha: 0.9 },
+      { kind: 'rect', x: 0.07, y: 0.9, w: 0.14, h: 0.006, tone: 'secondary' },
     ],
     slots: [
       { role: 'brand', x: 0.07, y: 0.08, w: 0.5, size: 0.028, weight: 800, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.45 } },
-      { role: 'eyebrow', x: 0.07, y: 0.17, w: 0.6, size: EYEBROW, upper: true, tracking: 0.24, treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 0.2, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.07, y: 0.17, w: 0.6, size: EYEBROW, upper: true, tracking: 0.24, treatment: 'pill', motion: { in: 'pop', at: 0.2, dur: 0.45 } },
       { role: 'headline', x: 0.07, y: 0.25, w: 0.8, size: 0.07, weight: 800, tracking: -0.025, motion: { in: 'rise', at: 0.35, dur: 0.6 } },
       { role: 'services', x: 0.07, y: 0.44, w: 0.8, size: LIST, gap: 1.5, bullet: 'check', max: 5, motion: { in: 'rise', at: 0.6, dur: 0.65 } },
       { role: 'cta', x: 0.07, y: 0.045, w: 0.6, size: 0.03, weight: 800, upper: true, tracking: 0.1, fromBottom: true, motion: { in: 'wipe', at: 1, dur: 0.5 } },
@@ -1386,6 +1924,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'pull-quote',
+    photoLed: true,
     label: 'Pull Quote',
     desc: 'One sentence, set like a book, attributed underneath',
     use: 'social',
@@ -1404,6 +1943,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'team-intro',
+    photoLed: true,
     label: 'Meet the Team',
     desc: 'A circular portrait frame, a name and what they do',
     use: 'business',
@@ -1448,6 +1988,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'order-delivery',
+    look: { palette: 'lagoon', type: 'street' },
     label: 'Order & Delivery',
     desc: 'Big WhatsApp call to action with the delivery area under it',
     use: 'industry', industries: ['Food & Hospitality', 'Logistics & Mobility', 'Local & Everyday Business'],
@@ -1489,6 +2030,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'company-profile',
+    look: { palette: 'navy-mono', type: 'modern' },
     label: 'Company Profile',
     desc: 'Cover for a profile or media kit, services down the side',
     use: 'business', industries: ['Professional Services', 'Technology & Media', 'Trades & Industry'],
@@ -1499,6 +2041,15 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { kind: 'rect', x: 0.62, y: 0, w: 0.38, h: 1, tone: 'white', alpha: 0.06 },
       { kind: 'rect', x: 0.07, y: 0.2, w: 0.16, h: 0.006, tone: 'accent' },
     ],
+    extraPages: [{
+      name: 'Inside',
+      slots: [
+        { role: 'eyebrow', x: 0.08, y: 0.1, w: 0.6, size: 0.026, upper: true, tracking: 0.26, tone: 'accent', motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'headline', x: 0.08, y: 0.17, w: 0.84, size: 0.055, weight: 700, motion: { in: 'rise', at: 0.1, dur: 0.5 } },
+        { role: 'services', x: 0.08, y: 0.32, w: 0.84, size: 0.03, motion: { in: 'rise', at: 0.3, dur: 0.6 } },
+        { role: 'contact', x: 0.08, y: 0.1, w: 0.84, size: 0.026, fromBottom: true, tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.4 } },
+      ],
+    }],
     slots: [
       { role: 'brand', x: 0.07, y: 0.1, w: 0.5, size: 0.032, weight: 700, upper: true, tracking: 0.18, motion: { in: 'fade', at: 0, dur: 0.45 } },
       { role: 'eyebrow', x: 0.07, y: 0.26, w: 0.5, size: EYEBROW, upper: true, tracking: 0.26, tone: 'accent', font: 'mono', motion: { in: 'wipe', at: 0.2, dur: 0.5 } },
@@ -1511,6 +2062,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'event-lineup',
+    look: { palette: 'indigo-dye', type: 'statement', pattern: { key: 'rings', role: 'secondary', opacity: 0.06, scale: 0.3 }, duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Event Lineup',
     desc: 'Numbered lineup with the date and venue pinned to the base',
     use: 'event', industries: ['Arts & Entertainment', 'Education & Community'],
@@ -1537,6 +2090,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'swiss-grid',
+    look: { palette: 'sun-and-ink', type: 'impact' },
     label: 'Swiss Grid',
     desc: 'Hard grid, one rule, everything aligned left',
     use: 'business', industries: ['Technology & Media', 'Professional Services', 'Arts & Entertainment'],
@@ -1546,14 +2100,14 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     shapes: [
       { kind: 'rect', x: 0.08, y: 0.135, w: 0.84, h: 0.006, tone: 'ink' },
       { kind: 'rect', x: 0.08, y: 0.7, w: 0.84, h: 0.006, tone: 'ink' },
-      { kind: 'rect', x: 0.08, y: 0.72, w: 0.2, h: 0.1, tone: 'accent' },
+      { kind: 'rect', x: 0.08, y: 0.72, w: 0.2, h: 0.1, tone: 'secondary' },
     ],
     slots: [
       { role: 'brand', x: 0.08, y: 0.08, w: 0.4, size: 0.026, weight: 400, upper: true, tracking: 0.2, font: 'mono', motion: { in: 'fade', at: 0, dur: 0.4 } },
       { role: 'meta', x: 0.6, y: 0.08, w: 0.32, size: META, align: 'right', upper: true, tracking: 0.14, font: 'mono', tone: 'muted', motion: { in: 'fade', at: 0.1, dur: 0.4 } },
       { role: 'headline', x: 0.08, y: 0.2, w: 0.84, size: 0.108, weight: 400, upper: true, tracking: -0.04, motion: { in: 'slide-right', at: 0.25, dur: 0.65 } },
       { role: 'subline', x: 0.08, y: 0.55, w: 0.56, size: SUB, tone: 'muted', motion: { in: 'rise', at: 0.6, dur: 0.55 } },
-      { role: 'eyebrow', x: 0.34, y: 0.235, w: 0.3, size: EYEBROW, upper: true, tracking: 0.24, tone: 'accent', font: 'mono', fromBottom: true, motion: { in: 'wipe', at: 0.85, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.34, y: 0.235, w: 0.3, size: EYEBROW, upper: true, tracking: 0.24, tone: 'secondary', font: 'mono', fromBottom: true, motion: { in: 'wipe', at: 0.85, dur: 0.5 } },
       { role: 'contact', x: 0.34, y: 0.1, w: 0.58, size: CONTACT, weight: 400, font: 'mono', direction: 'row', max: 3, fromBottom: true, motion: { in: 'fade', at: 1.05, dur: 0.4 } },
     ],
   },
@@ -1570,6 +2124,8 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
 
   {
     key: 'promo-mega-number',
+    look: { palette: 'royal-orange', type: 'impact', duotone: ['ground', 'primary'] },
+    photoLed: true,
     label: 'Mega Number',
     desc: 'The discount is the entire layout',
     use: 'marketing', industries: ['Retail & Commerce', 'Fashion & Beauty', 'Food & Hospitality'],
@@ -1577,16 +2133,22 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     mood: 'bold', scheme: 'dark', font: 'heavy',
     surface: { kind: 'solid', intensity: 1 },
     shapes: [
-      { kind: 'rect', x: 0, y: 0.86, w: 1, h: 0.14, tone: 'accent' },
-      { kind: 'circle', cx: 0.86, cy: 0.14, r: 0.1, tone: 'accent', alpha: 0.3 },
+      { kind: 'rect', x: 0.07, y: 0.9, w: 0.14, h: 0.006, tone: 'accent' },
+      { kind: 'circle', cx: 0.86, cy: 0.14, r: 0.1, tone: 'secondary', alpha: 0.3 },
     ],
     slots: [
       { role: 'brand', x: 0.07, y: 0.08, w: 0.5, size: 0.028, weight: 400, upper: true, tracking: 0.2, motion: { in: 'fade', at: 0, dur: 0.4 } },
-      { role: 'eyebrow', x: 0.07, y: 0.16, w: 0.55, size: EYEBROW, upper: true, tracking: 0.24, tone: 'accent', font: 'mono', motion: { in: 'wipe', at: 0.18, dur: 0.45 } },
+      { role: 'eyebrow', x: 0.07, y: 0.16, w: 0.55, size: EYEBROW, upper: true, tracking: 0.24, font: 'mono', motion: { in: 'wipe', at: 0.18, dur: 0.45 } },
       // 0.2 of the short edge. Nothing else on the canvas competes, and nothing
       // is allowed to sit inside its box.
       { role: 'headline', x: 0.06, y: 0.3, w: 0.88, size: 0.2, weight: 400, upper: true, tracking: -0.05, motion: { in: 'scale-out', at: 0.3, dur: 0.6, ease: 'spring' } },
-      { role: 'subline', x: 0.07, y: 0.62, w: 0.72, size: SUB, tone: 'muted', motion: { in: 'rise', at: 0.75, dur: 0.5 } },
+      /*
+       * Lowered from 0.62. This template sets its headline at 0.2 of the short
+       * edge — 216px on a square — because it exists for "50% OFF". A headline
+       * of ordinary length therefore needs three lines even after fitting, and
+       * 0.32 of room held two. The type stays mega; the room now matches it.
+       */
+      { role: 'subline', x: 0.07, y: 0.78, w: 0.72, size: SUB, tone: 'muted', motion: { in: 'rise', at: 0.75, dur: 0.5 } },
       { role: 'cta', x: 0.07, y: 0.045, w: 0.6, size: 0.032, weight: 400, upper: true, tracking: 0.12, fromBottom: true, motion: { in: 'slide-right', at: 0.95, dur: 0.5 } },
     ],
   },
@@ -1608,14 +2170,28 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
     slots: [
       { role: 'brand', x: 0.07, y: 0.08, w: 0.5, size: 0.03, weight: 700, upper: true, tracking: 0.16, motion: { in: 'fade', at: 0, dur: 0.4 } },
       { role: 'eyebrow', x: 0.07, y: 0.18, w: 0.6, size: EYEBROW, upper: true, tracking: 0.22, treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 0.2, dur: 0.45 } },
-      { role: 'headline', x: 0.07, y: 0.27, w: 0.72, size: 0.088, weight: 700, tracking: -0.03, motion: { in: 'slide-right', at: 0.32, dur: 0.55 } },
-      { role: 'price', x: 0.07, y: 0.68, w: 0.6, size: 0.028, weight: 700, gap: 1.9, max: 3, motion: { in: 'rise', at: 0.65, dur: 0.6 } },
+      /*
+        ── MADE TO MATCH ITS OWN NAME ─────────────────────────────────────
+
+        MEASURED: this shared a signature with `product-grid` — same anchor,
+        same md/heavy headline, same pill. It is called Diagonal Cut and its
+        wedge runs bottom-right, but nothing in the type followed the
+        diagonal: the headline sat in the same place as every other promo and
+        the prices ran down the LEFT, against the wedge rather than with it.
+
+        Now the eye travels the way the artwork does — oversized uppercase
+        claim at the top-left, prices landing inside the wedge at the
+        bottom-right. The composition and the shape finally agree.
+      */
+      { role: 'headline', x: 0.07, y: 0.27, w: 0.74, size: 0.135, weight: 800, upper: true, tracking: -0.04, motion: { in: 'slide-right', at: 0.32, dur: 0.55 } },
+      { role: 'price', x: 0.46, y: 0.63, w: 0.47, size: 0.028, weight: 700, align: 'right', gap: 1.9, max: 3, motion: { in: 'rise', at: 0.65, dur: 0.6 } },
       { role: 'cta', x: 0.62, y: 0.2, w: 0.31, size: 0.03, weight: 700, align: 'center', upper: true, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 0.95, dur: 0.5 } },
       { role: 'contact', x: 0.07, y: 0.07, w: 0.5, size: CONTACT, weight: 600, direction: 'row', max: 2, fromBottom: true, motion: { in: 'fade', at: 1.15, dur: 0.4 } },
     ],
   },
   {
     key: 'promo-sticker',
+    photoLed: true,
     label: 'Sticker',
     desc: 'A rotated offer sticker over a plain field',
     use: 'marketing', industries: ['Food & Hospitality', 'Retail & Commerce', 'Local & Everyday Business'],
@@ -1670,6 +2246,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'promo-frame',
+    photoLed: true,
     label: 'Bold Frame',
     desc: 'Thick accent border, everything inside it',
     use: 'marketing',
@@ -1716,6 +2293,7 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   },
   {
     key: 'promo-half-photo',
+    photoLed: true,
     label: 'Half Photo',
     desc: 'Picture on top, the offer on a solid block below',
     use: 'marketing', industries: ['Food & Hospitality', 'Fashion & Beauty', 'Health & Wellness'],
@@ -1760,6 +2338,545 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
       { role: 'cta', x: 0.24, y: 0.09, w: 0.52, size: 0.032, weight: 800, align: 'center', upper: true, treatment: 'pill', tone: 'accent', fromBottom: true, motion: { in: 'pop', at: 0.95, dur: 0.5 } },
     ],
   },
+  /*
+   * ── A SECOND WAVE OF LAYOUTS ─────────────────────────────────────────
+   *
+   * Composed from this system's own grid, type scale and slot vocabulary.
+   * Nothing here is traced from Canva, Freepik, Pinterest or Behance: those
+   * are licensed works, and a directory that redistributes them hands its
+   * customers a legal problem dressed as a template. What follows are
+   * arrangements of margin, hierarchy and negative space — the parts of
+   * design that belong to nobody.
+   *
+   * Each one answers a brief the catalogue could not: a strict grid, a
+   * price-led offer, a ticket, a quote, a numbered story, a stats strip.
+   */
+
+  {
+    key: 'grid-baseline',
+    photoLed: true,
+    label: 'Grid Baseline',
+    desc: 'Strict column, hairline rules, headline on the baseline',
+    use: 'marketing',
+    styles: ['editorial', 'minimal', 'tech'], tags: ['grid', 'minimal', 'corporate'],
+    mood: 'editorial', scheme: 'light', font: 'sans',
+    surface: { kind: 'solid', angle: 0, intensity: 0.12 },
+    camera: { move: 'none', amount: 0 },
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.08, w: 0.4, size: 0.034, upper: true, tracking: 0.18, font: 'mono', motion: { in: 'fade', at: 0, dur: 0.4 } },
+      { role: 'eyebrow', x: 0.08, y: 0.16, w: 0.5, size: EYEBROW, upper: true, tracking: 0.26, tone: 'accent', treatment: 'underline', motion: { in: 'wipe', at: 0.25, dur: 0.5 } },
+      { role: 'headline', x: 0.08, y: 0.52, w: 0.78, size: HEAD_HERO, weight: 800, tracking: -0.035, motion: { in: 'rise', at: 0.45, dur: 0.7 } },
+      { role: 'subline', x: 0.08, y: 0.76, w: 0.56, size: SUB, tone: 'muted', motion: { in: 'rise', at: 0.8, dur: 0.6 } },
+      { role: 'meta', x: 0.08, y: 0.1, w: 0.5, size: META, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 1, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'ultra-stack',
+    photoLed: true,
+    label: 'Ultra Stack',
+    desc: 'Centred stack, wide tracking, nothing else',
+    use: 'social',
+    styles: ['minimal', 'elegant', 'high-contrast'], tags: ['minimal', 'centred', 'statement'],
+    mood: 'minimal', scheme: 'dark', font: 'sans',
+    surface: { kind: 'solid', angle: 0, intensity: 0.9 },
+    camera: { move: 'none', amount: 0 },
+    slots: [
+      { role: 'eyebrow', x: 0.1, y: 0.3, w: 0.8, size: EYEBROW, upper: true, tracking: 0.42, align: 'center', tone: 'accent', motion: { in: 'fade', at: 0.1, dur: 0.6 } },
+      { role: 'headline', x: 0.1, y: 0.42, w: 0.8, size: HEAD_HERO, weight: 300, tracking: -0.01, align: 'center', motion: { in: 'rise', at: 0.4, dur: 0.8 } },
+      { role: 'subline', x: 0.16, y: 0.62, w: 0.68, size: SUB, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.8, dur: 0.6 } },
+      { role: 'cta', x: 0.3, y: 0.16, w: 0.4, size: 0.03, fromBottom: true, align: 'center', treatment: 'outline', upper: true, tracking: 0.2, motion: { in: 'pop', at: 1.05, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'corner-anchor',
+    photoLed: true,
+    label: 'Corner Anchor',
+    desc: 'Opposite corners, the middle left empty on purpose',
+    use: 'marketing',
+    styles: ['elegant', 'minimal', 'soft'], tags: ['negative-space', 'photo', 'modern'],
+    mood: 'minimal', scheme: 'light', font: 'sans',
+    surface: { kind: 'spotlight', angle: 135, intensity: 0.35 },
+    camera: { move: 'drift', amount: 0.04 },
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.08, w: 0.36, size: 0.038, motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.56, y: 0.09, w: 0.36, size: EYEBROW, upper: true, tracking: 0.2, align: 'right', tone: 'accent', motion: { in: 'fade', at: 0.3, dur: 0.5 } },
+      { role: 'headline', x: 0.08, y: 0.3, w: 0.62, size: HEAD, weight: 700, tracking: -0.025, fromBottom: true, motion: { in: 'rise', at: 0.5, dur: 0.7 } },
+      { role: 'contact', x: 0.56, y: 0.1, w: 0.36, size: META, fromBottom: true, align: 'right', tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.95, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'band-poster',
+    look: { palette: 'forest-mono', type: 'street', duotone: ['ground', 'primary'] },
+    photoLed: true,
+    label: 'Band Poster',
+    desc: 'Full-width accent band carrying the headline',
+    use: 'event',
+    styles: ['bold', 'cinematic', 'corporate'], tags: ['event', 'bold', 'poster'],
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 0, intensity: 0.6 },
+    camera: { move: 'push', amount: 0.06 },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0.985, w: 0.6, h: 0.015, tone: 'accent' },
+      { kind: 'rect', x: 0.6, y: 0.985, w: 0.4, h: 0.015, tone: 'secondary' },
+    ],
+    slots: [
+      { role: 'eyebrow', x: 0.08, y: 0.12, w: 0.6, size: EYEBROW, upper: true, tracking: 0.3, treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 0.1, dur: 0.5 } },
+      { role: 'headline', x: 0.06, y: 0.38, w: 0.88, size: HEAD_HERO, weight: 900, upper: true, tracking: -0.04, treatment: 'panel', motion: { in: 'wipe', at: 0.4, dur: 0.7 } },
+      { role: 'subline', x: 0.08, y: 0.62, w: 0.7, size: SUB, motion: { in: 'rise', at: 0.8, dur: 0.6 } },
+      { role: 'meta', x: 0.08, y: 0.18, w: 0.5, size: META, fromBottom: true, upper: true, tracking: 0.14, font: 'mono', motion: { in: 'fade', at: 1, dur: 0.5 } },
+      { role: 'cta', x: 0.62, y: 0.16, w: 0.3, size: 0.03, fromBottom: true, align: 'right', treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 1.1, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'offer-price',
+    look: { palette: 'saffron-market', type: 'warmth' },
+    label: 'Offer Price',
+    desc: 'Price does the shouting; everything else gets out of the way',
+    use: 'business',
+    styles: ['bold', 'corporate', 'playful'], tags: ['offer', 'retail', 'promotion'],
+    mood: 'bold', scheme: 'light', font: 'sans',
+    surface: { kind: 'gradient', angle: 20, intensity: 0.5 },
+    camera: { move: 'none', amount: 0 },
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.014, h: 1, tone: 'primary' },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.08, w: 0.4, size: 0.036, motion: { in: 'fade', at: 0, dur: 0.4 } },
+      { role: 'eyebrow', x: 0.08, y: 0.2, w: 0.5, size: EYEBROW, upper: true, tracking: 0.24, treatment: 'bar', motion: { in: 'wipe', at: 0.25, dur: 0.5 } },
+      /*
+        ── max, which this slot alone was missing ─────────────────────────
+
+        SEEN on the gallery: four price rows at 0.072 ran straight down
+        through the headline below them. Every other `price` slot in this
+        file caps its rows (2, 3, 5, 7); this one did not, so it drew however
+        many the content happened to carry — five, in the sample.
+
+        One row, because that is the template's own stated idea: "Price does
+        the shouting; everything else gets out of the way." A list of five is
+        a price LIST, and `price-list` already exists for that.
+      */
+      /*
+        Sized to fit a REAL row, not an ideal one.
+
+        A price row draws its label and its figure at the slot's own size, so
+        "Your first item  ₦2,500" is about 22 characters wide. At 0.072 in a
+        0.72 box that is ~0.79 of the page — it ran off the edge, which the
+        overflow guard did not catch because that guard measures text slots
+        and this is a list.
+
+        0.06 across 0.86 leaves room for a genuine item name. The headline
+        steps down to stay the supporting line, so the price still shouts —
+        which is the whole idea of this template.
+      */
+      { role: 'price', x: 0.08, y: 0.34, w: 0.86, size: 0.06, weight: 900, tracking: -0.04, max: 1, tone: 'secondary', motion: { in: 'pop', at: 0.45, dur: 0.6 } },
+      { role: 'headline', x: 0.08, y: 0.6, w: 0.72, size: 0.046, weight: 700, motion: { in: 'rise', at: 0.7, dur: 0.6 } },
+      { role: 'cta', x: 0.08, y: 0.16, w: 0.44, size: 0.032, fromBottom: true, treatment: 'pill', motion: { in: 'pop', at: 1, dur: 0.5 } },
+      { role: 'contact', x: 0.56, y: 0.17, w: 0.36, size: META, fromBottom: true, align: 'right', tone: 'muted', motion: { in: 'fade', at: 1.05, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'ticket-stub',
+    look: { palette: 'lagos-sunset', type: 'modern', pattern: { key: 'halftone', role: 'primary', opacity: 0.06, scale: 0.08 } },
+    label: 'Ticket Stub',
+    desc: 'Ticket geometry: a torn edge and the details in a row',
+    use: 'event',
+    styles: ['editorial', 'tech', 'cinematic'], tags: ['ticket', 'event', 'admission'],
+    mood: 'editorial', scheme: 'dark', font: 'mono',
+    surface: { kind: 'frame', angle: 0, intensity: 0.3 },
+    camera: { move: 'none', amount: 0 },
+    shapes: [
+      { kind: 'rect', x: 0.08, y: 0.2, w: 0.84, h: 0.004, tone: 'secondary', alpha: 0.6 },
+    ],
+    slots: [
+      { role: 'eyebrow', x: 0.08, y: 0.12, w: 0.5, size: EYEBROW, upper: true, tracking: 0.3, tone: 'accent', font: 'mono', motion: { in: 'fade', at: 0.05, dur: 0.4 } },
+      { role: 'headline', x: 0.08, y: 0.26, w: 0.84, size: 0.085, weight: 800, upper: true, tracking: -0.02, motion: { in: 'rise', at: 0.3, dur: 0.7 } },
+      { role: 'meta', x: 0.08, y: 0.52, w: 0.84, size: 0.026, upper: true, tracking: 0.16, tone: 'muted', font: 'mono', motion: { in: 'wipe', at: 0.6, dur: 0.5 } },
+      { role: 'subline', x: 0.08, y: 0.64, w: 0.6, size: SUB, tone: 'muted', motion: { in: 'fade', at: 0.8, dur: 0.5 } },
+      { role: 'qr', x: 0.74, y: 0.12, w: 0.18, fromBottom: true, motion: { in: 'pop', at: 1, dur: 0.5 } },
+      { role: 'contact', x: 0.08, y: 0.14, w: 0.56, size: META, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 1.05, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'menu-column',
+    look: { palette: 'terracotta-clay', type: 'editorial', pattern: { key: 'diamond-weave', role: 'secondary', opacity: 0.06, scale: 0.14, zone: 'top' } },
+    label: 'Menu Column',
+    desc: 'A list that reads like a menu, rules between the lines',
+    use: 'industry',
+    styles: ['organic', 'editorial', 'minimal'], tags: ['menu', 'services', 'pricing'],
+    mood: 'warm', scheme: 'light', font: 'serif',
+    surface: { kind: 'solid', angle: 0, intensity: 0.2 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Page 2',
+      slots: [
+        { role: 'eyebrow', x: 0.1, y: 0.1, w: 0.8, size: 0.028, upper: true, tracking: 0.3, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'headline', x: 0.1, y: 0.17, w: 0.8, size: 0.058, weight: 600, align: 'center', motion: { in: 'rise', at: 0.1, dur: 0.5 } },
+        { role: 'services', x: 0.12, y: 0.3, w: 0.76, size: 0.034, motion: { in: 'rise', at: 0.3, dur: 0.6 } },
+        { role: 'contact', x: 0.1, y: 0.1, w: 0.8, size: 0.026, fromBottom: true, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0.44, y: 0.955, w: 0.12, h: 0.005, tone: 'secondary' },
+    ],
+    slots: [
+      { role: 'brand', x: 0.1, y: 0.09, w: 0.8, size: 0.042, align: 'center', motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.1, y: 0.17, w: 0.8, size: EYEBROW, upper: true, tracking: 0.3, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.2, dur: 0.5 } },
+      { role: 'headline', x: 0.1, y: 0.25, w: 0.8, size: 0.07, weight: 600, align: 'center', motion: { in: 'rise', at: 0.35, dur: 0.6 } },
+      { role: 'services', x: 0.12, y: 0.4, w: 0.76, size: 0.034, motion: { in: 'rise', at: 0.55, dur: 0.7 } },
+      { role: 'contact', x: 0.1, y: 0.1, w: 0.8, size: META, fromBottom: true, align: 'center', tone: 'muted', motion: { in: 'fade', at: 1, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'quote-frame',
+    photoLed: true,
+    label: 'Quote Frame',
+    desc: 'One sentence, given the room it deserves',
+    use: 'social',
+    styles: ['elegant', 'minimal', 'soft'], tags: ['testimonial', 'quote', 'review'],
+    mood: 'minimal', scheme: 'light', font: 'serif',
+    surface: { kind: 'spotlight', angle: 0, intensity: 0.25 },
+    camera: { move: 'drift', amount: 0.03 },
+    slots: [
+      { role: 'eyebrow', x: 0.12, y: 0.16, w: 0.5, size: EYEBROW, upper: true, tracking: 0.26, tone: 'accent', motion: { in: 'fade', at: 0.1, dur: 0.5 } },
+      { role: 'headline', x: 0.12, y: 0.3, w: 0.76, size: 0.068, weight: 400, tracking: -0.01, motion: { in: 'rise', at: 0.35, dur: 0.8 } },
+      { role: 'subline', x: 0.12, y: 0.66, w: 0.5, size: 0.03, upper: true, tracking: 0.16, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.9, dur: 0.5 } },
+      { role: 'brand', x: 0.12, y: 0.12, w: 0.5, size: 0.032, fromBottom: true, tone: 'muted', motion: { in: 'fade', at: 1, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'stat-strip',
+    label: 'Stat Strip',
+    desc: 'Numbers in a row, with one line to explain them',
+    use: 'business',
+    styles: ['tech', 'editorial', 'corporate'], tags: ['stats', 'report', 'results'],
+    mood: 'editorial', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 90, intensity: 0.35 },
+    camera: { move: 'none', amount: 0 },
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.08, w: 0.44, size: 0.034, motion: { in: 'fade', at: 0, dur: 0.4 } },
+      { role: 'eyebrow', x: 0.08, y: 0.18, w: 0.6, size: EYEBROW, upper: true, tracking: 0.24, tone: 'accent', motion: { in: 'wipe', at: 0.2, dur: 0.5 } },
+      { role: 'headline', x: 0.08, y: 0.28, w: 0.8, size: 0.072, weight: 800, tracking: -0.03, motion: { in: 'rise', at: 0.4, dur: 0.7 } },
+      { role: 'stats', x: 0.08, y: 0.52, w: 0.84, size: 0.05, motion: { in: 'pop', at: 0.7, dur: 0.6 } },
+      { role: 'subline', x: 0.08, y: 0.16, w: 0.66, size: SUB, fromBottom: true, tone: 'muted', motion: { in: 'fade', at: 1, dur: 0.5 } },
+    ],
+  },
+
+  {
+    key: 'story-steps',
+    label: 'Story Steps',
+    desc: 'Three beats down the page, built for a vertical story',
+    use: 'social',
+    styles: ['high-contrast', 'bold', 'playful'], tags: ['story', 'vertical', 'steps'],
+    mood: 'bold', scheme: 'dark', font: 'sans',
+    surface: { kind: 'gradient', angle: 160, intensity: 0.5 },
+    camera: { move: 'push', amount: 0.05 },
+    slots: [
+      { role: 'eyebrow', x: 0.1, y: 0.1, w: 0.8, size: EYEBROW, upper: true, tracking: 0.28, tone: 'accent', treatment: 'pill', motion: { in: 'pop', at: 0.05, dur: 0.5 } },
+      { role: 'headline', x: 0.1, y: 0.22, w: 0.8, size: 0.082, weight: 800, tracking: -0.03, motion: { in: 'rise', at: 0.3, dur: 0.7 } },
+      { role: 'services', x: 0.12, y: 0.44, w: 0.76, size: 0.036, motion: { in: 'rise', at: 0.6, dur: 0.8 } },
+      { role: 'cta', x: 0.1, y: 0.18, w: 0.8, size: 0.034, fromBottom: true, align: 'center', treatment: 'pill', tone: 'accent', motion: { in: 'pop', at: 1.05, dur: 0.5 } },
+      { role: 'contact', x: 0.1, y: 0.1, w: 0.8, size: META, fromBottom: true, align: 'center', tone: 'muted', motion: { in: 'fade', at: 1.15, dur: 0.4 } },
+    ],
+  },
+
+  {
+    key: 'photo-foot',
+    photoLed: true,
+    label: 'Photo Foot',
+    desc: 'Picture on top, the words weighted into the bottom third',
+    use: 'marketing',
+    styles: ['elegant', 'high-contrast', 'cinematic'], tags: ['photo', 'overlay', 'product'],
+    mood: 'minimal', scheme: 'dark', font: 'sans',
+    surface: { kind: 'wash', angle: 180, intensity: 0.55, vignette: 0.4 },
+    camera: { move: 'drift', amount: 0.05 },
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.08, w: 0.4, size: 0.034, tone: 'onSurface', motion: { in: 'fade', at: 0, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.08, y: 0.4, w: 0.5, size: EYEBROW, upper: true, tracking: 0.22, fromBottom: true, tone: 'accent', motion: { in: 'fade', at: 0.4, dur: 0.5 } },
+      { role: 'headline', x: 0.08, y: 0.28, w: 0.8, size: HEAD, weight: 800, tracking: -0.03, fromBottom: true, tone: 'onSurface', motion: { in: 'rise', at: 0.55, dur: 0.7 } },
+      { role: 'subline', x: 0.08, y: 0.12, w: 0.64, size: SUB, fromBottom: true, tone: 'muted', motion: { in: 'rise', at: 0.85, dur: 0.6 } },
+    ],
+  },
+
+  {
+    key: 'card-front',
+    look: { palette: 'paper-ink', type: 'modern' },
+    label: 'Card Front',
+    desc: 'Business-card proportions: name, trade, and how to reach you',
+    use: 'business',
+    styles: ['minimal', 'editorial', 'tech'], tags: ['card', 'stationery', 'identity'],
+    mood: 'editorial', scheme: 'light', font: 'sans',
+    surface: { kind: 'solid', angle: 0, intensity: 0.1 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'brand', x: 0.09, y: 0.18, w: 0.8, size: 0.05, weight: 700, motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'contact', x: 0.09, y: 0.36, w: 0.82, size: 0.032, tone: 'muted', font: 'mono', motion: { in: 'rise', at: 0.15, dur: 0.5 } },
+        { role: 'cta', x: 0.09, y: 0.14, w: 0.6, size: 0.03, fromBottom: true, upper: true, tracking: 0.2, tone: 'accent', motion: { in: 'fade', at: 0.35, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0, y: 0.94, w: 0.72, h: 0.06, tone: 'primary' },
+      { kind: 'rect', x: 0.72, y: 0.94, w: 0.28, h: 0.06, tone: 'highlight' },
+    ],
+    slots: [
+      { role: 'headline', x: 0.09, y: 0.18, w: 0.6, size: 0.072, weight: 700, tracking: -0.02, motion: { in: 'rise', at: 0.1, dur: 0.6 } },
+      { role: 'brand', x: 0.09, y: 0.3, w: 0.6, size: 0.03, upper: true, tracking: 0.2, tone: 'muted', motion: { in: 'fade', at: 0.3, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.09, y: 0.42, w: 0.6, size: 0.03, upper: true, tracking: 0.26, tone: 'accent', motion: { in: 'wipe', at: 0.45, dur: 0.5 } },
+      { role: 'contact', x: 0.09, y: 0.14, w: 0.56, size: 0.028, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.6, dur: 0.5 } },
+      { role: 'qr', x: 0.74, y: 0.14, w: 0.17, fromBottom: true, motion: { in: 'pop', at: 0.8, dur: 0.5 } },
+    ],
+  },
+
+  /*
+   * ── BUSINESS CARDS ───────────────────────────────────────────────────
+   *
+   * A request for "a business card" used to return one layout and three
+   * covers, because one layout is all the library had. These are seven
+   * genuinely different cards — different composition, different hierarchy,
+   * different use of the ground — not one design in seven colours.
+   *
+   * What makes them different is structural: where the name sits relative to
+   * the company, whether the type or the logo leads, whether the ground is
+   * paper or ink, and whether a QR is part of the composition or absent.
+   *
+   * Portrait and landscape are NOT separate layouts. They are a canvas
+   * choice, and the editor refits a design between them — inventing a second
+   * copy of each card for the other orientation would be exactly the
+   * duplication this catalogue is supposed to avoid.
+   */
+
+  {
+    key: 'card-minimal',
+    look: { palette: 'harbour-blue', type: 'modern' },
+    label: 'Minimal Corporate Card',
+    desc: 'Name left, role beneath, contact along the foot',
+    use: 'business',
+    styles: ['minimal', 'corporate'], tags: ['business card', 'visiting card', 'contact', 'stationery', 'corporate'],
+    industries: ['Professional Services'],
+    mood: 'minimal', scheme: 'light', font: 'sans',
+    surface: { kind: 'solid', intensity: 0.08 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'brand', x: 0.09, y: 0.18, w: 0.8, size: 0.05, weight: 700, motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'contact', x: 0.09, y: 0.36, w: 0.82, size: 0.032, tone: 'muted', font: 'mono', motion: { in: 'rise', at: 0.15, dur: 0.5 } },
+        { role: 'cta', x: 0.09, y: 0.14, w: 0.6, size: 0.03, fromBottom: true, upper: true, tracking: 0.2, tone: 'accent', motion: { in: 'fade', at: 0.35, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.02, h: 1, tone: 'primary' },
+      { kind: 'circle', cx: 0.9, cy: 0.16, r: 0.05, tone: 'secondary' },
+    ],
+    slots: [
+      { role: 'headline', x: 0.08, y: 0.2, w: 0.66, size: 0.085, weight: 700, tracking: -0.02, motion: { in: 'rise', at: 0.1, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.08, y: 0.4, w: 0.6, size: 0.036, upper: true, tracking: 0.2, tone: 'accent', motion: { in: 'fade', at: 0.3, dur: 0.4 } },
+      { role: 'brand', x: 0.08, y: 0.54, w: 0.6, size: 0.042, weight: 600, motion: { in: 'fade', at: 0.4, dur: 0.4 } },
+      { role: 'contact', x: 0.08, y: 0.12, w: 0.84, size: 0.03, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.6, dur: 0.4 } },
+    ],
+  },
+
+  {
+    key: 'card-centred',
+    look: { palette: 'kente-field', type: 'editorial', pattern: { key: 'diamond-weave', role: 'secondary', opacity: 0.06, scale: 0.16, zone: 'top' } },
+    label: 'Clean Centre Card',
+    desc: 'Everything centred, generous margins',
+    use: 'business',
+    styles: ['minimal', 'elegant'], tags: ['business card', 'visiting card', 'centred', 'clean', 'stationery'],
+    mood: 'minimal', scheme: 'light', font: 'sans',
+    surface: { kind: 'frame', frame: 0.06, intensity: 0.2 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'brand', x: 0.1, y: 0.42, w: 0.8, size: 0.07, weight: 700, align: 'center', motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'eyebrow', x: 0.1, y: 0.56, w: 0.8, size: 0.028, upper: true, tracking: 0.3, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.2, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 1, h: 0.022, tone: 'highlight' },
+    ],
+    slots: [
+      { role: 'brand', x: 0.1, y: 0.22, w: 0.8, size: 0.04, upper: true, tracking: 0.3, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.1, dur: 0.4 } },
+      { role: 'headline', x: 0.1, y: 0.36, w: 0.8, size: 0.082, weight: 600, align: 'center', motion: { in: 'rise', at: 0.25, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.1, y: 0.55, w: 0.8, size: 0.032, upper: true, tracking: 0.24, align: 'center', tone: 'accent', motion: { in: 'fade', at: 0.45, dur: 0.4 } },
+      { role: 'contact', x: 0.1, y: 0.14, w: 0.8, size: 0.028, fromBottom: true, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.4 } },
+    ],
+  },
+
+  {
+    key: 'card-luxe-dark',
+    look: { palette: 'forest-brass', type: 'luxury', pattern: { key: 'grain', role: 'ink', opacity: 0.07, scale: 0.2 } },
+    label: 'Luxury Dark Card',
+    desc: 'Ink ground, serif name, restrained accent',
+    use: 'business',
+    styles: ['luxury', 'premium', 'elegant'], tags: ['business card', 'luxury', 'premium', 'dark', 'stationery'],
+    industries: ['Fashion & Beauty', 'Professional Services'],
+    mood: 'luxe', scheme: 'dark', font: 'serif',
+    surface: { kind: 'solid', intensity: 0.9 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'brand', x: 0.1, y: 0.42, w: 0.8, size: 0.07, weight: 700, align: 'center', motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'eyebrow', x: 0.1, y: 0.56, w: 0.8, size: 0.028, upper: true, tracking: 0.3, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.2, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0.09, y: 0.4, w: 0.12, h: 0.006, tone: 'primary' },
+    ],
+    slots: [
+      { role: 'headline', x: 0.09, y: 0.26, w: 0.7, size: 0.088, weight: 400, tracking: -0.01, motion: { in: 'rise', at: 0.15, dur: 0.6 } },
+      { role: 'eyebrow', x: 0.09, y: 0.46, w: 0.6, size: 0.03, upper: true, tracking: 0.3, tone: 'accent', motion: { in: 'wipe', at: 0.35, dur: 0.5 } },
+      { role: 'brand', x: 0.09, y: 0.2, w: 0.5, size: 0.034, fromBottom: true, upper: true, tracking: 0.22, motion: { in: 'fade', at: 0.5, dur: 0.4 } },
+      { role: 'contact', x: 0.09, y: 0.1, w: 0.82, size: 0.026, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.65, dur: 0.4 } },
+    ],
+  },
+
+  {
+    key: 'card-type-led',
+    look: { palette: 'cobalt-pop', type: 'impact' },
+    label: 'Typography Card',
+    desc: 'The name is the design; everything else gets out of the way',
+    use: 'business',
+    styles: ['editorial', 'bold', 'modern'], tags: ['business card', 'typographic', 'bold', 'name', 'stationery'],
+    mood: 'editorial', scheme: 'light', font: 'grotesk',
+    surface: { kind: 'solid', intensity: 0.1 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'brand', x: 0.1, y: 0.42, w: 0.8, size: 0.07, weight: 700, align: 'center', motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'eyebrow', x: 0.1, y: 0.56, w: 0.8, size: 0.028, upper: true, tracking: 0.3, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.2, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0.955, y: 0, w: 0.045, h: 0.72, tone: 'secondary' },
+      { kind: 'rect', x: 0.955, y: 0.72, w: 0.045, h: 0.28, tone: 'highlight' },
+    ],
+    slots: [
+      { role: 'headline', x: 0.07, y: 0.18, w: 0.86, size: 0.13, weight: 800, tracking: -0.045, upper: true, motion: { in: 'rise', at: 0.1, dur: 0.6 } },
+      { role: 'eyebrow', x: 0.07, y: 0.52, w: 0.5, size: 0.03, upper: true, tracking: 0.26, tone: 'accent', motion: { in: 'fade', at: 0.4, dur: 0.4 } },
+      { role: 'brand', x: 0.57, y: 0.52, w: 0.36, size: 0.03, upper: true, tracking: 0.26, align: 'right', tone: 'muted', motion: { in: 'fade', at: 0.5, dur: 0.4 } },
+      { role: 'contact', x: 0.07, y: 0.12, w: 0.86, size: 0.028, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.65, dur: 0.4 } },
+    ],
+  },
+
+  {
+    key: 'card-logo-led',
+    look: { palette: 'adire-clay', type: 'warmth', pattern: { key: 'rings', role: 'primary', opacity: 0.06, scale: 0.25, zone: 'right' } },
+    label: 'Logo-Led Card',
+    desc: 'Company first, person second, details at the foot',
+    use: 'business',
+    styles: ['corporate', 'modern'], tags: ['business card', 'logo', 'company', 'brand', 'stationery'],
+    industries: ['Professional Services', 'Technology & Media'],
+    mood: 'minimal', scheme: 'light', font: 'sans',
+    surface: { kind: 'gradient', angle: 160, intensity: 0.22 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'brand', x: 0.09, y: 0.18, w: 0.8, size: 0.05, weight: 700, motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'contact', x: 0.09, y: 0.36, w: 0.82, size: 0.032, tone: 'muted', font: 'mono', motion: { in: 'rise', at: 0.15, dur: 0.5 } },
+        { role: 'cta', x: 0.09, y: 0.14, w: 0.6, size: 0.03, fromBottom: true, upper: true, tracking: 0.2, tone: 'accent', motion: { in: 'fade', at: 0.35, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 0.018, h: 1, tone: 'secondary' },
+    ],
+    slots: [
+      { role: 'brand', x: 0.08, y: 0.18, w: 0.7, size: 0.075, weight: 800, tracking: -0.03, motion: { in: 'rise', at: 0.1, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.08, y: 0.38, w: 0.6, size: 0.028, upper: true, tracking: 0.26, tone: 'accent', motion: { in: 'wipe', at: 0.3, dur: 0.4 } },
+      { role: 'headline', x: 0.08, y: 0.26, w: 0.6, size: 0.048, weight: 600, fromBottom: true, motion: { in: 'fade', at: 0.45, dur: 0.4 } },
+      { role: 'contact', x: 0.08, y: 0.1, w: 0.84, size: 0.027, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.6, dur: 0.4 } },
+    ],
+  },
+
+  {
+    key: 'card-colour-block',
+    look: { palette: 'royal-orange', type: 'street' },
+    label: 'Colour Block Card',
+    desc: 'A band of brand colour carrying the name',
+    use: 'business',
+    styles: ['bold', 'high-contrast', 'modern'], tags: ['business card', 'colour', 'block', 'bold', 'stationery'],
+    mood: 'bold', scheme: 'light', font: 'sans',
+    surface: { kind: 'wash', angle: 0, intensity: 0.65 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'brand', x: 0.1, y: 0.42, w: 0.8, size: 0.07, weight: 700, align: 'center', motion: { in: 'fade', at: 0, dur: 0.4 } },
+        { role: 'eyebrow', x: 0.1, y: 0.56, w: 0.8, size: 0.028, upper: true, tracking: 0.3, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.2, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0, y: 0, w: 1, h: 0.44, tone: 'primary' },
+      { kind: 'rect', x: 0, y: 0.44, w: 1, h: 0.014, tone: 'highlight' },
+    ],
+    slots: [
+      { role: 'headline', x: 0.08, y: 0.16, w: 0.8, size: 0.09, weight: 800, tracking: -0.03, on: 'primary', motion: { in: 'wipe', at: 0.1, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.08, y: 0.52, w: 0.6, size: 0.03, upper: true, tracking: 0.24, tone: 'secondary', treatment: 'pill', motion: { in: 'pop', at: 0.35, dur: 0.4 } },
+      { role: 'brand', x: 0.08, y: 0.24, w: 0.6, size: 0.04, weight: 700, fromBottom: true, motion: { in: 'fade', at: 0.5, dur: 0.4 } },
+      { role: 'contact', x: 0.08, y: 0.1, w: 0.84, size: 0.027, fromBottom: true, tone: 'muted', motion: { in: 'fade', at: 0.6, dur: 0.4 } },
+    ],
+  },
+
+  {
+    key: 'card-qr',
+    look: { palette: 'moss-stone', type: 'modern', pattern: { key: 'grid', role: 'primary', opacity: 0.05, scale: 0.08 } },
+    label: 'QR Contact Card',
+    desc: 'A scannable code sized as part of the composition',
+    use: 'business',
+    styles: ['tech', 'modern', 'minimal'], tags: ['business card', 'qr', 'scan', 'contact', 'digital', 'stationery'],
+    industries: ['Technology & Media', 'Professional Services'],
+    mood: 'minimal', scheme: 'light', font: 'sans',
+    surface: { kind: 'solid', intensity: 0.08 },
+    camera: { move: 'none', amount: 0 },
+    extraPages: [{
+      name: 'Back',
+      slots: [
+        { role: 'qr', x: 0.36, y: 0.24, w: 0.28, motion: { in: 'pop', at: 0, dur: 0.4 } },
+        { role: 'cta', x: 0.1, y: 0.2, w: 0.8, size: 0.03, fromBottom: true, upper: true, tracking: 0.24, align: 'center', motion: { in: 'fade', at: 0.25, dur: 0.4 } },
+        { role: 'brand', x: 0.1, y: 0.12, w: 0.8, size: 0.028, fromBottom: true, align: 'center', tone: 'muted', motion: { in: 'fade', at: 0.35, dur: 0.4 } },
+      ],
+    }],
+    shapes: [
+      { kind: 'rect', x: 0, y: 0.95, w: 1, h: 0.05, tone: 'secondary' },
+    ],
+    slots: [
+      /*
+        ── THE CODE LEADS, BECAUSE THAT IS THE CARD ───────────────────────
+
+        MEASURED: this shared a signature with `card-front`. Both put the
+        name top-left at the same size and tucked a small QR into the right
+        edge — so the card called "QR Contact Card" was a standard card with
+        an accessory, not a card built around a code.
+
+        Inverted. The code is now the largest element and holds the left of
+        the composition; the name and role sit beside it. Somebody choosing
+        this over card-front is choosing a different object, which is what
+        the two entries in the gallery are promising.
+      */
+      { role: 'qr', x: 0.07, y: 0.18, w: 0.33, motion: { in: 'pop', at: 0.1, dur: 0.45 } },
+      { role: 'headline', x: 0.47, y: 0.21, w: 0.45, size: 0.066, weight: 700, tracking: -0.02, motion: { in: 'rise', at: 0.25, dur: 0.5 } },
+      { role: 'eyebrow', x: 0.47, y: 0.4, w: 0.45, size: 0.026, upper: true, tracking: 0.22, motion: { in: 'fade', at: 0.4, dur: 0.4 } },
+      { role: 'brand', x: 0.47, y: 0.52, w: 0.45, size: 0.032, weight: 600, motion: { in: 'fade', at: 0.5, dur: 0.4 } },
+      { role: 'contact', x: 0.47, y: 0.1, w: 0.45, size: 0.024, fromBottom: true, tone: 'muted', font: 'mono', motion: { in: 'fade', at: 0.6, dur: 0.4 } },
+    ],
+  },
+
+  // Branding, campaign, social, banner and print layouts from the Template
+  // Catalogue canvas. Their own file because there are 38 of them.
+  ...CATALOGUE_TEMPLATES,
 ];
 
 

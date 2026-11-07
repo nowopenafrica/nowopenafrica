@@ -1,10 +1,17 @@
 import { readFileSync } from 'node:fs';
-import { describe, it, expect } from 'vitest';
+import { createElement } from 'react';
+import { afterEach, describe, it, expect, vi } from 'vitest';
+import { cleanup, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 
+import TemplateGallery from '../components/create/TemplateGallery';
 import { DESIGN_TEMPLATES } from '../lib/designTemplates';
+import { NEEDS, isListed, listedFor, listedIn, type NeedSlug } from '../lib/create/needs';
+import { templateByKeyAnywhere } from '../lib/create/templateCatalogue';
 import { DESIGN_STYLES } from '../lib/design/styles';
 import { TYPE_PAIRINGS } from '../lib/design/typefaces';
 import { DESIGN_FORMATS } from '../data/studioPresets';
+import { exportPixelRatio } from '../lib/design/printSpec';
 
 /**
  * The design library on the PUBLIC Create page.
@@ -20,22 +27,74 @@ import { DESIGN_FORMATS } from '../data/studioPresets';
  * navigated, so it "worked", and it visibly did nothing.
  */
 
+/*
+ * The gallery's catalogue is the bundled layouts plus one UPLOADED row with no
+ * look, so the "filter after the merge" rule is exercised and not assumed.
+ */
+const UPLOADED_LABEL = 'Uploaded unfinished row';
+vi.mock('../hooks/useDesignCatalogue', async () => {
+  const mod = await import('../lib/designTemplates');
+  const base = mod.DESIGN_TEMPLATES.find((t) => !t.look)!;
+  const row = { ...base, key: 'uploaded-lookless-row', label: 'Uploaded unfinished row', look: undefined };
+  return { useDesignCatalogue: () => ({ templates: [...mod.DESIGN_TEMPLATES, row] }) };
+});
+
 const gallery = readFileSync('src/components/create/TemplateGallery.tsx', 'utf8');
+
+/**
+ * The same file with its comments removed.
+ *
+ * Guards that search for forbidden COPY must not read the notes explaining
+ * why that copy is forbidden. A comment saying "a catalogue of 649 designs
+ * read as one poster repeated" is a record of a fix, not a claim shown to
+ * anybody — and a guard that cannot tell the difference eventually gets
+ * worked around by deleting the explanation, which is the opposite of what
+ * it is for.
+ */
+const galleryCode = gallery
+  .replace(/\/\*[\s\S]*?\*\//g, '')
+  .replace(/(^|[^:])\/\/.*$/gm, '$1');
 const customiser = readFileSync('src/components/create/TemplateCustomiser.tsx', 'utf8');
+/*
+ * The gallery's sample copy moved here on 2026-10-14 so each layout can show
+ * what it is FOR, rather than all of them showing the same four lines. The
+ * no-invented-business rule did not move with it — this file still checks it,
+ * and sampleCopy.test.ts checks every string the module produces.
+ */
+const sampleCopy = readFileSync('src/lib/create/sampleCopy.ts', 'utf8');
 const marketplace = readFileSync('src/components/create/CreateMarketplace.tsx', 'utf8');
 const studio = readFileSync('src/components/studio/DesignStudio.tsx', 'utf8');
 
 describe('the work is public, not behind the sign-in', () => {
   it('is on the Create page itself', () => {
-    expect(marketplace).toContain('<TemplateGallery />');
+    /*
+     * Mounted, with or without props.
+     *
+     * This matched the literal `<TemplateGallery />` and broke the moment the
+     * gallery took one — while the thing it guards, that the work is on the
+     * PUBLIC page and not behind the sign-in, was never in question. An
+     * assertion that fails on a prop is testing the spelling, not the rule.
+     */
+    /*
+     * Since the Create page became request bar → need view, the gallery
+     * renders inside the need view, which the page mounts.
+     */
+    expect(marketplace).toMatch(/<NeedView[\s/>]/);
+    expect(readFileSync('src/components/create/NeedView.tsx', 'utf8')).toMatch(/<TemplateGallery[\s/>]/);
   });
 
   it('renders the REAL templates through the real renderer', () => {
     // Not screenshots and not a marketing mock-up: a gallery of
     // prettier-than-real previews is a promise the product then breaks.
     expect(gallery).toContain('TemplateSurface');
-    expect(gallery).toContain('DESIGN_TEMPLATES');
     expect(gallery).toContain('applyStyle');
+    /*
+     * The real CATALOGUE, which is now the shipped layouts plus whatever a
+     * creative manager has published — not a second, frozen copy of the
+     * shipped list. Reading DESIGN_TEMPLATES directly here would mean a
+     * published template appeared in the admin screen and nowhere else.
+     */
+    expect(gallery).toContain('useDesignCatalogue');
   });
 
   it('waits for the typefaces before it draws', () => {
@@ -46,9 +105,11 @@ describe('the work is public, not behind the sign-in', () => {
   });
 
   it('claims a library size it can prove', () => {
-    expect(gallery).toContain('libraryDepth()');
+    /* The designs on offer, counted - never layouts multiplied by styles. */
+    expect(gallery).toMatch(/\{listed\.length\.toLocaleString\('en-NG'\)\} designs/);
+    expect(gallery).not.toMatch(/libraryDepth/);
     // No written count anywhere — 312 must never be a literal in the copy.
-    expect(gallery).not.toMatch(/\b(\d{3,})\s+designs/);
+    expect(galleryCode).not.toMatch(/\b(\d{3,})\s+designs/);
   });
 });
 
@@ -65,8 +126,17 @@ describe('a card opens the design it shows', () => {
   });
 
   it('carries the template and the style when it does go to Studio', () => {
-    expect(customiser).toMatch(/module=design&template=\$\{encodeURIComponent\(template\.key\)\}/);
-    expect(customiser).toMatch(/&style=\$\{encodeURIComponent\(styleKey\)\}/);
+    /*
+     * The RULE is that the link carries the design, not that it is spelled a
+     * particular way. It used to point at /studio?module=design — the
+     * brand-kit module, a different and older editor that knew nothing about
+     * the layout, the size or the words just typed. It now points at
+     * /media/studio and carries template, style, accent, size and copy.
+     */
+    expect(customiser).toContain('/media/studio?');
+    expect(customiser).toMatch(/template: template\.key/);
+    expect(customiser).toMatch(/style: styleKey/);
+    expect(customiser).toMatch(/accent: brand/);
   });
 
   it('and Studio honours both, after checking they exist', () => {
@@ -121,8 +191,19 @@ describe('the download', () => {
   it('caps the raster, so a billboard does not kill the tab', () => {
     // 4500px at pixelRatio 2 is a 9000px canvas. A mid-range Android cannot
     // allocate it and the tab dies with no error anybody can act on.
-    expect(customiser).toContain('MAX_EXPORT_EDGE');
-    expect(customiser).toMatch(/Math\.min\(2, MAX_EXPORT_EDGE/);
+    //
+    // The cap used to be a local constant here and is now shared with
+    // lib/design/printSpec.ts, which is what tells the customer the
+    // resolution they will receive. Two copies of the rule would let the
+    // size picker promise one thing and the download produce another, so
+    // this asserts the component calls the shared one — and then asserts
+    // what the rule actually DOES, which grepping for a constant never did.
+    expect(customiser).toContain('exportPixelRatio');
+    expect(customiser).toMatch(/pixelRatio: exportPixelRatio\(/);
+    expect(exportPixelRatio(4500)).toBe(1);
+    expect(4500 * exportPixelRatio(4500)).toBeLessThanOrEqual(4500);
+    // A small canvas is still rendered up, rather than shipped soft.
+    expect(exportPixelRatio(1000)).toBe(2);
   });
 
   it('exports the format the customer chose, at its own pixel size', () => {
@@ -137,7 +218,7 @@ describe('the download', () => {
 
 describe('nothing is fabricated', () => {
   it('uses placeholder copy, never an invented business', () => {
-    for (const src of [gallery, customiser]) {
+    for (const src of [sampleCopy, customiser]) {
       expect(src).toMatch(/Your business/);
       expect(src).toMatch(/Your headline here/);
       // No plausible-looking phone number, and no invented review or rating.
@@ -148,8 +229,12 @@ describe('nothing is fabricated', () => {
   });
 
   it('shows the placeholders as labels, so nobody mistakes them for data', () => {
-    expect(customiser).toContain("'Your phone'");
-    expect(customiser).toContain("'Your first service'");
+    // The panel's lists come from sampleFor(), the same source the card uses,
+    // so the labels live in sampleCopy.ts rather than being repeated here.
+    expect(customiser).toContain('sampleFor(template)');
+    const copy = readFileSync('src/lib/create/sampleCopy.ts', 'utf8');
+    expect(copy).toContain("'Your phone'");
+    expect(copy).toContain("'Your first service'");
   });
 });
 
@@ -159,7 +244,7 @@ describe('it does not stall the page', () => {
     // and clip paths. Thirty-nine at once is a visible stall on the phones this
     // page is mostly read on.
     expect(gallery).toContain('IntersectionObserver');
-    expect(gallery).toMatch(/setShown/);
+    expect(gallery).toMatch(/setPages/);
   });
 
   it('measures the preview scale rather than assuming one', () => {
@@ -174,7 +259,8 @@ describe('it does not stall the page', () => {
     expect(gallery).toMatch(/results\.slice\(0, shown\)/);
   });
 
-  it('shows six across on a desktop and steps down to two on a phone', () => {
+  it('shows seven across on a wide desktop and steps down to two on a phone', () => {
+    expect(gallery).toContain('xl:grid-cols-7');
     expect(gallery).toContain('lg:grid-cols-6');
     expect(gallery).toContain('grid-cols-2');
     expect(gallery).toContain('sm:grid-cols-3');
@@ -182,10 +268,22 @@ describe('it does not stall the page', () => {
   });
 
   it('pages by a number every column count divides', () => {
-    // 12 works at 2, 3, 4 and 6 across, so a row is never left part-full and
-    // "Show more" cannot produce a ragged one.
-    expect(gallery).toMatch(/const PAGE = 12;/);
-    for (const cols of [2, 3, 4, 6]) expect(12 % cols, `${cols} across`).toBe(0);
+    /*
+     * This asserted the literal `const PAGE = 12`, and the component has
+     * since been changed to `columns * 2` — pages measured in ROWS rather
+     * than cards.
+     *
+     * The new rule is strictly better at the thing the old one was for. 12
+     * divides 2, 3, 4 and 6, but NOT 7, and the grid goes to 7 across; a
+     * fixed 12 therefore left a ragged row at the widest breakpoint, which
+     * is exactly what this test exists to prevent. Two rows is whole at
+     * every column count there will ever be, including after a resize.
+     *
+     * So the assertion follows the intent rather than the constant.
+     */
+    expect(gallery).toMatch(/const PAGE = columns \* 2;/);
+    expect(gallery).toMatch(/const shown = pages \* PAGE;/);
+    expect(gallery).toMatch(/setPages\(\(n\) => n \+ 1\)/);
   });
 });
 
@@ -306,5 +404,48 @@ describe('modern promo layouts', () => {
       expect(promoBlock, move).toContain(`'${move}'`);
     }
     expect(promoBlock).toMatch(/ease: '(spring|elastic)'/);
+  });
+});
+
+describe('the gallery lists needs, then their things, and only finished designs', () => {
+  afterEach(cleanup);
+  // jsdom has no scrollIntoView; the focus signal calls it.
+  Element.prototype.scrollIntoView = () => {};
+  const mount = (focus?: { need: NeedSlug | ''; deliverable: string; n: number }) =>
+    render(createElement(MemoryRouter, null, createElement(TemplateGallery, { focus })));
+  const cards = () => screen.queryAllByRole('button', { name: /^Edit / });
+  const labels = () => cards().map((c) => c.getAttribute('aria-label'));
+  /*
+   * The need and item chips live in the need view now (createPage.test.tsx
+   * covers which needs and things are offered); the gallery is steered by
+   * `focus`.
+   */
+  it('a focus on stationery and business card shows only the business cards', () => {
+    mount({ need: 'stationery', deliverable: 'business-card', n: 1 });
+    const expected = listedFor('business-card');
+    expect(expected.length).toBeGreaterThan(0);
+    expect(cards()).toHaveLength(Math.min(expected.length, 12));
+    const names = new Set(expected.map((t) => `Edit ${t.label}`));
+    for (const l of labels()) expect(names.has(l ?? '')).toBe(true);
+  });
+
+  it('does not render a lookless code template or an uploaded row without a look', () => {
+    mount();
+    const shown = labels();
+    const lookless = DESIGN_TEMPLATES.filter((t) => !isListed(t));
+    expect(lookless.length).toBeGreaterThan(0);
+    for (const t of lookless) expect(shown).not.toContain(`Edit ${t.label}`);
+    expect(shown).not.toContain(`Edit ${UPLOADED_LABEL}`);
+  });
+
+  it('shows every listed design of a focused need, even the thinnest', () => {
+    const thinnest = [...NEEDS].sort((a, b) => listedIn(a.slug).length - listedIn(b.slug).length)[0];
+    mount({ need: thinnest.slug, deliverable: '', n: 1 });
+    expect(cards()).toHaveLength(listedIn(thinnest.slug).length);
+  });
+
+  it('keeps a lookless template reachable by key', async () => {
+    const lookless = DESIGN_TEMPLATES.find((t) => !isListed(t))!;
+    expect((await templateByKeyAnywhere(lookless.key))?.key).toBe(lookless.key);
   });
 });

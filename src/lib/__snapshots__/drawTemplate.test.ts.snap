@@ -1,0 +1,4178 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`drawTemplateFrame — looks > still paints a look-less template exactly as before > price-block 1`] = `
+[
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "op": "clearRect",
+  },
+  {
+    "args": [
+      "#0b1220",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "#0b1220",
+    "op": "fillRect",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      368.8268590217982,
+      -98.82685902179844,
+      711.1731409782018,
+      1178.8268590217986,
+    ],
+    "op": "createLinear",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0,
+      "rgba(168, 80, 51, 0.6)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0.5,
+      "rgba(154, 52, 18, 0.6)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      1,
+      "rgba(10, 16, 29, 0.96)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "[Linear#0]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      129.6,
+      64.8,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      864,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      "rgba(184, 113, 89, 0.38)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      1,
+      "rgba(154, 52, 18, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#1]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      540,
+      486,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      1242,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0.42,
+      "rgba(0, 0, 0, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      1,
+      "rgba(0, 0, 0, 0.24)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#2]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      108,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 45px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Mama Put Kitchen",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      280.8,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 24px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "5.76px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      25.944,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      124.296,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      150.24,
+      -10.584,
+      150.24,
+      15.36,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      150.24,
+      15.360000000000003,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      150.24,
+      41.304,
+      124.296,
+      41.304,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      25.944,
+      41.304,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      41.304,
+      0,
+      15.360000000000003,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      15.36,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+      25.944,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(154, 52, 18, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(154, 52, 18, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "THIS WEEKEND",
+      0,
+      0,
+    ],
+    "fill": "#9a3412",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      388.8,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "900 92px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "-3.68px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Two plates for the price of one",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      734.4000000000001,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 35px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.72)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Friday to Sunday, dine in only",
+      0,
+      0,
+    ],
+    "fill": "rgba(255, 255, 255, 0.72)",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      885.6,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 35px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      32.984,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      77.256,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      -10.584,
+      110.24000000000001,
+      22.400000000000002,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      22.4,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      55.384,
+      77.256,
+      55.384,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      32.984,
+      55.384,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      55.384,
+      0,
+      22.4,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      22.400000000000002,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+      32.984,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(255, 255, 255, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Book now",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      972,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 22px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.72)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "nowopenafrica.com/mama-put",
+      0,
+      0,
+    ],
+    "fill": "rgba(255, 255, 255, 0.72)",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      831.6,
+      896.4,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+]
+`;
+
+exports[`drawTemplateFrame — looks > still paints a look-less template exactly as before > promo-burst +opts 1`] = `
+[
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "op": "clearRect",
+  },
+  {
+    "args": [
+      "#1e293b",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "#1e293b",
+    "op": "fillRect",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      108.62843108573503,
+      -76.06244631012578,
+      971.371568914265,
+      1156.0624463101258,
+    ],
+    "op": "createLinear",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0,
+      "rgba(168, 80, 51, 0.62)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0.5,
+      "rgba(154, 52, 18, 0.62)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      1,
+      "rgba(27, 37, 53, 0.96)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "[Linear#0]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      129.6,
+      64.8,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      864,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      "rgba(184, 113, 89, 0.38)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      1,
+      "rgba(154, 52, 18, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#1]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      540,
+      486,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      1242,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0.42,
+      "rgba(0, 0, 0, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      1,
+      "rgba(0, 0, 0, 0.2)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#2]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0.9,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      907.1999999999999,
+      162,
+      140.4,
+      0,
+      6.283185307179586,
+    ],
+    "op": "arc",
+  },
+  {
+    "args": [],
+    "fill": "#9a3412",
+    "op": "fill",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0.35,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      "#000000",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      -41.04,
+      648,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      1146.96,
+      648,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      1134,
+      756,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      -54,
+      756,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [],
+    "fill": "#000000",
+    "op": "fill",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      86.4,
+      91.80000000000001,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "800 30px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "4.8px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "MAMA PUT KITCHEN",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      86.4,
+      216,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 26px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "5.72px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      27.224,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      123.016,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      150.24,
+      -10.584,
+      150.24,
+      16.64,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      150.24,
+      16.640000000000004,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      150.24,
+      43.864000000000004,
+      123.016,
+      43.864000000000004,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      27.224,
+      43.864000000000004,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      43.864000000000004,
+      0,
+      16.640000000000004,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      16.64,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+      27.224,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(154, 52, 18, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(154, 52, 18, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "THIS WEEKEND",
+      0,
+      0,
+    ],
+    "fill": "#9a3412",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      86.4,
+      313.2,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "800 89px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "-2.67px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "TWO PLATES FOR THE PRICE OF ONE",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      86.4,
+      669.6,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "700 35px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "2.8000000000000003px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "FRIDAY TO SUNDAY, DINE IN ONLY",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      86.4,
+      788.4,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 24px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.72)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "nowopenafrica.com/mama-put",
+      0,
+      0,
+    ],
+    "fill": "rgba(255, 255, 255, 0.72)",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      86.4,
+      874.8,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "800 35px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      32.984,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      77.256,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      -10.584,
+      110.24000000000001,
+      22.400000000000002,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      22.4,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      55.384,
+      77.256,
+      55.384,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      32.984,
+      55.384,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      55.384,
+      0,
+      22.4,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      22.400000000000002,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+      32.984,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(154, 52, 18, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(154, 52, 18, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "BOOK NOW",
+      0,
+      0,
+    ],
+    "fill": "#9a3412",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      0,
+      0,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "700 21px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "0803 000 0000",
+      86.4,
+      1003.8,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "700 21px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "hello@mamaput.ng",
+      388.79999999999995,
+      1003.8,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "700 21px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "mamaput.ng",
+      691.1999999999999,
+      1003.8,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+]
+`;
+
+exports[`drawTemplateFrame — looks > still paints a look-less template exactly as before > statement +opts 1`] = `
+[
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "op": "clearRect",
+  },
+  {
+    "args": [
+      540,
+      540,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1.005,
+      1.005,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      -540,
+      -540,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "#0b1220",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "#0b1220",
+    "op": "fillRect",
+  },
+  {
+    "args": [
+      0.8,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      "[object]",
+      -180,
+      0,
+      1440,
+      1080,
+    ],
+    "fill": "#0b1220",
+    "op": "drawImage",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      539.9999999999999,
+      -1.1368683772161603e-13,
+      540.0000000000001,
+      1080,
+    ],
+    "op": "createLinear",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0,
+      "rgba(7, 12, 21, 0.588)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      1,
+      "rgba(5, 8, 14, 0.588)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "[Linear#0]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      302.40000000000003,
+      151.20000000000002,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      918,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      "rgba(176, 97, 70, 0.372)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0.45,
+      "rgba(154, 52, 18, 0.186)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      1,
+      "rgba(154, 52, 18, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#1]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      540,
+      486,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      1242,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0.42,
+      "rgba(0, 0, 0, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      1,
+      "rgba(0, 0, 0, 0.34)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#2]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0.992,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      270,
+      108,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 50px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Mama Put Kitchen",
+      270,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0.657,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      270,
+      345.6,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      270,
+      0,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      0.9657,
+      0.9657,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      -270,
+      0,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 26px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "6.76px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      222.10399999999998,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      317.896,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      345.12,
+      -10.584,
+      345.12,
+      16.64,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      345.12,
+      16.640000000000004,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      345.12,
+      43.864000000000004,
+      317.896,
+      43.864000000000004,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      222.10399999999998,
+      43.864000000000004,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      194.88,
+      43.864000000000004,
+      194.88,
+      16.640000000000004,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      194.88,
+      16.64,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      194.88,
+      -10.584,
+      222.10399999999998,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(154, 52, 18, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(154, 52, 18, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "THIS WEEKEND",
+      270,
+      0,
+    ],
+    "fill": "#9a3412",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+]
+`;
+
+exports[`drawTemplateFrame — looks > still paints a look-less template exactly as before > statement 1`] = `
+[
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "op": "clearRect",
+  },
+  {
+    "args": [
+      "#0b1220",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "#0b1220",
+    "op": "fillRect",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      539.9999999999999,
+      -1.1368683772161603e-13,
+      540.0000000000001,
+      1080,
+    ],
+    "op": "createLinear",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0,
+      "rgba(7, 12, 21, 0.98)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      1,
+      "rgba(5, 8, 14, 0.98)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "[Linear#0]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      302.40000000000003,
+      151.20000000000002,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      918,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      "rgba(176, 97, 70, 0.62)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0.45,
+      "rgba(154, 52, 18, 0.31)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      1,
+      "rgba(154, 52, 18, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#1]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      540,
+      486,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      1242,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0.42,
+      "rgba(0, 0, 0, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      1,
+      "rgba(0, 0, 0, 0.34)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#2]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      270,
+      108,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 50px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Mama Put Kitchen",
+      270,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      270,
+      345.6,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 26px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "6.76px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      222.10399999999998,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      317.896,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      345.12,
+      -10.584,
+      345.12,
+      16.64,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      345.12,
+      16.640000000000004,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      345.12,
+      43.864000000000004,
+      317.896,
+      43.864000000000004,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      222.10399999999998,
+      43.864000000000004,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      194.88,
+      43.864000000000004,
+      194.88,
+      16.640000000000004,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      194.88,
+      16.64,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      194.88,
+      -10.584,
+      222.10399999999998,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(154, 52, 18, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(154, 52, 18, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "THIS WEEKEND",
+      270,
+      0,
+    ],
+    "fill": "#9a3412",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      86.4,
+      442.79999999999995,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "900 109px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "-3.27px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Two plates for the price of one",
+      453.59999999999997,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      172.8,
+      712.8000000000001,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 39px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.72)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Friday to Sunday, dine in only",
+      367.20000000000005,
+      0,
+    ],
+    "fill": "rgba(255, 255, 255, 0.72)",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      324,
+      864,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 32px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      191.944,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      240.056,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      271.12,
+      -10.584,
+      271.12,
+      20.48,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      271.12,
+      20.479999999999997,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      271.12,
+      51.544,
+      240.056,
+      51.544,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      191.944,
+      51.544,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      160.88,
+      51.544,
+      160.88,
+      20.479999999999997,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      160.88,
+      20.48,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      160.88,
+      -10.584,
+      191.944,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(255, 255, 255, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Book now",
+      216,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      216,
+      972,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 24px Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "center",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.72)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "nowopenafrica.com/mama-put",
+      324,
+      0,
+    ],
+    "fill": "rgba(255, 255, 255, 0.72)",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+]
+`;
+
+exports[`drawTemplateFrame — looks > still paints a look-less template exactly as before > ticket 1`] = `
+[
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "op": "clearRect",
+  },
+  {
+    "args": [
+      "#0b1220",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "#0b1220",
+    "op": "fillRect",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      -98.82685902179844,
+      171.1731409782018,
+      1178.8268590217986,
+      908.8268590217982,
+    ],
+    "op": "createLinear",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0,
+      "rgba(168, 80, 51, 0.44)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0.5,
+      "rgba(154, 52, 18, 0.44)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      1,
+      "rgba(10, 16, 29, 0.96)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "[Linear#0]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      129.6,
+      64.8,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      864,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      0,
+      "rgba(184, 113, 89, 0.38)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+      1,
+      "rgba(154, 52, 18, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#1]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#1]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      540,
+      486,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      1,
+      1,
+    ],
+    "op": "scale",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0,
+      0,
+      0,
+      0,
+      0,
+      1242,
+    ],
+    "op": "createRadial",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      0.42,
+      "rgba(0, 0, 0, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+      1,
+      "rgba(0, 0, 0, 0.3)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Radial#2]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      -2160,
+      -2160,
+      4320,
+      4320,
+    ],
+    "fill": "[Radial#2]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      118.8,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 45px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Mama Put Kitchen",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      259.2,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 24px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "6.24px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      150.24,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      150.24,
+      -10.584,
+      150.24,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      150.24,
+      41.304,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      150.24,
+      41.304,
+      150.24,
+      41.304,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      41.304,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      41.304,
+      0,
+      41.304,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+      0,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.75)",
+    ],
+    "op": "set:strokeStyle",
+  },
+  {
+    "args": [
+      3.24,
+    ],
+    "op": "set:lineWidth",
+  },
+  {
+    "args": [],
+    "op": "stroke",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "THIS WEEKEND",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      324,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "700 106px "Bebas Neue", "Arial Narrow", "Helvetica Neue Condensed", Impact, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "-2.12px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "TWO PLATES FOR THE PRICE OF ONE",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      648,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 35px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      21.6,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      308.64,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      330.24,
+      -10.584,
+      330.24,
+      11.016000000000002,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      330.24,
+      33.784,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      330.24,
+      55.384,
+      308.64,
+      55.384,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      21.6,
+      55.384,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      55.384,
+      0,
+      33.784,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      11.016000000000002,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+      21.6,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(11, 18, 32, 0.55)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(11, 18, 32, 0.55)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#ffffff",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Friday to Sunday, dine in only",
+      0,
+      0,
+    ],
+    "fill": "#ffffff",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      97.2,
+      950.4,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 23px "Space Mono", "SF Mono", ui-monospace, Menlo, Consolas, monospace",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "rgba(255, 255, 255, 0.72)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "nowopenafrica.com/mama-put",
+      0,
+      0,
+    ],
+    "fill": "rgba(255, 255, 255, 0.72)",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      820.8,
+      896.4,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+]
+`;
+
+exports[`drawTemplateFrame — looks > still paints a look-less template exactly as before > web-hero 1`] = `
+[
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "op": "clearRect",
+  },
+  {
+    "args": [
+      "#f7f7f5",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "#f7f7f5",
+    "op": "fillRect",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      539.9999999999999,
+      -1.1368683772161603e-13,
+      540.0000000000001,
+      1080,
+    ],
+    "op": "createLinear",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      0,
+      "rgba(241, 241, 239, 0.97)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+      1,
+      "rgba(247, 247, 246, 0.97)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#0]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "[Linear#0]",
+    "op": "fillRect",
+  },
+  {
+    "args": [
+      "[Linear#1]",
+      1190.3846542574897,
+      843.2793450267586,
+      -110.38465425748961,
+      236.72065497324138,
+    ],
+    "op": "createLinear",
+  },
+  {
+    "args": [
+      "[Linear#1]",
+      0,
+      "rgba(154, 52, 18, 0.48)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#1]",
+      0.42,
+      "rgba(154, 52, 18, 0.105)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#1]",
+      0.75,
+      "rgba(154, 52, 18, 0)",
+    ],
+    "op": "stop",
+  },
+  {
+    "args": [
+      "[Linear#1]",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      0,
+      0,
+      1080,
+      1080,
+    ],
+    "fill": "[Linear#1]",
+    "op": "fillRect",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0.55,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      918,
+      540,
+      594,
+      0,
+      6.283185307179586,
+    ],
+    "op": "arc",
+  },
+  {
+    "args": [],
+    "fill": "#9a3412",
+    "op": "fill",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      0.25,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      918,
+      540,
+      777.6,
+      0,
+      6.283185307179586,
+    ],
+    "op": "arc",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:strokeStyle",
+  },
+  {
+    "args": [
+      6.48,
+    ],
+    "op": "set:lineWidth",
+  },
+  {
+    "args": [],
+    "op": "stroke",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      54,
+      108,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "800 49px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "7.84px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#0b1220",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "MAMA PUT KITCHEN",
+      0,
+      0,
+    ],
+    "fill": "#0b1220",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      54,
+      302.40000000000003,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "800 94px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "-3.2900000000000005px",
+    ],
+    "op": "set:letterSpacing",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "#0b1220",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Two plates for the price of one",
+      0,
+      0,
+    ],
+    "fill": "#0b1220",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      54,
+      712.8000000000001,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "600 52px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [
+      "rgba(11, 18, 32, 0.72)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "Friday to Sunday, dine in only",
+      0,
+      0,
+    ],
+    "fill": "rgba(11, 18, 32, 0.72)",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "save",
+  },
+  {
+    "args": [
+      1,
+    ],
+    "op": "set:globalAlpha",
+  },
+  {
+    "args": [
+      54,
+      993.6,
+    ],
+    "op": "translate",
+  },
+  {
+    "args": [
+      "800 17px Outfit, Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif",
+    ],
+    "op": "set:font",
+  },
+  {
+    "args": [
+      "top",
+    ],
+    "op": "set:textBaseline",
+  },
+  {
+    "args": [
+      "left",
+    ],
+    "op": "set:textAlign",
+  },
+  {
+    "args": [],
+    "op": "beginPath",
+  },
+  {
+    "args": [
+      21.464,
+      -10.584,
+    ],
+    "op": "moveTo",
+  },
+  {
+    "args": [
+      88.77600000000001,
+      -10.584,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      -10.584,
+      110.24000000000001,
+      10.879999999999999,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      10.879999999999995,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      110.24000000000001,
+      32.343999999999994,
+      88.77600000000001,
+      32.343999999999994,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      21.464,
+      32.343999999999994,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      32.343999999999994,
+      0,
+      10.879999999999995,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [
+      0,
+      10.879999999999999,
+    ],
+    "op": "lineTo",
+  },
+  {
+    "args": [
+      0,
+      -10.584,
+      21.464,
+      -10.584,
+    ],
+    "op": "quadraticCurveTo",
+  },
+  {
+    "args": [],
+    "op": "closePath",
+  },
+  {
+    "args": [
+      "rgba(154, 52, 18, 0.18)",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [],
+    "fill": "rgba(154, 52, 18, 0.18)",
+    "op": "fill",
+  },
+  {
+    "args": [
+      "#9a3412",
+    ],
+    "op": "set:fillStyle",
+  },
+  {
+    "args": [
+      "BOOK NOW",
+      0,
+      0,
+    ],
+    "fill": "#9a3412",
+    "op": "fillText",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+  {
+    "args": [],
+    "op": "restore",
+  },
+]
+`;

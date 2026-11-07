@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "od-design-system-project/v1",
+  "id": "nowopen-africa",
+  "name": "NowOpen Africa",
+  "category": "Marketplace & Local Commerce",
+  "description": "NowOpen Africa's own brand contract: one blue accent, Coolvetica throughout, light high-contrast surfaces, and open/closed semantics that may not be spent on decoration. Values are read from tailwind.config.js, index.html and src/index.css rather than chosen for this package.",
+  "source": {
+    "type": "github",
+    "url": "https://github.com/nowopenafrica/nowopenafrica"
+  },
+  "files": {
+    "design": "DESIGN.md",
+    "tokens": "tokens.css"
+  },
+  "importMode": "verbatim",
+  "craft": {
+    "applies": [],
+    "suggested": [
+      "color",
+      "accessibility-baseline"
+    ],
+    "exemptions": []
+  }
+}

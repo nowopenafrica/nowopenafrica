@@ -3,7 +3,8 @@ import { describe, it, expect } from 'vitest';
 
 import { BUSINESS_CATEGORIES } from './categories';
 import { CATEGORY_FEATURES, getCategoryFeatures } from './categoryFeatures';
-import { INDUSTRIES, liveModulesFor } from './industrySystems';
+import { INDUSTRIES } from './industrySystems';
+import { liveModulesFor } from './industryLiveModules';
 
 /**
  * What /platform claims each industry can do.
@@ -24,6 +25,14 @@ const stripComments = (src: string) => src
   .replace(/\{\/\*[\s\S]*?\*\/\}/g, '');
 
 const systems = stripComments(readFileSync('src/data/industrySystems.ts', 'utf8'));
+/*
+ * liveModulesFor moved here on 2026-10-10. It was the only code in
+ * industrySystems.ts reading CATEGORY_FEATURES, and that import dragged 39.8 kB
+ * of category config into every module wanting the INDUSTRIES list — including
+ * the home page. The rule it enforces is unchanged: the list is DERIVED, never
+ * authored.
+ */
+const liveModules = stripComments(readFileSync('src/data/industryLiveModules.ts', 'utf8'));
 const platform = stripComments(readFileSync('src/pages/Platform.tsx', 'utf8'));
 
 describe('every industry is featured with its real modules', () => {
@@ -91,9 +100,14 @@ describe('every industry is featured with its real modules', () => {
 
 describe('the list stays computed, not authored', () => {
   it('derives from CATEGORY_FEATURES rather than a literal', () => {
-    expect(systems).toContain("import { CATEGORY_FEATURES } from './categoryFeatures'");
-    expect(systems).toMatch(/export function liveModulesFor/);
-    expect(systems).toMatch(/CATEGORY_FEATURES\[category\]/);
+    expect(liveModules).toContain("import { CATEGORY_FEATURES } from './categoryFeatures'");
+    expect(liveModules).toMatch(/export function liveModulesFor/);
+    expect(liveModules).toMatch(/CATEGORY_FEATURES\[category\]/);
+    /*
+     * And it must NOT drift back: industrySystems is imported by the home
+     * page, so a CATEGORY_FEATURES import there costs every visitor 39.8 kB.
+     */
+    expect(systems).not.toContain("from './categoryFeatures'");
     // No hand-maintained live list hiding in the industry definitions.
     expect(systems).not.toMatch(/liveModules:\s*\[/);
   });

@@ -13,12 +13,16 @@ const SOURCE: Record<string, string> = {
   '/about': 'src/pages/About.tsx',
   '/platform': 'src/pages/Platform.tsx',
   '/discover': 'src/pages/Discover.tsx',
+  '/open-now': 'src/pages/OpenNow.tsx',
   '/waitlist': 'src/pages/Waitlist.tsx',
+  '/add-business': 'src/pages/AddBusiness.tsx',
+  '/join/business': 'src/pages/AddBusiness.tsx',
   '/send-business': 'src/pages/SendBusiness.tsx',
   '/nominate': 'src/pages/Nominate.tsx',
   // The eight that used to serve the crawler the home page's title.
   '/businesses': 'src/pages/Businesses.tsx',
   '/media': 'src/pages/Media.tsx',
+  '/media/services': 'src/pages/MediaServices.tsx',
   '/pricing': 'src/pages/Pricing.tsx',
   '/adverts': 'src/pages/Adverts.tsx',
   '/contact': 'src/pages/Contact.tsx',
@@ -65,6 +69,14 @@ describe('the crawler is told what the page actually says', () => {
       expect(src, `${page.path} title`).toContain(normalise(page.title));
       expect(src, `${page.path} description`).toContain(normalise(page.description));
     });
+
+    /*
+     * /adverts is checked by rendering, not by reading source: its h1 lives
+     * in a component (PromoteRequestBar), and a word grep of Adverts.tsx
+     * would pass on a comment. promoteHub.test.tsx renders the page and
+     * queries role=heading for this exact h1.
+     */
+    if (page.path === '/adverts') continue;
 
     it(`${page.path} — its heading appears on the page`, () => {
       const src = normalise(readFileSync(SOURCE[page.path], 'utf8'));
@@ -144,5 +156,30 @@ describe('the middleware sends crawlers here', () => {
     // check ran first, nothing here would ever match.
     expect(mw.indexOf('shouldRenderMarketing(url.pathname'))
       .toBeLessThan(mw.indexOf('shouldRenderProfile(url.pathname'));
+  });
+});
+
+describe('alias routes do not compete with the page they alias', () => {
+  it('/join/business is indexed as /add-business, not as itself', () => {
+    /*
+     * The two routes serve byte-identical content. Before this, each declared
+     * ITSELF canonical, handing Google two URLs for one page both claiming to
+     * be the original — a duplicate-content signal the site created about
+     * itself rather than one a crawler guessed at.
+     */
+    const alias = marketingPageFor('/join/business');
+    expect(alias).toBeTruthy();
+    expect(alias?.canonicalPath).toBe('/add-business');
+
+    const html = renderMarketingPage(alias!, 'https://www.example.com');
+    expect(html).toContain('<link rel="canonical" href="https://www.example.com/add-business">');
+    expect(html).not.toContain('href="https://www.example.com/join/business"');
+  });
+
+  it('a normal page still canonicalises to itself', () => {
+    const page = marketingPageFor('/add-business');
+    expect(page?.canonicalPath).toBeUndefined();
+    const html = renderMarketingPage(page!, 'https://www.example.com');
+    expect(html).toContain('<link rel="canonical" href="https://www.example.com/add-business">');
   });
 });

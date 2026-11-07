@@ -17,11 +17,14 @@
 
 import {
   type DesignTemplate, type SlotSpec, type SurfaceLayer, type ShapeSpec,
-  slotBox, typePx, motionAt, settleTime, surfaceSpecLayers, inkFor, hexAlpha, unitOf, fontStack,
+  slotBox, fitSlotSize, motionAt, settleTime, surfaceSpecLayers, hexAlpha, unitOf, fontStack,
   cameraAt,
   isListRole, listRowBoxes, shapeColor, shapeGeometry,
   type PriceRow,
 } from './designTemplates';
+import { resolveLook, type Look, type GradientSpec } from './design/look';
+import { patternZoneBox } from './design/patterns';
+import type { Palette, PaletteRole } from './design/palettes';
 
 export interface TemplatePaintContent {
   brand?: string;
@@ -66,6 +69,10 @@ export interface PaintOptions {
    * defaulted — a guessed duration would put a half-finished push on every PNG.
    */
   sceneSeconds?: number;
+  /** Overrides parts of the template's look (Remix, a locked palette). Ignored for a template with no look. */
+  look?: Partial<Look>;
+  /** The owner's brand as a palette. Wins over the look's own palette. */
+  brandPalette?: Palette;
 }
 
 const DEFAULT_FONT = 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif';
@@ -90,6 +97,184 @@ export function gradientLine(angleDeg: number, w: number, h: number) {
     x1: cx + (dx * len) / 2,
     y1: cy + (dy * len) / 2,
   };
+}
+
+// ---- look support ---------------------------------------------------------
+//
+// Everything below mirrors TemplateSurface. The DOM renderer was written first;
+// where the two could differ the DOM is the reference, because that is what the
+// owner sees while editing.
+
+/** The palette role a slot's tone names, if it names one. 'accent' is primary. */
+function toneRole(tone: SlotSpec['tone']): PaletteRole | null {
+  if (tone === 'accent' || tone === 'primary') return 'primary';
+  if (tone === 'secondary' || tone === 'highlight') return tone;
+  return null;
+}
+
+/** A slot's text colour from its tone, given the ink that reads on its ground. */
+function slotTone(slot: SlotSpec, roles: Record<PaletteRole, string>, ink: string): string {
+  const role = toneRole(slot.tone);
+  if (role) return roles[role];
+  if (slot.tone === 'muted') return hexAlpha(ink, 0.72);
+  return ink;
+}
+
+/**
+ * A GradientSpec on a box, as TemplateSurface's gradientCss paints it: linear
+ * runs along its angle across the box; anything else is a circle at 30% 20%
+ * sized to the farthest corner (the CSS default), stops spread evenly.
+ */
+function gradientFor(
+  ctx: CanvasRenderingContext2D,
+  g: GradientSpec,
+  roles: Record<PaletteRole, string>,
+  bx: number, by: number, bw: number, bh: number,
+): CanvasGradient {
+  const cols = g.stops.map((r) => roles[r]);
+  let grad: CanvasGradient;
+  if (g.kind === 'linear') {
+    const l = gradientLine(g.angle ?? 180, bw, bh);
+    grad = ctx.createLinearGradient(bx + l.x0, by + l.y0, bx + l.x1, by + l.y1);
+  } else {
+    const cx = bx + bw * 0.3;
+    const cy = by + bh * 0.2;
+    const r = Math.hypot(Math.max(cx - bx, bx + bw - cx), Math.max(cy - by, by + bh - cy));
+    grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(1, r));
+  }
+  cols.forEach((c, i) => grad.addColorStop(cols.length === 1 ? 0 : i / (cols.length - 1), c));
+  return grad;
+}
+
+const rgbOf = (hex: string): [number, number, number] => {
+  const clean = (hex || '').replace('#', '');
+  const full = clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean;
+  const n = parseInt(full.length === 6 ? full : '000000', 16);
+  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+};
+
+/**
+ * Duotone in place: each channel becomes dark + luma x (light - dark), Rec. 709
+ * weights, in sRGB. This is the same arithmetic as the feColorMatrix the DOM
+ * renderer builds, so the two land on the palette hexes at black and white.
+ * Alpha is left alone.
+ */
+export function applyDuotone(data: Uint8ClampedArray, dark: string, light: string): void {
+  const d = rgbOf(dark);
+  const l = rgbOf(light);
+  const span = [l[0] - d[0], l[1] - d[1], l[2] - d[2]];
+  for (let i = 0; i < data.length; i += 4) {
+    const luma = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
+    data[i] = d[0] + luma * span[0];
+    data[i + 1] = d[1] + luma * span[1];
+    data[i + 2] = d[2] + luma * span[2];
+  }
+}
+
+let scratch: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
+
+/** An offscreen canvas for the duotone pass. Null where there is no DOM canvas. */
+function scratchCanvas(w: number, h: number) {
+  try {
+    if (typeof document === 'undefined') return null;
+    if (!scratch) {
+      const canvas = document.createElement('canvas');
+      const ctx = canvas.getContext('2d', { willReadFrequently: true });
+      if (!ctx) return null;
+      scratch = { canvas, ctx };
+    }
+    if (scratch.canvas.width !== w) scratch.canvas.width = w;
+    if (scratch.canvas.height !== h) scratch.canvas.height = h;
+    return scratch;
+  } catch {
+    return null;
+  }
+}
+
+/** Media through the two-colour map. False means the caller should draw it plain. */
+function drawDuotoneCover(
+  ctx: CanvasRenderingContext2D, media: CanvasImageSource, w: number, h: number, duo: [string, string],
+): boolean {
+  const s = scratchCanvas(Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
+  if (!s) return false;
+  try {
+    s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
+    drawCover(s.ctx, media, s.canvas.width, s.canvas.height);
+    const img = s.ctx.getImageData(0, 0, s.canvas.width, s.canvas.height);
+    applyDuotone(img.data, duo[0], duo[1]);
+    s.ctx.putImageData(img, 0, 0);
+    ctx.drawImage(s.canvas, 0, 0, w, h);
+    return true;
+  } catch {
+    // A tainted source throws from getImageData. Plain media beats no media.
+    return false;
+  }
+}
+
+/*
+ * Patterns arrive asynchronously: the SVG has to be decoded as an image, and
+ * drawTemplateFrame is synchronous and returns a boolean (callers depend on
+ * both). So the first call for a given pattern STARTS the load and paints
+ * without it; every call after the image has decoded paints it. The cache is
+ * keyed by the SVG text itself, which already encodes pattern key, canvas size,
+ * scale, zone and colour, so a change to any of them is a new entry by
+ * construction. Bounded, because a colour picker would otherwise leak one
+ * full-frame bitmap per hue tried.
+ */
+interface PatternEntry {
+  image: CanvasImageSource | null;
+  loaded: Promise<void>;
+}
+const PATTERN_CACHE = new Map<string, PatternEntry>();
+const PATTERN_CACHE_MAX = 16;
+
+function requestPattern(svg: string): PatternEntry {
+  const hit = PATTERN_CACHE.get(svg);
+  if (hit) return hit;
+
+  const entry: PatternEntry = { image: null, loaded: Promise.resolve() };
+  if (typeof Image !== 'undefined') {
+    entry.loaded = new Promise<void>((resolve) => {
+      try {
+        const img = new Image();
+        img.onload = () => { entry.image = img; resolve(); };
+        img.onerror = () => resolve();
+        img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+      } catch {
+        resolve();
+      }
+    });
+  }
+  PATTERN_CACHE.set(svg, entry);
+  if (PATTERN_CACHE.size > PATTERN_CACHE_MAX) {
+    const oldest = PATTERN_CACHE.keys().next().value;
+    if (oldest !== undefined) PATTERN_CACHE.delete(oldest);
+  }
+  return entry;
+}
+
+/**
+ * Start (and await) the decode of this template's pattern for a frame size.
+ * Resolves when the pattern is ready, failed, or after `timeoutMs`; never
+ * rejects. An export loop awaits this once so frame 0 already has its pattern.
+ */
+export async function preloadTemplatePatterns(
+  tpl: DesignTemplate,
+  w: number,
+  h: number,
+  opts: Pick<PaintOptions, 'accent' | 'base' | 'look' | 'brandPalette'>,
+  timeoutMs = 3000,
+): Promise<void> {
+  try {
+    const resolved = resolveLook(tpl, {
+      override: opts.look, brandPalette: opts.brandPalette, accent: opts.accent, base: opts.base, width: w, height: h,
+    });
+    if (!resolved.pattern) return;
+    const { loaded } = requestPattern(resolved.pattern.svg);
+    await Promise.race([loaded, new Promise<void>((r) => setTimeout(r, timeoutMs))]);
+  } catch {
+    /* a missing pattern is a missing texture, not a failed export */
+  }
 }
 
 function paintLayer(ctx: CanvasRenderingContext2D, layer: SurfaceLayer, w: number, h: number) {
@@ -195,9 +380,10 @@ function paintShape(
   accent: string,
   ink: string,
   base: string,
+  roles: Record<PaletteRole, string>,
 ) {
   const geom = shapeGeometry(shape, w, h);
-  const color = shapeColor(shape.tone, accent, ink, base);
+  const color = shapeColor(shape.tone, accent, ink, base, roles);
 
   // Same feature-detection contract as the rest of this file: a context that
   // cannot draw paths (jsdom, and any canvas polyfill) loses the decoration,
@@ -212,6 +398,17 @@ function paintShape(
   ctx.save();
   ctx.globalAlpha = Math.max(0, Math.min(1, shape.alpha ?? 1));
   ctx.fillStyle = color;
+
+  // A gradient fill (rect and circle only) paints from the roles. The box it
+  // spans is what TemplateSurface's CSS background spans: the shape's own box,
+  // except a skewed rect, which the DOM draws as a clipped full-canvas div.
+  const spec = (shape.kind === 'rect' || shape.kind === 'circle') ? shape.fill : undefined;
+  if (spec && typeof ctx.createLinearGradient === 'function') {
+    const box = geom.kind === 'rect' ? { x: geom.x, y: geom.y, w: geom.w, h: geom.h }
+      : geom.kind === 'circle' ? { x: geom.cx - geom.r, y: geom.cy - geom.r, w: geom.r * 2, h: geom.r * 2 }
+      : { x: 0, y: 0, w, h };
+    ctx.fillStyle = gradientFor(ctx, spec, roles, box.x, box.y, box.w, box.h);
+  }
 
   switch (geom.kind) {
     case 'polygon': {
@@ -313,13 +510,14 @@ function paintListSlot(
   accent: string,
   ink: string,
   family: string,
+  /** The row text colour, resolved from the slot's tone (role tones read the palette). */
+  tone: string,
 ) {
   const count = listCount(content, slot);
   if (count === 0) return;
 
   const boxes = listRowBoxes(slot, w, h, count);
   const weight = slot.weight ?? 600;
-  const tone = slot.tone === 'accent' ? accent : slot.tone === 'muted' ? hexAlpha(ink, 0.72) : ink;
   const align = slot.align ?? 'left';
 
   for (let i = 0; i < count; i++) {
@@ -434,12 +632,36 @@ export function drawTemplateFrame(
 ): boolean {
   if (!ctx || typeof ctx.fillRect !== 'function') return false;
 
-  const ink = inkFor(tpl);
-  const base = opts.base ?? (tpl.scheme === 'dark' ? '#0b1220' : '#f7f7f5');
-  const accent = opts.accent;
+  /*
+   * Every colour comes from the resolved look, exactly as in TemplateSurface.
+   * With no look the resolver's fallback hands back today's values (ground is
+   * the base, inkOn.ground the scheme ink, every role the accent), so a
+   * look-less template takes the same branches and paints the same calls.
+   */
+  const resolved = resolveLook(tpl, {
+    override: opts.look, brandPalette: opts.brandPalette, accent: opts.accent, base: opts.base, width: w, height: h,
+  });
+  const hasLook = resolved.source === 'look';
+  const { roles, inkOn } = resolved;
+  const ink = inkOn.ground;
+  const base = roles.ground;
+  const accent = roles.primary;
   const t = opts.t ?? settleTime(tpl);
   const u = unitOf(w, h);
   const font = opts.fontFamily ?? DEFAULT_FONT;
+
+  /** The ink that reads on whatever this slot sits on. */
+  const inkOf = (slot: SlotSpec): string => inkOn[slot.on ?? 'ground'];
+
+  /** Type comes from the look's pairing only when the template has a look. */
+  const lookFamily = (slot: SlotSpec): string | undefined => {
+    if (!hasLook) return undefined;
+    const p = resolved.pairing;
+    return fontStack(
+      slot.role === 'headline' || (slot.size ?? 0) >= 0.06 ? p.display
+        : slot.role === 'eyebrow' ? p.accent : p.text,
+    );
+  };
 
   ctx.save();
   ctx.clearRect(0, 0, w, h);
@@ -470,21 +692,55 @@ export function drawTemplateFrame(
     const alpha = (opts.mediaOpacity ?? 1);
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     try {
-      drawCover(ctx, content.media, w, h);
+      // Duotone maps the photo's luma onto the look's two roles; a context
+      // that cannot do the offscreen pass draws it plain.
+      if (!(resolved.duotone && drawDuotoneCover(ctx, content.media, w, h, resolved.duotone))) {
+        drawCover(ctx, content.media, w, h);
+      }
     } catch {
       // A tainted or not-yet-decoded source must not abort the whole frame.
     }
     ctx.globalAlpha = 1;
   }
 
-  for (const layer of surfaceSpecLayers(tpl, accent, base, opts.surfaceOpacity ?? 1)) {
-    paintLayer(ctx, layer, w, h);
+  if (hasLook) {
+    // A look's ground is flat or a designed gradient, thinned with plain
+    // alpha over the media, as the DOM renderer does.
+    const so = opts.surfaceOpacity ?? 1;
+    if (so < 1) ctx.globalAlpha = Math.max(0, so);
+    for (const layer of resolved.groundLayers) paintLayer(ctx, layer, w, h);
+    ctx.globalAlpha = 1;
+  } else {
+    for (const layer of surfaceSpecLayers(tpl, accent, base, opts.surfaceOpacity ?? 1)) {
+      paintLayer(ctx, layer, w, h);
+    }
+  }
+
+  /*
+   * Pattern: over the ground, under shapes and type (the DOM order). Clipped to
+   * its zone by the source rectangle, opacity applied here because the SVG is
+   * opaque. If the bitmap is not decoded yet the frame paints without it and
+   * the next frame has it; see requestPattern.
+   */
+  if (resolved.pattern) {
+    const bitmap = requestPattern(resolved.pattern.svg).image;
+    if (bitmap) {
+      const z = patternZoneBox(resolved.pattern.zone, w, h);
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, resolved.pattern.opacity));
+      try {
+        ctx.drawImage(bitmap, z.x, z.y, z.w, z.h, z.x, z.y, z.w, z.h);
+      } catch {
+        // An image that decoded badly loses the texture, not the frame.
+      }
+      ctx.restore();
+    }
   }
 
   // Geometry over the surface, under the type. A wedge that covered the
   // headline would make the template unusable, and shapes are decoration.
   for (const shape of tpl.shapes ?? []) {
-    paintShape(ctx, shape, w, h, accent, ink, base);
+    paintShape(ctx, shape, w, h, accent, roles.ink, base, roles);
   }
 
   if (tpl.surface.kind === 'frame') {
@@ -499,16 +755,29 @@ export function drawTemplateFrame(
     if (m.opacity <= 0 && !m.clip) continue;
 
     const box = slotBox(slot, w, h);
-    const size = typePx(slot.size, w, h);
+    /*
+     * The SAME fit the DOM preview applies. If only one of the two shrank a
+     * long headline the exported PNG would not be the design the owner edited,
+     * which is the one guarantee this file exists to keep.
+     */
+    const size = fitSlotSize(slot, tpl.slots, textFor(content, slot.role), w, h);
     const weight = slot.weight ?? 600;
 
     ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, m.opacity));
 
+    const slotInk = inkOf(slot);
+
     if (isListRole(slot.role)) {
-      const family = slot.font || tpl.font ? fontStack(slot.font ?? tpl.font) : font;
+      const family = lookFamily(slot) ?? (slot.font || tpl.font ? fontStack(slot.font ?? tpl.font) : font);
       ctx.translate(m.dx, m.dy);
-      paintListSlot(ctx, slot, content, w, h, accent, ink, family);
+      // Bullets, prices and stat values follow the slot's role tone on a look;
+      // without one they stay the accent, exactly as before.
+      paintListSlot(
+        ctx, slot, content, w, h,
+        hasLook ? roles[toneRole(slot.tone) ?? 'primary'] : accent,
+        slotInk, family, slotTone(slot, roles, slotInk),
+      );
       ctx.restore();
       continue;
     }
@@ -546,15 +815,17 @@ export function drawTemplateFrame(
     if (!value) { ctx.restore(); continue; }
 
     const shown = slot.upper ? value.toUpperCase() : value;
-    // Slot font wins over the template's, which wins over the caller's default.
-    const family = slot.font || tpl.font ? fontStack(slot.font ?? tpl.font) : font;
+    // A look's pairing wins; otherwise the slot font wins over the template's,
+    // which wins over the caller's default.
+    const family = lookFamily(slot) ?? (slot.font || tpl.font ? fontStack(slot.font ?? tpl.font) : font);
     ctx.font = `${weight} ${size}px ${family}`;
     ctx.textBaseline = 'top';
     if (slot.tracking && 'letterSpacing' in ctx) {
       try { (ctx as unknown as { letterSpacing: string }).letterSpacing = `${slot.tracking * size}px`; } catch { /* unsupported */ }
     }
 
-    const tone = slot.tone === 'accent' ? accent : slot.tone === 'muted' ? hexAlpha(ink, 0.72) : ink;
+    const tone = slotTone(slot, roles, slotInk);
+    const role = toneRole(slot.tone);
     const lines = wrapLines((s) => ctx.measureText(s).width, shown, box.width, maxLinesFor(slot.role));
     const lineHeight = size * ((slot.size ?? 0.05) > 0.07 ? 1.06 : 1.28);
     const widest = lines.reduce((mx, l) => Math.max(mx, ctx.measureText(l).width), 0);
@@ -572,13 +843,13 @@ export function drawTemplateFrame(
       const r = slot.treatment === 'pill' ? blockH / 2 : slot.treatment === 'panel' ? u * 0.02 : 0;
       roundRect(ctx, blockX, -pad * 0.7, blockW, blockH, r);
       if (slot.treatment === 'outline') {
-        ctx.strokeStyle = hexAlpha(ink, 0.75);
+        ctx.strokeStyle = hexAlpha(slotInk, 0.75);
         ctx.lineWidth = Math.max(1, u * 0.003);
         ctx.stroke();
       } else {
         ctx.fillStyle = slot.treatment === 'panel'
           ? hexAlpha(base, 0.55)
-          : hexAlpha(slot.tone === 'accent' ? accent : ink, 0.18);
+          : hexAlpha(role ? roles[role] : slotInk, 0.18);
         ctx.fill();
       }
     }
@@ -598,15 +869,33 @@ export function drawTemplateFrame(
       const cy = (lines.length * lineHeight) / 2 - lineHeight * 0.18;
       ctx.beginPath();
       ctx.arc(cx, cy, d / 2, 0, Math.PI * 2);
-      ctx.fillStyle = slot.tone === 'accent' ? accent : hexAlpha(ink, 0.92);
+      ctx.fillStyle = role ? roles[role] : hexAlpha(slotInk, 0.92);
       ctx.fill();
     }
 
-    ctx.fillStyle = slot.treatment === 'disc'
-      // On a filled disc the slot tone is the disc, so the words take the
-      // surface colour underneath it or they vanish into their own badge.
-      ? (slot.tone === 'accent' ? base : accent)
-      : tone;
+    // On a filled disc the slot tone is the disc, so the words take a colour
+    // that reads on it: today's rule (the surface) without a look, the ink
+    // measured for that role with one — TemplateSurface's discText.
+    const discText = !role ? accent : hasLook ? inkOn[role] : base;
+    ctx.fillStyle = slot.treatment === 'disc' ? discText : tone;
+
+    /*
+     * Gradient headline. The DOM has to gate this on background-clip support;
+     * a canvas fills glyphs with a gradient natively, so no fallback is needed.
+     * The span is the slot box, which is what the DOM's block-level background
+     * covers. Treatments that paint their own chrome keep flat ink, as in DOM.
+     * Colours are the resolver's: primary to secondary, left to right.
+     */
+    if (
+      resolved.headlineGradient && slot.role === 'headline'
+      && slot.treatment !== 'pill' && slot.treatment !== 'panel' && slot.treatment !== 'disc'
+      && typeof ctx.createLinearGradient === 'function'
+    ) {
+      const g = ctx.createLinearGradient(0, 0, box.width, 0);
+      g.addColorStop(0, roles.primary);
+      g.addColorStop(1, roles.secondary);
+      ctx.fillStyle = g;
+    }
     lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
 
     if (slot.treatment === 'underline') {

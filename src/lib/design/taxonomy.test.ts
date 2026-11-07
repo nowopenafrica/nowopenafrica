@@ -1,10 +1,9 @@
 import { describe, it, expect } from 'vitest';
 
 import { DESIGN_TEMPLATES } from '../designTemplates';
-import { DESIGN_STYLES } from './styles';
 import {
   INDUSTRY_GROUPS, STYLE_TAGS, TEMPLATE_USES, diversify, findTemplates,
-  industryGroupFor, libraryDepth, templateCounts, usedStyleTags,
+  industryGroupFor, templateCounts, usedStyleTags,
 } from './taxonomy';
 
 describe('every template says what it is for', () => {
@@ -133,10 +132,6 @@ describe('search', () => {
 });
 
 describe('the library, counted honestly', () => {
-  it('reports depth as layouts times styles rather than a written number', () => {
-    expect(libraryDepth()).toBe(DESIGN_TEMPLATES.length * DESIGN_STYLES.length);
-  });
-
   it('has grown past the archetypes it was missing', () => {
     for (const key of [
       'property-listing', 'before-after', 'opening-hours', 'vacancy',

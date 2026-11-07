@@ -1,0 +1,146 @@
+/* ─────────────────────────────────────────────────────────────────────────
+ * design-systems/nowopen-africa/tokens.css
+ *
+ * The machine-readable form of DESIGN.md. Paste the :root block verbatim
+ * into the first <style> of a generated artifact, then reference everything
+ * through var(--name).
+ *
+ * ── PROVENANCE ──────────────────────────────────────────────────────────
+ *
+ * Every value here is read out of the product, not chosen for this file.
+ * Where a value came from:
+ *
+ *   --accent        #2563eb   tailwind.config.js `nowopen.600`, and the light
+ *                             <meta name="theme-color"> in index.html.
+ *   --accent-hover  #1d4ed8   nowopen.700.
+ *   --accent-active #1e40af   nowopen.800.
+ *   --fg            #111827   the DARK theme-color in index.html — the ink is
+ *                             literally the colour the browser chrome takes.
+ *   --surface       #f9fafb   the page's own secondary surface.
+ *   --font-display  Coolvetica, self-hosted in src/index.css at 300/400/700.
+ *
+ * The brand ramp is nowopen.50 → nowopen.950, defined once in
+ * tailwind.config.js. It is NOT reproduced here in full: only the stops the
+ * token contract has a slot for. Reaching for an unlisted shade means
+ * inventing one.
+ *
+ * ── TOKEN CONTRACT ──────────────────────────────────────────────────────
+ *
+ * Names and count follow design-systems/_schema/tokens.schema.ts as shipped
+ * in Open Design 0.25.0, mirrored for humans in _schema/defaults.css. All 56
+ * A1/A2 slots are declared, because an artifact is one <style> with no
+ * cascade behind it: a token this file omits resolves to nothing.
+ *
+ * Deliberate departures from the schema defaults, and why:
+ *
+ *   1. --accent-hover / --accent-active are hand-picked (nowopen.700 / .800)
+ *      rather than the default black-mix. The brand ramp already defines
+ *      those steps and they are what the product actually renders; a mix
+ *      would produce a near-miss of a colour we ship.
+ *   2. --radius-pill stays 9999px but --radius-sm/md/lg are 10/14/20px
+ *      rather than 8/12/16. The app's cards and buttons are visibly softer
+ *      than the schema default, which is a brand characteristic.
+ *   3. --font-display and --font-body are the SAME stack. NowOpen does not
+ *      pair a display face with a text face: Coolvetica carries both, with
+ *      weight and size doing the work a second family usually does.
+ *   4. The type scale is fixed px here, not the product's clamp() scale.
+ *      Artifacts are often fixed-size surfaces (a flyer, a billboard, a
+ *      1080×1350 post) where a viewport-relative scale is meaningless.
+ * ─────────────────────────────────────────────────────────────────────── */
+
+:root {
+  /* ── Canvas and ink ──────────────────────────────────────────────────
+     A light, high-contrast base. The directory is read outdoors, on cheap
+     phone screens, in daylight — the opposite of the conditions a dark
+     editorial palette is designed for. */
+  --bg:            #ffffff;
+  --surface:       #f9fafb;
+  --surface-warm:  #f3f4f6;
+  --fg:            #111827;
+  --fg-2:          #374151;
+  --muted:         #6b7280;
+  --meta:          #9ca3af;
+  --border:        #e5e7eb;
+  --border-soft:   #f3f4f6;
+
+  /* ── Accent ──────────────────────────────────────────────────────────
+     One blue. It means "this is the action". It is not decoration, and a
+     second accent colour is not available — see DESIGN.md §9. */
+  --accent:        #2563eb;
+  --accent-on:     #ffffff;
+  --accent-hover:  #1d4ed8;
+  --accent-active: #1e40af;
+
+  /* ── Semantic state ──────────────────────────────────────────────────
+     Open/closed is the product's core fact, so green and red carry real
+     meaning here and must not be spent on decoration. */
+  --success: #16a34a;
+  --warn:    #eab308;
+  --danger:  #dc2626;
+
+  /* ── Type ────────────────────────────────────────────────────────────
+     Coolvetica for everything. The fallbacks matter: a generated artifact
+     may be opened on a machine with no webfont loaded, and system-ui is a
+     closer metric match than a generic sans. */
+  --font-display: Coolvetica, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body:    Coolvetica, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono:    ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Monaco, Consolas, monospace;
+
+  --text-xs:   12px;
+  --text-sm:   14px;
+  --text-base: 16px;
+  --text-lg:   18px;
+  --text-xl:   22px;
+  --text-2xl:  28px;
+  --text-3xl:  36px;
+  --text-4xl:  48px;
+
+  --leading-body:      1.6;
+  --leading-tight:     1.15;
+  /* Coolvetica is already fairly tight; pulling further closes the counters. */
+  --tracking-display:  -0.01em;
+
+  /* ── Spacing: 4px grid ───────────────────────────────────────────── */
+  --space-1:  4px;
+  --space-2:  8px;
+  --space-3:  12px;
+  --space-4:  16px;
+  --space-5:  20px;
+  --space-6:  24px;
+  --space-8:  32px;
+  --space-12: 48px;
+
+  --section-y-desktop: 80px;
+  --section-y-tablet:  56px;
+  --section-y-phone:   40px;
+
+  /* ── Shape ───────────────────────────────────────────────────────── */
+  --radius-sm:   10px;
+  --radius-md:   14px;
+  --radius-lg:   20px;
+  --radius-pill: 9999px;
+
+  /* ── Elevation ───────────────────────────────────────────────────────
+     Borders first, shadow last. Most of the product separates surfaces
+     with a 1px line, and a drop shadow on a printed deliverable is a
+     mistake you cannot take back. */
+  --elev-flat:   none;
+  --elev-ring:   0 0 0 1px var(--border);
+  --elev-raised: 0 2px 8px color-mix(in oklab, var(--fg), transparent 92%);
+
+  --focus-ring: 0 0 0 3px color-mix(in oklab, var(--accent), transparent 70%);
+
+  /* ── Motion ──────────────────────────────────────────────────────── */
+  --motion-fast:   150ms;
+  --motion-base:   200ms;
+  --ease-standard: cubic-bezier(0.2, 0, 0, 1);
+
+  /* ── Container ───────────────────────────────────────────────────────
+     1200px, matching the product's own `site-container`. The phone gutter
+     is 16px because that is what the app uses and what a 360px-wide
+     Android screen needs to not feel pinched. */
+  --container-max:             1200px;
+  --container-gutter-desktop:  32px;
+  --container-gutter-tablet:   24px;
+  --container-gutter-phone:    16px;
+}

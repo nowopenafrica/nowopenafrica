@@ -477,7 +477,38 @@ export default function DesignStudio({
   const derivedContact = [business.phone, business.email, brandUrl]
     .map((v) => (v ?? '').trim())
     .filter(Boolean);
-  const scale = 460 / Math.max(w, h);
+  /*
+   * The preview fills the room it has, instead of a fixed 460px.
+   *
+   * MEASURED: in a 982px-wide column the design still rendered at 259x460,
+   * because the longest side was pinned to a constant written when the panel
+   * was half the width. Giving the preview more space did nothing — the
+   * number ignored it.
+   *
+   * Fitted to BOTH axes, so a portrait design is limited by height and a
+   * banner by width, and neither is cropped. The export is unaffected: it
+   * captures the node at its true w x h, and this only scales what is drawn.
+   */
+  const previewBox = useRef<HTMLDivElement | null>(null);
+  const [previewRoom, setPreviewRoom] = useState({ w: 0, h: 0 });
+  useEffect(() => {
+    const el = previewBox.current;
+    if (!el) return undefined;
+    const measure = () => {
+      const r = el.getBoundingClientRect();
+      const next = { w: Math.round(r.width - 16), h: Math.round(r.height - 16) };
+      setPreviewRoom((prev) => (prev.w === next.w && prev.h === next.h ? prev : next));
+    };
+    measure();
+    if (typeof ResizeObserver === 'undefined') return undefined;
+    const ro = new ResizeObserver(measure);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+
+  const scale = previewRoom.w > 0 && previewRoom.h > 0
+    ? Math.max(0.05, Math.min(previewRoom.w / w, previewRoom.h / h))
+    : 460 / Math.max(w, h);
   const u = Math.min(w, h);
   const hasVideo = bg?.type === 'video';
   // Effective background: uploaded media wins, else the profile cover image.
@@ -1578,10 +1609,19 @@ export default function DesignStudio({
     );
   };
 
+  /*
+   * A quarter for the controls, three quarters for the work.
+   *
+   * It was 2/5 against 3/5. The panel is a list of choices and reads fine in
+   * a narrow column; the preview is the thing being judged, and judging a
+   * design at 780px when the screen can show 980px is the one trade that
+   * costs nothing. The lists are capped and scroll inside themselves, so a
+   * narrower column makes the panel no longer than it already was.
+   */
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
+    <div className="grid grid-cols-1 gap-6 lg:grid-cols-4">
       {/* Left — structure, words, AI, style */}
-      <div className="lg:col-span-2 space-y-4">
+      <div className="min-w-0 space-y-4 lg:col-span-1">
         {/* Mode: fixed layouts (default) or a free canvas. */}
         <div className="flex items-center gap-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-1">
           <button
@@ -1675,7 +1715,16 @@ export default function DesignStudio({
         <StudioSection icon={LayoutTemplate} title="Design">
           <div>
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">{templateLabel}</label>
-            <div className="grid grid-cols-2 gap-2">
+            {/*
+              * Capped and scrolled, not stacked.
+              *
+              * MEASURED: 29 occasions, 11 styles and 59 layouts ran 2952px
+              * down the page, so choosing a layout meant scrolling past
+              * everything else and losing sight of the preview the whole list
+              * exists to change. Each list now keeps its own scroll, and the
+              * panel fits a screen.
+              */}
+            <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
               {templates.map((t) => (
                 <button key={t.key} onClick={() => setTemplateKey(t.key)}
                   className={`inline-flex items-center text-left px-3 rounded-lg text-xs font-medium border transition ${templateKey === t.key ? 'border-transparent text-white' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}
@@ -1766,7 +1815,7 @@ export default function DesignStudio({
               {foundTemplates.length === 0 && hiddenByIndustry === 0 && tplQuery
                 && ' — try one word instead of a phrase.'}
             </p>
-            <div className="grid grid-cols-2 gap-2 mb-3">
+            <div className="grid grid-cols-2 gap-2 mb-3 max-h-72 overflow-y-auto pr-1">
               {foundTemplates.map((t) => {
                 const key = `t:${t.key}`;
                 const on = layoutKey === key;
@@ -1785,7 +1834,7 @@ export default function DesignStudio({
             </p>
 
             <label className="block text-xs font-semibold text-gray-700 dark:text-gray-300 mb-1">Classic layouts</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-2 gap-2 max-h-56 overflow-y-auto pr-1">
               {STUDIO_LAYOUTS.map((l) => (
                 <button key={l.key} onClick={() => setLayoutKey(l.key)}
                   className={`inline-flex items-center text-left px-3 rounded-lg text-xs border transition ${layoutKey === l.key ? 'border-transparent text-white bg-gray-900 dark:bg-gray-700' : 'border-gray-200 dark:border-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700'} min-h-[44px]`}>
@@ -2057,95 +2106,15 @@ export default function DesignStudio({
           </div>
         </StudioSection>
         )}
-      </div>
-
-      {/* Right — live preview (sticky), coach, export */}
-      <div className="lg:col-span-3 flex flex-col gap-4">
-        {/* Live preview canvas */}
-        <div className="lg:sticky lg:top-6 space-y-3">
-          <div className="flex items-center justify-between gap-2">
-            <label className="text-xs font-extrabold uppercase tracking-wide text-gray-600 dark:text-gray-300">Live preview</label>
-            <div className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
-              {PREVIEW_FRAME_OPTIONS.map((o) => (
-                <button key={o.key} onClick={() => setFrame(o.key)} title={o.label}
-                  className={`inline-flex items-center px-2 rounded-md text-[10px] font-bold uppercase tracking-wide transition ${frame === o.key ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'} min-h-[44px]`}>
-                  {o.label}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-800/50 p-2 flex flex-col items-center justify-center"
-            style={{ minHeight: '26rem', backgroundImage: 'radial-gradient(circle, rgba(148,163,184,0.22) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
-            <PreviewFrame kind={frame} w={w} h={h} scale={scale} label={`${format.label} · ${w}×${h}`}>
-              <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
-                <div ref={flyerRef} style={{ width: w, height: h, position: 'relative', overflow: 'hidden', background: captureOverlay ? 'transparent' : bgA(1), fontFamily: "'Coolvetica', system-ui, Arial, sans-serif" }}>
-                  {/* Background media — faded out while capturing the overlay (so it
-                      isn't duplicated into the transparent layer) but kept mounted so
-                      the video ref stays valid for the still-frame composite. */}
-                  <div style={{ position: 'absolute', inset: 0, opacity: captureOverlay ? 0 : 1 }}>
-                    {hasVideo
-                      ? <video ref={bgVideoRef} src={bg!.url} autoPlay loop muted playsInline
-                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                      : (bgImageSrc && (
-                          <img src={bgImageSrc} crossOrigin="anonymous" alt=""
-                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
-                        ))}
-                  </div>
-                  {/* Live Business Canvas: one provider resolves {{tokens}} for
-                      every text slot in whichever layout renders below. */}
-                  {/* The smart layout stays mounted while free canvas is on, but
-                      hidden. visibility:hidden keeps real geometry for
-                      "Import layout" to measure, while painting nothing — so it
-                      never reaches an export. */}
-                  <div
-                    aria-hidden={freeCanvas || undefined}
-                    style={freeCanvas
-                      ? { visibility: 'hidden', position: 'absolute', inset: 0, pointerEvents: 'none' }
-                      : undefined}
-                  >
-                    <LiveResolveContext.Provider value={resolve}>
-                      {renderLayout()}
-                    </LiveResolveContext.Provider>
-                  </div>
-                  {freeCanvas && doc && (
-                    <CanvasLayers
-                      doc={doc}
-                      selectedId={selectedLayer}
-                      interactive={!captureOverlay}
-                      scale={scale}
-                      onSelect={setSelectedLayer}
-                      onChange={commitDoc}
-                    />
-                  )}
-                </div>
-              </div>
-            </PreviewFrame>
-          </div>
-          <p className="text-[11px] text-gray-400 flex items-center gap-1">
-            <Pencil size={12} /> Click any text on the design to edit it in place — or use the fields on the left.
-          </p>
-        </div>
-
-        {/* AI Design Coach — on demand. Hidden behind a button so it never
-            crowds the editor; opening it swaps the button for the full panel. */}
-        {coachOpen ? (
-          <DesignCoachPanel
-            report={coachReport}
-            channels={channels}
-            onApplyBrandAccent={applyBrandAccent}
-            open
-            onToggle={() => setCoachOpen(false)}
-          />
-        ) : (
-          <button
-            type="button"
-            onClick={() => setCoachOpen(true)}
-            className="w-full inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 text-xs font-bold text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
-          >
-            <Gauge size={14} /> Check this design
-          </button>
-        )}
-
+        {/*
+          * Export lives with the controls, not beside the preview.
+          *
+          * It is a 256px block that never changes while you design, and it
+          * was sitting in the column whose only job is to show the work —
+          * so the preview gave up a quarter of its height to buttons nobody
+          * presses until the end. Downloading is the last thing you do; it
+          * belongs where the other decisions are.
+          */}
         {/* Export & share */}
         <StudioSection icon={Download} title="Export & Share">
           <div className="flex gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
@@ -2218,6 +2187,112 @@ export default function DesignStudio({
             ))}
           </div>
         </StudioSection>
+
+      </div>
+
+      {/* Right — live preview (sticky), coach */}
+      <div className="min-w-0 flex flex-col gap-4 lg:col-span-3">
+        {/* Live preview canvas */}
+        {/*
+          * Pinned BELOW the top bar, not under it.
+          *
+          * The site header is sticky and 55px tall; this was pinning at 24px,
+          * so once the page scrolled the top of the preview — the headline,
+          * the part being judged — sat behind the navigation. An offset that
+          * clears the bar is the difference between a preview that follows
+          * you down the page and one that hides as soon as you move.
+          *
+          * A px value on purpose: index.css scales the root font below 16px,
+          * so a rem offset lands short of the bar it has to clear.
+          */}
+        <div className="lg:sticky lg:top-[64px] space-y-3">
+          <div className="flex items-center justify-between gap-2">
+            <label className="text-xs font-extrabold uppercase tracking-wide text-gray-600 dark:text-gray-300">Live preview</label>
+            <div className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
+              {PREVIEW_FRAME_OPTIONS.map((o) => (
+                <button key={o.key} onClick={() => setFrame(o.key)} title={o.label}
+                  className={`inline-flex items-center px-2 rounded-md text-[10px] font-bold uppercase tracking-wide transition ${frame === o.key ? 'bg-purple-600 text-white' : 'text-gray-500 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-800'} min-h-[44px]`}>
+                  {o.label}
+                </button>
+              ))}
+            </div>
+          </div>
+          <div
+            ref={previewBox}
+            className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-gray-100/70 dark:bg-gray-800/50 p-2 flex flex-col items-center justify-center"
+            /* Tall enough to be worth the width: the viewport less the top bar
+               and the controls beneath it, floored so it never collapses. */
+            style={{ minHeight: '26rem', height: 'calc(100vh - 14rem)', maxHeight: '58rem', backgroundImage: 'radial-gradient(circle, rgba(148,163,184,0.22) 1px, transparent 1px)', backgroundSize: '18px 18px' }}>
+            <PreviewFrame kind={frame} w={w} h={h} scale={scale} label={`${format.label} · ${w}×${h}`}>
+              <div style={{ transform: `scale(${scale})`, transformOrigin: 'top left' }}>
+                <div ref={flyerRef} style={{ width: w, height: h, position: 'relative', overflow: 'hidden', background: captureOverlay ? 'transparent' : bgA(1), fontFamily: "'Coolvetica', system-ui, Arial, sans-serif" }}>
+                  {/* Background media — faded out while capturing the overlay (so it
+                      isn't duplicated into the transparent layer) but kept mounted so
+                      the video ref stays valid for the still-frame composite. */}
+                  <div style={{ position: 'absolute', inset: 0, opacity: captureOverlay ? 0 : 1 }}>
+                    {hasVideo
+                      ? <video ref={bgVideoRef} src={bg!.url} autoPlay loop muted playsInline
+                          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                      : (bgImageSrc && (
+                          <img src={bgImageSrc} crossOrigin="anonymous" alt=""
+                            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
+                        ))}
+                  </div>
+                  {/* Live Business Canvas: one provider resolves {{tokens}} for
+                      every text slot in whichever layout renders below. */}
+                  {/* The smart layout stays mounted while free canvas is on, but
+                      hidden. visibility:hidden keeps real geometry for
+                      "Import layout" to measure, while painting nothing — so it
+                      never reaches an export. */}
+                  <div
+                    aria-hidden={freeCanvas || undefined}
+                    style={freeCanvas
+                      ? { visibility: 'hidden', position: 'absolute', inset: 0, pointerEvents: 'none' }
+                      : undefined}
+                  >
+                    <LiveResolveContext.Provider value={resolve}>
+                      {renderLayout()}
+                    </LiveResolveContext.Provider>
+                  </div>
+                  {freeCanvas && doc && (
+                    <CanvasLayers
+                      doc={doc}
+                      selectedId={selectedLayer}
+                      interactive={!captureOverlay}
+                      scale={scale}
+                      onSelect={setSelectedLayer}
+                      onChange={commitDoc}
+                    />
+                  )}
+                </div>
+              </div>
+            </PreviewFrame>
+          </div>
+          <p className="text-[11px] text-gray-400 flex items-center gap-1">
+            <Pencil size={12} /> Click any text on the design to edit it in place — or use the fields on the left.
+          </p>
+        </div>
+
+        {/* AI Design Coach — on demand. Hidden behind a button so it never
+            crowds the editor; opening it swaps the button for the full panel. */}
+        {coachOpen ? (
+          <DesignCoachPanel
+            report={coachReport}
+            channels={channels}
+            onApplyBrandAccent={applyBrandAccent}
+            open
+            onToggle={() => setCoachOpen(false)}
+          />
+        ) : (
+          <button
+            type="button"
+            onClick={() => setCoachOpen(true)}
+            className="w-full inline-flex items-center justify-center gap-2 min-h-[44px] px-4 rounded-2xl border border-dashed border-gray-300 dark:border-gray-600 text-xs font-bold text-gray-600 dark:text-gray-300 hover:border-purple-400 hover:text-purple-700 dark:hover:text-purple-300 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+          >
+            <Gauge size={14} /> Check this design
+          </button>
+        )}
+
       </div>
 
       {/* Record a backdrop with the OpenReel camera. It uploads to storage and

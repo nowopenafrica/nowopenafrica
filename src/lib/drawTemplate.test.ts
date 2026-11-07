@@ -1,6 +1,10 @@
-import { describe, it, expect } from 'vitest';
-import { drawTemplateFrame, wrapLines, gradientLine, coverRect } from './drawTemplate';
-import { DESIGN_TEMPLATES, templateByKey, settleTime } from './designTemplates';
+import { describe, it, expect, vi } from 'vitest';
+import { drawTemplateFrame, wrapLines, gradientLine, coverRect, applyDuotone, preloadTemplatePatterns } from './drawTemplate';
+import { DESIGN_TEMPLATES, templateByKey, settleTime, fontStack, hexAlpha, type DesignTemplate } from './designTemplates';
+import { resolveLook, type Look } from './design/look';
+import { paletteOf } from './design/palettes';
+import { patternZoneBox } from './design/patterns';
+import { pairingOf } from './design/typefaces';
 
 const CONTENT = {
   brand: 'Mama Put Kitchen',
@@ -177,5 +181,201 @@ describe('coverRect', () => {
 
   it('degrades to the frame for a source with no dimensions', () => {
     expect(coverRect(0, 0, 100, 50)).toEqual({ x: 0, y: 0, w: 100, h: 50 });
+  });
+});
+
+// ---- the look engine ---------------------------------------------------------
+
+/**
+ * A richer recorder for the look cases and the look-less baseline: it also
+ * logs every style assignment, and stamps each paint call with the fill in
+ * force, because "which colour did this rectangle get" is the whole question.
+ */
+function recCtx(charWidth = 10) {
+  const calls: { op: string; args: unknown[]; fill?: unknown }[] = [];
+  const state: Record<string, unknown> = {
+    filter: 'none', letterSpacing: '0px', font: '', textAlign: 'left', textBaseline: 'alphabetic',
+    fillStyle: '', strokeStyle: '', lineWidth: 1, globalAlpha: 1, lineCap: 'butt', lineJoin: 'miter',
+  };
+  const ser = (v: unknown): unknown =>
+    typeof v === 'object' && v !== null ? ((v as { __grad?: string }).__grad ?? '[object]') : v;
+  let gid = 0;
+  const ctx: Record<string, unknown> = { canvas: { width: 1080, height: 1080 } };
+  for (const k of Object.keys(state)) {
+    Object.defineProperty(ctx, k, {
+      get: () => state[k],
+      set: (v) => { state[k] = v; calls.push({ op: `set:${k}`, args: [ser(v)] }); },
+    });
+  }
+  const paint = new Set(['fillRect', 'fill', 'fillText', 'drawImage']);
+  for (const op of ['save', 'restore', 'clearRect', 'fillRect', 'strokeRect', 'fillText', 'translate', 'scale',
+    'beginPath', 'closePath', 'moveTo', 'lineTo', 'quadraticCurveTo', 'rect', 'clip', 'fill', 'stroke', 'arc', 'drawImage']) {
+    ctx[op] = (...args: unknown[]) => {
+      calls.push({ op, args: args.map(ser), ...(paint.has(op) ? { fill: ser(state.fillStyle) } : {}) });
+    };
+  }
+  ctx.measureText = (s: string) => ({ width: s.length * charWidth });
+  const gradient = (kind: string) => (...args: unknown[]) => {
+    const id = `[${kind}#${gid++}]`;
+    calls.push({ op: `create${kind}`, args: [id, ...args] });
+    return { __grad: id, addColorStop: (at: number, c: string) => calls.push({ op: 'stop', args: [id, at, c] }) };
+  };
+  ctx.createLinearGradient = gradient('Linear');
+  ctx.createRadialGradient = gradient('Radial');
+  return { ctx: ctx as unknown as CanvasRenderingContext2D, calls };
+}
+
+const FULL = {
+  ...CONTENT,
+  services: ['Jollof rice', 'Suya platter', 'Small chops'],
+  stats: [{ value: '12k', label: 'Plates served' }, { value: '4.9', label: 'Rating' }],
+  contact: ['0803 000 0000', 'hello@mamaput.ng', 'mamaput.ng'],
+  price: [{ label: 'Jollof', price: '₦3,500', was: '₦4,000' }, { label: 'Suya', price: '₦2,000' }],
+};
+
+describe('drawTemplateFrame — looks', () => {
+  /*
+   * Recorded from the painter BEFORE the look engine touched it: the snapshot
+   * file was written by running this test against the pre-task drawTemplate.ts.
+   * A template without a `look` must keep producing exactly this call log.
+   */
+  it('still paints a look-less template exactly as before', () => {
+    const media = { width: 800, height: 600 } as unknown as CanvasImageSource;
+    const cases: { key: string; opts?: Record<string, unknown>; content?: Record<string, unknown> }[] = [
+      { key: 'statement' },
+      { key: 'statement', opts: { t: 0.4, sceneSeconds: 4, surfaceOpacity: 0.6, mediaOpacity: 0.8 }, content: { media } },
+      { key: 'ticket' },
+      { key: 'promo-burst', opts: { base: '#1e293b' } },
+      { key: 'price-block' },
+      { key: 'web-hero' },
+    ];
+    for (const c of cases) {
+      const { ctx, calls } = recCtx();
+      drawTemplateFrame(ctx, templateByKey(c.key), { ...FULL, ...c.content }, 1080, 1080, { accent: '#9a3412', ...c.opts });
+      expect(calls).toMatchSnapshot(`${c.key}${c.opts ? ' +opts' : ''}`);
+    }
+  });
+
+  const X = paletteOf('ink-coral')!.colours;
+  const LOOK: Look = { palette: 'ink-coral', type: 'editorial' };
+  const withLook = (patch: Partial<DesignTemplate> = {}, look: Partial<Look> = {}): DesignTemplate => ({
+    ...templateByKey('statement'),
+    ...patch,
+    look: { ...LOOK, ...look },
+  });
+  const paintOf = (tpl: DesignTemplate, opts: Record<string, unknown> = {}, content: Record<string, unknown> = {}) => {
+    const r = recCtx();
+    drawTemplateFrame(r.ctx, tpl, { ...FULL, ...content }, 1080, 1080, { accent: '#9a3412', ...opts });
+    return r.calls;
+  };
+
+  it('fills role-toned shapes with role colours', () => {
+    const calls = paintOf(withLook({
+      shapes: [
+        { kind: 'rect', x: 0, y: 0.8, w: 1, h: 0.2, tone: 'secondary' },
+        { kind: 'circle', cx: 0.5, cy: 0.5, r: 0.1, tone: 'highlight' },
+      ],
+    }));
+    const fills = calls.filter((c) => c.op === 'fillRect' || c.op === 'fill').map((c) => c.fill);
+    expect(fills).toContain(X.secondary);
+    expect(fills).toContain(X.highlight);
+  });
+
+  it('fills a gradient shape from the roles', () => {
+    const calls = paintOf(withLook({
+      shapes: [{ kind: 'rect', x: 0, y: 0, w: 0.5, h: 0.5, tone: 'primary', fill: { kind: 'linear', stops: ['primary', 'highlight'], angle: 90 } }],
+    }));
+    const stops = calls.filter((c) => c.op === 'stop').map((c) => c.args[2]);
+    expect(stops).toContain(X.highlight);
+    // Linear at 90deg across the shape's own box: x from 0 to 540, flat y.
+    const lin = calls.find((c) => c.op === 'createLinear' && c.args[1] === 0 && c.args[3] === 540);
+    expect(lin).toBeTruthy();
+  });
+
+  it('paints the ground gradient from the look', () => {
+    const calls = paintOf(withLook({}, { gradient: { kind: 'linear', stops: ['ground', 'primary'], angle: 160 } }));
+    expect(calls.some((c) => c.op === 'createLinear')).toBe(true);
+    const stops = calls.filter((c) => c.op === 'stop').map((c) => c.args[2]);
+    expect(stops).toContain(X.ground);
+    expect(stops).toContain(X.primary);
+    // The look's ground replaces the template's spotlight surface entirely.
+    expect(calls.some((c) => c.op === 'createRadial')).toBe(false);
+  });
+
+  it('paints the pattern before any text, once its bitmap has decoded', async () => {
+    const loads: string[] = [];
+    class FakeImage {
+      onload: (() => void) | null = null;
+      onerror: (() => void) | null = null;
+      __grad = '[pattern]';
+      set src(v: string) { loads.push(v); queueMicrotask(() => this.onload?.()); }
+    }
+    vi.stubGlobal('Image', FakeImage);
+    try {
+      const tpl = withLook({}, { pattern: { key: 'dots', role: 'highlight', opacity: 0.1, scale: 0.05, zone: 'bottom' } });
+      // First frame: the load starts and the frame paints without the pattern.
+      const first = paintOf(tpl);
+      expect(first.some((c) => c.op === 'drawImage')).toBe(false);
+      expect(loads.length).toBe(1);
+      expect(loads[0]).toMatch(/^data:image\/svg\+xml/);
+
+      await preloadTemplatePatterns(tpl, 1080, 1080, { accent: '#9a3412' });
+      const calls = paintOf(tpl);
+      const img = calls.findIndex((c) => c.op === 'drawImage' && c.args[0] === '[pattern]');
+      const text = calls.findIndex((c) => c.op === 'fillText');
+      expect(img).toBeGreaterThan(-1);
+      expect(img).toBeLessThan(text);
+      // Clipped to its zone through the source rectangle.
+      const z = patternZoneBox('bottom', 1080, 1080);
+      expect(calls[img].args.slice(1)).toEqual([z.x, z.y, z.w, z.h, z.x, z.y, z.w, z.h]);
+      // Opacity applied by the painter.
+      const alpha = calls.slice(0, img).filter((c) => c.op === 'set:globalAlpha').pop();
+      expect(alpha?.args[0]).toBe(0.1);
+      // Cached: later frames do not load it again.
+      expect(loads.length).toBe(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('sets the headline in the look pairing, with a gradient where asked', () => {
+    const calls = paintOf(withLook({}, { headlineGradient: true }));
+    const pairing = pairingOf('editorial');
+    const fonts = calls.filter((c) => c.op === 'set:font').map((c) => String(c.args[0]));
+    expect(fonts.some((f) => f.includes(fontStack(pairing.display)))).toBe(true);
+
+    const head = calls.find((c) => c.op === 'fillText' && String(c.args[0]).toLowerCase().includes('two plates'));
+    expect(String(head?.fill)).toMatch(/^\[Linear#/);
+    const stops = calls.filter((c) => c.op === 'stop' && c.args[0] === head!.fill).map((c) => c.args[2]);
+    expect(stops).toEqual([X.primary, X.secondary]);
+  });
+
+  it('reads slot ink from the ground it declares', () => {
+    const base = withLook();
+    const tpl = withLook({ slots: base.slots.map((s) => (s.role === 'headline' ? { ...s, on: 'secondary' as const } : s)) });
+    const resolved = resolveLook(tpl, { accent: '#9a3412', width: 1080, height: 1080 });
+    const calls = paintOf(tpl);
+    const head = calls.find((c) => c.op === 'fillText' && String(c.args[0]).toLowerCase().includes('two plates'));
+    expect(head?.fill).toBe(resolved.inkOn.secondary);
+    const sub = calls.find((c) => c.op === 'fillText' && String(c.args[0]).includes('Friday'));
+    // statement's subline is muted: the palette ink, thinned.
+    expect(sub?.fill).toBe(hexAlpha(X.ink, 0.72));
+  });
+});
+
+describe('applyDuotone', () => {
+  it('maps black to the first role and white to the second', () => {
+    const px = new Uint8ClampedArray([0, 0, 0, 255, 255, 255, 255, 128]);
+    applyDuotone(px, '#102030', '#f0e0d0');
+    expect([...px]).toEqual([0x10, 0x20, 0x30, 255, 0xf0, 0xe0, 0xd0, 128]);
+  });
+
+  it('uses Rec. 709 luma, so pure green lands far nearer the light end than pure blue', () => {
+    const g = new Uint8ClampedArray([0, 255, 0, 255]);
+    const b = new Uint8ClampedArray([0, 0, 255, 255]);
+    applyDuotone(g, '#000000', '#ffffff');
+    applyDuotone(b, '#000000', '#ffffff');
+    expect(g[0]).toBe(Math.round(0.7152 * 255));
+    expect(b[0]).toBe(Math.round(0.0722 * 255));
   });
 });

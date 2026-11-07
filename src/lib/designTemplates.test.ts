@@ -3,6 +3,8 @@ import {
   DESIGN_TEMPLATES, templateByKey, slotOf, slotBox, typePx, unitOf,
   motionAt, settleTime, surfaceLayers, hexAlpha, inkFor, SETTLED,
   shapeGeometry, listRowBoxes, templateListRoles, isListRole, defaultMediaScrim, surfaceSpecLayers,
+  fittedTypePx,
+  fitSlotSize,
   type SlotSpec,
 } from './designTemplates';
 
@@ -138,10 +140,71 @@ describe('surface', () => {
   });
 
   it('adds a vignette layer only where the template asks for one', () => {
-    const withV = DESIGN_TEMPLATES.find(t => t.surface.vignette)!;
-    const noV = DESIGN_TEMPLATES.find(t => !t.surface.vignette)!;
-    expect(surfaceLayers(withV, '#fff', '#000').some(l => l.includes('rgba(0, 0, 0'))).toBe(true);
-    expect(surfaceLayers(noV, '#fff', '#000').length).toBe(1);
+    /*
+     * Asserts the VIGNETTE, not the layer count.
+     *
+     * This used to read `expect(surfaceLayers(noV, ...).length).toBe(1)`, which
+     * silently also asserted that every surface is a single flat gradient — and
+     * that was the flatness bug, pinned as if it were the specification. A
+     * surface now carries its ramp plus a light source, so the count is 2 or 3;
+     * what matters is that a black overlay appears only where asked.
+     */
+    /*
+     * Measured as the vignette's own CONTRIBUTION — the same template with the
+     * flag on and off — rather than by looking for black in the CSS. A dark
+     * ground is legitimately near-black, so a string search for "rgba(0, 0, 0"
+     * finds the ground and reports a vignette that is not there.
+     */
+    const plain = DESIGN_TEMPLATES.find(t => !t.surface.vignette)!;
+    const withV = { ...plain, surface: { ...plain.surface, vignette: 0.4 } };
+
+    expect(surfaceLayers(withV, '#9a3412', '#0b1220').length)
+      .toBe(surfaceLayers(plain, '#9a3412', '#0b1220').length + 1);
+    // And it is the last layer, so it sits over the ramp rather than under it.
+    const layers = surfaceLayers(withV, '#9a3412', '#0b1220');
+    expect(layers[layers.length - 1]).toContain('rgba(0, 0, 0, 0.4)');
+  });
+
+  it('gives every surface real tonal range, whatever the brand colour', () => {
+    /*
+     * THE FLATNESS BUG, 2026-09-15. All 376 generated designs rendered as one
+     * flat block of the brand colour.
+     *
+     * The surface painter built its gradients from `accent` and `base`, and
+     * styleColours() returns base === accent for the `brand` rule whenever the
+     * brand is already readable — which is the default Signature style on most
+     * brands. Every gradient therefore ran blue to blue. The library was 376
+     * layouts wearing one look.
+     *
+     * Passing the SAME colour for both is the case that used to collapse, so
+     * that is the case this test uses.
+     */
+    const stopsOf = (css: string) => css.match(/rgba?\([^)]*\)/g) ?? [];
+    for (const t of DESIGN_TEMPLATES) {
+      const layers = surfaceLayers(t, '#2563eb', '#2563eb');
+      const distinct = new Set(layers.flatMap(stopsOf).map((c) => c.replace(/\s/g, '')));
+      // One colour repeated is a flat fill. Three distinct values is a ramp.
+      expect(distinct.size, `${t.key} (${t.surface.kind})`).toBeGreaterThanOrEqual(3);
+    }
+  });
+
+  it('keeps a second hue when the ground has one of its own', () => {
+    /*
+     * A Duotone design is two colours by definition, and styleColours() hands
+     * this function a ground derived from a PARTNER tone for that style.
+     *
+     * The first version of the tonal fix ended every ramp in a darkened accent,
+     * which fixed the flat single-colour case and silently threw the partner
+     * hue away — turning the one genuinely two-colour style into another
+     * monochrome. Caught before it shipped; pinned here so it stays caught.
+     */
+    const tpl = DESIGN_TEMPLATES.find(t => t.surface.kind === 'gradient')!;
+    const twoHue = surfaceLayers(tpl, '#2563eb', '#7c2d12').join(' ');
+    // Some red must survive: the ground is a warm brown, the accent is blue.
+    const reds = [...twoHue.matchAll(/rgba\((\d+), (\d+), (\d+)/g)]
+      .map(m => [Number(m[1]), Number(m[2]), Number(m[3])]);
+    expect(reds.some(([r, , b]) => r > b + 20), 'no warm stop survived').toBe(true);
+    expect(reds.some(([r, , b]) => b > r + 20), 'no cool stop survived').toBe(true);
   });
 
   it('pairs light ink with dark surfaces and vice versa', () => {
@@ -318,6 +381,13 @@ describe('shapes never cover the headline', () => {
          * other tone can genuinely bury type, so every other tone still counts.
          */
         if (shape.tone === 'base') continue;
+        /*
+         * A headline declared `on` this shape's colour sits there on purpose:
+         * its ink is chosen against that colour, and looks.test measures the
+         * pair. The Colour Block card's band is the reason for its name.
+         */
+        const onRole: string[] = headline.on === 'primary' ? ['primary', 'accent'] : [headline.on ?? ''];
+        if (headline.on && onRole.includes(shape.tone)) continue;
 
         for (const [name, w, h] of FORMATS) {
           const g = shapeGeometry(shape, w, h);
@@ -422,5 +492,106 @@ describe('background media scrim', () => {
       expect(surfaceSpecLayers(t, '#f59e0b', '#0b1220', 1))
         .toEqual(surfaceSpecLayers(t, '#f59e0b', '#0b1220'));
     }
+  });
+});
+
+describe('a headline never overruns the copy beneath it', () => {
+  /**
+   * MEASURED ON THE LIVE GALLERY, 2026-09-15.
+   *
+   * Nothing measured or constrained text anywhere in the studio. A slot carries
+   * one size and one y, so a headline needing three lines where the layout
+   * budgeted two grew downward and printed over its own subline. On the
+   * Megaphone style — Archivo Black, set 1.14x and in capitals — five of the
+   * first twelve designs on screen collided with their body copy.
+   *
+   * A plain design is still a design. Overlapping text is a defect, and it was
+   * the first thing anyone saw of the library.
+   */
+  const slot = (over: Partial<SlotSpec> = {}): SlotSpec => ({
+    role: 'headline', x: 0.08, y: 0.4, w: 0.84, size: 0.11, font: 'heavy', ...over,
+  } as SlotSpec);
+
+  it('shrinks a long headline and leaves a short one alone', () => {
+    const short = fittedTypePx('Sale', slot(), 1080, 1080);
+    const long = fittedTypePx(
+      'Our biggest end of season clearance event starts this Friday morning',
+      slot(), 1080, 1080,
+    );
+    expect(short).toBe(typePx(0.11, 1080, 1080));
+    expect(long).toBeLessThan(short);
+  });
+
+  it('never shrinks a display face into a caption', () => {
+    // Below ~62% a display face stops being one; the honest answer then is that
+    // the headline is too long for that layout, not a 20px headline.
+    const base = typePx(0.11, 1080, 1080);
+    const absurd = fittedTypePx('x'.repeat(600), slot(), 1080, 1080);
+    expect(absurd).toBeGreaterThanOrEqual(Math.round(base * 0.6));
+  });
+
+  it('accounts for how wide the face actually is', () => {
+    /*
+     * Archivo Black is nearly half again the width of Bebas Neue at the same
+     * size. A fit that ignored the face would pass one and overflow the other,
+     * which is exactly how this shipped.
+     */
+    const text = 'Your headline here, announcing the thing';
+    const wide = fittedTypePx(text, slot({ font: 'heavy' }), 1080, 1080);
+    const narrow = fittedTypePx(text, slot({ font: 'condensed' }), 1080, 1080);
+    expect(wide).toBeLessThan(narrow);
+  });
+
+  it('accounts for tracking, which widens every character', () => {
+    const text = 'Your headline here, announcing the thing';
+    const tight = fittedTypePx(text, slot({ tracking: -0.03 }), 1080, 1080);
+    const loose = fittedTypePx(text, slot({ tracking: 0.08 }), 1080, 1080);
+    expect(loose).toBeLessThanOrEqual(tight);
+  });
+
+  it('takes its line budget from the slot beneath, not from a constant', () => {
+    /*
+     * THE SECOND ATTEMPT AT THIS BUG, and why a constant could never work.
+     *
+     * The first fix capped every headline at three lines. "Your headline here"
+     * is two, so nothing shrank and the gallery collided exactly as before. The
+     * budget was never a number of lines: it is the gap between this slot and
+     * whatever the template puts under it.
+     */
+    const headline = slot({ y: 0.40, size: 0.11 });
+    const tight = [headline, slot({ role: 'subline', y: 0.52, size: 0.03 } as Partial<SlotSpec>)];
+    const roomy = [headline, slot({ role: 'subline', y: 0.85, size: 0.03 } as Partial<SlotSpec>)];
+    const text = 'Your headline here';
+
+    const squeezed = fitSlotSize(headline, tight as SlotSpec[], text, 1080, 1080);
+    const relaxed = fitSlotSize(headline, roomy as SlotSpec[], text, 1080, 1080);
+    expect(squeezed).toBeLessThan(relaxed);
+  });
+
+  it('is not constrained by a slot that sits beside it rather than below', () => {
+    // A caption in a right-hand column cannot be collided with by a headline on
+    // the left, so it must not shrink one.
+    const headline = slot({ x: 0.06, w: 0.44, y: 0.4, size: 0.11 });
+    const beside = slot({ role: 'meta', x: 0.56, w: 0.38, y: 0.45, size: 0.03 } as Partial<SlotSpec>);
+    const alone = fitSlotSize(headline, [headline] as SlotSpec[], 'Your headline here', 1080, 1080);
+    const withNeighbour = fitSlotSize(headline, [headline, beside] as SlotSpec[], 'Your headline here', 1080, 1080);
+    expect(withNeighbour).toBe(alone);
+  });
+
+  it('is deterministic, so the PNG matches the preview', () => {
+    /*
+     * The DOM preview and the canvas exporter both call this. If it were not
+     * pure — if it measured real glyphs in one of the two — the exported file
+     * would not be the design the owner edited.
+     */
+    const text = 'Our biggest end of season clearance event starts Friday';
+    const a = fittedTypePx(text, slot(), 1080, 1350);
+    const b = fittedTypePx(text, slot(), 1080, 1350);
+    expect(a).toBe(b);
+  });
+
+  it('handles nothing at all without dividing by zero', () => {
+    expect(fittedTypePx(undefined, slot(), 1080, 1080)).toBe(typePx(0.11, 1080, 1080));
+    expect(fittedTypePx('   ', slot(), 1080, 1080)).toBe(typePx(0.11, 1080, 1080));
   });
 });

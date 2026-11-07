@@ -1,6 +1,5 @@
 import { BUSINESS_CATEGORY_GROUPS } from '../../data/categories';
 import { DESIGN_TEMPLATES, type DesignTemplate } from '../designTemplates';
-import { DESIGN_STYLES } from './styles';
 import { STYLE_TAGS, TEMPLATE_USES, type StyleTag, type TemplateUse } from './tags';
 
 export { STYLE_TAGS, TEMPLATE_USES };
@@ -133,15 +132,6 @@ export const usedStyleTags = (from: DesignTemplate[] = DESIGN_TEMPLATES): StyleT
   STYLE_TAGS.filter((tag) => from.some((t) => (t.styles ?? []).includes(tag)));
 
 /**
- * How many distinct finished designs the library can currently produce.
- *
- * Layouts times styles. Stated as a function rather than a number so it cannot
- * drift from the truth, and so nothing anywhere claims a count we do not have.
- */
-export const libraryDepth = (from: DesignTemplate[] = DESIGN_TEMPLATES): number =>
-  from.length * DESIGN_STYLES.length;
-
-/**
  * Which industry group a business belongs to.
  *
  * This is what makes Create business-first rather than generic: the template
@@ -177,7 +167,15 @@ export function industryGroupFor(category: string | null | undefined): string | 
 export function diversify(from: DesignTemplate[] = DESIGN_TEMPLATES): DesignTemplate[] {
   const buckets = new Map<string, DesignTemplate[]>();
   for (const tpl of from) {
-    const key = `${tpl.scheme}:${tpl.mood}`;
+    /*
+     * Photography is part of what makes two cards look different.
+     *
+     * The key was scheme and mood only, so the photo-led layouts clustered
+     * wherever they happened to sit in the catalogue — and the first screen,
+     * which is the whole impression, could come up almost entirely flat
+     * colour. Including it spreads them without changing the rule.
+     */
+    const key = `${tpl.scheme}:${tpl.mood}:${tpl.photoLed ? 'photo' : 'flat'}`;
     const bucket = buckets.get(key);
     if (bucket) bucket.push(tpl);
     else buckets.set(key, [tpl]);

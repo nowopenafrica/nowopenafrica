@@ -170,6 +170,7 @@ export const BANNER_FORMATS: StudioFormat[] = [
   { key: 'linkedin-cover', label: 'LinkedIn Cover', w: 1584, h: 396 },
   { key: 'youtube-banner', label: 'YouTube Banner', w: 2560, h: 1440 },
   { key: 'email-header', label: 'Email Header', w: 600, h: 200 },
+
 ];
 
 // --- Promotions (Promotion Builder) -----------------------------------------
@@ -199,6 +200,14 @@ export const PROMO_FORMATS: StudioFormat[] = [
 export const DESIGN_FORMATS: StudioFormat[] = [
   { key: 'story', label: 'Story / WhatsApp Status', w: 1080, h: 1920 },
   { key: 'instagram-post', label: 'Instagram Post', w: 1080, h: 1080 },
+  /*
+   * MEASURED, 2026-10-26: 4:5 was missing, and it is the most used feed size
+   * there is — about forty of the Creative System's artboards are 1080x1350.
+   * Without it every one of them resolved to the nearest shape we did ship,
+   * which was US LETTER: a social post opening on a sheet of American office
+   * paper. The same failure the card sizes further down already record.
+   */
+  { key: 'instagram-portrait', label: 'Instagram / Facebook Portrait', w: 1080, h: 1350 },
   { key: 'facebook-post', label: 'Facebook Post', w: 1200, h: 630 },
   { key: 'linkedin-post', label: 'LinkedIn Post', w: 1200, h: 627 },
   { key: 'x-post', label: 'X / Twitter', w: 1600, h: 900 },
@@ -206,6 +215,9 @@ export const DESIGN_FORMATS: StudioFormat[] = [
   { key: 'youtube-thumbnail', label: 'YouTube Thumbnail', w: 1280, h: 720 },
   { key: 'a4', label: 'A4 Flyer / Poster', w: 1240, h: 1754 },
   { key: 'a3', label: 'A3 Poster', w: 1414, h: 2000 },
+  /* A5 shares A4's proportion exactly, so only SIZE tells them apart — and an
+     A5 handbill laid out on an A4 canvas prints at the wrong scale. */
+  { key: 'a5', label: 'A5 Flyer / Handbill', w: 877, h: 1240 },
   { key: 'letter', label: 'US Letter', w: 1275, h: 1650 },
   { key: 'half-a4', label: 'Half A4 / DL', w: 1240, h: 877 },
   { key: 'square', label: 'Square Poster', w: 1200, h: 1200 },
@@ -219,4 +231,29 @@ export const DESIGN_FORMATS: StudioFormat[] = [
   { key: 'linkedin-cover', label: 'LinkedIn Cover', w: 1584, h: 396 },
   { key: 'youtube-banner', label: 'YouTube Banner', w: 2560, h: 1440 },
   { key: 'email-header', label: 'Email Header', w: 600, h: 200 },
+  /*
+   * IAB display units. This platform sells ad placements, and the two sizes
+   * every publisher asks for had no canvas here — so a display ad designed
+   * in Studio came out square and was cropped by whoever trafficked it.
+   */
+  { key: 'display-mpu', label: 'Display Ad · MPU', w: 300, h: 250 },
+  { key: 'display-leaderboard', label: 'Display Ad · Leaderboard', w: 728, h: 90 },
+
+  /*
+   * ── PRINTED CARDS AND STATIONERY ─────────────────────────────────────
+   *
+   * MEASURED: a business card opened on a 1080x1080 social canvas, because
+   * no card size existed here. The design said "business card" and the
+   * document was a square — which is the failure of changing a label while
+   * leaving the canvas alone.
+   *
+   * Pixel sizes are the PRINTED size at 300dpi, the usual commercial
+   * minimum: 85.6 x 54mm is ISO/IEC 7810 ID-1, the size every card printer
+   * and wallet expects, and 210 x 297mm is A4.
+   */
+  { key: 'business-card', label: 'Business Card · 85.6×54mm', w: 1011, h: 638 },
+  { key: 'business-card-portrait', label: 'Business Card, portrait · 54×85.6mm', w: 638, h: 1011 },
+  { key: 'letterhead', label: 'Letterhead · A4', w: 2480, h: 3508 },
+  { key: 'compliment-slip', label: 'Compliment Slip · 210×99mm', w: 2480, h: 1169 },
+  { key: 'postcard', label: 'Postcard · 148×105mm', w: 1748, h: 1240 },
 ];

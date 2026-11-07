@@ -28,7 +28,7 @@
 import type { DirectorScene, SceneTextElement, TextAnimationKey, TextEffectKey } from './creativeDirector';
 import type { StockClip } from './stockFootage';
 import { hashString, mulberry32 } from './videoCreator';
-import { drawTemplateFrame, type TemplatePaintContent } from './drawTemplate';
+import { drawTemplateFrame, preloadTemplatePatterns, type TemplatePaintContent } from './drawTemplate';
 import { defaultMediaScrim, type DesignTemplate } from './designTemplates';
 import { ensureTypefacesReady } from './design/typefaces';
 
@@ -1685,6 +1685,14 @@ export async function renderVideo(
   await ensureTypefacesReady();
 
   const dims = RENDER_DIMENSIONS[opts.aspect];
+  // A look's pattern is an SVG decoded asynchronously; drawTemplateFrame paints
+  // without it until it has decoded. Awaited here so frame 0 already has it.
+  if (opts.template) {
+    await preloadTemplatePatterns(opts.template, dims.width, dims.height, {
+      accent: opts.palette?.[0] ?? '#9a3412',
+      base: opts.background,
+    });
+  }
   const canvas = makeCanvas(dims.width, dims.height);
   if (!canvas) throw new Error('Could not create the render canvas.');
   const ctx = canvas.getContext('2d');

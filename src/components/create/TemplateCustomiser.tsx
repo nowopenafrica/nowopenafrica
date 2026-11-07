@@ -2,16 +2,26 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  Check, Download, ExternalLink, ImagePlus, ImageUp, Loader2, Trash2, Type, X,
+  Check, Download, ExternalLink, ImagePlus, ImageUp, Loader2, Lock, RotateCcw, Shuffle, Trash2, Type, Unlock, X,
 } from 'lucide-react';
 
 import TemplateSurface, { type TemplateContent } from '../studio/TemplateSurface';
 import { defaultMediaScrim, type DesignTemplate, type SlotRole } from '../../lib/designTemplates';
-import { DESIGN_STYLES, applyStyle, styleColours, styleOf } from '../../lib/design/styles';
+import { DESIGN_STYLES, applyStyle, contrastRatio, styleColours, styleOf } from '../../lib/design/styles';
 import { TYPE_PAIRINGS, ensureTypefacesReady, typefaceOf } from '../../lib/design/typefaces';
 import { DESIGN_FORMATS } from '../../data/studioPresets';
+import { exportPixelRatio, printNoteFor, specFor } from '../../lib/design/printSpec';
+import { formatForTemplate } from '../../lib/design/deliverables';
+import { sampleFor } from '../../lib/create/sampleCopy';
 import { downloadUrl, exportNodeToPng, slugForFile } from '../../lib/studio';
-import { track } from '../../lib/telemetry';import SmartImg from '../SmartImg';
+import { track } from '../../lib/telemetry';
+import { PALETTES, type Palette, type PaletteFamily, type PaletteRole } from '../../lib/design/palettes';
+import type { Look, LookPart } from '../../lib/design/look';
+import { needsMet, remixLook, textNeeds, type Harmony } from '../../lib/design/remix';
+import {
+  baseScheme, brandPaletteFor, encodeLookParam, isHexColour, lookFromParam, type BrandInput,
+} from '../../lib/design/lookParam';
+import SmartImg from '../SmartImg';
 /**
  * Edit a design on the PUBLIC Create page.
  *
@@ -73,21 +83,73 @@ const PRESET_FORMATS = ['instagram-post', 'story', 'a4', 'facebook-post'] as con
 
 const SWATCHES = ['#2563eb', '#e11d48', '#059669', '#f59e0b', '#7c3aed', '#0f172a'];
 
-/** The longest edge we will rasterise. A billboard at 4500px kills a phone. */
-const MAX_EXPORT_EDGE = 2400;
+/*
+ * The rasterising cap now lives in lib/design/printSpec.ts, beside the code
+ * that explains what it does to the resolution a customer receives. Two
+ * copies of this number would mean the size picker could promise one thing
+ * and the download produce another.
+ */
+
+/** Shown verbatim when a brand colour cannot be read. */
+const BRAND_COLOUR_ERROR = 'That isn’t a colour we can read — try a hex like #0f766e';
+
+const FAMILIES: { key: PaletteFamily; label: string }[] = [
+  { key: 'warm', label: 'Warm' }, { key: 'cool', label: 'Cool' }, { key: 'earth', label: 'Earth' },
+  { key: 'bold', label: 'Bold' }, { key: 'pastel', label: 'Pastel' }, { key: 'mono', label: 'Mono' },
+];
+
+const LOCKS: { part: LookPart; label: string }[] = [
+  { part: 'palette', label: 'Palette' }, { part: 'gradient', label: 'Background' },
+  { part: 'pattern', label: 'Pattern' }, { part: 'type', label: 'Fonts' },
+];
 
 export default function TemplateCustomiser({
-  template, initialStyle, initialBrand, onClose,
+  template, initialStyle, initialBrand, initialLook, onClose,
 }: {
   template: DesignTemplate;
   initialStyle: string;
   initialBrand: string;
+  /** A `?look=` value from a shared link: a bare seed (open remixed) or a full look. */
+  initialLook?: string | null;
   onClose: () => void;
 }) {
   const [styleKey, setStyleKey] = useState(initialStyle);
   const [pairingKey, setPairingKey] = useState<string>('');
+  /*
+   * The look: what the customer changed on top of the template's own.
+   *
+   * Only templates WITH a look have any of this. Without one the surface
+   * ignores every palette role, so the single colour picker below stays the
+   * only colour control and the fallback path is untouched.
+   */
+  const hasLook = Boolean(template.look);
+  const needs = useMemo(() => textNeeds(template), [template]);
+  const [initial] = useState(() => lookFromParam(template, initialLook));
+  const [override, setOverride] = useState<Partial<Look>>(initial.look ?? {});
+  const [brandLook, setBrandLook] = useState<BrandInput | null>(initial.brand ?? null);
+  const [seed, setSeed] = useState<number | null>(initial.seed ?? null);
+  /** Bumped when the brand look is dropped by another control, so its typed fields clear. */
+  const [brandFieldsKey, setBrandFieldsKey] = useState(0);
+  const [locks, setLocks] = useState<Set<LookPart>>(() => new Set());
+  const effectiveLook = useMemo<Look | null>(
+    () => (template.look ? { ...template.look, ...override } : null),
+    [template.look, override],
+  );
+  const brandPal = useMemo<Palette | null>(
+    () => (brandLook ? brandPaletteFor(template, brandLook, effectiveLook?.gradient) : null),
+    [template, brandLook, effectiveLook?.gradient],
+  );
   const [brand, setBrand] = useState(initialBrand);
-  const [formatKey, setFormatKey] = useState<string>('instagram-post');
+  /*
+   * The canvas the deliverable belongs on, not a social default.
+   *
+   * MEASURED: every design opened at 1080x1080, so a business card was a
+   * square — the label said card and the document did not. A deliverable
+   * that knows its size now brings it.
+   */
+  const [formatKey, setFormatKey] = useState<string>(
+    () => formatForTemplate(template) ?? 'instagram-post',
+  );
   const [busy, setBusy] = useState(false);
 
   /*
@@ -121,14 +183,37 @@ export default function TemplateCustomiser({
    * every layout that shows the business name shows the logo too — there was
    * no per-template work to do, only a way to supply the file.
    */
+  /*
+   * Which side is on screen.
+   *
+   * A card has a back, a menu has a second page — and a preview that can only
+   * show the front is telling you half of what you are about to download.
+   * The sides come from the template itself (see `extraPages`), so there is
+   * nothing to configure per design.
+   */
+  const [side, setSide] = useState(0);
+
   const [logo, setLogo] = useState<{ url: string; name: string } | null>(null);
   const logoInput = useRef<HTMLInputElement>(null);
 
-  const [headline, setHeadline] = useState('Your headline here');
-  const [subline, setSubline] = useState('One line about the offer, the event or the thing you are announcing.');
-  const [eyebrow, setEyebrow] = useState('This weekend');
-  const [brandName, setBrandName] = useState('Your business');
-  const [cta, setCta] = useState('Book now');
+  /*
+    ── THE SAME WORDS THE CARD SHOWED ─────────────────────────────────────
+
+    These were hardcoded to the generic set, so a card reading "Your
+    promotion / Now on" opened a panel reading "Your headline here / This
+    weekend" — and the Studio link built from this state carried the generic
+    text onward. The shopper picked one thing and got another.
+
+    sampleFor() is the same function the gallery card renders with, so the
+    panel opens showing exactly what was clicked.
+  */
+  const sample = useMemo(() => sampleFor(template), [template]);
+
+  const [headline, setHeadline] = useState(sample.headline ?? '');
+  const [subline, setSubline] = useState(sample.subline ?? '');
+  const [eyebrow, setEyebrow] = useState(sample.eyebrow ?? '');
+  const [brandName, setBrandName] = useState(sample.brand ?? 'Your business');
+  const [cta, setCta] = useState(sample.cta ?? 'Book now');
 
   const stage = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -186,6 +271,58 @@ export default function TemplateCustomiser({
     return () => ro.disconnect();
   }, [format.w, format.h]);
 
+  /** Fonts: a looked template's face is the look's `type`; others use the style override. */
+  const fontKey = hasLook ? override.type ?? '' : pairingKey;
+  const chooseFont = (key: string) => {
+    if (!hasLook) { setPairingKey(key); return; }
+    setOverride((o) => {
+      const next = { ...o };
+      if (key) next.type = key; else delete next.type;
+      return next;
+    });
+    setSeed(null);
+  };
+
+  const pickPalette = (key: string) => {
+    setOverride((o) => ({ ...o, palette: key }));
+    setBrandLook(null);
+    setBrandFieldsKey((n) => n + 1);
+    setSeed(null);
+  };
+
+  const toggleLock = (part: LookPart) =>
+    setLocks((prev) => {
+      const next = new Set(prev);
+      if (next.has(part)) next.delete(part); else next.add(part);
+      return next;
+    });
+
+  /*
+   * Remix draws a fresh seed and reshuffles every part that is not locked, from
+   * the current look. The needs go in so a remix can never produce unreadable
+   * text. With brand colours applied and the palette locked, the ground
+   * gradient is held too: it was checked against the brand palette, and the
+   * remixer can only measure a gradient against a curated one.
+   */
+  const remix = () => {
+    if (!effectiveLook) return;
+    const next = Math.floor(Math.random() * 0x100000000);
+    const held = new Set(locks);
+    if (brandPal && held.has('palette')) held.add('gradient');
+    const result = remixLook(effectiveLook, next, held, baseScheme(template), needs);
+    if (!held.has('palette')) { setBrandLook(null); setBrandFieldsKey((n) => n + 1); }
+    setOverride(result);
+    setSeed(next);
+  };
+
+  const resetLook = () => {
+    setOverride({});
+    setBrandLook(null);
+    setSeed(null);
+    setLocks(new Set());
+  };
+  const lookChanged = Object.keys(override).length > 0 || brandLook !== null || seed !== null;
+
   const content: TemplateContent = {
     brand: brandName,
     eyebrow,
@@ -193,21 +330,11 @@ export default function TemplateCustomiser({
     subline,
     meta: 'yourbusiness.nowopenafrica.com',
     cta,
-    services: ['Your first service', 'Your second service', 'Your third service', 'And a fourth'],
-    stats: [
-      { value: '3', label: 'Bedrooms' },
-      { value: '2', label: 'Bathrooms' },
-      { value: '180', label: 'Sq metres' },
-      { value: '24/7', label: 'Security' },
-    ],
-    price: [
-      { label: 'Your first item', price: '₦2,500' },
-      { label: 'Your second item', price: '₦4,000' },
-      { label: 'Your third item', price: '₦6,500', was: '₦8,000' },
-      { label: 'Your fourth item', price: '₦9,000' },
-      { label: 'Your fifth item', price: '₦12,000' },
-    ],
-    contact: ['Your phone', 'Your address', '@yourhandle'],
+    /* The template's OWN sample lists (its tiers, prices, services), as the card shows them. */
+    services: sample.services,
+    stats: sample.stats,
+    price: sample.price,
+    contact: sample.contact,
     logoUrl: logo?.url ?? null,
     qrUrl: null,
   };
@@ -340,10 +467,9 @@ export default function TemplateCustomiser({
        * allocate — the tab dies with no error anybody can act on. The design is
        * fractional, so a smaller raster is the same design, just smaller.
        */
-      const ratio = Math.min(2, MAX_EXPORT_EDGE / Math.max(format.w, format.h));
       const url = await exportNodeToPng(node, {
         designWidth: format.w,
-        pixelRatio: Math.max(1, ratio),
+        pixelRatio: exportPixelRatio(Math.max(format.w, format.h)),
         backgroundColor: tone.base,
       });
       downloadUrl(url, `${slugForFile(`${template.label}-${format.key}`)}.png`);
@@ -357,8 +483,30 @@ export default function TemplateCustomiser({
     }
   };
 
-  const studioHref =
-    `/studio?module=design&template=${encodeURIComponent(template.key)}&style=${encodeURIComponent(styleKey)}`;
+  /*
+   * The CURRENT Studio, carrying this design.
+   *
+   * This pointed at /studio?module=design — the brand-kit module, which is a
+   * different and older editor. Somebody pressing "Open in Studio" from a
+   * design they had just customised arrived somewhere that knew nothing about
+   * it: not the layout, not the size, not the words they had typed.
+   *
+   * /media/studio is the editor with layers, rotation, opacity, typography,
+   * pages and export, and it takes all three as parameters.
+   */
+  const studioHref = (() => {
+    const params = new URLSearchParams({
+      template: template.key,
+      style: styleKey,
+      accent: brand,
+      w: String(format.w),
+      h: String(format.h),
+    });
+    if (content.headline) params.set('text', content.headline);
+    // The editor opens the design in the look the customer made, not the card's.
+    if (hasLook) params.set('look', encodeLookParam({ override, seed, brand: brandLook }));
+    return `/media/studio?${params.toString()}`;
+  })();
 
   const field = 'w-full min-h-[40px] px-3 rounded-lg border border-gray-300 dark:border-gray-600 bg-white dark:bg-gray-900 text-sm';
 
@@ -369,7 +517,16 @@ export default function TemplateCustomiser({
         aria-modal="true"
         aria-label={`Edit ${template.label}`}
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-5xl max-h-full sm:max-h-[94vh] flex flex-col rounded-none sm:rounded-2xl bg-white dark:bg-gray-800 shadow-2xl overflow-hidden"
+        /*
+         * Full width, like the Studio.
+         *
+         * It was capped at 5xl — about 1024px — so on a 1665px screen the
+         * design sat in a letterbox with empty desk either side, while the
+         * editor at /media/studio had already been given the whole window.
+         * The same work should not get a smaller surface because it opened
+         * in a panel.
+         */
+        className="w-full sm:w-[98vw] sm:max-w-[1800px] max-h-full sm:max-h-[96vh] flex flex-col rounded-none sm:rounded-2xl bg-white dark:bg-gray-800 shadow-2xl overflow-hidden"
       >
         <header className="flex items-start justify-between gap-3 border-b border-gray-200 dark:border-gray-700 px-5 py-3">
           <div>
@@ -383,7 +540,7 @@ export default function TemplateCustomiser({
           </button>
         </header>
 
-        <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_20rem]">
+        <div className="flex-1 min-h-0 grid lg:grid-cols-[1fr_22rem]">
           {/* The design. */}
           <div ref={stage} className="relative min-h-[16rem] bg-gray-100 dark:bg-gray-900 flex items-center justify-center overflow-hidden">
             {scale > 0 && (
@@ -395,12 +552,20 @@ export default function TemplateCustomiser({
                   style={{ width: format.w, height: format.h, transform: `scale(${scale})` }}
                 >
                   <TemplateSurface
-                    template={styled}
+                    /*
+                      * The chosen side's slots. Side 0 is the template as
+                      * written; the rest come from `extraPages`.
+                      */
+                    template={side === 0
+                      ? styled
+                      : { ...styled, slots: styled.extraPages?.[side - 1]?.slots ?? styled.slots }}
                     content={content}
                     width={format.w}
                     height={format.h}
                     accent={tone.accent}
                     base={tone.base}
+                    look={hasLook ? override : undefined}
+                    brandPalette={brandPal ?? undefined}
                     mediaUrl={flattening ? media?.poster ?? null : media?.url ?? null}
                     mediaKind={flattening ? 'image' : media?.kind ?? 'image'}
                     surfaceOpacity={media ? overlay : 1}
@@ -440,7 +605,7 @@ export default function TemplateCustomiser({
                 <label
                   htmlFor="customiser-logo"
                   title={logo ? logo.name : 'Add your logo'}
-                  className="shrink-0 h-10 w-10 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer overflow-hidden hover:border-pink-400"
+                  className="shrink-0 h-10 w-10 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 flex items-center justify-center cursor-pointer overflow-hidden hover:border-green-400"
                 >
                   {logo
                     ? <SmartImg src={logo.url} alt="" className="h-full w-full object-cover" />
@@ -459,6 +624,25 @@ export default function TemplateCustomiser({
               <input value={cta} onChange={(e) => setCta(e.target.value)} maxLength={40} aria-label="Button or badge text" placeholder="Book now" className={`${field} mt-2`} />
             </Group>
 
+            {effectiveLook && (
+              <LookPanel
+                template={template}
+                look={effectiveLook}
+                needs={needs}
+                brandPal={brandPal}
+                brandLook={brandLook}
+                locks={locks}
+                changed={lookChanged}
+                resetKey={brandFieldsKey}
+                onPalette={pickPalette}
+                onBrand={(b) => { setBrandLook(b); setSeed(null); }}
+                onLock={toggleLock}
+                onRemix={remix}
+                onReset={resetLook}
+              />
+            )}
+
+            {!hasLook && (
             <Group label="Colour">
               <div className="flex flex-wrap items-center gap-2">
                 {SWATCHES.map((hex) => (
@@ -474,6 +658,7 @@ export default function TemplateCustomiser({
                 The palette is derived from this, and the text is kept readable on whatever you pick.
               </p>
             </Group>
+            )}
 
             <Group label="Background">
               <input
@@ -486,9 +671,9 @@ export default function TemplateCustomiser({
               />
               <label
                 htmlFor="customiser-media"
-                className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-800 dark:text-gray-200 hover:border-pink-400"
+                className="flex items-center gap-2 cursor-pointer px-3 py-2 rounded-lg border border-dashed border-gray-300 dark:border-gray-600 text-xs font-semibold text-gray-800 dark:text-gray-200 hover:border-green-400"
               >
-                <ImagePlus size={15} className="text-pink-600 shrink-0" />
+                <ImagePlus size={15} className="text-green-600 shrink-0" />
                 {media ? media.name.slice(0, 28) : 'Add a picture or video'}
               </label>
 
@@ -506,7 +691,7 @@ export default function TemplateCustomiser({
                       max={100}
                       value={Math.round(overlay * 100)}
                       onChange={(e) => setOverlay(Number(e.target.value) / 100)}
-                      className="w-full mt-1 accent-pink-600"
+                      className="w-full mt-1 accent-green-600"
                     />
                     <p className="text-[11px] text-gray-500">
                       0% is the bare picture. Turn it up until the text is readable — that is the
@@ -536,16 +721,16 @@ export default function TemplateCustomiser({
 
             <Group label="Fonts">
               <div className="grid grid-cols-2 gap-1.5">
-                <button onClick={() => setPairingKey('')}
-                  className={`text-left px-2.5 py-2 rounded-lg border text-[11px] ${pairingKey === '' ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/20' : 'border-gray-200 dark:border-gray-700'}`}>
+                <button onClick={() => chooseFont('')}
+                  className={`text-left px-2.5 py-2 rounded-lg border text-[11px] ${fontKey === '' ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700'}`}>
                   <span className="flex items-center gap-1 font-bold text-gray-900 dark:text-white">
-                    {pairingKey === '' && <Check size={11} />} Style default
+                    {fontKey === '' && <Check size={11} />} Style default
                   </span>
                   <span className="block text-gray-500">Whatever this style chose</span>
                 </button>
                 {TYPE_PAIRINGS.map((p) => (
-                  <button key={p.key} onClick={() => setPairingKey(p.key)} title={p.suits}
-                    className={`text-left px-2.5 py-2 rounded-lg border text-[11px] ${pairingKey === p.key ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/20' : 'border-gray-200 dark:border-gray-700'}`}>
+                  <button key={p.key} onClick={() => chooseFont(p.key)} title={p.suits}
+                    className={`text-left px-2.5 py-2 rounded-lg border text-[11px] ${fontKey === p.key ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700'}`}>
                     <span className="block font-bold text-gray-900 dark:text-white"
                       style={{ fontFamily: typefaceOf(p.display).stack }}>
                       {p.label}
@@ -568,7 +753,7 @@ export default function TemplateCustomiser({
                   const sw = styleColours(st, brand, st.scheme === 'keep' ? template.scheme : st.scheme);
                   return (
                     <button key={st.key} onClick={() => setStyleKey(st.key)} title={st.blurb}
-                      className={`inline-flex items-center gap-1.5 min-h-[32px] px-2 rounded-full border text-[11px] font-semibold ${styleKey === st.key ? 'border-transparent ring-2 ring-pink-500' : 'border-gray-300 dark:border-gray-600'}`}
+                      className={`inline-flex items-center gap-1.5 min-h-[32px] px-2 rounded-full border text-[11px] font-semibold ${styleKey === st.key ? 'border-transparent ring-2 ring-green-500' : 'border-gray-300 dark:border-gray-600'}`}
                       style={styleKey === st.key ? { background: sw.base, color: sw.ink } : undefined}>
                       <span className="inline-flex rounded-full overflow-hidden border border-black/10" style={{ width: 18, height: 9 }}>
                         <span style={{ background: sw.base, width: 9 }} />
@@ -594,6 +779,22 @@ export default function TemplateCustomiser({
                   );
                 })}
               </div>
+              {(template.extraPages?.length ?? 0) > 0 && (
+                <div className="flex items-center gap-1 rounded-lg border border-gray-200 dark:border-gray-700 p-0.5">
+                  {['Front', ...(template.extraPages ?? []).map((p) => p.name)].map((name, i) => (
+                    <button
+                      key={name}
+                      onClick={() => setSide(i)}
+                      aria-pressed={side === i}
+                      className={`px-2.5 min-h-[32px] rounded-md text-[11px] font-bold transition ${
+                        side === i ? 'bg-gray-900 text-white dark:bg-white dark:text-gray-900' : 'text-gray-500 dark:text-gray-400'
+                      }`}
+                    >
+                      {name}
+                    </button>
+                  ))}
+                </div>
+              )}
               <select value={formatKey} onChange={(e) => setFormatKey(e.target.value)} aria-label="Size" className={field}>
                 {DESIGN_FORMATS.map((f) => (
                   <option key={f.key} value={f.key}>{f.label} · {f.w}×{f.h}</option>
@@ -602,13 +803,37 @@ export default function TemplateCustomiser({
               <p className="mt-1.5 text-[11px] text-gray-500">
                 The layout is re-laid out at every size, not stretched.
               </p>
+              {/*
+                What this size is actually worth at a printer.
+
+                A customer picking "A3 Poster" has no way to know it is 121dpi
+                and that a press will refuse it or print it soft. The figure
+                exists, it is computable from the canvas and the paper size,
+                and withholding it only moves the discovery to after they have
+                paid somebody to print it. See lib/design/printSpec.ts.
+              */}
+              {(() => {
+                const note = printNoteFor(formatKey);
+                if (!note) return null;
+                const { readiness } = specFor(formatKey);
+                const tone = readiness === 'below-print'
+                  ? 'border-red-200 bg-red-50 text-red-800 dark:border-red-900 dark:bg-red-950 dark:text-red-200'
+                  : readiness === 'office'
+                    ? 'border-amber-200 bg-amber-50 text-amber-900 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200'
+                    : 'border-gray-200 bg-gray-50 text-gray-600 dark:border-gray-700 dark:bg-gray-800 dark:text-gray-300';
+                return (
+                  <p className={`mt-1.5 rounded-lg border px-2.5 py-1.5 text-[11px] leading-snug ${tone}`}>
+                    {note}
+                  </p>
+                );
+              })()}
             </Group>
           </div>
         </div>
 
         <footer className="border-t border-gray-200 dark:border-gray-700 px-5 py-3 flex flex-wrap items-center gap-2">
           <button onClick={() => void download()} disabled={busy}
-            className="inline-flex items-center gap-2 min-h-[46px] px-5 rounded-xl bg-pink-600 text-white font-bold hover:bg-pink-700 disabled:opacity-50">
+            className="inline-flex items-center gap-2 min-h-[46px] px-5 rounded-xl bg-green-700 text-white font-bold hover:bg-green-800 disabled:opacity-50">
             {busy ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />}
             Download PNG
           </button>
@@ -634,5 +859,220 @@ function Group({ label, children }: { label: string; children: React.ReactNode }
       <h3 className="text-[11px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1.5">{label}</h3>
       {children}
     </section>
+  );
+}
+
+/**
+ * The Look panel: palette, brand colours, Remix with locks, Reset.
+ *
+ * Palettes offered are the ones that keep THIS design's text readable (its
+ * needs, and its ground gradient's stops carrying the palette's ink). A chip
+ * that would put pale type on a pale ground is not shown rather than shown and
+ * broken; the design's own palette is always offered.
+ */
+function LookPanel({
+  template, look, needs, brandPal, brandLook, locks, changed,
+  resetKey, onPalette, onBrand, onLock, onRemix, onReset,
+}: {
+  template: DesignTemplate;
+  look: Look;
+  needs: ReturnType<typeof textNeeds>;
+  brandPal: Palette | null;
+  brandLook: BrandInput | null;
+  locks: ReadonlySet<LookPart>;
+  changed: boolean;
+  resetKey: number;
+  onPalette: (key: string) => void;
+  onBrand: (b: BrandInput) => void;
+  onLock: (part: LookPart) => void;
+  onRemix: () => void;
+  onReset: () => void;
+}) {
+  const [primary, setPrimary] = useState(brandLook?.primary ?? '');
+  const [secondary, setSecondary] = useState(brandLook?.secondary ?? '');
+  const [harmony, setHarmony] = useState<Harmony>(brandLook?.harmony ?? 'analogous');
+  const [error, setError] = useState<string | null>(null);
+
+  // Reset empties the brand; the typed fields follow it.
+  useEffect(() => {
+    if (!brandLook && !changed) { setPrimary(''); setSecondary(''); setHarmony('analogous'); setError(null); }
+  }, [brandLook, changed]);
+  // Another control (a palette chip, an unlocked Remix) dropped the brand: the fields follow.
+  useEffect(() => {
+    if (resetKey > 0) { setPrimary(''); setSecondary(''); setHarmony('analogous'); setError(null); }
+  }, [resetKey]);
+
+  const stopKey = (look.gradient?.stops ?? []).join(',');
+  const original = template.look?.palette;
+  const offered = useMemo(() => {
+    const stops = stopKey ? (stopKey.split(',') as PaletteRole[]) : [];
+    return PALETTES.filter((p) =>
+      p.key === original || p.key === look.palette
+      || (needsMet(p.colours, needs, stops)
+        && stops.every((r) => contrastRatio(p.colours.ink, p.colours[r]) >= 4.5)));
+  }, [original, look.palette, needs, stopKey]);
+
+  const current = brandPal ?? PALETTES.find((p) => p.key === look.palette) ?? null;
+
+  const apply = (e: React.FormEvent) => {
+    e.preventDefault();
+    const p = primary.trim();
+    const s = secondary.trim();
+    const next: BrandInput = { primary: p, ...(s ? { secondary: s } : {}), harmony };
+    // A second colour that cannot be read is refused too: brandPalette would
+    // quietly ignore it, and "applied" would then be a lie.
+    if (!isHexColour(p) || (s && !isHexColour(s)) || !brandPaletteFor(template, next, look.gradient)) {
+      setError(BRAND_COLOUR_ERROR);
+      return;
+    }
+    setError(null);
+    onBrand(next);
+  };
+
+  const input = 'min-h-[44px] px-3 rounded-lg border bg-white dark:bg-gray-900 text-sm';
+  const focusRing = 'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-green-500 focus-visible:ring-offset-1';
+  const chipRing = 'ring-2 ring-green-500 ring-offset-1 ring-offset-white dark:ring-offset-gray-800';
+
+  return (
+    <Group label="Look">
+      <div className="space-y-3">
+        <div>
+          <p className="text-[11px] text-gray-600 dark:text-gray-400 mb-1.5">
+            Palette: <span className="font-semibold text-gray-900 dark:text-white">{current?.name ?? 'Custom'}</span>
+            {!brandPal && look.palette === original && ' (the original)'}
+          </p>
+          <div className="max-h-56 overflow-y-auto space-y-2 pr-1" role="group" aria-label="Palettes">
+            {FAMILIES.map((f) => {
+              const inFamily = offered.filter((p) => p.family === f.key);
+              if (inFamily.length === 0) return null;
+              return (
+                <div key={f.key}>
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-gray-500 dark:text-gray-400 mb-1">{f.label}</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {inFamily.map((p) => {
+                      const active = !brandPal && look.palette === p.key;
+                      return (
+                        <button
+                          key={p.key}
+                          type="button"
+                          onClick={() => onPalette(p.key)}
+                          aria-pressed={active}
+                          aria-label={`${p.name} palette`}
+                          title={p.name}
+                          className={`flex h-[44px] w-[72px] overflow-hidden rounded-lg border border-black/10 dark:border-white/20 ${active ? chipRing : ''}`}
+                        >
+                          {(['ground', 'primary', 'secondary', 'highlight', 'ink'] as const).map((role) => (
+                            <span key={role} className="h-full flex-1" style={{ background: p.colours[role] }} />
+                          ))}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <form onSubmit={apply} noValidate className="rounded-lg border border-gray-200 dark:border-gray-700 p-2.5 space-y-2">
+          <p className="text-[11px] font-bold text-gray-900 dark:text-white">Use my brand colours</p>
+          <div className="flex items-center gap-2">
+            <input
+              type="color"
+              aria-label="Pick brand colour"
+              value={/^#[0-9a-f]{6}$/i.test(primary) ? primary : '#0f766e'}
+              onChange={(e) => setPrimary(e.target.value)}
+              className={`h-[44px] w-[44px] shrink-0 cursor-pointer rounded-lg ${focusRing} border border-gray-300 dark:border-gray-600 bg-transparent p-0.5`}
+            />
+            <input
+              value={primary}
+              onChange={(e) => setPrimary(e.target.value)}
+              aria-label="Brand colour"
+              aria-invalid={error ? true : undefined}
+              aria-describedby={error ? 'look-brand-error' : undefined}
+              placeholder="#0f766e"
+              maxLength={7}
+              autoComplete="off"
+              spellCheck={false}
+              className={`${input} min-w-0 flex-1 ${error ? 'border-red-500' : 'border-gray-300 dark:border-gray-600'}`}
+            />
+          </div>
+          <input
+            value={secondary}
+            onChange={(e) => setSecondary(e.target.value)}
+            aria-label="Second brand colour (optional)"
+            placeholder="Second colour (optional)"
+            maxLength={7}
+            autoComplete="off"
+            spellCheck={false}
+            className={`${input} w-full border-gray-300 dark:border-gray-600`}
+          />
+          <select
+            value={harmony}
+            onChange={(e) => setHarmony(e.target.value as Harmony)}
+            aria-label="How the other colours relate"
+            className={`${input} w-full border-gray-300 dark:border-gray-600`}
+          >
+            <option value="analogous">Neighbouring colours</option>
+            <option value="complementary">Contrasting colours</option>
+            <option value="split">Balanced contrast</option>
+          </select>
+          {error && (
+            <p id="look-brand-error" role="alert" className="text-[11px] font-semibold text-red-700 dark:text-red-300">
+              {error}
+            </p>
+          )}
+          <button
+            type="submit"
+            className="min-h-[44px] w-full rounded-lg bg-gray-900 px-3 text-sm font-semibold text-white hover:bg-gray-700 dark:bg-white dark:text-gray-900 dark:hover:bg-gray-200"
+          >
+            Apply brand colours
+          </button>
+        </form>
+
+        <div>
+          <button
+            type="button"
+            onClick={onRemix}
+            className={`inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg bg-green-700 px-3 text-sm font-bold text-white hover:bg-green-800 ${focusRing}`}
+          >
+            <Shuffle size={15} /> Remix
+          </button>
+          <p className="mt-1.5 mb-1 text-[11px] text-gray-500 dark:text-gray-400">
+            Lock what you like; Remix reshuffles the rest.
+          </p>
+          <div className="grid grid-cols-2 gap-1.5">
+            {LOCKS.map(({ part, label }) => {
+              const on = locks.has(part);
+              return (
+                <button
+                  key={part}
+                  type="button"
+                  onClick={() => onLock(part)}
+                  aria-pressed={on}
+                  aria-label={`Lock ${label.toLowerCase()}`}
+                  className={`inline-flex min-h-[44px] items-center justify-center gap-1.5 rounded-lg border px-2 text-[12px] font-semibold ${
+                    on
+                      ? 'border-green-500 bg-green-50 text-green-800 dark:bg-green-900/20 dark:text-green-200'
+                      : 'border-gray-300 text-gray-700 dark:border-gray-600 dark:text-gray-300'
+                  }`}
+                >
+                  {on ? <Lock size={13} /> : <Unlock size={13} />} {label}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={onReset}
+          disabled={!changed}
+          className="inline-flex min-h-[44px] w-full items-center justify-center gap-2 rounded-lg border border-gray-300 px-3 text-sm font-semibold text-gray-800 hover:border-green-400 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200"
+        >
+          <RotateCcw size={14} /> Reset to original
+        </button>
+      </div>
+    </Group>
   );
 }

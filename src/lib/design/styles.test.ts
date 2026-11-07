@@ -121,7 +121,8 @@ describe('colour comes from the business, not from the style', () => {
 });
 
 describe('applying a style', () => {
-  const tpl = DESIGN_TEMPLATES[0];
+  // A template with a look brings its own furniture, so styles are tested on one without.
+  const tpl = DESIGN_TEMPLATES.find((t) => !t.look)!;
 
   it('does not mutate the catalogue', () => {
     // DESIGN_TEMPLATES is module-level data shared by every tool. A mutation
@@ -132,11 +133,68 @@ describe('applying a style', () => {
   });
 
   it('keeps the layout — only the treatment changes', () => {
+    /*
+     * CHANGED 2026-09-15. This asserted `out.shapes` equals `tpl.shapes` — that
+     * a style may never touch geometry at all.
+     *
+     * Styles now add FURNITURE: a masthead rule for Press, a corner cut for
+     * Megaphone, drafting ticks for Blueprint. Measured reason — the 47 layouts
+     * carry 73 shapes between them, 46 of which are plain rectangles, so the
+     * library read as text on a coloured ground however well the surface was
+     * tuned. Furniture is treatment: it paints UNDER the type and moves nothing.
+     *
+     * What must still hold is the part this test was really protecting, and it
+     * is asserted below rather than implied: no slot moves, and the template's
+     * own shapes survive intact instead of being replaced.
+     */
     for (const style of DESIGN_STYLES) {
       const out = applyStyle(tpl, style);
       expect(out.slots.map((s) => `${s.role}:${s.x},${s.y},${s.w}`))
         .toEqual(tpl.slots.map((s) => `${s.role}:${s.x},${s.y},${s.w}`));
-      expect(out.shapes).toEqual(tpl.shapes);
+
+      // The layout's own geometry is kept, and kept FIRST so the style's
+      // furniture paints over it rather than under it.
+      const own = tpl.shapes ?? [];
+      expect(out.shapes?.slice(0, own.length)).toEqual(own);
+      // Anything beyond it is exactly what the style declared.
+      expect(out.shapes?.slice(own.length)).toEqual(style.furniture ?? []);
+    }
+  });
+
+  it('gives every style furniture of its own, and never the same set twice', () => {
+    /*
+     * Two styles with identical furniture would be two styles a customer cannot
+     * tell apart — the same failure the pairings have a distinctness test for.
+     */
+    const sets = DESIGN_STYLES.map((s) => JSON.stringify(s.furniture ?? []));
+    for (const [i, set] of sets.entries()) {
+      expect(set, `${DESIGN_STYLES[i].key} has no furniture`).not.toBe('[]');
+    }
+    expect(new Set(sets).size).toBe(sets.length);
+  });
+
+  it('keeps furniture clear of the headline', () => {
+    /*
+     * Furniture is decoration; a headline is the design. A heavy block sitting
+     * under the headline at full opacity would be the one way this change could
+     * make a design worse rather than richer, so anything that overlaps the
+     * headline box has to be faint enough to read through.
+     */
+    const overlaps = (a: {x: number; y: number; w: number; h: number},
+                      b: {x: number; y: number; w: number; h: number}) =>
+      a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+
+    for (const style of DESIGN_STYLES) {
+      const head = tpl.slots.find((sl) => sl.role === 'headline');
+      if (!head) continue;
+      // SlotSpec has no height — a text slot grows with its content — so a
+      // generous 0.25 band stands in for the headline area.
+      const box = { x: head.x, y: head.y, w: head.w, h: 0.25 };
+      for (const f of style.furniture ?? []) {
+        if (f.kind !== 'rect') continue;
+        if (!overlaps(f, box)) continue;
+        expect(f.alpha ?? 1, `${style.key} rect over the headline`).toBeLessThanOrEqual(0.55);
+      }
     }
   });
 

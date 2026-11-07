@@ -295,7 +295,7 @@ export default function MediaDetail() {
         <div className="text-center">
           <p className="text-gray-600 dark:text-gray-400 mb-4">{error || 'Media service not found'}</p>
           <Link
-            to="/media"
+            to="/media/services"
             className="inline-flex items-center gap-2 text-pink-600 dark:text-pink-400 hover:text-pink-700 font-medium text-sm"
           >
             <ArrowLeft size={18} />
@@ -312,7 +312,7 @@ export default function MediaDetail() {
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
       <div className="site-container py-8">
         <Link
-          to="/media"
+          to="/media/services"
           className="inline-flex items-center gap-2 text-pink-600 dark:text-pink-400 hover:text-pink-700 font-medium text-sm mb-8"
         >
           <ArrowLeft size={18} />
@@ -683,7 +683,7 @@ export default function MediaDetail() {
                     <span className="text-gray-700 dark:text-gray-300">Request a Quote</span>
                   </button>
                   <Link
-                    to="/media"
+                    to="/media/services"
                     className="w-full flex items-center gap-3 px-4 py-3 bg-gray-50 dark:bg-gray-900 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-700 transition text-sm"
                   >
                     <ExternalLink size={16} className="text-pink-600 dark:text-pink-400" />

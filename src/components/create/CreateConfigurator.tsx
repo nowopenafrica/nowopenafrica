@@ -11,6 +11,8 @@ import {
   quoteFor, specLine, type Configuration,
 } from '../../lib/create/configure';
 import { generateOrderReference, orderTrackPath } from '../../lib/create/reference';
+import { quote as priceOnServer, refused, type ServiceQuote } from '../../lib/create/services';
+import { minorToMajor } from '../../lib/create/money';
 import {
   ARTWORK_BUCKET, ARTWORK_TYPES, artworkPath, checkArtwork, safeArtworkName,
 } from '../../lib/create/artwork';
@@ -35,7 +37,16 @@ import {
  * quotes arrive.
  */
 
-const naira = (n: number) => `₦${n.toLocaleString('en-NG')}`;
+/*
+ * The sign goes outside the symbol.
+ *
+ * `₦-1,500` is not how anyone writes money, and a discount line is exactly
+ * where a reader is already checking the arithmetic. Options that reduce the
+ * price (one side rather than two) produce negative lines, so this is a line
+ * customers actually see.
+ */
+const naira = (n: number) =>
+  `${n < 0 ? '−' : ''}₦${Math.abs(n).toLocaleString('en-NG')}`;
 
 export default function CreateConfigurator({
   item, onClose,
@@ -53,7 +64,65 @@ export default function CreateConfigurator({
   const [reference] = useState(generateOrderReference);
 
   const groups = useMemo(() => optionGroupsFor(item), [item]);
-  const quote = useMemo(() => quoteFor(item, config), [item, config]);
+  const local = useMemo(() => quoteFor(item, config), [item, config]);
+
+  /*
+    ── THE PRICE SHOWN IS THE PRICE RECORDED ──────────────────────────────
+
+    A database trigger now overwrites an order's total with the server's own
+    figure (see 20261107040000_order_price_guard.sql). That closes the hole
+    where a browser could post any number it liked — and it opens a worse one
+    if this panel keeps showing its own arithmetic: the customer would read
+    one total on screen and a different one would land in the order, and the
+    customer would be right.
+
+    So for anything the catalogue holds, the server is asked and its answer is
+    what is displayed. The local calculation remains the fallback for SKUs the
+    catalogue does not hold — the business packs and free Studio items, which
+    still live in src/lib/create/catalogue.ts.
+  */
+  const [server, setServer] = useState<ServiceQuote | null>(null);
+  const [serverRefusal, setServerRefusal] = useState<string | null>(null);
+
+  useEffect(() => {
+    let live = true;
+    void (async () => {
+      try {
+        const result = await priceOnServer(item.sku, config.quantity, config.options);
+        if (!live) return;
+        if (refused(result)) {
+          /* Not knowing the SKU is normal: packs are not in the catalogue. */
+          setServer(null);
+          setServerRefusal(result.refusal === 'unknown_service' ? null : result.message);
+        } else {
+          setServer(result);
+          setServerRefusal(null);
+        }
+      } catch (err) {
+        /*
+          The panel still works on the local figure, and the order's own total
+          is decided by the database either way — but this is logged rather
+          than swallowed. A silently failing price lookup looks exactly like a
+          working one, which is how it took a measured ₦50 discrepancy to
+          notice it was never being called.
+        */
+        console.warn('[create] server price unavailable', err);
+        if (live) { setServer(null); setServerRefusal(null); }
+      }
+    })();
+    return () => { live = false; };
+  }, [item.sku, config.quantity, config.options]);
+
+  const quote = useMemo(() => {
+    if (!server) return local;
+    return {
+      ...local,
+      lines: server.lines.map((l) => ({ label: l.label, amount: minorToMajor(l.amount, server.currency) })),
+      total: minorToMajor(server.total, server.currency),
+      basis: server.orderable ? ('quoted' as const) : ('indicative' as const),
+    };
+  }, [server, local]);
+
   const estimate = quote.basis === 'indicative';
 
   // Escape closes it. A panel that traps you is worse than no panel.
@@ -229,8 +298,8 @@ export default function CreateConfigurator({
                     onClick={() => setConfig((c) => ({ ...c, design: r.key }))}
                     className={`text-left rounded-xl border p-3 transition ${
                       config.design === r.key
-                        ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/20'
-                        : 'border-gray-200 dark:border-gray-700 hover:border-pink-300'
+                        ? 'border-green-500 bg-green-50 dark:bg-green-900/20'
+                        : 'border-gray-200 dark:border-gray-700 hover:border-green-300'
                     }`}
                   >
                     <span className="block text-sm font-bold text-gray-900 dark:text-white">{r.label}</span>
@@ -256,7 +325,7 @@ export default function CreateConfigurator({
                     htmlFor="create-artwork-file"
                     className="flex items-center gap-2 cursor-pointer text-sm font-semibold text-gray-900 dark:text-white"
                   >
-                    <FileUp size={17} className="text-pink-600 shrink-0" />
+                    <FileUp size={17} className="text-green-600 shrink-0" />
                     {file ? file.name : 'Attach your print-ready file'}
                   </label>
                   <p className="mt-1 text-xs text-gray-500">
@@ -330,10 +399,24 @@ export default function CreateConfigurator({
               />
             </Section>
 
+            {/*
+              * Said before the button, not after it.
+              *
+              * The database refuses an order whose configuration cannot be
+              * priced — a run below a printer's minimum, a quantity past the
+              * rate card. Letting somebody fill in their details and press
+              * send to be told that is a worse version of the same answer.
+              */}
+            {serverRefusal && (
+              <p className="mb-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+                {serverRefusal}
+              </p>
+            )}
+
             <button
               onClick={submit}
-              disabled={busy}
-              className="w-full min-h-[50px] rounded-xl bg-pink-600 text-white font-bold hover:bg-pink-700 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
+              disabled={busy || !!serverRefusal}
+              className="w-full min-h-[50px] rounded-xl bg-green-700 text-white font-bold hover:bg-green-800 transition disabled:opacity-50 inline-flex items-center justify-center gap-2"
             >
               {busy && <Loader2 size={17} className="animate-spin" />}
               {orderVerb(quote)}
@@ -359,7 +442,7 @@ function Choice({ on, onClick, title, sub }: { on: boolean; onClick: () => void;
     <button
       onClick={onClick}
       className={`min-h-[46px] px-3.5 rounded-xl border text-left transition ${
-        on ? 'border-pink-500 bg-pink-50 dark:bg-pink-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-pink-300'
+        on ? 'border-green-500 bg-green-50 dark:bg-green-900/20' : 'border-gray-200 dark:border-gray-700 hover:border-green-300'
       }`}
     >
       <span className="block text-sm font-bold text-gray-900 dark:text-white">{title}</span>

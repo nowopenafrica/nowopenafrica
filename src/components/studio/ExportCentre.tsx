@@ -3,6 +3,8 @@ import toast from 'react-hot-toast';
 import { Download, FileText, Loader2, PackageOpen, PenLine, QrCode, CreditCard, Contact } from 'lucide-react';
 import { Business } from '../../types';
 import { downloadUrl, downloadText, downloadRemoteUrl, slugForFile, exportNodeToPng } from '../../lib/studio';
+import { CARD_MM, printedPixels, ratioForDpi } from '../../lib/studio/formats';
+import { CARD_DESIGN_WIDTH, QR_DESIGN_SIZE } from './BrandCardNodes';
 import { useBrandExports } from '../../hooks/useBrandExports';
 import { useCardSettings } from '../../hooks/useCardSettings';
 import { CardExportNode, QrLockupNode, SmartIdNode, SmartIdFrontNode } from './BrandCardNodes';
@@ -37,15 +39,33 @@ export default function ExportCentre({ business }: { business: Business }) {
     if (!cardRef.current || !qrRef.current || bundling) return;
     setBundling(true);
     try {
+      /*
+       * Sized from the PRINTED size, not from a multiplier.
+       *
+       * The same card was captured at 2 here and at 3 for printing, so the
+       * file you downloaded and the file you printed were different sizes
+       * with no resolution stated behind either. A card is 85.6mm wide; at
+       * 300dpi that is 1011px, and now it is 1011px because it was asked for.
+       */
       const [card, qr] = await Promise.all([
-        exportNodeToPng(cardRef.current, { pixelRatio: 2, backgroundColor: '#ffffff' }),
-        exportNodeToPng(qrRef.current, { pixelRatio: 3, backgroundColor: '#ffffff' }),
+        exportNodeToPng(cardRef.current, {
+          pixelRatio: ratioForDpi(CARD_DESIGN_WIDTH, CARD_MM.width),
+          designWidth: CARD_DESIGN_WIDTH,
+          backgroundColor: '#ffffff',
+        }),
+        /* The QR sticker is square and has no fixed physical size, so it is
+           captured generously rather than to a resolution it cannot know. */
+        exportNodeToPng(qrRef.current, {
+          pixelRatio: 3,
+          designWidth: QR_DESIGN_SIZE,
+          backgroundColor: '#ffffff',
+        }),
       ]);
       downloadUrl(card, `${slugForFile(business.name)}-card.png`);
       downloadUrl(qr, `${slugForFile(business.name)}-qr.png`);
       downloadBrandGuidelinesPdf(business, dna);
       downloadText(packText(), `${slugForFile(business.name)}-marketing-copy.txt`);
-      toast.success('Export bundle saved — card, QR, guidelines & copy');
+      toast.success(`Export bundle saved — card at ${printedPixels(CARD_MM).width} × ${printedPixels(CARD_MM).height} px (85.6 × 54 mm, 300dpi), QR, guidelines & copy`);
     } catch {
       toast.error('Could not export everything — use the individual buttons.');
     } finally {

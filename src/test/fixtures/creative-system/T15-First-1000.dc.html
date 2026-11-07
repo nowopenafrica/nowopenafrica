@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>T15 First 1,000 numeral</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=Inter+Tight:wght@600;700;800&amp;family=Instrument+Serif:ital@0;1&amp;display=swap" rel="stylesheet">
+<style>
+body{margin:0}
+a{color:#2563EB}a:hover{color:#0B1222}
+</style>
+</helmet>
+<div style="width: 1080px; height: 1350px; box-sizing: border-box; padding: 80px 72px 64px; background: #2563EB; color: #FFFFFF; font-family: Inter, system-ui, sans-serif; display: flex; flex-direction: column; gap: 36px; position: relative; overflow: hidden">
+<span style="font-size: 22px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase; color: #FFFFFF; position: relative">{{kicker}}</span><div style="margin-top: auto; font-family: 'Coolvetica', 'Inter Tight', sans-serif; font-weight: 700; letter-spacing: -0.045em; font-size: 300px; line-height: 0.8; letter-spacing: -0.07em; position: relative">{{number}}</div><h1 style="margin: 0; font-family: 'Coolvetica', 'Inter Tight', sans-serif; font-weight: 700; letter-spacing: -0.045em; font-size: 92px; line-height: 0.88; letter-spacing: -0.055em; color: inherit; position: relative">{{headline}}</h1><p style="margin: 0; font-size: 24px; line-height: 1.45; color: #EAF0FE; position: relative">{{terms}}</p><div style="margin-top: auto; display: flex; justify-content: space-between; align-items: center; position: relative"><span style="padding: 20px 34px; border-radius: 999px; background: #FFFFFF; color: #0B1222; font-size: 28px; font-weight: 600; white-space: nowrap">{{cta}} →</span><span style="font-family: 'Coolvetica', 'Inter Tight', sans-serif; font-weight: 700; letter-spacing: -0.045em; font-size: 24px; white-space: nowrap"><span style="color: #7FA6FF">NOWOPEN</span> AFRICA</span></div>
+<sc-if value="{{comp}}" hint-placeholder-val="{{ true }}"><span style="position: absolute; left: 16px; top: 16px; padding: 6px 10px; background: #A65B00; color: #FFFFFF; font-family: ui-monospace, monospace; font-size: 14px; z-index: 5">T15 · L1 · D Registration &amp; onboarding</span></sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"kicker": {"editor": "text", "default": "First 1,000 Businesses"}, "number": {"editor": "text", "default": "1,000"}, "headline": {"editor": "text", "default": "Be among the first."}, "terms": {"editor": "text", "default": "[Approved programme terms, if any. Live counts only from verified data.]"}, "cta": {"editor": "text", "default": "Join early access"}, "comp": {"editor": "boolean", "default": true}, "$preview": {"width": 1080, "height": 1350}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return { kicker: this.props.kicker ?? "First 1,000 Businesses", number: this.props.number ?? "1,000", headline: this.props.headline ?? "Be among the first.", terms: this.props.terms ?? "[Approved programme terms, if any. Live counts only from verified data.]", cta: this.props.cta ?? "Join early access", comp: this.props.comp ?? true };
+  }
+}
+</script>
+</body>
+</html>

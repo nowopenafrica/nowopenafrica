@@ -48,7 +48,14 @@ export type TypefaceKey =
   // without touching a single template definition.
   | 'sans' | 'serif' | 'mono' | 'condensed'
   // New voices.
-  | 'editorial' | 'soft' | 'grotesk' | 'heavy';
+  | 'editorial' | 'soft' | 'grotesk' | 'heavy'
+  /*
+   * The house face. Already self-hosted in index.css and already used by the
+   * brand-card studio — it simply was not offered in the design library, so
+   * the one typeface that makes a design look like NowOpen was the one
+   * typeface a user could not pick.
+   */
+  | 'coolvetica';
 
 /** Retained name — designTemplates and every template still speak in FontKey. */
 export type FontKey = TypefaceKey;
@@ -74,9 +81,29 @@ export interface Typeface {
   role: TypeRole;
   /** One line on when to reach for it. Shown in the picker. */
   voice: string;
-  licence: 'SIL OFL 1.1';
+  /*
+   * Stated, not assumed.
+   *
+   * This was the literal 'SIL OFL 1.1' because every face was from Google
+   * Fonts. Coolvetica is not: it is Ray Larabie's, distributed free for
+   * commercial use, and shipped here as files the founder supplied. Widening
+   * the type is the honest move — narrowing it would have meant either
+   * mislabelling the licence or leaving the font out.
+   */
+  licence: 'SIL OFL 1.1' | 'Free for commercial use';
   /** Where it came from, so provenance survives this file being copied. */
   source: string;
+  /*
+   * The actual file for each weight, public path.
+   *
+   * Stated rather than derived from a naming convention. The convention was
+   * `/fonts/studio/{slug}-{weight}.woff2` and it was only ever implied — so
+   * adding Coolvetica, which was already self-hosted under its own folder by
+   * the brand-card studio, failed four guards that were checking a filename
+   * pattern rather than whether the font is really there. Saying where each
+   * file lives makes the check true instead of conventional.
+   */
+  files: Record<number, string>;
 }
 
 const FALLBACK = {
@@ -91,49 +118,64 @@ export const TYPEFACES: Typeface[] = [
     key: 'sans', label: 'Outfit', family: 'Outfit',
     stack: `Outfit, ${FALLBACK.sans}`, weights: [400, 600, 800], role: 'text',
     voice: 'Clean geometric sans. The safe, modern default for anything that has to be read.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/outfit-400.woff2', 600: '/fonts/studio/outfit-600.woff2', 800: '/fonts/studio/outfit-800.woff2' },
+    source: 'Google Fonts',
   },
   {
     key: 'serif', label: 'Playfair Display', family: 'Playfair Display',
     stack: `"Playfair Display", ${FALLBACK.serif}`, weights: [700, 900], role: 'display',
     voice: 'High-contrast serif. Fashion, property, anything that needs to feel expensive.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/playfair-display-700.woff2', 900: '/fonts/studio/playfair-display-900.woff2' },
+    source: 'Google Fonts',
   },
   {
     key: 'mono', label: 'Space Mono', family: 'Space Mono',
     stack: `"Space Mono", ${FALLBACK.mono}`, weights: [700], role: 'accent',
     voice: 'Technical monospace. Use small and spaced, for eyebrows and codes.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/space-mono-700.woff2' },
+    source: 'Google Fonts',
   },
   {
     key: 'condensed', label: 'Bebas Neue', family: 'Bebas Neue',
     stack: `"Bebas Neue", ${FALLBACK.condensed}`, weights: [400], role: 'display',
     voice: 'Tall condensed caps. Sales, events, street posters — loud without shouting.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/bebas-neue-400.woff2' },
+    source: 'Google Fonts',
   },
   {
     key: 'editorial', label: 'DM Serif Display', family: 'DM Serif Display',
     stack: `"DM Serif Display", ${FALLBACK.serif}`, weights: [400], role: 'display',
     voice: 'Editorial serif with tight fit. Magazine covers, menus, considered headlines.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/dm-serif-display-400.woff2' },
+    source: 'Google Fonts',
   },
   {
     key: 'soft', label: 'Fraunces', family: 'Fraunces',
     stack: `Fraunces, ${FALLBACK.serif}`, weights: [600], role: 'display',
     voice: 'Warm, slightly odd serif. Food, wellness, anything that should feel handmade.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/fraunces-600.woff2' },
+    source: 'Google Fonts',
   },
   {
     key: 'grotesk', label: 'Space Grotesk', family: 'Space Grotesk',
     stack: `"Space Grotesk", ${FALLBACK.sans}`, weights: [500, 700], role: 'text',
     voice: 'Modern grotesk with character. Tech, agencies, studios.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 500: '/fonts/studio/space-grotesk-500.woff2', 700: '/fonts/studio/space-grotesk-700.woff2' },
+    source: 'Google Fonts',
   },
   {
     key: 'heavy', label: 'Archivo Black', family: 'Archivo Black',
     stack: `"Archivo Black", ${FALLBACK.sans}`, weights: [400], role: 'display',
     voice: 'One weight, very heavy. For a headline that is the whole design.',
-    licence: 'SIL OFL 1.1', source: 'Google Fonts',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/archivo-black-400.woff2' },
+    source: 'Google Fonts',
+  },
+  {
+    key: 'coolvetica', label: 'Coolvetica', family: 'Coolvetica',
+    stack: `Coolvetica, ${FALLBACK.sans}`, weights: [300, 400, 700], role: 'display',
+    voice: 'Tight, rounded and confident. The NowOpen house face — good for a short, loud line.',
+    licence: 'Free for commercial use', files: { 300: '/fonts/coolvetica/Coolvetica-Light.woff2', 400: '/fonts/coolvetica/Coolvetica-Regular.woff2', 700: '/fonts/coolvetica/Coolvetica-Bold.woff2' },
+    source: 'Typodermic (Ray Larabie), self-hosted',
   },
 ];
 
@@ -194,6 +236,23 @@ export const TYPE_PAIRINGS: TypePairing[] = [
     suits: 'Events, nightlife, flash sales, gyms.' },
   { key: 'warmth', label: 'Warmth', display: 'soft', text: 'sans', accent: 'sans',
     suits: 'Food, wellness, family businesses. Friendly rather than corporate.' },
+  /*
+   * ADDED 2026-09-15, because three of the eight styles were sharing 'modern'.
+   *
+   * Eight styles drawing on six pairings meant Signature, Blueprint and Duotone
+   * all spoke in the same voice, and a style that cannot be told from another
+   * style is costing a slot in the picker and buying nothing. These two give
+   * the remaining pair their own.
+   */
+  /*
+   * NOT a 'technical' pairing with Space Mono on the headline. That was tried
+   * and the display-face test refused it: Space Mono's declared role is
+   * 'accent' and its own voice note says "use small and spaced, for eyebrows
+   * and codes". A monospace headline at 200px is a novelty, not a display face,
+   * and the rule exists precisely to stop one being chosen for variety's sake.
+   */
+  { key: 'statement', label: 'Statement', display: 'heavy', text: 'sans', accent: 'condensed',
+    suits: 'One idea, very large, with a condensed label under it.' },
 ];
 
 export const pairingOf = (key: string): TypePairing =>

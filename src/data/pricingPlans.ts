@@ -27,6 +27,20 @@
 // surfaced and upsold, not locked. Turning these tiers into hard entitlement
 // walls is a separate, larger project.
 
+//
+// ── THE CREDIT FIGURES BELOW ARE A PROMISE, NOT A FACT ───────────────────
+//
+// MEASURED 2026-10-06: `aiCredits` and the "N AI credits / month" bullets had
+// no implementation behind them — no wallet, no ledger, no grant, no way to
+// spend one. The credit system now exists (supabase/migrations/2026101201*)
+// but ships INERT: every action is unpriced and disabled until an operator
+// sets a cost, and nothing grants a monthly allowance yet.
+//
+// So Pricing.tsx asks the database whether any action is priced and enabled,
+// and hides every credit claim — these bullets included — until one is. Keep
+// that gate in place when you touch this file: a number here is a commitment
+// the platform has to be able to honour.
+
 export interface BusinessTier {
   id: string;
   name: string;

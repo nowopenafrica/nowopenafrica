@@ -15,7 +15,7 @@ import { ensureTypefacesReady } from './design/typefaces';
 
 // Brand materials always show the production brand domain (never localhost/a
 // preview URL) so a printed QR/card points at the real live profile.
-export const BRAND_ORIGIN = 'https://nowopenafrica.com';
+export const BRAND_ORIGIN = 'https://www.nowopenafrica.com';
 
 // The public, always-live profile URL an asset points to. This is the heart of
 // the "Live Brand Kit": print once, and the destination stays current forever.

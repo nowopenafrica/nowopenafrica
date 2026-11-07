@@ -19,6 +19,15 @@ const FILTER_HINT: Record<Filter, string> = {
 // There are ~29 goals, which is too many to dump in one grid without burying the
 // editor below it — so they're filtered by group and only one group shows at a
 // time. "Trading" leads because it's what a business reaches for most days.
+//
+// ── ONE ROW, NOT A WALL ───────────────────────────────────────────────────
+//
+// MEASURED: as three-line tiles in a five-column grid this band ran ~280px
+// across the top of the editor, so the live preview — the thing the whole
+// screen is for — started below the fold on a laptop. Each goal is now a
+// single chip in a row that scrolls, which is the same 29 goals in a third
+// of the height. The description moved to the tooltip: it was never read
+// while scanning, only while hesitating.
 export default function QuickCreatePanel({
   onPick,
   disabled,
@@ -74,25 +83,29 @@ export default function QuickCreatePanel({
         })}
       </div>
 
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2.5 p-4 pt-3">
+      <div
+        className="flex gap-2 overflow-x-auto px-5 pb-4 pt-2 [-ms-overflow-style:none] [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+      >
         {shown.map((item) => (
           <button
             key={item.key}
             onClick={() => onPick(item)}
             disabled={disabled}
+            /* The description lives here now: it was never read while
+               scanning the row, only while hesitating over one chip. */
             title={item.desc}
-            className="group text-left px-3.5 py-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 hover:border-purple-400 dark:hover:border-purple-500 hover:shadow-lg hover:-translate-y-0.5 transition disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
+            className="shrink-0 inline-flex items-center gap-2 min-h-[44px] px-3 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 text-sm font-bold text-gray-800 dark:text-gray-100 whitespace-nowrap hover:border-purple-400 dark:hover:border-purple-500 hover:shadow transition disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-purple-500"
           >
-            <span className="flex items-center gap-2">
-              <span className="text-xl leading-none">{item.emoji}</span>
-              {item.fullCampaign && (
-                <span className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 rounded">
-                  <Rocket size={10} /> All sizes
-                </span>
-              )}
-            </span>
-            <span className="block mt-1.5 text-sm font-bold text-gray-800 dark:text-gray-100">{item.label}</span>
-            <span className="block mt-0.5 text-[11px] text-gray-400">{item.desc}</span>
+            <span className="text-base leading-none">{item.emoji}</span>
+            {item.label}
+            {item.fullCampaign && (
+              <span
+                title="Produces every size at once"
+                className="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wide text-purple-600 dark:text-purple-300 bg-purple-100 dark:bg-purple-900/50 px-1.5 py-0.5 rounded"
+              >
+                <Rocket size={10} /> All sizes
+              </span>
+            )}
           </button>
         ))}
       </div>

@@ -1,4 +1,4 @@
-import type { DesignTemplate, SlotSpec, SurfaceSpec } from '../designTemplates';
+import type { DesignTemplate, ShapeSpec, SlotSpec, SurfaceSpec } from '../designTemplates';
 import { pairingOf, type TypefaceKey } from './typefaces';
 
 /**
@@ -199,6 +199,25 @@ export interface DesignStyle {
   scheme: 'dark' | 'light' | 'keep';
   surface?: Partial<SurfaceSpec>;
   type?: StyleType;
+  /**
+   * Geometry the style adds to every layout it dresses.
+   *
+   * MEASURED 2026-09-15: the 47 layouts carry 73 shapes between them — about
+   * one and a half each, and 46 of the 73 are plain rectangles. A reference
+   * flyer from the market carries ten to twenty elements: a colour block, a
+   * rule under the eyebrow, a corner cut, a footer bar, a badge. That gap is
+   * why the library reads as "text on a coloured ground" however good the
+   * surface underneath it is.
+   *
+   * Authoring richer geometry into all 47 layouts is real design work. Putting
+   * a style's signature furniture HERE reaches every one of them at once, and
+   * is the difference a customer actually sees when they click a style.
+   *
+   * Drawn UNDER the type, in array order, after the template's own shapes — so
+   * a layout that already places a wedge keeps it and gains the style's rule
+   * rather than fighting it.
+   */
+  furniture?: ShapeSpec[];
 }
 
 /**
@@ -217,7 +236,18 @@ export const DESIGN_STYLES: DesignStyle[] = [
     colour: 'brand',
     scheme: 'keep',
     surface: { kind: 'gradient', intensity: 0.9 },
-    type: { tracking: -0.01 },
+    /*
+     * The display weight is raised because Space Grotesk at 500 beside Outfit
+     * at 600 is not a pairing, it is one sans in two sizes. 700 is the heaviest
+     * the face ships, so nothing here asks for a synthetic bold.
+     */
+    type: { tracking: -0.01, displayWeight: 700 },
+    // A soft corner orbit and a baseline bar: enough to frame, not enough to
+    // compete with whatever the layout is already doing.
+    furniture: [
+      { kind: 'circle', cx: 0.92, cy: 0.08, r: 0.22, tone: 'white', alpha: 0.07 },
+      { kind: 'rect', x: 0, y: 0.965, w: 1, h: 0.035, tone: 'white', alpha: 0.14 },
+    ],
   },
   {
     key: 'gallery',
@@ -228,6 +258,11 @@ export const DESIGN_STYLES: DesignStyle[] = [
     scheme: 'light',
     surface: { kind: 'wash', intensity: 0.18, frame: 0.035 },
     type: { tracking: -0.02, scale: 0.94, upperHeadline: false },
+    // A hairline inset frame — the gallery label, and the whole style in one move.
+    furniture: [
+      { kind: 'rect', x: 0.045, y: 0.04, w: 0.91, h: 0.002, tone: 'ink', alpha: 0.35 },
+      { kind: 'rect', x: 0.045, y: 0.958, w: 0.91, h: 0.002, tone: 'ink', alpha: 0.35 },
+    ],
   },
   {
     key: 'press',
@@ -238,6 +273,12 @@ export const DESIGN_STYLES: DesignStyle[] = [
     scheme: 'dark',
     surface: { kind: 'solid', intensity: 1 },
     type: { tracking: -0.025, scale: 0.98 },
+    // Masthead rules, top and bottom. Editorial furniture, and the reason a
+    // newspaper front page reads as one at a glance.
+    furniture: [
+      { kind: 'rect', x: 0.07, y: 0.085, w: 0.86, h: 0.005, tone: 'accent', alpha: 0.9 },
+      { kind: 'rect', x: 0.07, y: 0.9, w: 0.3, h: 0.004, tone: 'accent', alpha: 0.7 },
+    ],
   },
   {
     key: 'megaphone',
@@ -248,6 +289,11 @@ export const DESIGN_STYLES: DesignStyle[] = [
     scheme: 'dark',
     surface: { kind: 'solid', intensity: 1 },
     type: { tracking: -0.035, scale: 1.14, upperHeadline: true },
+    // A heavy corner cut and a thick footer bar. Loud on purpose.
+    furniture: [
+      { kind: 'wedge', corner: 'tr', w: 0.34, h: 0.26, tone: 'white', alpha: 0.12 },
+      { kind: 'rect', x: 0, y: 0.93, w: 1, h: 0.07, tone: 'black', alpha: 0.28 },
+    ],
   },
   {
     key: 'nightshift',
@@ -258,6 +304,11 @@ export const DESIGN_STYLES: DesignStyle[] = [
     scheme: 'dark',
     surface: { kind: 'spotlight', intensity: 0.95, vignette: 0.45 },
     type: { tracking: 0.02, scale: 1.06, upperHeadline: true },
+    // An angled slash across the lower third, and a lit rule. Club-flyer grammar.
+    furniture: [
+      { kind: 'stripe', x: -0.1, y: 0.72, w: 1.25, h: 0.012, angle: -8, tone: 'accent', alpha: 0.75 },
+      { kind: 'ring', cx: 0.86, cy: 0.16, r: 0.16, tone: 'white', alpha: 0.16, thickness: 0.01 },
+    ],
   },
   {
     key: 'kitchen',
@@ -268,26 +319,131 @@ export const DESIGN_STYLES: DesignStyle[] = [
     scheme: 'light',
     surface: { kind: 'wash', intensity: 0.3 },
     type: { tracking: -0.005, scale: 0.97, upperHeadline: false },
+    // A rounded panel behind the lower half, the way a recipe card is printed.
+    furniture: [
+      { kind: 'rect', x: 0.06, y: 0.6, w: 0.88, h: 0.34, tone: 'white', alpha: 0.5, radius: 0.045 },
+      { kind: 'circle', cx: 0.1, cy: 0.12, r: 0.1, tone: 'accent', alpha: 0.18 },
+    ],
   },
   {
     key: 'blueprint',
     label: 'Blueprint',
     blurb: 'Black, white and one accent. Studios, agencies, consultants.',
+    /*
+     * Shares 'modern' with Signature on purpose. Blueprint's difference is its
+     * COLOUR rule — a black-or-white ground with the brand used once, plus an
+     * inset frame — not its voice. Giving it a louder face to look different
+     * would work against the restraint that is the whole point of it.
+     */
     pairing: 'modern',
     colour: 'mono',
     scheme: 'light',
     surface: { kind: 'solid', intensity: 0.05, frame: 0.02 },
     type: { tracking: 0, scale: 0.95 },
+    /*
+     * Corner ticks and one accent square — drafting marks. Blueprint's whole
+     * argument is that the brand colour appears ONCE, so it appears here and
+     * nowhere else on the furniture.
+     */
+    furniture: [
+      { kind: 'rect', x: 0.05, y: 0.05, w: 0.07, h: 0.003, tone: 'ink', alpha: 0.5 },
+      { kind: 'rect', x: 0.05, y: 0.05, w: 0.003, h: 0.07, tone: 'ink', alpha: 0.5 },
+      { kind: 'rect', x: 0.88, y: 0.88, w: 0.07, h: 0.07, tone: 'accent', alpha: 0.95 },
+    ],
   },
   {
     key: 'duotone',
     label: 'Duotone',
     blurb: 'Your colour and a derived second tone. Bold without being loud.',
-    pairing: 'modern',
+    // 'statement' rather than 'modern' — the third style that shared one voice.
+    pairing: 'statement',
     colour: 'duotone',
     scheme: 'dark',
     surface: { kind: 'gradient', angle: 145, intensity: 1 },
     type: { tracking: -0.02, scale: 1.02 },
+    // A skewed colour block — the second tone made visible as geometry rather
+    // than only as the far end of a gradient.
+    furniture: [
+      { kind: 'rect', x: 0.58, y: -0.05, w: 0.5, h: 1.1, tone: 'accent', alpha: 0.2, skew: 12 },
+      { kind: 'rect', x: 0, y: 0.955, w: 0.45, h: 0.045, tone: 'accent', alpha: 0.85 },
+    ],
+  },
+
+  /*
+   * ── THREE ADDED 2026-10-14, FROM REFERENCE WORK ───────────────────────
+   *
+   * Looking at a board of the social design African businesses actually post
+   * — fintech, church, campus, salon, logistics — three things recur that the
+   * eight styles above could not produce:
+   *
+   *   1. A FLAT, fully saturated colour field. Not a gradient, not a wash: one
+   *      confident colour edge to edge, with the type sitting straight on it.
+   *      Every style here either graded the ground or washed it back.
+   *   2. ROUNDED CARDS AND PILLS over that field — the chat-bubble idiom used
+   *      for tips, myths, did-you-know and loan explainers.
+   *   3. A HALO behind a cut-out subject, so a person photographed against a
+   *      plain wall reads as composed rather than pasted.
+   *
+   * These are idioms, not copies: nothing is traced from any reference, and
+   * no asset is lifted from Canva, Freepik or anywhere else. The colour is
+   * still the business's own, derived by the same rules and contrast-checked
+   * like every other style — a vivid green poster here is vivid green because
+   * THEY chose green.
+   */
+  {
+    key: 'field',
+    label: 'Colour Field',
+    blurb: 'One saturated colour, edge to edge, with the words straight on it. The everyday African social post.',
+    pairing: 'statement',
+    colour: 'brand',
+    scheme: 'dark',
+    // Flat on purpose. A gradient here would soften the one thing that makes
+    // this style read from a thumbnail.
+    surface: { kind: 'solid', intensity: 1 },
+    type: { tracking: -0.025, scale: 1.06 },
+    furniture: [
+      // A handle strip along the foot, where every reference puts the website
+      // and the @handle.
+      { kind: 'rect', x: 0, y: 0.9, w: 1, h: 0.1, tone: 'black', alpha: 0.22 },
+      // One oversized corner disc, mostly off-canvas: depth without decoration.
+      { kind: 'circle', cx: 1.02, cy: 0.1, r: 0.3, tone: 'white', alpha: 0.08 },
+      { kind: 'rect', x: 0.08, y: 0.875, w: 0.16, h: 0.006, tone: 'white', alpha: 0.5 },
+    ],
+  },
+  {
+    key: 'bubble',
+    label: 'Bubble',
+    blurb: 'Rounded cards and pills on a colour field. Tips, myths, did-you-know and anything explaining something.',
+    pairing: 'warmth',
+    colour: 'brand',
+    scheme: 'dark',
+    surface: { kind: 'solid', intensity: 0.96 },
+    // Softer and slightly smaller: this style carries sentences, not slogans.
+    type: { tracking: -0.005, scale: 0.97, upperHeadline: false },
+    furniture: [
+      // The card the message sits in. Generous radius is the whole look.
+      { kind: 'rect', x: 0.07, y: 0.3, w: 0.86, h: 0.46, tone: 'white', alpha: 0.1, radius: 0.06 },
+      // A pill above it, where a "DID YOU KNOW?" label goes.
+      { kind: 'rect', x: 0.07, y: 0.2, w: 0.3, h: 0.06, tone: 'white', alpha: 0.16, radius: 0.03 },
+      { kind: 'circle', cx: 0.9, cy: 0.88, r: 0.1, tone: 'white', alpha: 0.09 },
+    ],
+  },
+  {
+    key: 'halo',
+    label: 'Halo',
+    blurb: 'A disc behind the subject and a heavy baseline. Portraits, speakers, team and testimonial posts.',
+    pairing: 'impact',
+    // Deepened, so a cut-out photograph has something to sit against.
+    colour: 'deep',
+    scheme: 'dark',
+    surface: { kind: 'solid', intensity: 1 },
+    type: { tracking: -0.03, scale: 1.04, upperHeadline: true },
+    furniture: [
+      // The halo. Low and large, so a head photographed waist-up lands inside it.
+      { kind: 'circle', cx: 0.5, cy: 0.62, r: 0.37, tone: 'accent', alpha: 0.55 },
+      { kind: 'ring', cx: 0.5, cy: 0.62, r: 0.44, tone: 'white', alpha: 0.18, thickness: 0.004 },
+      { kind: 'rect', x: 0, y: 0.92, w: 1, h: 0.08, tone: 'black', alpha: 0.35 },
+    ],
   },
 ];
 
@@ -406,6 +562,14 @@ const DISPLAY_ROLES = new Set(['headline', 'eyebrow', 'price']);
  * pairing decides the rest. Without that rule a style could not change the look
  * of the templates that need it most, because those are exactly the ones whose
  * slots are most specified.
+ *
+ * A template with a `look` is shown as designed. The look owns colour and
+ * composition, and the contrast suite measures the template's own shapes over
+ * its own palette: a style's furniture laid over it (or a flipped scheme) is
+ * paint the suite never saw, and it put tiered-sale's stat values at 1.33:1
+ * under `kitchen`. So for a looked template the shapes, the scheme and the
+ * surface stay the template's; the style still sets the type (scale, tracking,
+ * weight), which looks.test runs every style over.
  */
 export function applyStyle(
   tpl: DesignTemplate,
@@ -420,11 +584,19 @@ export function applyStyle(
     return pairing.text;
   };
 
+  const looked = !!tpl.look;
+
   return {
     ...tpl,
     font: pairing.text,
-    scheme: style.scheme === 'keep' ? tpl.scheme : style.scheme,
-    surface: { ...tpl.surface, ...style.surface },
+    scheme: looked || style.scheme === 'keep' ? tpl.scheme : style.scheme,
+    surface: looked ? tpl.surface : { ...tpl.surface, ...style.surface },
+    /*
+     * The template's own geometry first, then the style's, so a layout that
+     * already places a wedge keeps it and gains the style's rule on top rather
+     * than losing it. Shapes paint in array order, under the type.
+     */
+    shapes: looked ? tpl.shapes : [...(tpl.shapes ?? []), ...(style.furniture ?? [])],
     slots: tpl.slots.map((slot) => {
       const size = slot.size != null && t.scale ? slot.size * t.scale : slot.size;
       return {

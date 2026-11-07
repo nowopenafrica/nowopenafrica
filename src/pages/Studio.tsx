@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { Loader2, ArrowLeft, Sparkles, Palette, CreditCard, Instagram, LayoutPanelTop, PenLine, ImagePlus, PackageOpen, CalendarDays, WalletCards, Printer, Presentation, Stamp, Camera, Home, MessageCircle, Activity, Mail, Heart, Receipt, Trophy, LayoutTemplate, Zap, TrendingUp, Store, FileText, Mic, Clapperboard, Globe, Wand2, Podcast, Bot, CalendarCheck, Users, Banknote, Radar, Search, Workflow, ReceiptText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+import { SERVER_ROW_CAP } from '../lib/fetchAllBusinesses';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 import { Business } from '../types';
@@ -135,7 +136,7 @@ export default function Studio() {
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(50000)
+    supabase.from('businesses').select('*').eq('user_id', user.id).order('created_at', { ascending: false }).limit(SERVER_ROW_CAP)
       .then(({ data }) => {
         setBusinesses(data || []);
         if (data && data.length) setSelectedId(String(data[0].id));
@@ -196,7 +197,16 @@ export default function Studio() {
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-10">
+      {/*
+        * Full width, like the editor at /media/studio.
+        *
+        * MEASURED on a 1665px screen: capped at 972px, this page left 347px
+        * of empty desk on each side and gave its own tools a 668px column —
+        * narrower than the sidebar and the margins combined. The modules here
+        * are previews, grids and brand assets, all of which are easier to
+        * judge at the size they will actually be used.
+        */}
+      <div className="w-full px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex items-center gap-3 mb-1">
           <div className="w-9 h-9 rounded-xl bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
@@ -220,7 +230,7 @@ export default function Studio() {
             <Link to="/dashboard" className="mt-3 inline-block text-sm font-medium text-blue-600 dark:text-blue-400 hover:underline">Go to dashboard →</Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-[230px,1fr] gap-6">
+          <div className="grid grid-cols-1 gap-6 lg:grid-cols-[240px,1fr] xl:grid-cols-[260px,1fr]">
             {/* Sidebar */}
             <aside>
               {businesses.length > 1 && (

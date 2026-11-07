@@ -3,6 +3,7 @@ import { useRef, useState } from 'react';
 import { Download, Printer, Share2, Link as LinkIcon, QrCode, Loader2, Contact, SlidersHorizontal, RotateCcw, User, Upload, X } from 'lucide-react';
 import { Business } from '../../types';
 import { profileUrl, shareLinks, exportNodeToPng, printImage } from '../../lib/studio';
+import { CARD_MM, ratioForDpi } from '../../lib/studio/formats';
 import { useBrandExports } from '../../hooks/useBrandExports';
 import { useCardSettings } from '../../hooks/useCardSettings';
 import { CARD_ACCENTS, compressImageFile } from '../../lib/cardSettings';
@@ -43,7 +44,8 @@ export default function BrandCardStudio({ business }: { business: Business }) {
     setPrinting(true);
     try {
       const dataUrl = await exportNodeToPng(cardRef.current, {
-        pixelRatio: 3,
+        /* 600dpi for paper — twice the commercial minimum, and stated. */
+        pixelRatio: ratioForDpi(CARD_DESIGN_WIDTH, CARD_MM.width, 600),
         backgroundColor: '#ffffff',
         designWidth: CARD_DESIGN_WIDTH,
       });

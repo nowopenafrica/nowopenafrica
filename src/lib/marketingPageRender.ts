@@ -31,6 +31,16 @@ export interface MarketingLink {
 
 export interface MarketingPage {
   path: string;
+  /**
+   * The URL this page should be indexed as, when it is not `path` itself.
+   *
+   * Some routes are aliases: /join/business is the short campaign link for
+   * /add-business and serves byte-identical content. Without this, each alias
+   * declares ITSELF canonical, and Google is handed two URLs for one page both
+   * claiming to be the original — the textbook duplicate-content signal, caused
+   * by the site rather than by a crawler guessing.
+   */
+  canonicalPath?: string;
   title: string;
   description: string;
   h1: string;
@@ -48,7 +58,7 @@ const EXPLORE: MarketingLink[] = [
   { href: '/adverts', label: 'Ad placements' },
   { href: '/platform', label: 'Industry operating systems' },
   { href: '/about', label: 'About NowOpen Africa' },
-  { href: '/waitlist', label: 'List your business' },
+  { href: '/waitlist', label: 'Add your business' },
 ];
 
 export const MARKETING_PAGES: MarketingPage[] = [
@@ -80,7 +90,7 @@ export const MARKETING_PAGES: MarketingPage[] = [
       { href: '/platform', label: 'Industry operating systems' },
       { href: '/founder', label: 'Meet the founder' },
       { href: '/contact', label: 'Contact us' },
-      { href: '/waitlist', label: 'List your business' },
+      { href: '/waitlist', label: 'Add your business' },
       { href: '/businesses', label: 'Browse businesses' },
     ],
   },
@@ -100,6 +110,16 @@ export const MARKETING_PAGES: MarketingPage[] = [
     title: 'Discover businesses — NowOpen Africa',
     description: 'Find what is open now, what is new, and the places worth knowing about near you.',
     h1: 'Discover',
+    /*
+     * MEASURED 2026-09-14: this renders 1,524 bytes for Googlebot, the thinnest
+     * page on the site, while the sitemap submits it at priority 0.9 — the joint
+     * highest. That is a real problem and it is NOT fixed by adding prose here:
+     * this renderer's copy must be the copy on the page, and the page is a live
+     * directory whose content is the listings themselves.
+     *
+     * The fix is to render those listings the way /businesses/in/lagos does.
+     * Tracked with the discovery-page work.
+     */
     paragraphs: [
       'What is open, what is new, and what is worth knowing about.',
     ],
@@ -108,7 +128,57 @@ export const MARKETING_PAGES: MarketingPage[] = [
       { href: '/open-now', label: 'Open now' },
       { href: '/nearby', label: 'Near me' },
       { href: '/offers', label: 'Offers' },
-      { href: '/waitlist', label: 'List your business' },
+      { href: '/waitlist', label: 'Add your business' },
+    ],
+  },
+  {
+    /*
+     * The shareable acquisition link, and the same reasoning as the entry
+     * below: it exists to be pasted into WhatsApp, an Instagram bio and a QR
+     * code, so the link PREVIEW is the first thing most people see of it.
+     * Without an entry here a crawler gets the SPA shell and the generic site
+     * title -- the same preview every other NowOpen link produces.
+     */
+    path: '/add-business',
+    title: 'Add your business — free NowOpen Africa profile',
+    description:
+      'Put your business on the map. Create a free NowOpen profile so customers across Africa can find your services, products and opening hours.',
+    h1: 'Put Your Business on the Map',
+    paragraphs: [
+      'Your business deserves to be found. Create your free NowOpen profile and help customers discover your business, services, products and offers across Africa.',
+      'Free to get started. You can update your business information anytime.',
+      'Already listed? You can claim an existing profile rather than creating a second one.',
+    ],
+    links: [
+      { href: '/businesses', label: 'Browse businesses' },
+      { href: '/send-business', label: 'Send your business name instead' },
+      { href: '/nominate', label: 'Recommend a business' },
+      { href: '/about', label: 'About NowOpen Africa' },
+    ],
+  },
+  {
+    /*
+     * The shorter campaign alias for the same page. It needs its own entry
+     * because this map is keyed on the exact path: without it, the link
+     * offered as the SHORT one to print and say out loud is the one whose
+     * preview falls back to the generic site title.
+     */
+    path: '/join/business',
+    canonicalPath: '/add-business',
+    title: 'Add your business — free NowOpen Africa profile',
+    description:
+      'Put your business on the map. Create a free NowOpen profile so customers across Africa can find your services, products and opening hours.',
+    h1: 'Put Your Business on the Map',
+    paragraphs: [
+      'Your business deserves to be found. Create your free NowOpen profile and help customers discover your business, services, products and offers across Africa.',
+      'Free to get started. You can update your business information anytime.',
+      'Already listed? You can claim an existing profile rather than creating a second one.',
+    ],
+    links: [
+      { href: '/businesses', label: 'Browse businesses' },
+      { href: '/add-business', label: 'Add your business' },
+      { href: '/nominate', label: 'Recommend a business' },
+      { href: '/about', label: 'About NowOpen Africa' },
     ],
   },
   {
@@ -185,6 +255,38 @@ export const MARKETING_PAGES: MarketingPage[] = [
    * cloaking.
    */
   {
+    /*
+     * /open-now was in the sitemap and had no entry here, so it was the one
+     * submitted route that still answered Googlebot with the 7,495-byte
+     * JavaScript shell — no <h1>, and the home page's title.
+     *
+     * The live page answers "what can I walk into right now", which depends on
+     * the clock and on each business's hours, and this renderer reads nothing.
+     * So the rendered version does not pretend to list anything: it explains
+     * what the page does and links to the surfaces that are renderable. That is
+     * honest, and it is what a crawler needs in order to understand the URL.
+     */
+    path: '/open-now',
+    /*
+     * Title, description and heading are taken verbatim from OpenNow.tsx —
+     * its applySeo call and its <h1> — not written for this file. Anything
+     * else is cloaking, and marketingPageRender.test.ts checks every entry
+     * against the React page it claims to describe.
+     */
+    title: 'Open right now — NowOpen Africa',
+    description: 'Businesses with their doors open at this moment.',
+    h1: 'Open right now',
+    paragraphs: [
+      'Doors open as of this minute. Places closing soon are included and marked.',
+    ],
+    links: [
+      { href: '/businesses', label: 'Browse all businesses' },
+      { href: '/discover', label: 'Discover' },
+      { href: '/nearby', label: 'Near me' },
+      { href: '/add-business', label: 'Add your business' },
+    ],
+  },
+  {
     path: '/businesses',
     title: 'Businesses Directory — Find Businesses Across Africa',
     description:
@@ -199,10 +301,21 @@ export const MARKETING_PAGES: MarketingPage[] = [
     path: '/media',
     title: 'NowOpen Create — Design, Print & Promote for African Business',
     description:
-      'Design, print and promote your business in one place. Free creation from your own brand, professional design by African creators, and printing delivered across Nigeria.',
-    h1: 'Create it. Brand it. Print it. Promote it. Grow it.',
+      'Business cards, flyers, menus, social posts and signs — made from your brand, free to download.',
+    h1: 'What do you need?',
     paragraphs: [
-      'Design, print and promote your business in one place. Free creation from your own brand, professional design by African creators, and printing delivered across Nigeria.',
+      'Business cards, flyers, menus, social posts and signs — made from your brand, free to download.',
+    ],
+    links: EXPLORE,
+  },
+  {
+    path: '/media/services',
+    title: 'Creative Services — NowOpen Create',
+    description:
+      'Have it made for you — design and print services you can request a price for, business packs and Create credits, plus creators as they join.',
+    h1: 'Creative services',
+    paragraphs: [
+      'Have it made for you — design and print services you can request a price for, business packs and Create credits, plus creators as they join.',
     ],
     links: EXPLORE,
   },
@@ -219,12 +332,16 @@ export const MARKETING_PAGES: MarketingPage[] = [
   },
   {
     path: '/adverts',
-    title: 'Advertise in Africa — Book Billboards & Ad Placements',
+    title: 'Advertise across Africa — goals, placements and plans',
     description:
-      'Book real-world and digital advertising placements across 20+ African markets — billboards, transit, digital screens and broadcast — plus free ways to reach people already searching on NowOpen.',
-    h1: 'Be seen where people are. Then see who came.',
+      'Pick a goal and get a plan from real advertising placements across 20+ African markets — billboards, transit, digital screens and broadcast — plus free ways to be found by people already searching on NowOpen.',
+    // The Promote hub opens on the question, like Create; the old headline
+    // is now the line under it. promoteHub.test.tsx renders the page and
+    // checks this is its h1.
+    h1: 'What do you want to achieve?',
     paragraphs: [
-      'Book real-world and digital advertising placements across 20+ African markets — billboards, transit, digital screens and broadcast.',
+      'Be seen where people are. Then see who came.',
+      'Pick a goal and get a plan from real advertising placements across 20+ African markets — billboards, transit, digital screens and broadcast.',
     ],
     links: EXPLORE,
   },
@@ -318,7 +435,9 @@ export const escapeHtml = (s: string): string =>
  * find them.
  */
 export function renderMarketingPage(page: MarketingPage, siteUrl: string): string {
-  const canonical = `${siteUrl.replace(/\/$/, '')}${page.path === '/' ? '' : page.path}`;
+  // An alias points at its primary; everything else points at itself.
+  const indexedPath = page.canonicalPath ?? page.path;
+  const canonical = `${siteUrl.replace(/\/$/, '')}${indexedPath === '/' ? '' : indexedPath}`;
   const jsonLd = {
     '@context': 'https://schema.org',
     '@type': page.path === '/' ? 'WebSite' : 'WebPage',

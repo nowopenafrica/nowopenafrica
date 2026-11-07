@@ -14,6 +14,8 @@ export interface TabLabelOverrides {
   products?: string;
   gallery?: string;
   enquiries?: string;
+  /** Past work. See PORTFOLIO_WORD below for how the default is chosen. */
+  portfolio?: string;
 }
 
 export const CATEGORY_TAB_LABELS: Record<string, TabLabelOverrides> = {
@@ -82,4 +84,57 @@ if (import.meta.env.DEV) {
       console.warn(`categoryTabLabels.ts: "${key}" is not a valid business category — check data/categories.ts stayed in sync.`);
     }
   }
+}
+
+/* ── PAST WORK: "Portfolio" or "Projects"? ────────────────────────────────
+ *
+ * Every profile gets a tab for work already done, and the word for it is not
+ * the same in every trade. A photographer has a PORTFOLIO. A builder has
+ * PROJECTS. Calling a builder's finished estate a portfolio sounds like an
+ * investment product, and calling a makeup artist's work a project sounds
+ * like paperwork.
+ *
+ * So the two words are chosen by what the work IS, not by taste:
+ *
+ *   Portfolio — the work is the artefact, and the pictures are the point.
+ *               Design, photography, tailoring, hair, makeup, art.
+ *   Projects  — the work is a job with a start, an end and a site or client.
+ *               Building, engineering, software, events, consulting.
+ *
+ * Everything else gets "Projects", which is the more universal of the two:
+ * a caterer's wedding and a logistics firm's contract are both projects,
+ * while neither is a portfolio.
+ */
+const PORTFOLIO_CATEGORIES = new Set<string>([
+  'Art & Design',
+  'Art Gallery',
+  'Architecture & Design',
+  'Interior Decoration',
+  'Photography & Video',
+  'Film & Video Production',
+  'Animation & Motion Graphics',
+  'Printing & Signage',
+  'Tailor & Fashion Designer',
+  'Makeup Artist',
+  'Salon / Barber',
+  'Bridal & Wedding Services',
+  'Furniture Maker / Carpentry',
+  'Media & Publishing',
+]);
+
+/**
+ * The word this business uses for its past work.
+ *
+ * Kept separate from CATEGORY_TAB_LABELS because it is a RULE over a set,
+ * not a per-category override — listing fourteen categories as
+ * `{ portfolio: 'Portfolio' }` would say the same thing fourteen times and
+ * drift the fifteenth time somebody added one.
+ *
+ * An explicit override in CATEGORY_TAB_LABELS still wins, so a single
+ * category can say something else entirely without touching this.
+ */
+export function portfolioLabel(category: string | undefined | null): string {
+  const override = category ? CATEGORY_TAB_LABELS[category]?.portfolio : undefined;
+  if (override) return override;
+  return category && PORTFOLIO_CATEGORIES.has(category) ? 'Portfolio' : 'Projects';
 }

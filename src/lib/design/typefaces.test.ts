@@ -8,14 +8,24 @@ import {
 
 const css = readFileSync('src/index.css', 'utf8');
 
-const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-');
-
 describe('every face is one we are allowed to ship', () => {
+  /*
+   * An ALLOWLIST, not one literal.
+   *
+   * This asserted `=== 'SIL OFL 1.1'` because every face came from Google
+   * Fonts. Coolvetica does not — it is Ray Larabie's, free for commercial
+   * use, and the house face the brand-card studio already ships. The test's
+   * real question is "may we redistribute this and may a customer sell what
+   * they print with it", and that has more than one right answer. Adding to
+   * this list is a deliberate act: a new licence has to be read first.
+   */
+  const PERMITTED = ['SIL OFL 1.1', 'Free for commercial use'];
+
   it('carries a licence that permits redistribution and commercial use', () => {
     // A customer prints this and sells it. A face we cannot licence is a face
     // that makes their poster a liability rather than an asset.
     for (const face of TYPEFACES) {
-      expect(face.licence, face.key).toBe('SIL OFL 1.1');
+      expect(PERMITTED, face.key).toContain(face.licence);
       expect(face.source, face.key).toBeTruthy();
     }
   });
@@ -25,7 +35,10 @@ describe('every face is one we are allowed to ship', () => {
     // export has to be able to prove the face is present.
     for (const face of TYPEFACES) {
       for (const w of face.weights) {
-        const path = `public/fonts/studio/${slug(face.family)}-${w}.woff2`;
+        /* The file the face itself declares, not a filename this test guessed. */
+        const declared = face.files[w];
+        expect(declared, `${face.key} ${w}`).toBeTruthy();
+        const path = `public${declared}`;
         expect(existsSync(path), path).toBe(true);
         expect(statSync(path).size, path).toBeGreaterThan(4000);
       }
@@ -38,7 +51,7 @@ describe('every face is one we are allowed to ship', () => {
     for (const face of TYPEFACES) {
       for (const w of face.weights) {
         const rule = css.slice(css.indexOf(`font-family: '${face.family}'`));
-        expect(css, `${face.family} ${w}`).toContain(`${slug(face.family)}-${w}.woff2`);
+        expect(css, `${face.family} ${w}`).toContain(face.files[w]);
         expect(rule.length, face.family).toBeGreaterThan(0);
       }
     }
@@ -46,7 +59,7 @@ describe('every face is one we are allowed to ship', () => {
 
   it('stays inside the weight budget', () => {
     const total = TYPEFACES.flatMap((f) => f.weights.map((w) =>
-      statSync(`public/fonts/studio/${slug(f.family)}-${w}.woff2`).size)).reduce((a, b) => a + b, 0);
+      statSync(`public${f.files[w]}`).size)).reduce((a, b) => a + b, 0);
     // A design tool that costs a megabyte before it draws anything is one
     // nobody opens twice. Drop a weight rather than raising this.
     expect(total).toBeLessThan(600 * 1024);
