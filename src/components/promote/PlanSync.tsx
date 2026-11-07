@@ -29,7 +29,7 @@ export default function PlanSync() {
         const kept = out.kept > 0 ? ` · ${out.kept} kept on this device` : '';
         toast.success(`Moved ${out.moved} ${noun} into your plan.${kept}`);
       })
-      .catch(() => { /* the lines stay on this device; the next sign-in tries again */ });
+      .catch(() => { /* No toast. The lines stay on this device; the ref resets only on a page load, so the retry happens on the next page load. */ });
   }, [userId]);
 
   return null;

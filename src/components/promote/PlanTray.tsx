@@ -41,13 +41,13 @@ export default function PlanTray() {
 
   return (
     <>
-      <div aria-hidden data-testid="plan-tray-spacer" className="h-12 sm:h-14" />
+      <div aria-hidden data-testid="plan-tray-spacer" className="h-[calc(48px+env(safe-area-inset-bottom))] sm:h-[calc(56px+env(safe-area-inset-bottom))]" />
       <div
         role="region"
         aria-label="Your plan"
-        className="fixed inset-x-0 bottom-0 z-30 border-t border-gray-200 bg-white/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
+        className="fixed inset-x-0 bottom-0 z-30 pb-[env(safe-area-inset-bottom)] border-t border-gray-200 bg-white/95 shadow-[0_-4px_16px_rgba(0,0,0,0.08)] backdrop-blur dark:border-gray-700 dark:bg-gray-900/95"
       >
-        <div className="mx-auto flex h-12 max-w-6xl items-center justify-end gap-3 pl-24 pr-4 sm:h-14 sm:justify-between sm:px-6">
+        <div className="mx-auto flex h-[48px] max-w-6xl items-center justify-end gap-3 pl-24 pr-4 sm:h-[56px] sm:justify-between sm:px-6">
           <p className="text-sm font-semibold text-gray-900 dark:text-gray-100">
             {summary.lines} in your plan
           </p>

@@ -143,6 +143,21 @@ describe('PlanSync', () => {
     await waitFor(() => expect(h.toast.success).toHaveBeenCalledWith('Moved 1 line into your plan. · 3 kept on this device'));
   });
 
+  it('a rejecting migrate shows no toast and leaves no unhandled rejection', async () => {
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    h.user = { id: 'u1' };
+    h.local = [{ kind: 'product', productId: 'p' }];
+    h.migrate.mockRejectedValue(new Error('network'));
+    mount();
+    await waitFor(() => expect(h.migrate).toHaveBeenCalledTimes(1));
+    await new Promise((r) => setTimeout(r, 20));
+    process.off('unhandledRejection', unhandled);
+    expect(unhandled).not.toHaveBeenCalled();
+    expect(h.toast.success).not.toHaveBeenCalled();
+    expect(h.toast.error).not.toHaveBeenCalled();
+  });
+
   it('no toast when the result is null or moved is 0', async () => {
     h.user = { id: 'u1' };
     h.local = [{ kind: 'product', productId: 'p' }];
