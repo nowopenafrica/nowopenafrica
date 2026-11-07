@@ -1,9 +1,12 @@
+import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Loader2, Megaphone, ShieldCheck } from 'lucide-react';
+import { ArrowRight, Loader2, Megaphone, Plus, ShieldCheck } from 'lucide-react';
 
 import { useCurrency } from '../../contexts/CurrencyContext';
 import { formatPrice, type RevenueProduct } from '../../lib/revenue/products';
+import { addToPlan } from '../../lib/promote/campaigns';
 import { productPriceUsd } from '../../lib/promote/hubMoney';
+import { reportPlanAdd } from '../../lib/promote/planToast';
 import SponsoredLabel, { type PlacementKind } from '../promotion/SponsoredLabel';
 
 /**
@@ -42,16 +45,28 @@ const labelFor = (slug: string): Exclude<PlacementKind, 'organic'> => LABEL_FOR[
  *
  * ── WHAT IT DOES NOT DO YET ──────────────────────────────────────────────
  *
- * It does not take payment, and a product does not join the media plan yet
- * (plan lines are placements only until step 2). The database refuses to
+ * It does not take payment. A product joins the media plan ("Add to plan",
+ * at its fixed price), but paying for it is step 3: the database refuses to
  * activate a promotion without a webhook-verified payment, and that path has
- * never completed on this project, so the action stays an enquiry.
+ * never completed on this project. A product with no price set is not
+ * sellable, so it gets no button and keeps the enquiry link.
  */
 export default function OnNowOpen({
   products, loading, failed,
 }: { products: RevenueProduct[]; loading: boolean; failed: boolean }) {
   /* One formatter for the hub: prices are converted to USD and shown in the visitor's currency. */
   const { format, ngnPerUsd } = useCurrency();
+  /* The product whose write is in flight; its button is disabled so a double tap adds once. */
+  const [adding, setAdding] = useState<string | null>(null);
+  const addProduct = async (p: RevenueProduct) => {
+    if (adding || p.priceMinor == null) return;
+    setAdding(p.id);
+    try {
+      reportPlanAdd(await addToPlan([{ kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays }]));
+    } finally {
+      setAdding(null);
+    }
+  };
   const priceOf = (p: RevenueProduct) => {
     const usd = productPriceUsd(p, ngnPerUsd);
     return usd != null ? format(usd) : formatPrice(p.priceMinor, p.currency);
@@ -145,13 +160,27 @@ export default function OnNowOpen({
                   <span className="text-xl font-bold text-gray-900 dark:text-white">{priceOf(p)}</span>
                   {p.durationDays ? <> · {p.durationDays} days</> : null}
                 </p>
-                <Link
-                  to={`/contact?product=${encodeURIComponent(p.slug)}`}
-                  aria-label={`Get started with ${p.name}`}
-                  className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 text-sm font-semibold text-white transition hover:bg-orange-800"
-                >
-                  Get started <ArrowRight size={15} aria-hidden />
-                </Link>
+                {p.priceMinor != null ? (
+                  <button
+                    type="button"
+                    onClick={() => addProduct(p)}
+                    disabled={adding !== null}
+                    aria-label={`Add ${p.name} to plan`}
+                    className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 text-sm font-semibold text-white transition hover:bg-orange-800 disabled:opacity-60"
+                  >
+                    {adding === p.id ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Plus size={15} aria-hidden />}
+                    Add to plan
+                  </button>
+                ) : (
+                  /* No price set, so nothing to put in a plan: it stays an enquiry. */
+                  <Link
+                    to={`/contact?product=${encodeURIComponent(p.slug)}`}
+                    aria-label={`Get started with ${p.name}`}
+                    className="mt-4 inline-flex min-h-[44px] items-center justify-center gap-2 rounded-xl bg-orange-700 px-4 text-sm font-semibold text-white transition hover:bg-orange-800"
+                  >
+                    Get started <ArrowRight size={15} aria-hidden />
+                  </Link>
+                )}
               </article>
             </li>
           ))}

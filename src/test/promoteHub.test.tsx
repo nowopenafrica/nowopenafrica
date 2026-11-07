@@ -42,10 +42,11 @@ const PRODUCTS = vi.hoisted(() => {
 });
 
 type PlanOut = { ok: true; added: number; skipped: number } | { ok: false; error: string; added: number };
+type PlanIn = { kind: 'placement' | 'product'; id: string }[];
 const plan = vi.hoisted(() => ({
-  addAdvertsToPlan: vi.fn(async (list: { id: string }[]): Promise<PlanOut> => ({ ok: true, added: list.length, skipped: 0 })),
+  addToPlan: vi.fn(async (list: PlanIn): Promise<PlanOut> => ({ ok: true, added: list.length, skipped: 0 })),
   /* The real helper, for the signed-out path: it must surface its own reason. */
-  real: null as null | ((list: { id: string; pricing: number | null }[]) => Promise<PlanOut>),
+  real: null as null | ((list: PlanIn) => Promise<PlanOut>),
 }));
 /* What "Use my location" detects; a test may swap in a district. */
 const geo = vi.hoisted(() => ({ city: 'Abuja' }));
@@ -62,8 +63,8 @@ vi.mock('../contexts/AuthContext', () => ({ useAuth: () => ({ user: null, loadin
 vi.mock('../lib/telemetry', () => ({ track: () => {} }));
 vi.mock('../lib/promote/campaigns', async (importOriginal) => {
   const real = await importOriginal<typeof import('../lib/promote/campaigns')>();
-  plan.real = real.addAdvertsToPlan as typeof plan.real;
-  return { ...real, addAdvertsToPlan: plan.addAdvertsToPlan };
+  plan.real = real.addToPlan as unknown as typeof plan.real;
+  return { ...real, addToPlan: plan.addToPlan };
 });
 vi.mock('../lib/geolocation', () => ({
   isGeolocationSupported: () => true,
@@ -115,7 +116,7 @@ beforeAll(() => {
 afterEach(() => {
   cleanup();
   PRODUCTS.empty = false;
-  plan.addAdvertsToPlan.mockClear();
+  plan.addToPlan.mockClear();
   toasts.mockClear(); toasts.success.mockClear(); toasts.error.mockClear();
 });
 
@@ -253,7 +254,7 @@ describe('the Promote hub', () => {
     const region = goalView('Get customers nearby');
     fireEvent.click(within(region).getByRole('tab', { name: 'Starter' }));
     fireEvent.click(within(region).getByRole('button', { name: 'Add all to plan' }));
-    await waitFor(() => expect(plan.addAdvertsToPlan).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(plan.addToPlan).toHaveBeenCalledTimes(1));
 
     const mix = buildMix(goalBySlug('nearby')!, {
       products: PRODUCTS.list as RevenueProduct[], adverts: ADVERTS as Advertisement[], city: 'Lagos', ngnPerUsd: NGN_PER_USD,
@@ -261,8 +262,51 @@ describe('the Promote hub', () => {
     const starter = mix.levels.find((l) => l.key === 'starter')!;
     const expected = starter.items.flatMap((i) => (i.kind === 'placement' ? [i.advert.id] : []));
     expect(expected.length).toBeGreaterThan(0);
-    const sent = plan.addAdvertsToPlan.mock.calls[0][0] as { id: string }[];
-    expect(sent.map((a) => a.id)).toEqual(expected);
+    const sent = plan.addToPlan.mock.calls[0][0] as { kind: string; id: string }[];
+    expect(sent.filter((i) => i.kind === 'placement').map((a) => a.id)).toEqual(expected);
+  });
+
+  it("'Add all' sends the level's products and placements in one call", async () => {
+    at('/adverts?goal=nearby&city=Lagos');
+    await loaded();
+    const region = goalView('Get customers nearby');
+    await waitFor(() => expect(within(region).getByRole('tab', { name: 'Starter' }).getAttribute('aria-selected')).toBe('true'));
+    fireEvent.click(within(region).getByRole('button', { name: 'Add all to plan' }));
+    await waitFor(() => expect(plan.addToPlan).toHaveBeenCalledTimes(1));
+    const mix = buildMix(goalBySlug('nearby')!, {
+      products: PRODUCTS.list as RevenueProduct[], adverts: ADVERTS as Advertisement[], city: 'Lagos', ngnPerUsd: NGN_PER_USD,
+    });
+    const starter = mix.levels.find((l) => l.key === 'starter')!;
+    const products = starter.items.flatMap((i) => (i.kind === 'product' ? [i.product] : []));
+    const placements = starter.items.flatMap((i) => (i.kind === 'placement' ? [i.advert] : []));
+    expect(products.length).toBeGreaterThan(0);
+    expect(placements.length).toBeGreaterThan(0);
+    const sent = plan.addToPlan.mock.calls[0][0] as Array<Record<string, unknown>>;
+    expect(sent).toHaveLength(products.length + placements.length);
+    for (const p of products) {
+      expect(sent).toContainEqual({ kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays });
+    }
+    for (const a of placements) {
+      expect(sent.some((i) => i.kind === 'placement' && i.id === String(a.id))).toBe(true);
+    }
+  });
+
+  it("a product row's Add puts that product in the plan, and is disabled while it saves", async () => {
+    at('/adverts?goal=nearby&city=Lagos');
+    await loaded();
+    const region = goalView('Get customers nearby');
+    await waitFor(() => expect(within(region).getByRole('tab', { name: 'Starter' }).getAttribute('aria-selected')).toBe('true'));
+    let release!: (o: PlanOut) => void;
+    plan.addToPlan.mockImplementationOnce(() => new Promise<PlanOut>((r) => { release = r; }));
+    const btn = within(region).getByRole('button', { name: 'Add City spotlight to plan' });
+    fireEvent.click(btn);
+    await waitFor(() => expect(btn).toBeDisabled());
+    fireEvent.click(btn);
+    expect(plan.addToPlan).toHaveBeenCalledTimes(1);
+    expect(plan.addToPlan).toHaveBeenCalledWith([{ kind: 'product', id: 'city-spotlight', priceMinor: 1_950_000, days: 30 }]);
+    release({ ok: true, added: 1, skipped: 0 });
+    await waitFor(() => expect(btn).not.toBeDisabled());
+    expect(toasts.success).toHaveBeenCalledWith('Added 1 to your plan.');
   });
 
   it("design links go to Create", async () => {
@@ -437,7 +481,7 @@ describe('the Promote hub, fix round 1', () => {
       [{ ok: false, error: 'We could not load your plans just now.', added: 0 }, toasts.error, 'We could not load your plans just now.'],
     ];
     for (const [out, fn, text] of cases) {
-      plan.addAdvertsToPlan.mockResolvedValueOnce(out);
+      plan.addToPlan.mockResolvedValueOnce(out);
       await waitFor(() => expect(addAll()).not.toBeDisabled());
       fireEvent.click(addAll());
       await waitFor(() => expect(fn).toHaveBeenLastCalledWith(text));
@@ -449,7 +493,7 @@ describe('the Promote hub, fix round 1', () => {
     await loaded();
     const region = goalView('Get customers nearby');
     await waitFor(() => expect(selectedTab(region)).toEqual(['Starter']));
-    plan.addAdvertsToPlan.mockImplementationOnce((list) => plan.real!(list as { id: string; pricing: number | null }[]));
+    plan.addToPlan.mockImplementationOnce((list) => plan.real!(list));
     fireEvent.click(within(region).getByRole('button', { name: 'Add all to plan' }));
     await waitFor(() => expect(toasts.success).toHaveBeenCalled());
     // Kept in this browser, and a way to keep it for good: a sign-in link back to this page.
@@ -460,17 +504,36 @@ describe('the Promote hub, fix round 1', () => {
     expect(link.getAttribute('href')).toBe(`/login?next=${encodeURIComponent(here)}`);
   });
 
-  it('product "Get started" goes to /contact?product=<slug>', async () => {
+  it('no sellable product links to /contact?product= any more; each has an Add to plan button', async () => {
     at('/adverts?goal=nearby&city=Lagos');
     await loaded();
     const region = goalView('Get customers nearby');
     await waitFor(() => expect(selectedTab(region)).toEqual(['Starter']));
-    expect(within(region).getByRole('link', { name: 'Get started with City spotlight' }).getAttribute('href'))
-      .toBe('/contact?product=city-spotlight');
+    expect(document.querySelector('a[href^="/contact?product="]')).toBeNull();
     for (const card of screen.getAllByTestId('product-card')) {
-      const slug = card.getAttribute('data-product');
-      expect(within(card).getByRole('link', { name: /Get started/ }).getAttribute('href')).toBe(`/contact?product=${slug}`);
+      expect(within(card).getByRole('button', { name: /^Add .* to plan$/ })).not.toBeDisabled();
     }
+  });
+
+  it('On NowOpen: Add to plan sends the product, and the button is disabled while it saves', async () => {
+    at();
+    const cards = await waitFor(() => {
+      const found = screen.getAllByTestId('product-card');
+      expect(found).toHaveLength(PRODUCTS.list.length);
+      return found;
+    });
+    const card = cards.find((c) => c.getAttribute('data-product') === 'sponsored-result')!;
+    let release!: (o: PlanOut) => void;
+    plan.addToPlan.mockImplementationOnce(() => new Promise<PlanOut>((r) => { release = r; }));
+    const btn = within(card).getByRole('button', { name: 'Add Sponsored result to plan' });
+    expect(btn.className).toContain('min-h-[44px]');
+    fireEvent.click(btn);
+    await waitFor(() => expect(btn).toBeDisabled());
+    fireEvent.click(btn);
+    expect(plan.addToPlan).toHaveBeenCalledTimes(1);
+    expect(plan.addToPlan).toHaveBeenCalledWith([{ kind: 'product', id: 'sponsored-result', priceMinor: 500_000, days: 7 }]);
+    release({ ok: true, added: 1, skipped: 0 });
+    await waitFor(() => expect(btn).not.toBeDisabled());
   });
 
   it('a request naming no city clears the old one', async () => {

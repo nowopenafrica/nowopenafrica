@@ -3,12 +3,12 @@ import { Link } from 'react-router-dom';
 import { ArrowRight, ChevronDown, Loader2, LocateFixed, MapPin, Palette, Plus, X } from 'lucide-react';
 
 import { useCurrency } from '../../contexts/CurrencyContext';
-import { addAdvertsToPlan } from '../../lib/promote/campaigns';
+import { addToPlan, type PlanItem } from '../../lib/promote/campaigns';
 import { freeTool } from '../../lib/promote/freeTools';
 import { parsePromoteIntent } from '../../lib/promote/promoteIntent';
 import { detectLocation } from '../../lib/geolocation';
 import { NEEDS } from '../../lib/create/needs';
-import { formatPrice } from '../../lib/revenue/products';
+import { formatPrice, type RevenueProduct } from '../../lib/revenue/products';
 import { ngnToUsd, productPriceUsd } from '../../lib/promote/hubMoney';
 import { reportPlanAdd } from '../../lib/promote/planToast';
 import type { Goal } from '../../lib/promote/goals';
@@ -17,7 +17,19 @@ import type { PlacementTrust } from '../../lib/promote/trust';
 import type { Advertisement } from '../../types';
 import { PlacementPrice, PlacementWhere, TrustChip, trustFor } from './PlacementLine';
 
-const toPlan = (a: Advertisement) => ({ id: String(a.id), pricing: a.pricing ?? null });
+const placementItem = (a: Advertisement): PlanItem => ({ kind: 'placement', id: String(a.id), pricing: a.pricing ?? null });
+
+/** A product joins the plan at its fixed price; one with no price is not sellable and has no item. */
+const productItem = (p: RevenueProduct): PlanItem | null =>
+  p.priceMinor == null ? null : { kind: 'product', id: p.id, priceMinor: p.priceMinor, days: p.durationDays };
+
+/** Everything in a level that can go in the plan, in the level's own order. */
+const planItemsOf = (items: MixItem[]): PlanItem[] =>
+  items.flatMap((i) => {
+    if (i.kind === 'placement') return [placementItem(i.advert)];
+    if (i.kind === 'product') { const it = productItem(i.product); return it ? [it] : []; }
+    return [];
+  });
 
 /** The Create deliverable's own name, so the chip says what Create calls it. */
 const designName = (need: string, deliverable: string) =>
@@ -75,16 +87,16 @@ export default function GoalView({
 
   const level = picked ?? defaultLevel(mix);
   const current = mix.levels.find((l) => l.key === level) ?? mix.levels[0];
-  const placements = current.items.flatMap((i) => (i.kind === 'placement' ? [i.advert] : []));
+  const planItems = planItemsOf(current.items);
   const paid = current.items.filter((i) => i.kind !== 'free');
   const productsNgn = current.items.reduce((s, i) => s + (i.kind === 'product' ? i.costNgn : 0), 0);
   const placementsNgn = current.items.reduce((s, i) => s + (i.kind === 'placement' ? i.costNgn : 0), 0);
 
-  const add = async (key: string, list: Advertisement[]) => {
+  const add = async (key: string, list: PlanItem[]) => {
     if (adding) return;
     setAdding(key);
     try {
-      reportPlanAdd(await addAdvertsToPlan(list.map(toPlan)));
+      reportPlanAdd(await addToPlan(list));
     } finally {
       setAdding(null);
     }
@@ -231,7 +243,8 @@ export default function GoalView({
               ngnPerUsd={ngnPerUsd}
               trust={trust}
               adding={adding === rowKey(item)}
-              onAdd={(a) => add(rowKey(item), [a])}
+              busy={adding !== null}
+              onAdd={(it) => add(rowKey(item), [it])}
             />
           ))}
         </ul>
@@ -256,10 +269,10 @@ export default function GoalView({
               </>
             )}
           </div>
-          {placements.length > 0 && (
+          {planItems.length > 0 && (
             <button
               type="button"
-              onClick={() => add(`level:${current.key}`, placements)}
+              onClick={() => add(`level:${current.key}`, planItems)}
               disabled={adding !== null}
               className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-orange-700 px-4 text-sm font-semibold text-white hover:bg-orange-800 disabled:opacity-60"
             >
@@ -268,12 +281,6 @@ export default function GoalView({
             </button>
           )}
         </div>
-        {placements.length > 0 && placements.length < paid.length && (
-          /* Products join the plan in step 2; until then "Add all" is placements only. */
-          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            NowOpen ads are arranged with our team for now, so “Add all” adds the outdoor and media placements.
-          </p>
-        )}
       </div>
 
       {mix.onRequest.length > 0 && (
@@ -327,14 +334,16 @@ const rowKey = (i: MixItem) =>
 
 /** One line of a level: name, what it is, cost with its basis, and the action. */
 function MixRow({
-  item, format, ngnPerUsd, trust, adding, onAdd,
+  item, format, ngnPerUsd, trust, adding, busy, onAdd,
 }: {
   item: MixItem;
   format: (usd: number) => string;
   ngnPerUsd: number;
   trust: Map<string, PlacementTrust> | undefined;
   adding: boolean;
-  onAdd: (a: Advertisement) => void;
+  /** Disabled while any add is in flight, so two writes never overlap. */
+  busy: boolean;
+  onAdd: (item: PlanItem) => void;
 }) {
   /* Cost and action share one line under the name on a phone, and sit at the right from sm. */
   const side = 'mt-2 flex items-center justify-between gap-3 sm:mt-0 sm:shrink-0 sm:justify-end';
@@ -358,6 +367,7 @@ function MixRow({
   if (item.kind === 'product') {
     const p = item.product;
     const usd = productPriceUsd(p, ngnPerUsd);
+    const planItem = productItem(p);
     return (
       <li className="px-4 py-3 sm:flex sm:items-center sm:gap-4">
         <div className="min-w-0 sm:mr-auto">
@@ -368,10 +378,22 @@ function MixRow({
           <span className="text-sm font-semibold text-gray-900 dark:text-white">
             {usd != null ? format(usd) : formatPrice(p.priceMinor, p.currency)}{p.durationDays ? ` · ${p.durationDays} days` : ''}
           </span>
-          {/* Products join the plan in step 2; until then this is an enquiry. */}
-          <Link to={`/contact?product=${encodeURIComponent(p.slug)}`} aria-label={`Get started with ${p.name}`} className={action}>
-            Get started
-          </Link>
+          {planItem ? (
+            <button
+              type="button"
+              onClick={() => onAdd(planItem)}
+              disabled={busy}
+              aria-label={`Add ${p.name} to plan`}
+              className={`${action} disabled:opacity-60`}
+            >
+              {adding ? <Loader2 size={15} className="animate-spin" aria-hidden /> : <Plus size={15} aria-hidden />} Add
+            </button>
+          ) : (
+            /* No price set, so nothing to put in a plan: it stays an enquiry. */
+            <Link to={`/contact?product=${encodeURIComponent(p.slug)}`} aria-label={`Get started with ${p.name}`} className={action}>
+              Get started
+            </Link>
+          )}
         </div>
       </li>
     );
@@ -392,8 +414,8 @@ function MixRow({
         <PlacementPrice advert={a} trust={t} costNgn={item.costNgn} days={item.days} align="right" />
         <button
           type="button"
-          onClick={() => onAdd(a)}
-          disabled={adding}
+          onClick={() => onAdd(placementItem(a))}
+          disabled={busy}
           aria-label={`Add ${a.title} to plan`}
           className={action}
         >
