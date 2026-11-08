@@ -84,7 +84,9 @@ describe('CUSTOMISER_TEXT_FIELDS, rendered', () => {
 
 describe('CUSTOMISER_PLATFORM_FIELD', () => {
   it('is the select the customiser renders, fed from the platform registry', () => {
-    expect(customiser).toContain('aria-label={CUSTOMISER_PLATFORM_FIELD}');
+    // A visible label, tied to the select, as the overlay slider's is.
+    expect(customiser).toMatch(/<label htmlFor="customiser-platform"[^>]*>\s*\{CUSTOMISER_PLATFORM_FIELD\}\s*<\/label>/);
+    expect(customiser).toContain('id="customiser-platform"');
     expect(customiser).toMatch(/PLATFORM_MARKS\.map\(/);
     expect(customiser).toMatch(/^\s*platform: platform \?\? undefined,\r?$/m);
   });

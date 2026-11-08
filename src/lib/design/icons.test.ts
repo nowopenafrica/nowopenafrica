@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { SlotSpec } from '../designTemplates';
 import {
-  ICON_EM, ICON_GAP_EM, LUCIDE_NODES, LUCIDE_VERSION, glyphOf, iconIndent, isProfilePointer, nodePath, rowGlyph,
+  ICON_EM, ICON_GAP_EM, LUCIDE_NODES, LUCIDE_VERSION, classifyRow, glyphOf, iconIndent, isProfilePointer, namedPlatforms, nodePath, rowGlyph,
   type LucideName, type LucideNode,
 } from './icons';
 import { platformMark } from './platformMarks';
@@ -67,30 +67,104 @@ describe('isProfilePointer', () => {
     'refuses %s', (t) => expect(isProfilePointer(t)).toBe(false));
 });
 
-describe('rowGlyph', () => {
-  const contact: SlotSpec = {
-    role: 'contact', x: 0, y: 0, w: 1,
-    icons: [{ set: 'lucide', name: 'phone' }, { set: 'platform', name: 'instagram' }, null],
-  };
+describe('classifyRow (Ruling AL)', () => {
+  it.each([
+    ['+234 803 123 4567', 'phone'],
+    ['0803-123-4567', 'phone'],
+    ['(01) 234 5678', 'phone'],
+    ['hello@mamaput.ng', 'mail'],
+    ['www.mamaput.ng', 'globe'],
+    ['https://mamaput.ng/menu', 'globe'],
+    ['mamaput.nowopenafrica.com', 'globe'],
+    ['Mon to Fri, 9:00 to 17:00', 'clock'],
+    ['Saturday 10am to 2pm', 'clock'],
+    ['Open 8 am daily', 'clock'],
+    ['12 Allen Avenue, Ikeja', 'map-pin'],
+    ['3 Bode Thomas Street, Surulere', 'map-pin'],
+  ])('reads %s as %s', (text, want) => expect(classifyRow(text)).toBe(want));
 
-  it('leads a row with its icon, and a handle with its mark', () => {
+  it.each([
+    ['Your phone', 'phone'],
+    ['Your booking line', 'phone'],
+    ['Call us', 'phone'],
+    ['Your email', 'mail'],
+    ['Your website', 'globe'],
+    ['Your address', 'map-pin'],
+    ['Your area', 'map-pin'],
+    ['Your days · Your hours', 'clock'],
+    ['Out of hours · Your number', 'clock'],
+  ])('reads the placeholder %s as %s', (text, want) => expect(classifyRow(text)).toBe(want));
+
+  it.each(['Ikeja, Lagos', 'Order at the counter', 'Mama Put Kitchen', '12345', '@yourhandle', ''])(
+    'finds nothing in %s', (text) => expect(classifyRow(text)).toBeNull());
+});
+
+describe('rowGlyph', () => {
+  const PHONE = { set: 'lucide' as const, name: 'phone' };
+  const IG = { set: 'platform' as const, name: 'instagram' };
+  const contact: SlotSpec = { role: 'contact', x: 0, y: 0, w: 1, icons: [PHONE, IG, null] };
+
+  it('leads a row with the icon its words call for, and a handle with its mark', () => {
     expect(rowGlyph(contact, 0, 'Your phone')?.name).toBe('phone');
     expect(rowGlyph(contact, 1, '@yourhandle')?.name).toBe('instagram');
-    expect(rowGlyph(contact, 1, '@yourhandle', 'x')?.name).toBe('x');
+    expect(rowGlyph(contact, 1, '@yourhandle', { platform: 'x' })?.name).toBe('x');
+  });
+
+  it('keeps the right icon per row when the rows are reordered or one is deleted', () => {
+    const rows = (list: string[]) => list.map((t, i) => rowGlyph(contact, i, t)?.name ?? null);
+    // As authored: phone, handle.
+    expect(rows(['Your phone', '@yourhandle'])).toEqual(['phone', 'instagram']);
+    // Reordered: the mark follows the handle, the phone follows the number.
+    expect(rows(['@yourhandle', '+234 803 123 4567'])).toEqual(['instagram', 'phone']);
+    // The phone deleted: the email in row 0 gets a mail icon, never the phone hint.
+    expect(rows(['hello@mamaput.ng', 'www.mamaput.ng'])).toEqual(['mail', 'globe']);
+    expect(rows(['12 Allen Avenue, Ikeja'])).toEqual(['map-pin']);
+  });
+
+  it('uses the hint only for an unreadable row that is still the template sample', () => {
+    const odd: SlotSpec = { role: 'contact', x: 0, y: 0, w: 1, icons: [PHONE] };
+    expect(rowGlyph(odd, 0, 'Ring Ade', { sample: 'Ring Ade' })?.name).toBe('phone');
+    expect(rowGlyph(odd, 0, 'Ring Ade', { sample: 'Your phone' })).toBeNull();
+    expect(rowGlyph(odd, 0, 'Ring Ade')).toBeNull();
+  });
+
+  it('draws nothing on a slot without icons, or on an empty row', () => {
+    expect(rowGlyph({ role: 'contact', x: 0, y: 0, w: 1 }, 0, 'Your phone')).toBeNull();
+    expect(rowGlyph(contact, 0, '  ')).toBeNull();
   });
 
   it('never puts a mark beside words that are not a handle', () => {
-    expect(rowGlyph(contact, 1, 'Your website')).toBeNull();
+    expect(rowGlyph(contact, 1, 'Your website')?.name).toBe('globe');
+    expect(rowGlyph({ role: 'contact', x: 0, y: 0, w: 1, icons: [IG] }, 0, 'Your website')?.set).toBe('lucide');
   });
 
-  it('draws nothing on a bare row, an empty row or a row with no icon', () => {
-    expect(rowGlyph(contact, 2, 'Your area')).toBeNull();
-    expect(rowGlyph(contact, 0, '  ')).toBeNull();
-    expect(rowGlyph(contact, 5, 'Your phone')).toBeNull();
+  it('never puts a mark beside words that name another platform', () => {
+    const meta: SlotSpec = { role: 'meta', x: 0, y: 0, w: 1, icons: [IG] };
+    expect(rowGlyph(meta, 0, 'Find us on Instagram', { platform: 'x' })).toBeNull();
+    expect(rowGlyph(meta, 0, 'Find us on Instagram', { platform: 'instagram' })?.name).toBe('instagram');
+    expect(rowGlyph(meta, 0, 'Find us on Instagram')?.name).toBe('instagram');
+    expect(rowGlyph(meta, 0, 'Follow us on TikTok')).toBeNull();
+    expect(rowGlyph(meta, 0, 'Follow us on TikTok', { platform: 'tiktok' })?.name).toBe('tiktok');
+    expect(rowGlyph(meta, 0, 'Find us on Twitter', { platform: 'x' })?.name).toBe('x');
+    // LinkedIn has no mark here (Ruling AK), so naming it never shows one.
+    for (const platform of [undefined, 'instagram', 'linkedin']) {
+      expect(rowGlyph(meta, 0, 'Find us on LinkedIn', { platform }), String(platform)).toBeNull();
+    }
+    // A bare handle names no platform: any chosen one is drawn.
+    for (const m of ['instagram', 'tiktok', 'x', 'youtube', 'facebook', 'whatsapp', 'threads', 'snapchat', 'pinterest']) {
+      expect(rowGlyph(meta, 0, '@yourhandle', { platform: m })?.name, m).toBe(m);
+    }
+  });
+
+  it('names platforms in words', () => {
+    expect(namedPlatforms('Find us on Instagram')).toEqual(['instagram']);
+    expect(namedPlatforms('Follow us on X')).toEqual(['x']);
+    expect(namedPlatforms('@yourhandle')).toEqual([]);
+    expect(namedPlatforms('Link in bio')).toEqual([]);
   });
 
   it('keeps icons off the name, the headline, the subline and a disc', () => {
-    const icons = [{ set: 'platform' as const, name: 'instagram' }];
+    const icons = [IG];
     for (const role of ['brand', 'headline', 'subline'] as const) {
       expect(rowGlyph({ role, x: 0, y: 0, w: 1, icons }, 0, '@yourhandle'), role).toBeNull();
     }

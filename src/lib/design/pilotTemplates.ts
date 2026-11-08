@@ -53,6 +53,8 @@ const m = (kind: MotionIn, at: number, dur = 0.45): SlotMotion => ({ in: kind, a
  * row leads with its platform's mark, Instagram unless the visitor picks
  * another in the customiser. The rules (one colour, beside a handle only, at
  * least the words' cap height) are design/icons.ts and platformMarks.ts.
+ * These per-row icons are hints: the renderers read each row's icon from its
+ * own words, and fall back to the hint only on the template's sample rows.
  */
 const L = (name: LucideName): SlotIcon => ({ set: 'lucide', name });
 const HANDLE: SlotIcon = { set: 'platform', name: 'instagram' };
@@ -395,7 +397,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       slots: [
         { role: 'brand', x: 0.07, y: 0.1, w: 0.7, size: 0.05, weight: 700, on: 'ink', motion: m('fade', 0) },
         { role: 'eyebrow', x: 0.07, y: 0.175, w: 0.7, size: CARD_TEXT, tone: 'muted', on: 'ink', motion: m('fade', 0.15) },
-        { role: 'services', x: 0.07, y: 0.38, w: 0.5, size: CARD_TEXT, gap: 1.6, bullet: 'none', max: 3, icons: [L('clock'), L('clock'), L('phone')], motion: m('fade', 0.3) },
+        { role: 'services', x: 0.07, y: 0.38, w: 0.5, size: CARD_TEXT, gap: 1.6, bullet: 'none', max: 3, icons: [L('clock'), L('clock'), L('clock')], motion: m('fade', 0.3) },
         { role: 'subline', x: 0.63, y: 0.42, w: 0.29, size: 0.045, weight: 700, motion: m('fade', 0.45) },
       ],
     }],

@@ -29,8 +29,11 @@
  *   space of more than the quarter of its height a platform mark needs).
  * - It takes the row's text colour, unchanged.
  * - A platform mark is drawn only when its row's words are a handle or a
- *   profile pointer (isProfilePointer). Change "@yourhandle" to a web
- *   address and the mark goes; the row stays.
+ *   profile pointer (isProfilePointer), and never beside words that name a
+ *   different platform. Change "@yourhandle" to a web address and the mark
+ *   goes; the row stays.
+ * - A general icon comes from what the row's words ARE (classifyRow), so it
+ *   follows the row wherever the business puts it (Ruling AL).
  */
 import type { SlotRole, SlotSpec } from '../designTemplates';
 import { isPlatformKey, platformMark } from './platformMarks';
@@ -188,15 +191,110 @@ export function isProfilePointer(text: string): boolean {
     || /^link in (our |my )?bio\b/i.test(t);
 }
 
+/* ── WHICH PLATFORM THE WORDS NAME ───────────────────────────────────────
+ *
+ * "Find us on Instagram" beside an X mark is a trademark misstatement. A row
+ * whose words name a platform shows that platform's mark or none. Twitter is
+ * X's former name, so it names X. LinkedIn is named but has no mark here
+ * (platformMarks.ts), so a row naming it never shows one.
+ */
+const NAMED: readonly [RegExp, string][] = [
+  [/\binstagram\b|\binsta\b|\bIG\b/i, 'instagram'],
+  [/\btik ?tok\b/i, 'tiktok'],
+  [/\btwitter\b|\bX\b/, 'x'],
+  [/\byou ?tube\b/i, 'youtube'],
+  [/\bfacebook\b/i, 'facebook'],
+  [/\bwhats ?app\b/i, 'whatsapp'],
+  [/\bthreads\b/i, 'threads'],
+  [/\bsnap ?chat\b/i, 'snapchat'],
+  [/\bpinterest\b/i, 'pinterest'],
+  [/\blinked ?in\b/i, 'linkedin'],
+];
+
+/** The platforms a row's words name, by registry key ('linkedin' included, which has no mark). */
+export function namedPlatforms(text: string): string[] {
+  return NAMED.filter(([re]) => re.test(text)).map(([, key]) => key);
+}
+
+/* ── WHAT THE WORDS ARE (Ruling AL) ───────────────────────────────────────
+ *
+ * A general icon is read from the row's own words, not from its position:
+ * saved designs, a real business's details and the Studio all put rows in
+ * their own order, and a phone icon must never end up beside an email. The
+ * template's per-row icon is only a hint, used for a row the words cannot
+ * classify AND whose words are still the template's own sample text there.
+ */
+const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const URL_OR_DOMAIN = /^(https?:\/\/|www\.)\S+$|^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i;
+const PHONE = /^\+?[\d\s().\-/]+$/;
+const HOURS = [
+  /\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day)?s?\b/i,
+  /\b(weekdays?|weekends?|daily|everyday|public holidays?)\b/i,
+  /\bhours?\b/i,
+  /\b\d{1,2}(:\d{2})?\s?(am|pm|a\.m\.|p\.m\.)(?![a-z])/i,
+  /\b\d{1,2}:\d{2}\b/,
+  /\byour days\b/i,
+];
+const ADDRESS = /\b(street|road|avenue|close|crescent|lane|boulevard|estate|junction|plaza|your address|your area|your location)\b|\b(st|rd|ave)\.(\s|$)/i;
+const PHONE_WORDS = /\b(phone|call|booking line|telephone|tel)\b/i;
+const MAIL_WORDS = /\b(e-?mail)\b/i;
+const WEB_WORDS = /\b(website|web)\b/i;
+
+/** The Lucide icon a row's words call for, or null when they say nothing an icon can. */
+export function classifyRow(text: string): LucideName | null {
+  const t = text.trim();
+  if (!t) return null;
+  if (EMAIL.test(t)) return 'mail';
+  if (URL_OR_DOMAIN.test(t)) return 'globe';
+  if (PHONE.test(t) && (t.match(/\d/g)?.length ?? 0) >= 7) return 'phone';
+  if (HOURS.some((re) => re.test(t))) return 'clock';
+  if (ADDRESS.test(t)) return 'map-pin';
+  if (PHONE_WORDS.test(t)) return 'phone';
+  if (MAIL_WORDS.test(t)) return 'mail';
+  if (WEB_WORDS.test(t)) return 'globe';
+  return null;
+}
+
+export interface RowGlyphOptions {
+  /** The visitor's platform choice for a handle row (platformMarks.ts). */
+  platform?: string;
+  /**
+   * The template's own sample words for this row (create/sampleCopy.ts).
+   * The per-row hint is trusted only while the row still reads exactly this.
+   */
+  sample?: string;
+}
+
 /**
  * The glyph to draw before row `index` of a slot (0 for a text slot), or null.
  *
  * Both renderers call this with the row's own words, before any capitals are
  * applied, so the rules above hold identically in the preview and the export.
+ *
+ * - No icon at all unless the template put icons on this slot.
+ * - A handle or profile pointer takes the slot's platform mark (the visitor's
+ *   choice, else the template's), unless the words name another platform.
+ * - Anything else takes the icon its words call for (classifyRow); if they
+ *   call for none, the template's hint for this row, but only while the row
+ *   is still the template's own sample text.
  */
-export function rowGlyph(slot: SlotSpec, index: number, text: string, platform?: string): Glyph | null {
-  const icon = slot.icons?.[index];
-  if (!icon || !text.trim() || !mayCarryIcon(slot)) return null;
-  if (icon.set === 'platform' && !isProfilePointer(text)) return null;
-  return glyphOf(icon, platform);
+export function rowGlyph(slot: SlotSpec, index: number, text: string, opts: RowGlyphOptions = {}): Glyph | null {
+  const icons = slot.icons ?? [];
+  if (!icons.some(Boolean) || !text.trim() || !mayCarryIcon(slot)) return null;
+  const hint = icons[index] ?? null;
+
+  if (isProfilePointer(text)) {
+    const mark = hint?.set === 'platform' ? hint : icons.find((i) => i?.set === 'platform');
+    if (!mark) return null;
+    const glyph = glyphOf(mark, opts.platform);
+    if (!glyph) return null;
+    const named = namedPlatforms(text);
+    if (named.some((k) => k !== glyph.name)) return null;
+    return glyph;
+  }
+
+  const read = classifyRow(text);
+  if (read) return glyphOf({ set: 'lucide', name: read });
+  if (hint?.set === 'lucide' && opts.sample !== undefined && text === opts.sample) return glyphOf(hint);
+  return null;
 }

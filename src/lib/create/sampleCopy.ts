@@ -467,3 +467,18 @@ export function sampleFor(template: Pick<DesignTemplate, 'key'>): TemplateConten
 
 /** How many templates carry purpose-shaped copy. For the test, and for honesty. */
 export const TEMPLATES_WITH_OWN_COPY = Object.keys(BY_KEY).length;
+
+/**
+ * The template's own sample words for one row of a slot: row `index` of a
+ * contact or services list, or a text role's line (index 0). Undefined when
+ * the template has no such row. design/icons.ts trusts a template's per-row
+ * icon hint only while the row still reads exactly this (Ruling AL).
+ */
+export function sampleRow(template: Pick<DesignTemplate, 'key'>, role: string, index: number): string | undefined {
+  const s = sampleFor(template);
+  if (role === 'contact') return s.contact?.[index];
+  if (role === 'services') return s.services?.[index];
+  if (index !== 0) return undefined;
+  const v = (s as Record<string, unknown>)[role];
+  return typeof v === 'string' ? v : undefined;
+}

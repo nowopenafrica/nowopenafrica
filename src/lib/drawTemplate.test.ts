@@ -5,6 +5,8 @@ import { resolveLook, type Look } from './design/look';
 import { paletteOf } from './design/palettes';
 import { patternZoneBox } from './design/patterns';
 import { pairingOf } from './design/typefaces';
+import { glyphOf } from './design/icons';
+import { platformMark } from './design/platformMarks';
 
 const CONTENT = {
   brand: 'Mama Put Kitchen',
@@ -414,7 +416,11 @@ describe('row icons (Task 18b)', () => {
     try {
       const { ctx, calls } = stubCtx();
       drawTemplateFrame(ctx, tpl, { ...content, contact: ['Your phone', 'Your website'] }, 1011, 638, { accent: '#9a3412' });
-      expect(calls.filter((c) => (c.op === 'fill' || c.op === 'stroke') && c.args.length === 1)).toHaveLength(1);
+      const drawn = calls.filter((c) => (c.op === 'fill' || c.op === 'stroke') && c.args.length === 1)
+        .map((c) => (c.args[0] as { d: string }).d);
+      // The website row reads as a website (Ruling AL): a globe, never the Instagram mark.
+      expect(drawn).not.toContain(platformMark('instagram')!.path);
+      expect(drawn).toEqual([...glyphOf({ set: 'lucide', name: 'phone' })!.paths, ...glyphOf({ set: 'lucide', name: 'globe' })!.paths]);
       expect(calls.some((c) => c.op === 'fillText' && c.args[0] === 'Your website')).toBe(true);
     } finally {
       g.Path2D = had;

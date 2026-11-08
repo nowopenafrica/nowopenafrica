@@ -283,6 +283,19 @@ describe('automatedCriticals', () => {
     expect(details.some((d) => /contact\[1\]/.test(d))).toBe(false);
   });
 
+  it('C13: a hint its own sample words contradict fails (Ruling AL)', () => {
+    const tpl = { ...withIcons(roomy(), [{ set: 'lucide', name: 'phone' }]), iconSet: 'lucide' };
+    expect(c13Details(tpl).join(' | ')).toMatch(/contact\[0\]: hints phone, but "Allen Avenue, Ikeja" reads as map-pin/);
+    expect(c13Details({ ...withIcons(roomy(), [PIN]), iconSet: 'lucide' })).toEqual([]);
+  });
+
+  it('C13: a mark beside words naming another platform fails', () => {
+    const copy = { ...CLEAN, contact: ['Allen Avenue, Ikeja', 'Find us on TikTok'] };
+    const tpl = { ...withIcons(roomy(), [PIN, IG]), iconSet: 'lucide' };
+    const details = automatedCriticals(tpl, [], EMPTY, { copy }).filter((f) => f.code === 'C13').map((f) => f.detail);
+    expect(details.join(' | ')).toMatch(/instagram mark beside "Find us on TikTok", which names another platform/);
+  });
+
   it('C13: an unknown icon, an icon on the headline and one below the format minimum fail', () => {
     expect(c13Details({ ...withIcons(roomy(), [{ set: 'lucide', name: 'nope' }]), iconSet: 'lucide' }).join(' | ')).toMatch(/no lucide icon named "nope"/);
     const head = { ...roomy(), iconSet: 'lucide', slots: roomy().slots.map((sl) => (sl.role === 'headline' ? { ...sl, icons: [PIN] } : sl)) };

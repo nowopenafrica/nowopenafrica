@@ -8,6 +8,7 @@ import {
 import { resolveLook, gradientCss, duotoneMatrix, pairingFace, type Look, type ResolvedLook } from '../../lib/design/look';
 import { patternZoneBox } from '../../lib/design/patterns';
 import { ICON_EM, ICON_GAP_EM, rowGlyph, type Glyph } from '../../lib/design/icons';
+import { sampleRow } from '../../lib/create/sampleCopy';
 import type { Palette, PaletteRole } from '../../lib/design/palettes';
 
 // Renders a DesignTemplate. One component for stills and for motion frames.
@@ -348,7 +349,7 @@ function ListSlot({
         const text = String((all as (string | unknown)[])[i] ?? '');
         if (!text) return null;
         // A row's icon takes the bullet's place, in the words' colour.
-        const glyph = rowGlyph(slot, i, text, content.platform);
+        const glyph = rowGlyph(slot, i, text, { platform: content.platform, sample: sampleRow(template, slot.role, i) });
         return (
           <div
             key={i}
@@ -706,7 +707,7 @@ export default function TemplateSurface({
          * treatment, so a pill wraps both; the words cut off with an ellipsis
          * rather than wrap, as the canvas painter's one-line fit does.
          */
-        const glyph = rowGlyph(slot, 0, value, content.platform);
+        const glyph = rowGlyph(slot, 0, value, { platform: content.platform, sample: sampleRow(template, slot.role, 0) });
         if (glyph) {
           const iconSize = typeStyle.fontSize as number;
           const words: React.CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };

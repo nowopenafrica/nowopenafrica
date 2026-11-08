@@ -18,13 +18,14 @@
 import {
   type DesignTemplate, type SlotSpec, type SurfaceLayer, type ShapeSpec,
   slotBox, fitSlotSize, motionAt, settleTime, surfaceSpecLayers, hexAlpha, unitOf, fontStack,
-  cameraAt,
+  cameraAt, lineHeightFor,
   isListRole, listRowBoxes, shapeColor, shapeGeometry,
   type PriceRow,
 } from './designTemplates';
 import { resolveLook, pairingFace, type Look, type GradientSpec } from './design/look';
 import { patternZoneBox } from './design/patterns';
 import { ICON_EM, iconIndent, rowGlyph, type Glyph } from './design/icons';
+import { sampleRow } from './create/sampleCopy';
 import type { Palette, PaletteRole } from './design/palettes';
 
 export interface TemplatePaintContent {
@@ -552,6 +553,8 @@ function paintListSlot(
   family: string,
   /** The row text colour, resolved from the slot's tone (role tones read the palette). */
   tone: string,
+  /** The template, for its own sample rows: a row icon's hint holds only on them. */
+  tpl: Pick<DesignTemplate, 'key'>,
 ) {
   const count = listCount(content, slot);
   if (count === 0) return;
@@ -647,7 +650,7 @@ function paintListSlot(
      * line with the icon centred in it, so the icon's box starts 0.2 em below
      * the row's top: centred on row.y + 0.7 em, where the DOM puts it.
      */
-    const glyph = rowGlyph(slot, i, raw ?? '', content.platform);
+    const glyph = rowGlyph(slot, i, raw ?? '', { platform: content.platform, sample: sampleRow(tpl, slot.role, i) });
     const indent = glyph
       ? paintIcon(ctx, glyph, row.x, row.y + size * 0.2, size, tone)
       : paintBullet(ctx, slot, row.x, baseline, size, i, accent, family);
@@ -818,7 +821,7 @@ export function drawTemplateFrame(
       paintListSlot(
         ctx, slot, content, w, h,
         hasLook ? roles[toneRole(slot.tone) ?? 'primary'] : accent,
-        slotInk, family, slotTone(slot, roles, slotInk),
+        slotInk, family, slotTone(slot, roles, slotInk), tpl,
       );
       ctx.restore();
       continue;
@@ -873,7 +876,7 @@ export function drawTemplateFrame(
      * get one line in what the icon leaves, and the icon and words are placed
      * together by the slot's alignment.
      */
-    const glyph = rowGlyph(slot, 0, value, content.platform);
+    const glyph = rowGlyph(slot, 0, value, { platform: content.platform, sample: sampleRow(tpl, slot.role, 0) });
     const indent = glyph ? iconIndent(size) : 0;
     const lines = wrapLines((s) => ctx.measureText(s).width, shown, Math.max(0, box.width - indent), glyph ? 1 : maxLinesFor(slot.role));
     const lineHeight = size * ((slot.size ?? 0.05) > 0.07 ? 1.06 : 1.28);
@@ -946,11 +949,18 @@ export function drawTemplateFrame(
       ctx.fillStyle = g;
     }
     if (glyph) {
-      // Icon then words, left to right from wherever the alignment starts the pair.
+      /*
+       * Icon then words, left to right from wherever the alignment starts the
+       * pair. The DOM sets this line in a box lineHeightFor() tall and centres
+       * both in it, so the 1 em icon and the words' em box start half the
+       * leading down; both are drawn there, so the export matches the preview
+       * and the icon stays level with its words.
+       */
       const startX = box.textAlign === 'center' ? anchorX - widest / 2 : box.textAlign === 'right' ? anchorX - widest : 0;
-      paintIcon(ctx, glyph, startX, 0, size, tone);
+      const lead = (lineHeightFor(slot.size) * size - size * ICON_EM) / 2;
+      paintIcon(ctx, glyph, startX, lead, size, tone);
       ctx.textAlign = 'left';
-      ctx.fillText(lines[0] ?? '', startX + indent, 0);
+      ctx.fillText(lines[0] ?? '', startX + indent, lead);
     } else {
       lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
     }

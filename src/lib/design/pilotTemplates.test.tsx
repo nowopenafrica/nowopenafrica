@@ -157,7 +157,7 @@ describe('the pilot collection', () => {
       .map((p) => `${p.where}=${p.icon.set}:${p.icon.name}`);
     expect(on('pilot-card-industry')).toEqual([
       'front.contact[0]=lucide:phone', 'front.contact[1]=lucide:map-pin', 'front.contact[2]=lucide:globe',
-      'Back.services[0]=lucide:clock', 'Back.services[1]=lucide:clock', 'Back.services[2]=lucide:phone',
+      'Back.services[0]=lucide:clock', 'Back.services[1]=lucide:clock', 'Back.services[2]=lucide:clock',
     ]);
     // Every card leads its contact rows with icons; the handle cards carry one Instagram mark.
     for (const t of inSub('business-card')) expect(slotIconSets(t).has('lucide'), t.key).toBe(true);
@@ -227,7 +227,10 @@ describe('the pilot collection', () => {
         const { w, h } = canvasFor(tpl);
         for (const page of pagesOf(tpl)) {
           /* Icons and words in paint order, so each icon can be matched to the words drawn after it. */
-          const events: { d?: string; text?: string; colour: unknown }[] = [];
+          const events: { d?: string; text?: string; y?: number; colour: unknown }[] = [];
+          /* Where each icon's box starts, in the coordinates it is drawn in (paintIcon translates, then scales). */
+          const iconTops: number[] = [];
+          let lastY = 0;
           const state: Record<string, unknown> = { fillStyle: '', strokeStyle: '', font: '' };
           const stack: Record<string, unknown>[] = [];
           const ctx = new Proxy(state, {
@@ -237,7 +240,9 @@ describe('the pilot collection', () => {
               if (prop === 'restore') return () => { Object.assign(target, stack.pop() ?? {}); };
               if (prop === 'fill') return (p?: unknown) => { if (p instanceof FakePath) events.push({ d: p.d, colour: target.fillStyle }); };
               if (prop === 'stroke') return (p?: unknown) => { if (p instanceof FakePath) events.push({ d: p.d, colour: target.strokeStyle }); };
-              if (prop === 'fillText') return (t: string) => { events.push({ text: t, colour: target.fillStyle }); };
+              if (prop === 'fillText') return (t: string, _x: number, y: number) => { events.push({ text: t, y, colour: target.fillStyle }); };
+              if (prop === 'translate') return (_x: number, y: number) => { lastY = y; };
+              if (prop === 'scale') return () => { iconTops.push(lastY); };
               if (prop === 'measureText') return (t: string) => ({ width: t.length * 10 });
               if (prop === 'createLinearGradient' || prop === 'createRadialGradient') return () => ({ addColorStop: () => undefined });
               return () => undefined;
@@ -248,7 +253,28 @@ describe('the pilot collection', () => {
 
           const host = drawDom(tpl, page.slots);
           const domPaths = Array.from(host.el.querySelectorAll('svg[data-icon] path')).map((p) => p.getAttribute('d'));
+          /*
+           * Where the DOM puts each icon: centred in its line box, so its top is
+           * half the leading below the line's top, (lineHeight x size - size) / 2.
+           * A list row's line box starts at the row's own top; a text slot's at
+           * the slot's origin, which is where the canvas translates to.
+           */
+          const domTops = Array.from(host.el.querySelectorAll<SVGElement>('svg[data-icon]')).map((svg) => {
+            const line = svg.parentElement as HTMLElement;
+            const fs = parseFloat(line.style.fontSize);
+            const lead = (parseFloat(line.style.lineHeight) * fs - parseFloat(svg.getAttribute('width')!)) / 2;
+            return { lead, rowTop: line.style.top ? parseFloat(line.style.top) : 0, text: !line.style.top };
+          });
           host.done();
+
+          expect(iconTops.length, `${tpl.key} ${page.name}`).toBe(domTops.length);
+          domTops.forEach((d, i) => {
+            expect(iconTops[i], `${tpl.key} ${page.name} icon ${i} top`).toBeCloseTo(d.rowTop + d.lead, 6);
+          });
+          // A text slot's words sit on the same line as its icon, half the leading down.
+          for (const d of domTops.filter((x) => x.text)) {
+            expect(events.some((e) => e.text !== undefined && Math.abs((e.y ?? NaN) - d.lead) < 1e-6), `${tpl.key} ${page.name} words`).toBe(true);
+          }
 
           expect(events.filter((e) => e.d).map((e) => e.d), `${tpl.key} ${page.name}`).toEqual(domPaths);
           events.forEach((e, i) => {
@@ -261,6 +287,36 @@ describe('the pilot collection', () => {
       }
     } finally {
       g.Path2D = had;
+    }
+  });
+
+  it('reads each row icon from its own words when the rows are a real business (Ruling AL)', () => {
+    const tpl = PILOT_TEMPLATES.find((t) => t.key === 'pilot-card-corporate')!;
+    const { w, h } = canvasFor(tpl);
+    const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+    const was = g.IS_REACT_ACT_ENVIRONMENT;
+    g.IS_REACT_ACT_ENVIRONMENT = true;
+    const el = document.createElement('div');
+    document.body.appendChild(el);
+    const root = createRoot(el);
+    const icons = (contact: string[]) => {
+      act(() => {
+        root.render(createElement(TemplateSurface, {
+          template: tpl, content: { ...sampleFor(tpl), contact }, width: w, height: h, accent: '#2563eb',
+        }));
+      });
+      return Array.from(el.querySelectorAll('svg[data-icon]')).map((s) => s.getAttribute('data-icon'));
+    };
+    try {
+      // The template's hints are phone, mail, globe; these rows are in another order.
+      expect(icons(['hello@mamaput.ng', '+234 803 123 4567', 'www.mamaput.ng'])).toEqual(['lucide:mail', 'lucide:phone', 'lucide:globe']);
+      // Free text nothing can classify, and no longer the sample: no icon, row kept.
+      expect(icons(['Ring Ade after six', 'hello@mamaput.ng'])).toEqual(['lucide:mail']);
+      expect(el.textContent).toContain('Ring Ade after six');
+    } finally {
+      act(() => root.unmount());
+      el.remove();
+      g.IS_REACT_ACT_ENVIRONMENT = was;
     }
   });
 

@@ -641,14 +641,19 @@ export default function TemplateCustomiser({
               <input value={cta} onChange={(e) => setCta(e.target.value)} maxLength={40} aria-label="Button or badge text" placeholder="Book now" className={`${field} mt-2`} />
               <input value={meta} onChange={(e) => setMeta(e.target.value)} maxLength={120} aria-label="Small print" placeholder="Small print" className={`${field} mt-2`} />
               {handleDefault && (
-                <select
-                  value={platform ?? handleDefault}
-                  onChange={(e) => setPlatform(e.target.value)}
-                  aria-label={CUSTOMISER_PLATFORM_FIELD}
-                  className={`${field} mt-2`}
-                >
-                  {PLATFORM_MARKS.map((mk) => <option key={mk.key} value={mk.key}>{mk.name}</option>)}
-                </select>
+                <div className="mt-2">
+                  <label htmlFor="customiser-platform" className="block text-[11px] text-gray-600 dark:text-gray-400 mb-1">
+                    {CUSTOMISER_PLATFORM_FIELD}
+                  </label>
+                  <select
+                    id="customiser-platform"
+                    value={platform ?? handleDefault}
+                    onChange={(e) => setPlatform(e.target.value)}
+                    className={field}
+                  >
+                    {PLATFORM_MARKS.map((mk) => <option key={mk.key} value={mk.key}>{mk.name}</option>)}
+                  </select>
+                </div>
               )}
             </Group>
 

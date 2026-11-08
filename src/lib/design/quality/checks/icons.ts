@@ -7,7 +7,10 @@
  */
 import { estimateLines, fitSlotSize, isListRole, typePx, type DesignTemplate, type SlotSpec } from '../../../designTemplates';
 import type { TemplateContent } from '../../../../components/studio/TemplateSurface';
-import { ICON_EM, ICON_GAP_EM, glyphOf, iconIndent, isProfilePointer, mayCarryIcon, type IconSetKey, type SlotIcon } from '../../icons';
+import {
+  ICON_EM, ICON_GAP_EM, classifyRow, glyphOf, iconIndent, isProfilePointer, mayCarryIcon, namedPlatforms,
+  type IconSetKey, type SlotIcon,
+} from '../../icons';
 import { pagesOf } from './copy';
 
 /** Icon sets that may be used together: the general set beside platform marks. */
@@ -59,7 +62,9 @@ function rowWords(p: PlacedIcon, content: TemplateContent): string {
  *
  * - it must name a known icon, on a row that may carry one, within the
  *   slot's row cap, on a row that has words;
- * - a platform mark must stand beside a handle or profile pointer;
+ * - a platform mark must stand beside a handle or profile pointer that
+ *   names no other platform;
+ * - a Lucide hint must agree with what its sample words read as;
  * - the icon box (ICON_EM of the row's type) must be at least the format's
  *   minimum text size, and at least the words' cap height;
  * - a one-line slot must still hold its words on one line beside it.
@@ -80,6 +85,12 @@ export function iconProblems(
     if (icon.set === 'platform' && !isProfilePointer(words)) {
       out.push(`${where}: a platform mark beside "${words}", which is not a handle or profile pointer`);
     }
+    if (icon.set === 'platform' && namedPlatforms(words).some((k) => k !== icon.name)) {
+      out.push(`${where}: a ${icon.name} mark beside "${words}", which names another platform`);
+    }
+    // The renderers read a general icon from the words (Ruling AL); a hint that disagrees is never drawn.
+    const read = icon.set === 'lucide' ? classifyRow(words) : null;
+    if (read && read !== icon.name) out.push(`${where}: hints ${icon.name}, but "${words}" reads as ${read}`);
     const textPx = list ? typePx(slot.size, w, h) : fitSlotSize(slot, p.page, words, w, h);
     const iconPx = textPx * ICON_EM;
     if (iconPx < minPx - 1e-9) out.push(`${where}: icon is ${iconPx.toFixed(1)}px, below the format's ${minPx.toFixed(1)}px minimum`);

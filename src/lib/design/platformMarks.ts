@@ -87,7 +87,8 @@ export const PLATFORM_MARKS: readonly PlatformMark[] = [
     source: 'simple-icons',
     sourceVersion: SIMPLE_ICONS_VERSION,
     licence: 'CC0-1.0 (artwork); trademark of ByteDance Ltd.',
-    guidelinesUrl: 'https://www.tiktokbrandhub.com/',
+    // TikTok's own entry point; it redirects (302) to tiktokbrandhub.com, checked 2026-11-08.
+    guidelinesUrl: 'https://www.tiktok.com/brand',
   },
   {
     key: 'x',
@@ -98,6 +99,7 @@ export const PLATFORM_MARKS: readonly PlatformMark[] = [
     source: 'simple-icons',
     sourceVersion: SIMPLE_ICONS_VERSION,
     licence: 'CC0-1.0 (artwork); trademark of X Corp.',
+    // verify: X's brand toolkit on its own about site; it answers automated fetches with 403, so it is unconfirmed.
     guidelinesUrl: 'https://about.x.com/en/who-we-are/brand-toolkit',
   },
   {
