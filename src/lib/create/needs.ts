@@ -157,7 +157,7 @@ export const MIN_LISTED = 6;
  * A lookless template is still reachable by a direct `?template=` link, so
  * nothing already saved breaks; it just is not offered.
  */
-export const isListed = (t: Pick<DesignTemplate, 'look'>): boolean => isListedWith(t);
+export const isListed = (t: Pick<DesignTemplate, 'key' | 'look'>): boolean => isListedWith(t);
 
 /**
  * The review gate's inputs. Injected so tests never mutate module constants;
@@ -185,15 +185,18 @@ export interface ListingRule {
  * seam that takes the rule.
  */
 export function isListedWith(
-  t: Pick<DesignTemplate, 'look'>,
+  t: Pick<DesignTemplate, 'key' | 'look'>,
   rule?: ListingRule,
 ): boolean {
   const gated = rule?.gated ?? GATED_SUBCATEGORIES;
-  if (gated.size > 0 && 'key' in t) {
-    const sub = deliverableFor(t as DesignTemplate)?.subcategory;
-    if (sub && gated.has(sub)) {
-      const full = t as DesignTemplate;
-      return gate(full, rule?.all ?? DESIGN_TEMPLATES, rule?.today ?? localDateISO(), rule?.reviews ?? REVIEWS).listed;
+  if (gated.size > 0) {
+    /* An upload may name a deliverable without a subcategory; gate on either.
+       They are equal for code templates. */
+    const d = deliverableFor(t);
+    const gateKey = d?.subcategory ?? d?.deliverable;
+    if (gateKey && gated.has(gateKey)) {
+      /* gate() hashes the whole template; every caller passes a full one. */
+      return gate(t as DesignTemplate, rule?.all ?? DESIGN_TEMPLATES, rule?.today ?? localDateISO(), rule?.reviews ?? REVIEWS).listed;
     }
   }
   return Boolean(t.look);

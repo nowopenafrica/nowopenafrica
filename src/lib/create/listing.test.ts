@@ -16,8 +16,8 @@ import { DESIGN_TEMPLATES, templateByKey } from '../designTemplates';
 import { clearUploadedDeliverables, deliverableFor, registerUploadedDeliverable } from '../design/deliverables';
 import { contentHash } from '../design/quality/hash';
 import type { Review } from '../design/quality/ledger';
-import { NEEDS, isListed, type NeedSlug, isListedWith, listedFor, listedIn, shownNeeds } from './needs';
-import { fetchCatalogue, listedEntries, type TemplateRow } from './templateCatalogue';
+import { NEEDS, isListed, type ListingRule, type NeedSlug, isListedWith, listedFor, listedIn, shownNeeds } from './needs';
+import { entryFromRow, fetchCatalogue, type TemplateRow } from './templateCatalogue';
 
 const TODAY = '2026-11-08';
 const keys = (ts: { key: string }[]) => ts.map((t) => t.key);
@@ -97,19 +97,20 @@ describe('fetchCatalogue with an unreviewed uploaded row', () => {
       expect(uploaded.origin).toBe('uploaded');
 
       // Name a gated subcategory for the row, as an upload that declared one would.
-      registerUploadedDeliverable('uploaded-layout', { category: 'campaigns', name: 'Uploaded layout', subcategory: 'sale-post' });
+      registerUploadedDeliverable('uploaded-layout', { category: 'campaigns', name: 'Uploaded layout', subcategory: 'sale-post', deliverable: 'sale-post', need: 'promotions' });
       const all = read.entries.map((e) => e.template);
       const rule = (reviews: Review[]) => ({ gated: new Set(['sale-post']), reviews, today: TODAY, all });
 
-      const without = listedEntries(read.entries, rule([])).map((e) => e.template.key);
+      const listedKeys = (r: ListingRule) => all.filter((x) => isListedWith(x, r)).map((x) => x.key);
+      const without = listedKeys(rule([]));
       expect(without).not.toContain('uploaded-layout');
       // Code templates outside the gated subcategory are all still listed.
       for (const x of DESIGN_TEMPLATES) {
         if (x.look && deliverableFor(x)?.subcategory !== 'sale-post') expect(without, x.key).toContain(x.key);
       }
 
-      const withReview = listedEntries(read.entries, rule([approve('uploaded-layout', contentHash(uploaded.template))]));
-      expect(withReview.map((e) => e.template.key)).toContain('uploaded-layout');
+      expect(listedKeys(rule([approve('uploaded-layout', contentHash(uploaded.template))]))).toContain('uploaded-layout');
+      expect(listedFor('sale-post', all, rule([approve('uploaded-layout', contentHash(uploaded.template))])).map((x) => x.key)).toContain('uploaded-layout');
     } finally {
       clearUploadedDeliverables();
     }
@@ -119,8 +120,7 @@ describe('fetchCatalogue with an unreviewed uploaded row', () => {
     mockRows = [row];
     const read = await fetchCatalogue();
     try {
-      const listed = listedEntries(read.entries).map((e) => e.template.key);
-      for (const e of read.entries) expect(listed.includes(e.template.key), e.template.key).toBe(Boolean(e.template.look));
+      for (const e of read.entries) expect(isListed(e.template), e.template.key).toBe(Boolean(e.template.look));
     } finally {
       clearUploadedDeliverables();
     }
@@ -130,5 +130,35 @@ describe('fetchCatalogue with an unreviewed uploaded row', () => {
     mockRows = [];
     const read = await fetchCatalogue();
     expect(read.entries.map((e) => e.template.key)).toEqual(DESIGN_TEMPLATES.map((x) => x.key));
+  });
+});
+
+describe('an upload that names a deliverable but no subcategory', () => {
+  it('is gated by its deliverable slug until it has a passing review', () => {
+    const row: TemplateRow = {
+      id: 'row-2', key: 'uploaded-card', label: 'Uploaded card', description: null,
+      category: 'flyers', styles: [], industries: [], tags: [],
+      document: { label: 'Uploaded card', slots: [{ role: 'headline', x: 0.1, y: 0.4, w: 0.8 }] },
+      editability: 'full', source_format: 'json', format: null, preview_url: null,
+      status: 'published', published_at: '2026-10-26T00:00:00Z', created_at: '2026-10-26T00:00:00Z',
+    };
+    const read = entryFromRow(row, new Set());
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    const up = { ...read.entry.template, look: templateByKey('tiered-sale').look };
+    registerUploadedDeliverable(up.key, { category: 'flyers', name: 'Uploaded card', deliverable: 'business-card', need: 'stationery' });
+    try {
+      expect(deliverableFor(up)?.subcategory).toBeUndefined();
+      const all = [...DESIGN_TEMPLATES, up];
+      const rule = (reviews: Review[]) => ({ gated: new Set(['business-card']), reviews, today: TODAY, all });
+      expect(isListed(up)).toBe(true); // gate off: look rule, as before
+      expect(isListedWith(up, rule([]))).toBe(false);
+      expect(listedFor('business-card', all, rule([])).map((x) => x.key)).not.toContain(up.key);
+      const pass = rule([approve(up.key, contentHash(up))]);
+      expect(isListedWith(up, pass)).toBe(true);
+      expect(listedFor('business-card', all, pass).map((x) => x.key)).toContain(up.key);
+    } finally {
+      clearUploadedDeliverables();
+    }
   });
 });

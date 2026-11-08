@@ -91,6 +91,20 @@ describe('gate', () => {
   });
 });
 
+describe('invalid reviews', () => {
+  it('a review with an out-of-range human score is not listed', () => {
+    const bad = review(tpl, { human: { ...human, visual: 11 }, auto: 59 });
+    expect(run(bad)).toEqual({ listed: false, score: null, reasons: ['invalid review'] });
+  });
+
+  it('REVIEWS keys are unique', () => {
+    const keys = REVIEWS.map((r) => r.key);
+    expect(new Set(keys).size).toBe(keys.length);
+    const dup = [review(tpl), review(tpl)].map((r) => r.key);
+    expect(new Set(dup).size).not.toBe(dup.length); // the check would catch a duplicate
+  });
+});
+
 describe('the direction rule', () => {
   /** The brief: a template with a direction must pass the gate. */
   const failing = (all: DesignTemplate[], reviews: Review[]) =>

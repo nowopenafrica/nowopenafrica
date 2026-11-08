@@ -3,7 +3,7 @@
  */
 import type { DesignTemplate } from '../../designTemplates';
 import { contentHash } from './hash';
-import { humanTotal, REVIEWS, type Review } from './ledger';
+import { humanScoreProblems, humanTotal, REVIEWS, type Review } from './ledger';
 
 export const PASS_SCORE = 85;
 
@@ -23,6 +23,8 @@ export function gate(
 ): GateResult {
   const review = reviews.find((r) => r.key === tpl.key);
   if (!review) return { listed: false, score: null, reasons: ['no review'] };
+
+  if (humanScoreProblems(review.human).length > 0) return { listed: false, score: null, reasons: ['invalid review'] };
 
   const reasons: string[] = [];
   const score = review.auto + humanTotal(review.human);
