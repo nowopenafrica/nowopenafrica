@@ -1,6 +1,10 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
+import { ImageIcon } from 'lucide-react';
 
+import MockupView from './MockupView';
 import { PreviewCard } from './TemplateGallery';
+import { useMockupScenes } from '../../hooks/useMockupScenes';
+import { mockupScenesFor } from '../../lib/create/templateDetail';
 import { DESIGN_STYLES } from '../../lib/design/styles';
 import type { DesignTemplate } from '../../lib/designTemplates';
 import { localDateISO } from '../../lib/dates';
@@ -14,6 +18,10 @@ import { BADGE_LABELS, cardBadges, cardFacts } from '../../lib/create/templateCa
  * The artwork is PreviewCard's, unchanged: the same renderer, the same link
  * to the detail page with the corner Edit button, and the same rule that the
  * TemplateSurface mounts only once the card is in view.
+ *
+ * "See it in place" appears only when an approved scene matches the design's
+ * format within 1% (lib/create/mockup.ts). It places the artwork on the scene
+ * for the eye only, labelled "Mockup: illustration only"; nothing exports it.
  *
  * Badges only when verified (lib/create/templateCard.ts): "Editable" when C7
  * passes, "Platform size" when the format's check is current. Never
@@ -36,6 +44,10 @@ export default function TemplateCard({
   const badges = useMemo(() => cardBadges(template, day), [template, day]);
 
   const kind = [facts.subcategory, facts.direction].filter(Boolean);
+
+  const pool = useMockupScenes();
+  const scenes = useMemo(() => mockupScenesFor(template, pool), [template, pool]);
+  const [inPlace, setInPlace] = useState(false);
 
   return (
     <div data-testid="template-card" data-key={template.key} className="min-w-0">
@@ -79,6 +91,24 @@ export default function TemplateCard({
           </div>
         )}
       />
+      {scenes.length > 0 && (
+        <div className="mt-1.5">
+          <button
+            type="button"
+            data-testid="card-see-in-place"
+            aria-pressed={inPlace}
+            onClick={() => setInPlace((v) => !v)}
+            className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-gray-300 px-3 text-xs font-semibold text-gray-800 dark:border-gray-600 dark:text-gray-200"
+          >
+            <ImageIcon size={14} /> See it in place
+          </button>
+          {inPlace && (
+            <div className="mt-1.5">
+              <MockupView scene={scenes[0]} template={template} styleKey={STYLE} brand={BRAND} />
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

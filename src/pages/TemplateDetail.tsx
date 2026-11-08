@@ -1,13 +1,15 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Eye, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, ImageIcon, RotateCcw } from 'lucide-react';
 
 import TemplateSurface from '../components/studio/TemplateSurface';
 import TemplateCustomiser from '../components/create/TemplateCustomiser';
+import MockupView from '../components/create/MockupView';
 import TemplateFacts from '../components/create/TemplateFacts';
 import { PreviewCard } from '../components/create/TemplateGallery';
 import { defaultMediaScrim, type DesignTemplate } from '../lib/designTemplates';
 import { invalidateCatalogue, useDesignCatalogue } from '../hooks/useDesignCatalogue';
+import { useMockupScenes } from '../hooks/useMockupScenes';
 import { isListed } from '../lib/create/needs';
 import { sampleFor } from '../lib/create/sampleCopy';
 import {
@@ -59,7 +61,10 @@ function TemplateDetailBody({ onRetry }: { onRetry: () => void }) {
   const { key = '' } = useParams<{ key: string }>();
   const { templates, ready, incomplete } = useDesignCatalogue();
   const template = useMemo(() => templates.find((t) => t.key === key) ?? null, [templates, key]);
-  const scenes = mockupScenesFor();
+  const pool = useMockupScenes();
+  /* Only scenes whose ratio matches this design's format within 1%; none exist yet, so none show. */
+  const scenes = useMemo(() => (template ? mockupScenesFor(template, pool) : []), [template, pool]);
+  const [inPlace, setInPlace] = useState(false);
   const listed = useMemo(() => templates.filter(isListed), [templates]);
   const [editing, setEditing] = useState<DesignTemplate | null>(null);
 
@@ -68,6 +73,7 @@ function TemplateDetailBody({ onRetry }: { onRetry: () => void }) {
   /* A related design is a new page: start it at the top, with nothing open. */
   useEffect(() => {
     setEditing(null);
+    setInPlace(false);
     try { window.scrollTo({ top: 0, left: 0 }); } catch { /* no layout (tests) */ }
   }, [key]);
 
@@ -202,14 +208,37 @@ function TemplateDetailBody({ onRetry }: { onRetry: () => void }) {
         </div>
 
         {/*
-          * MOCKUP SLOT (Task 16). `scenes` comes from scenesFor once it exists;
-          * today it is always empty, so nothing renders here. When filled, each
-          * mockup must be labelled "Mockup: illustration only" (spec §8).
+          * Mockups (spec §8). Offered only when a scene matches this format
+          * (scenesFor), so today, with no approved scene, nothing shows. The
+          * artwork is composited at display time and every view is labelled
+          * "Mockup: illustration only". The customiser exports its own frame,
+          * never this section.
           */}
         {scenes.length > 0 && (
           <section data-testid="mockups" aria-label="Mockups" className="mt-8">
-            <h2 className="text-lg font-bold text-gray-900 dark:text-white">Mockups</h2>
-            <p className="text-xs text-gray-500 dark:text-gray-400">Mockup: illustration only</p>
+            <div className="flex flex-wrap items-center gap-3">
+              <h2 className="text-lg font-bold text-gray-900 dark:text-white">Mockups</h2>
+              <button
+                type="button"
+                data-testid="see-in-place"
+                aria-pressed={inPlace}
+                onClick={() => setInPlace((v) => !v)}
+                className={`inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border px-4 text-sm font-semibold ${
+                  inPlace
+                    ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900'
+                    : 'border-gray-300 text-gray-800 dark:border-gray-600 dark:text-gray-200'
+                }`}
+              >
+                <ImageIcon size={16} /> See it in place
+              </button>
+            </div>
+            {inPlace && (
+              <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                {scenes.map((scene) => (
+                  <MockupView key={scene.assetId} scene={scene} template={template} styleKey={STYLE_KEY} brand={BRAND} />
+                ))}
+              </div>
+            )}
           </section>
         )}
 

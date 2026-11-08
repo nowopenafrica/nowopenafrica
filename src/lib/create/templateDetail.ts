@@ -7,6 +7,7 @@ import { resolveLook, slotFace } from '../design/look';
 import { typefaceOf, type Typeface } from '../design/typefaces';
 import { subcategoryFor, type Subcategory } from './catalogueTaxonomy';
 import { CUSTOMISER_TEXT_FIELDS, isCustomiserTextRole } from './customiserFields';
+import { cachedScenes, scenesFor, type MockupScene } from './mockup';
 
 /**
  * The facts the template detail page (/media/templates/:key) states about one
@@ -163,20 +164,15 @@ export function relatedTemplates(tpl: DesignTemplate, listed: DesignTemplate[], 
 }
 
 /**
- * A mockup scene for the detail page's mockup view. Task 16 supplies the real
- * type and `scenesFor`; until then there are none and no mockup is shown.
+ * The mockup scenes that suit a design: those whose surface ratio matches its
+ * format within 1% (lib/create/mockup.ts `scenesFor`). `pool` defaults to the
+ * scenes read so far (module cache), which is empty until the first read
+ * succeeds and stays empty while no scene has been approved, so no mockup
+ * control shows until one genuinely can.
  */
-export interface MockupScene { id: string; label: string }
-
-const NO_SCENES: MockupScene[] = [];
-
-/**
- * TASK 16 SEAM: the mockup scenes whose ratio matches a design's format.
- * Task 16 gives this a `tpl` parameter and returns `scenesFor(tpl)`; the page
- * already calls it once per render. Empty today, so no mockup is shown.
- */
-export function mockupScenesFor(): MockupScene[] {
-  return NO_SCENES;
+export function mockupScenesFor(tpl: DesignTemplate, pool: MockupScene[] = cachedScenes()): MockupScene[] {
+  const key = canvasOf(tpl).formatKey;
+  return key ? scenesFor(key, pool) : [];
 }
 
 /** Everything the page shows, in one read. */
