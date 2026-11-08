@@ -23,6 +23,7 @@
     "audit:quality": "vite-node scripts/audit-quality.ts",
     "check:api-imports": "node scripts/check-api-imports.mjs",
     "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
+    "assets:manifest": "node scripts/assets/manifest.mjs",
     "check:drift": "node scripts/check-schema-drift.mjs",
     "typecheck:edge": "tsc --noEmit -p tsconfig.edge.json",
     "check:phone-auth": "node scripts/check-phone-auth.mjs",
