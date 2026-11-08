@@ -7,6 +7,8 @@ import {
   type CreateIntent,
 } from '../../lib/create/intent';
 import { NEEDS, needFromLegacy, type NeedSlug } from '../../lib/create/needs';
+import { parseQuery, searchCatalogue } from '../../lib/create/searchRank';
+import { SUBCATEGORIES } from '../../lib/create/catalogueTaxonomy';
 
 /**
  * The request bar: "What do you need?" and the need tiles under it.
@@ -67,6 +69,21 @@ export default function IntentComposer({
   const understand = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
+    /*
+     * A product the lexicon knows but the catalogue lacks (a pitch deck) is
+     * said plainly, the miss is recorded, and the nearest real product in the
+     * same category is offered. Ranked results themselves are Task 15's cards.
+     */
+    const parsed = parseQuery(trimmed);
+    if (parsed.subcategory && !SUBCATEGORIES.some((s) => s.key === parsed.subcategory)) {
+      const out = searchCatalogue(trimmed, [], new Map());
+      if (out.status === 'not-in-catalogue') {
+        const near = NEEDS.find((n) => n.deliverables.some((d) => d.slug === out.nearest))?.slug ?? null;
+        setMiss({ message: out.message, nearest: near && offer.includes(near) ? near : null });
+        emit('', '');
+        return;
+      }
+    }
     const intent = classifyIntent(trimmed);
     const need = needForIntent(intent);
     if (need) {
