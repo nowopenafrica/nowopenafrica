@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { ArrowRight, Search, Shuffle } from 'lucide-react';
+import { ArrowRight, Pencil, Search, Shuffle } from 'lucide-react';
 
 import TemplateSurface from '../studio/TemplateSurface';
 import TemplateCustomiser from './TemplateCustomiser';
@@ -622,14 +622,20 @@ export function PreviewCard({
   );
   const page = useMemo(() => previewPage(template), [template]);
 
+  /*
+   * The card goes to the design's detail page (/media/templates/:key), which
+   * says what the design is before you edit it. The Edit button over the
+   * corner keeps the old one-tap way into the customiser for people who
+   * already know what they want. Two siblings, not a button inside a link.
+   */
   return (
-    <button
-      type="button"
-      onClick={onOpen}
+    <div className="group relative rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden hover:-translate-y-0.5 hover:shadow-lg transition">
+    <Link
+      to={`/media/templates/${encodeURIComponent(template.key)}`}
       tabIndex={tabIndex}
       data-template={template.key}
-      aria-label={`Edit ${template.label}`}
-      className="group block w-full text-left rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 overflow-hidden hover:-translate-y-0.5 hover:shadow-lg transition"
+      aria-label={`View ${caption?.title ?? cardTitle(template)}: ${template.label}`}
+      className="block w-full text-left"
     >
       <div ref={box} className="relative w-full overflow-hidden bg-gray-100 dark:bg-gray-900" style={{ aspectRatio: '1 / 1' }}>
         {seen && scale > 0 ? (
@@ -709,11 +715,22 @@ export function PreviewCard({
           {template.industries?.length ? ` · ${template.industries[0]}` : ''}
         </p>
         <p className="mt-1 text-[10px] font-semibold text-green-700 dark:text-green-400 opacity-0 group-hover:opacity-100 transition">
-          Edit →
+          Details →
         </p>
         </>
         )}
       </div>
+    </Link>
+    <button
+      type="button"
+      onClick={onOpen}
+      tabIndex={tabIndex}
+      aria-label={`Edit ${template.label}`}
+      title="Edit now"
+      className="absolute right-1.5 top-1.5 inline-flex items-center justify-center gap-1 min-h-[44px] min-w-[44px] px-2.5 rounded-xl bg-white/90 text-[12px] font-bold text-gray-900 shadow-sm hover:bg-white dark:bg-gray-900/90 dark:text-white"
+    >
+      <Pencil size={14} aria-hidden="true" /> Edit
     </button>
+    </div>
   );
 }
