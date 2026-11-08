@@ -55,11 +55,20 @@ export function totalFromContentRange(header) {
  *
  * `got` is the rows held after adding this page, `iteration` the pages fetched
  * so far (1 for the first), `total` the count from Content-Range (or null).
+ * `rangeNotSatisfiable` reports an HTTP 416 (page is then empty): that is the
+ * end of the table only if every row has already arrived.
  * Returns {action: 'continue' | 'done'} or {action: 'error', reason}. Bounded
- * so a server that ignores Range and replays the table cannot loop forever.
+ * so a server that ignores Range and replays the table cannot loop forever:
+ * every non-empty page adds at least one row, so more than total + 1 pages
+ * cannot be legitimate whatever page size the server serves.
  */
-export function nextPageDecision({ page, prevFirstId = null, got, total = null, iteration, pageSize }) {
+export function nextPageDecision({ page, prevFirstId = null, got, total = null, iteration, rangeNotSatisfiable = false }) {
   if (total === 0) return { action: 'done' };
+  if (rangeNotSatisfiable) {
+    return total !== null && got >= total
+      ? { action: 'done' }
+      : { action: 'error', reason: `range not satisfiable before all rows arrived (${got} of ${total ?? 'unknown'})` };
+  }
   if (page.length === 0) {
     return total !== null && got < total
       ? { action: 'error', reason: `server returned an empty page after ${got} of ${total} rows` }
@@ -69,7 +78,7 @@ export function nextPageDecision({ page, prevFirstId = null, got, total = null, 
     return { action: 'error', reason: 'the server repeated a page: it is ignoring the Range header' };
   }
   if (total !== null && got >= total) return { action: 'done' };
-  const limit = total === null ? 1000 : Math.ceil(total / pageSize) + 1;
+  const limit = total === null ? 1000 : total + 1;
   if (iteration >= limit) return { action: 'error', reason: `still paging after ${iteration} pages (limit ${limit})` };
   return { action: 'continue' };
 }

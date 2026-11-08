@@ -1,5 +1,4 @@
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import manifestSource from '../../../scripts/assets/manifest.mjs?raw';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DESIGN_TEMPLATES, type DesignTemplate } from '../designTemplates';
@@ -177,7 +176,6 @@ describe('manifest generator rows', () => {
 
 describe('paging decisions', () => {
   const pg = (...ids: string[]) => ids.map((id) => ({ id }));
-  const P = 1000;
 
   it('reads the total from Content-Range', () => {
     expect(totalFromContentRange('0-999/2500')).toBe(2500);
@@ -186,27 +184,40 @@ describe('paging decisions', () => {
   });
 
   it('continues through a normal multi-page read, then stops at the total', () => {
-    expect(nextPageDecision({ page: pg('a'), got: 1000, total: 2500, iteration: 1, pageSize: P })).toEqual({ action: 'continue' });
-    expect(nextPageDecision({ page: pg('b'), prevFirstId: 'a', got: 2000, total: 2500, iteration: 2, pageSize: P })).toEqual({ action: 'continue' });
-    expect(nextPageDecision({ page: pg('c'), prevFirstId: 'b', got: 2500, total: 2500, iteration: 3, pageSize: P })).toEqual({ action: 'done' });
+    expect(nextPageDecision({ page: pg('a'), got: 1000, total: 2500, iteration: 1 })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('b'), prevFirstId: 'a', got: 2000, total: 2500, iteration: 2 })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('c'), prevFirstId: 'b', got: 2500, total: 2500, iteration: 3 })).toEqual({ action: 'done' });
   });
 
   it('keeps going when the server max-rows is below the page size', () => {
-    expect(nextPageDecision({ page: pg('a'), got: 100, total: 250, iteration: 1, pageSize: 100 })).toEqual({ action: 'continue' });
-    expect(nextPageDecision({ page: pg('b'), prevFirstId: 'a', got: 200, total: 250, iteration: 2, pageSize: 100 })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('a'), got: 100, total: 250, iteration: 1 })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('b'), prevFirstId: 'a', got: 200, total: 250, iteration: 2 })).toEqual({ action: 'continue' });
   });
 
   it('errors when Range is ignored and the same page comes back', () => {
-    expect(nextPageDecision({ page: pg('a'), prevFirstId: 'a', got: 2000, total: 5000, iteration: 2, pageSize: P }).action).toBe('error');
+    expect(nextPageDecision({ page: pg('a'), prevFirstId: 'a', got: 2000, total: 5000, iteration: 2 }).action).toBe('error');
   });
 
-  it('errors past ceil(total/pageSize)+1 pages even with distinct ids', () => {
-    expect(nextPageDecision({ page: pg('z'), prevFirstId: 'y', got: 10, total: 5000, iteration: 6, pageSize: P }).action).toBe('error');
+  it('errors past total + 1 pages even with distinct ids', () => {
+    expect(nextPageDecision({ page: pg('z'), prevFirstId: 'y', got: 2, total: 5000, iteration: 5001 }).action).toBe('error');
+  });
+
+  it('does not trip when the served page size shrinks, as long as rows keep arriving', () => {
+    expect(nextPageDecision({ page: pg('c'), prevFirstId: 'b', got: 12, total: 40, iteration: 3 })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('k'), prevFirstId: 'j', got: 39, total: 40, iteration: 30 })).toEqual({ action: 'continue' });
+  });
+
+  it('treats a 416 as the end only when every row has arrived', () => {
+    expect(nextPageDecision({ page: [], got: 250, total: 250, iteration: 2, rangeNotSatisfiable: true })).toEqual({ action: 'done' });
+    const d = nextPageDecision({ page: [], got: 100, total: 250, iteration: 2, rangeNotSatisfiable: true });
+    expect(d).toMatchObject({ action: 'error' });
+    expect(d.action === 'error' && d.reason).toMatch(/range not satisfiable before all rows arrived/);
+    expect(nextPageDecision({ page: [], got: 100, total: null, iteration: 2, rangeNotSatisfiable: true }).action).toBe('error');
   });
 
   it('is done at once for a total of 0, and errors on a premature empty page', () => {
-    expect(nextPageDecision({ page: [], got: 0, total: 0, iteration: 1, pageSize: P })).toEqual({ action: 'done' });
-    expect(nextPageDecision({ page: [], got: 10, total: 50, iteration: 2, pageSize: P }).action).toBe('error');
+    expect(nextPageDecision({ page: [], got: 0, total: 0, iteration: 1 })).toEqual({ action: 'done' });
+    expect(nextPageDecision({ page: [], got: 10, total: 50, iteration: 2 }).action).toBe('error');
   });
 });
 
@@ -223,7 +234,7 @@ describe('all-or-nothing writing', () => {
   });
 
   it('the script writes only behind that check', () => {
-    const src = readFileSync(resolve(process.cwd(), 'scripts/assets/manifest.mjs'), 'utf8');
+    const src = manifestSource;
     const guard = src.indexOf('if (!mayWrite(skipped))');
     const write = src.indexOf('writeFileSync(OUT');
     expect(guard).toBeGreaterThan(-1);

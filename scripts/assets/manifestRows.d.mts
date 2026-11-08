@@ -21,6 +21,6 @@ export function partitionRows(rows: DesignAssetRow[]): { ok: DesignAssetRow[]; s
 export function serialise(rows: DesignAssetRow[]): string;
 export function totalFromContentRange(header: string | null | undefined): number | null;
 export function nextPageDecision(a: {
-  page: { id: string }[]; prevFirstId?: string | null; got: number; total?: number | null; iteration: number; pageSize: number;
+  page: { id: string }[]; prevFirstId?: string | null; got: number; total?: number | null; iteration: number; rangeNotSatisfiable?: boolean;
 }): { action: 'continue' | 'done' } | { action: 'error'; reason: string };
 export function mayWrite(skipped: unknown[]): boolean;

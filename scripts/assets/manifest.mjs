@@ -51,14 +51,18 @@ async function fetchApproved(url, key) {
   const rows = [];
   let prevFirstId = null;
   let total = null;
-  let perPage = PAGE;
   for (let iteration = 1; ; iteration += 1) {
     const from = rows.length; // advance by what arrived, not by PAGE
     const res = await fetch(
       `${url}/rest/v1/design_assets?status=eq.approved&select=${COLUMNS}&order=id`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + PAGE - 1}`, 'Range-Unit': 'items', Prefer: 'count=exact' } },
     );
-    if (res.status === 416) return rows; // PostgREST: range starts past the last row
+    if (res.status === 416) {
+      // PostgREST: the range starts past the last row. The end of the table only if all rows are in.
+      const d = nextPageDecision({ page: [], got: rows.length, total, iteration, rangeNotSatisfiable: true });
+      if (d.action === 'error') fail(d.reason);
+      return rows;
+    }
     if (res.status === 404) fail('design_assets not found: has the migration been applied?');
     if (!res.ok) {
       const body = await res.text();
@@ -68,9 +72,7 @@ async function fetchApproved(url, key) {
     const page = await res.json();
     total = totalFromContentRange(res.headers.get('content-range')) ?? total;
     rows.push(...page);
-    // The server may cap rows below PAGE; the bound is on the size it actually serves.
-    if (iteration === 1) perPage = Math.max(1, Math.min(PAGE, page.length));
-    const d = nextPageDecision({ page, prevFirstId, got: rows.length, total, iteration, pageSize: perPage });
+    const d = nextPageDecision({ page, prevFirstId, got: rows.length, total, iteration });
     if (d.action === 'error') fail(d.reason);
     if (d.action === 'done') return rows;
     prevFirstId = page[0].id;
