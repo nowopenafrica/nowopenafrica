@@ -5,7 +5,7 @@ import { defaultMediaScrim, type DesignTemplate } from '../../lib/designTemplate
 import { sampleFor } from '../../lib/create/sampleCopy';
 import { canvasOf } from '../../lib/create/templateDetail';
 import type { MockupScene } from '../../lib/create/mockup';
-import { previewPhotoFor } from '../../lib/design/previewMedia';
+import { previewPhotoForTemplate } from '../../lib/design/previewMedia';
 import { applyStyle, styleColours, styleOf } from '../../lib/design/styles';
 import { clipPathFor, matrix3dFor } from '../../lib/promote/surface';
 
@@ -98,7 +98,7 @@ export default function MockupView({ scene, template, styleKey, brand, slots }: 
                   height={page.h}
                   accent={tone.accent}
                   base={tone.base}
-                  mediaUrl={template.photoLed ? previewPhotoFor(template.key) : null}
+                  mediaUrl={template.photoLed ? previewPhotoForTemplate(template) : null}
                   mediaKind="image"
                   mediaOpacity={100}
                   surfaceOpacity={template.photoLed ? defaultMediaScrim(styled) : 1}

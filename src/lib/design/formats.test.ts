@@ -44,7 +44,7 @@ describe('format registry', () => {
 
   it('defines the 48-sheet and keeps the legacy billboard', () => {
     expect(FORMATS['board-48-sheet']).toMatchObject({
-      w: 3600, h: 1800, mm: { w: 6096, h: 3048 }, medium: 'large-format', targetDpi: 150,
+      w: 3600, h: 1800, mm: { w: 6096, h: 3048 }, medium: 'large-format', targetDpi: 15,
     });
     expect(FORMATS.billboard).toMatchObject({ w: 4500, h: 1500 });
   });

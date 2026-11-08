@@ -33,10 +33,13 @@
  * this one.
  */
 
+/** What a preview photograph shows. */
+export type PreviewSubject = 'food' | 'beauty' | 'retail' | 'work' | 'craft';
+
 export interface PreviewPhoto {
   url: string;
   /** What it shows, so a template can ask for something that suits it. */
-  subject: 'food' | 'beauty' | 'retail' | 'work' | 'craft';
+  subject: PreviewSubject;
   licence: 'Pexels';
 }
 
@@ -76,10 +79,20 @@ export function previewPhotoFor(key: string): string {
  * Falls back to the whole pool when no photo of that subject exists, so a new
  * subject never returns nothing.
  */
-export function previewPhotoOf(subject: PreviewPhoto['subject'], key: string): string {
+export function previewPhotoOf(subject: PreviewSubject, key: string): string {
   const matching = PREVIEW_PHOTOS.filter((p) => p.subject === subject);
   const pool = matching.length ? matching : PREVIEW_PHOTOS;
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) hash = (hash * 31 + key.charCodeAt(i)) >>> 0;
   return pool[hash % pool.length].url;
+}
+
+/**
+ * The preview photograph for a template: of its `photoSubject` when it names
+ * one, else the key-hashed pick it has always had. Every gallery, detail and
+ * mockup render path calls this, so a template that names no subject keeps
+ * exactly the photograph it showed before.
+ */
+export function previewPhotoForTemplate(tpl: { key: string; photoSubject?: PreviewSubject }): string {
+  return tpl.photoSubject ? previewPhotoOf(tpl.photoSubject, tpl.key) : previewPhotoFor(tpl.key);
 }

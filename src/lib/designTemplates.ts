@@ -186,6 +186,7 @@ import type { StyleTag, TemplateUse } from './design/tags';
 import type { Look, GradientSpec } from './design/look';
 import type { PaletteRole } from './design/palettes';
 import type { DirectionKey } from './design/directions';
+import type { PreviewSubject } from './design/previewMedia';
 import { CATALOGUE_TEMPLATES } from './design/catalogueTemplates';
 import { PILOT_TEMPLATES } from './design/pilotTemplates';
 
@@ -326,6 +327,13 @@ export interface DesignTemplate {
    * making that mistake 47 times. See design/previewMedia.ts.
    */
   photoLed?: boolean;
+  /**
+   * What the gallery's preview photograph should show, for a photo-led
+   * layout. Absent keeps the key-hashed pick (previewPhotoFor), so no
+   * existing template's preview changes. A dish post asking for `food`
+   * stops previewing over a laptop.
+   */
+  photoSubject?: PreviewSubject;
   /**
    * Further sides or pages, after the first.
    *

@@ -7,7 +7,7 @@ import TemplateCustomiser from './TemplateCustomiser';
 import { defaultMediaScrim, type DesignTemplate } from '../../lib/designTemplates';
 import { useDesignCatalogue } from '../../hooks/useDesignCatalogue';
 import { sampleFor } from '../../lib/create/sampleCopy';
-import { previewPhotoFor } from '../../lib/design/previewMedia';
+import { previewPhotoForTemplate } from '../../lib/design/previewMedia';
 import { cardTitle, formatForTemplate } from '../../lib/design/deliverables';
 import {
   deliverableSlugFor, isListed, needFor, type NeedSlug,
@@ -672,7 +672,7 @@ export function PreviewCard({
                * uses. See design/previewMedia.ts for where the images come from
                * and why they are safe to use.
                */
-              mediaUrl={styled.photoLed ? previewPhotoFor(styled.key) : null}
+              mediaUrl={styled.photoLed ? previewPhotoForTemplate(styled) : null}
               mediaKind="image"
               mediaOpacity={100}
               /*

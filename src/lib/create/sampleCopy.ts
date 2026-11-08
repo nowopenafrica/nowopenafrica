@@ -415,9 +415,9 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
     contact: ['Your phone', 'Your email', 'Your website'],
     services: ['Your first service', 'Your second service', 'Your third service'],
   },
-  'pilot-card-editorial': { brand: 'Your studio', eyebrow: 'Your role', headline: 'Your name', subline: 'The work you are known for.', contact: ['Your phone', 'Your email', 'Your website'] },
+  'pilot-card-editorial': { brand: 'Your studio', eyebrow: 'Your role', headline: 'Your name', subline: 'The work you are known for.', meta: 'Your website', contact: ['Your phone', 'Your email', 'Your website'] },
   'pilot-card-bold': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'Your one-line promise', meta: 'Your website', contact: ['Your phone', '@yourhandle'] },
-  'pilot-card-contemporary': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', contact: ['Your phone', 'Your email', '@yourhandle'] },
+  'pilot-card-contemporary': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', meta: '@yourhandle', contact: ['Your phone', 'Your email', 'Your website'] },
   'pilot-card-playful': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'What you make, said warmly.', meta: '@yourhandle', contact: ['Your phone', 'Your area'] },
   'pilot-card-industry': {
     brand: 'Your clinic',
@@ -426,7 +426,7 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
     contact: ['Your booking line', 'Your address', 'Your website'],
     cta: 'Book an appointment',
     meta: 'Your registration number',
-    services: ['Monday to Friday · Your hours', 'Saturday · Your hours', 'Emergencies · Your number'],
+    services: ['Your days · Your hours', 'Your days · Your hours', 'Out of hours · Your number'],
     subline: 'Next appointment: date and time',
   },
 
@@ -449,16 +449,10 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
   /* 48-sheet billboards: a line, a name, at most one thing to do */
   'pilot-bb-bold': { brand: 'Your brand', headline: 'Your big line', cta: 'Visit today' },
   'pilot-bb-minimal': { brand: 'Your brand', headline: 'Your one line' },
-  'pilot-bb-luxury': { brand: 'Your hotel', eyebrow: 'Now open', headline: 'Your quiet promise', meta: 'Your address' },
-  'pilot-bb-contemporary': { brand: 'Your brand', headline: 'Five words, said big', contact: ['Your website'] },
-  'pilot-bb-industry': {
-    brand: 'Your company',
-    eyebrow: 'Delivery',
-    headline: 'Your delivery promise',
-    services: ['Your delivery areas', 'Your delivery hours', 'Your tracking line'],
-    cta: 'Book a pickup',
-  },
-  'pilot-bb-editorial': { brand: 'Your brand', eyebrow: 'Coming this season', headline: 'Your headline, set large', subline: 'One line of detail.' },
+  'pilot-bb-luxury': { brand: 'Your hotel', eyebrow: 'Your opening line', headline: 'Your quiet promise', meta: 'Your address' },
+  'pilot-bb-contemporary': { brand: 'Your brand', headline: 'Your campaign line', contact: ['Your website'] },
+  'pilot-bb-industry': { brand: 'Your company', headline: 'Your delivery promise', cta: 'Book a pickup · Your areas' },
+  'pilot-bb-editorial': { brand: 'Your brand', eyebrow: 'Coming this season', headline: 'Your season or show title' },
 };
 
 /**

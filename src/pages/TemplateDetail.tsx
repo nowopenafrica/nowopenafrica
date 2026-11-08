@@ -17,7 +17,7 @@ import {
   mockupScenesFor,
 } from '../lib/create/templateDetail';
 import { cardTitle } from '../lib/design/deliverables';
-import { previewPhotoFor } from '../lib/design/previewMedia';
+import { previewPhotoForTemplate } from '../lib/design/previewMedia';
 import { DESIGN_STYLES, applyStyle, styleColours, styleOf } from '../lib/design/styles';
 import { ensureTypefacesReady } from '../lib/design/typefaces';
 import { applySeo } from '../lib/seo';
@@ -380,7 +380,7 @@ function Surface({ template, slots, tone, testId, side }: {
             height={page.h}
             accent={tone.accent}
             base={tone.base}
-            mediaUrl={template.photoLed ? previewPhotoFor(template.key) : null}
+            mediaUrl={template.photoLed ? previewPhotoForTemplate(template) : null}
             mediaKind="image"
             mediaOpacity={100}
             surfaceOpacity={template.photoLed ? defaultMediaScrim(template) : 1}

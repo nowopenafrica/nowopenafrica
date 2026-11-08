@@ -16,7 +16,7 @@ import { subcategoryFor } from '../create/catalogueTaxonomy';
 import { sampleFor } from '../create/sampleCopy';
 import { directionOverflow, distinctnessIssues } from './composition';
 import { deliverableFor } from './deliverables';
-import { previewPhotoFor } from './previewMedia';
+import { previewPhotoForTemplate } from './previewMedia';
 import { PILOT_TEMPLATES } from './pilotTemplates';
 import { automatedCriticals } from './quality/critical';
 import { externalUrls } from './quality/checks/assets';
@@ -43,7 +43,7 @@ function renderProblems(key: string): string[] {
   try {
     for (const page of pagesOf(tpl)) {
       // With and without the gallery's preview photograph, as a photo-led card is shown both ways.
-      for (const mediaUrl of tpl.photoLed ? [null, previewPhotoFor(tpl.key)] : [null]) {
+      for (const mediaUrl of tpl.photoLed ? [null, previewPhotoForTemplate(tpl)] : [null]) {
         console.error = () => {};
         act(() => {
           root.render(createElement(TemplateSurface, {

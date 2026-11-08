@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { DESIGN_TEMPLATES, templateByKey, type DesignTemplate } from '../../designTemplates';
+import { PILOT_TEMPLATES } from '../pilotTemplates';
 import { contentHash } from './hash';
 import { gate } from './gate';
 import {
@@ -128,6 +129,9 @@ describe('the direction rule', () => {
 
   it('holds for the catalogue, apart from the pilot designs awaiting the founder\'s review', () => {
     expect(DESIGN_TEMPLATES.some((t) => t.direction)).toBe(true);
+    // Shrink-only: never more than the twenty, and never a key outside the pilot.
+    expect(AWAITING_REVIEW.size).toBeLessThanOrEqual(20);
+    for (const key of AWAITING_REVIEW) expect(PILOT_TEMPLATES.some((t) => t.key === key), key).toBe(true);
     expect(failing(DESIGN_TEMPLATES, REVIEWS).filter((key) => !AWAITING_REVIEW.has(key))).toEqual([]);
     for (const key of AWAITING_REVIEW) {
       expect(DESIGN_TEMPLATES.some((t) => t.key === key && t.direction), key).toBe(true);

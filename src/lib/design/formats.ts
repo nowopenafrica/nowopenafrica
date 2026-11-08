@@ -72,7 +72,8 @@ export const FORMATS: Record<string, Format> = {
   'letterhead': fmt('letterhead', 'Letterhead · A4', 2480, 3508, 'press', 300, 3, 5, { w: 210, h: 297 }),
   'compliment-slip': fmt('compliment-slip', 'Compliment Slip · 210×99mm', 2480, 1169, 'press', 300, 3, 5, { w: 210, h: 99 }),
   'postcard': fmt('postcard', 'Postcard · 148×105mm', 1748, 1240, 'press', 300, 3, 5, { w: 148, h: 105 }),
-  'board-48-sheet': fmt('board-48-sheet', '48-sheet Billboard', 3600, 1800, 'large-format', 150, 0, 0, { w: 6096, h: 3048 }),
+  // 15 dpi at full size is 150 dpi at 1:10, the scale 48-sheet artwork is supplied at (Ruling AE).
+  'board-48-sheet': fmt('board-48-sheet', '48-sheet Billboard', 3600, 1800, 'large-format', 15, 0, 0, { w: 6096, h: 3048 }),
 };
 
 export function formatOf(key: string): Format | null {

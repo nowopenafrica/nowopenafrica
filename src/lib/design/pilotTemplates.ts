@@ -199,6 +199,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       name: 'Back',
       slots: [
         { role: 'subline', x: 0.07, y: 0.2, w: 0.5, size: 0.07, weight: 400, font: 'editorial', motion: m('fade', 0) },
+        { role: 'meta', x: 0.64, y: 0.3, w: 0.3, size: CARD_TEXT, weight: 600, motion: m('fade', 0.1) },
         { role: 'brand', x: 0.07, y: 0.8, w: 0.86, size: CARD_BRAND, weight: 700, upper: true, tracking: 0.1, motion: m('fade', 0.2) },
       ],
     }],
@@ -255,8 +256,8 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     /*
      * Near-black with a mint grid at 0.06, a pink tile and a yellow one
      * stepped off it. The name is set to the right-hand column and the tiles
-     * hold the left, so the card balances on the diagonal. The back puts a
-     * scannable code where the tiles' column begins.
+     * hold the left, so the card balances on the diagonal. The front carries
+     * only the handle; the back puts the full contact beside a scannable code.
      */
     look: {
       palette: 'electric-lagos',
@@ -271,7 +272,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'brand', x: 0.07, y: 0.12, w: 0.62, size: CARD_BRAND, weight: 700, motion: m('fade', 0) },
       { role: 'eyebrow', x: 0.4, y: 0.34, w: 0.54, size: CARD_TEXT, align: 'right', tone: 'secondary', font: 'mono', motion: m('fade', 0.2) },
       { role: 'headline', x: 0.4, y: 0.42, w: 0.54, size: 0.09, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', motion: m('slide-left', 0.3, 0.6) },
-      { role: 'contact', x: 0.58, y: 0.66, w: 0.36, size: CARD_TEXT, gap: 1.5, max: 3, tone: 'muted', motion: m('fade', 0.5) },
+      { role: 'meta', x: 0.58, y: 0.7, w: 0.36, size: CARD_TEXT, tone: 'muted', font: 'mono', motion: m('fade', 0.5) },
     ],
     extraPages: [{
       name: 'Back',
@@ -396,6 +397,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'luxe', scheme: 'dark', font: 'sans',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'beauty',
     /*
      * A mount, not a crop: opaque plum on four sides leaves a window of about
      * 40% of the post, and the duotone carries the plum into the picture so it
@@ -429,6 +431,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'editorial', scheme: 'dark', font: 'sans',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'craft',
     /*
      * Asymmetric on purpose: about three quarters photograph, and one corner
      * of solid forest green holding a serif title against a brass rule. The
@@ -490,6 +493,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'street', scheme: 'dark', font: 'grotesk',
     surface: { kind: 'solid', intensity: 0.2 },
     photoLed: true,
+    photoSubject: 'work',
     /*
      * The photograph is a window, under a fifth of the post, offset to the
      * top right with a blue tile pinned over its corner: the picture is one
@@ -524,6 +528,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'warm', scheme: 'dark', font: 'sans',
     surface: { kind: 'solid', intensity: 0.2 },
     photoLed: true,
+    photoSubject: 'food',
     /*
      * Built from what a food post has to say: what the dish is, what it
      * costs, what is in it and how to get it. The plate gets the top half
@@ -558,6 +563,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'minimal', scheme: 'dark', font: 'grotesk',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'beauty',
     /*
      * The picture is the post. Graphite only darkens it enough to carry one
      * line, set small for a post and held to the left third under a white
@@ -589,6 +595,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'bold', scheme: 'dark', font: 'grotesk',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'retail',
     /*
      * Seen from a moving car: the line in white Archivo Black on navy, read
      * first; the photograph read second; an orange slash parting them; and
@@ -644,6 +651,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'luxe', scheme: 'dark', font: 'sans',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'food',
     /*
      * A hotel or property board: the photograph mounted inside a deep green
      * margin rather than bled, a centred serif line, a short sage rule, and
@@ -677,6 +685,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'street', scheme: 'dark', font: 'grotesk',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'retail',
     /*
      * Indigo duotone with orange: current and graphic. The photograph keeps
      * nearly four fifths of the board; the words are Bebas Neue, so a short
@@ -698,7 +707,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
   {
     key: 'pilot-bb-industry',
     label: 'Delivery Service Billboard',
-    desc: 'A logistics board: the rider or van on the left, the delivery promise, areas, hours and booking on the right',
+    desc: 'A logistics board: the rider or van fills it, the delivery promise and how to book sit on a navy card',
     use: 'industry',
     direction: 'industry',
     industries: ['Logistics & Mobility'],
@@ -707,24 +716,24 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'bold', scheme: 'dark', font: 'grotesk',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'work',
     /*
      * Built from what a delivery business is asked before anyone books: what
-     * it promises, where it goes, when it runs, and how to book a pickup.
-     * Those four sit on a navy panel in that order; the photograph (a rider,
-     * a van, a loading bay) takes the rest. Coral and teal, the colours of
-     * a dispatch board.
+     * it promises, and how to book (with where it goes, in the same line).
+     * Three things a driver can read in three seconds: the promise large and
+     * right-set on a navy card floating over the photograph (a rider, a van,
+     * a loading bay), the booking line under it, the company name at the
+     * foot. Coral and teal, the colours of a dispatch board.
      */
     look: { palette: 'ink-coral', type: 'modern', duotone: ['ground', 'secondary'] },
     shapes: [
-      { kind: 'rect', x: 0.64, y: 0, w: 0.36, h: 1, tone: 'base' },
-      { kind: 'rect', x: 0.64, y: 0, w: 0.008, h: 1, tone: 'primary' },
+      { kind: 'rect', x: 0.52, y: 0.12, w: 0.44, h: 0.76, tone: 'base' },
+      { kind: 'rect', x: 0.56, y: 0.27, w: 0.08, h: 0.012, tone: 'primary' },
     ],
     slots: [
-      { role: 'brand', x: 0.04, y: 0.06, w: 0.58, size: 0.05, weight: 800, upper: true, tracking: 0.02, motion: m('fade', 0) },
-      { role: 'eyebrow', x: 0.67, y: 0.28, w: 0.29, size: 0.04, upper: true, tracking: 0.2, tone: 'accent', font: 'mono', motion: m('fade', 0.2) },
-      { role: 'headline', x: 0.67, y: 0.36, w: 0.29, size: 0.1, weight: 700, tracking: -0.02, font: 'grotesk', motion: m('rise', 0.3, 0.6) },
-      { role: 'services', x: 0.67, y: 0.66, w: 0.29, size: 0.04, gap: 1.6, bullet: 'bar', max: 3, motion: m('fade', 0.6) },
-      { role: 'cta', x: 0.67, y: 0.88, w: 0.29, size: 0.04, weight: 700, upper: true, treatment: 'pill', tone: 'accent', motion: m('pop', 0.8) },
+      { role: 'headline', x: 0.56, y: 0.34, w: 0.36, size: 0.16, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', motion: m('rise', 0.1, 0.6) },
+      { role: 'cta', x: 0.56, y: 0.78, w: 0.36, size: 0.045, weight: 700, upper: true, align: 'right', treatment: 'pill', tone: 'accent', motion: m('pop', 0.6) },
+      { role: 'brand', x: 0.04, y: 0.05, w: 0.44, size: 0.05, weight: 800, upper: true, tracking: 0.02, fromBottom: true, motion: m('fade', 0.8) },
     ],
   },
 
@@ -740,6 +749,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'editorial', scheme: 'dark', font: 'sans',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
+    photoSubject: 'craft',
     /*
      * A poster for a season or a show: the headline in DM Serif in an indigo
      * block at top left, the photograph in clay duotone round two sides of
@@ -758,7 +768,6 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     slots: [
       { role: 'eyebrow', x: 0.05, y: 0.07, w: 0.45, size: 0.035, upper: true, tracking: 0.2, tone: 'accent', font: 'mono', motion: m('fade', 0) },
       { role: 'headline', x: 0.05, y: 0.14, w: 0.47, size: 0.15, weight: 400, tracking: -0.01, font: 'editorial', motion: m('mask-up', 0.2, 0.8) },
-      { role: 'subline', x: 0.05, y: 0.48, w: 0.45, size: 0.035, tone: 'muted', motion: m('fade', 0.6) },
       { role: 'brand', x: 0.56, y: 0.06, w: 0.4, size: 0.05, weight: 700, upper: true, tracking: 0.08, fromBottom: true, motion: m('fade', 0.8) },
     ],
   },

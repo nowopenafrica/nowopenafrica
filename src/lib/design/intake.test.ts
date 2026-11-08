@@ -112,7 +112,7 @@ describe('industry list', () => {
 
 describe('sha256', () => {
   it('hashes a buffer (known vector)', () => {
-    expect(sha256(Buffer.from('abc'))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
+    expect(sha256(Buffer.from([0x61, 0x62, 0x63]))).toBe('ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad');
   });
 });
 
