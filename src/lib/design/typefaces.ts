@@ -47,9 +47,12 @@
  * Read from the files themselves by fontCoverage.test.ts, against the
  * languages and currencies the product supports (spec §12). Most upstream
  * families stop short of that list — five have no naira at all — so every
- * Studio stack names Source Sans 3 second: the browser and the canvas fall
- * back to it glyph by glyph, which puts ₦, ẹ or ɛ in a self-hosted face
- * instead of whatever the device happens to have.
+ * Studio stack names GLYPH_FALLBACK second: Source Sans 3's files, declared
+ * under their own family with a unicode-range that leaves out Basic Latin and
+ * Latin-1. The browser and the canvas fall back to it glyph by glyph, which
+ * puts ₦, ẹ or ɛ in a self-hosted face instead of whatever the device has —
+ * and if a face itself fails to load, its Latin still falls to the web-safe
+ * face of the same shape, not to Source Sans.
  */
 
 export type TypefaceKey =
@@ -59,7 +62,7 @@ export type TypefaceKey =
   | 'sans' | 'serif' | 'mono' | 'condensed'
   // New voices.
   | 'editorial' | 'soft' | 'grotesk' | 'heavy'
-  /* The widest coverage we ship (and every Studio face's fallback), and a script. */
+  /* The widest coverage we ship (whose files also serve GLYPH_FALLBACK), and a script. */
   | 'humanist' | 'script'
   /*
    * The house face. Already self-hosted in index.css and already used by the
@@ -108,9 +111,9 @@ export interface Typeface {
   /*
    * The actual file for each weight, public path.
    *
-   * Stated rather than derived from a naming convention. The convention was
-   * `/fonts/studio/{slug}-{weight}.woff2` and it was only ever implied — so
-   * adding Coolvetica, which was already self-hosted under its own folder by
+   * Stated rather than derived from a naming convention. The Studio files do
+   * follow `/fonts/studio/{slug}-{weight}.woff2` (scripts/build-studio-fonts.py
+   * writes them so), but that was once only implied — so adding Coolvetica, which was already self-hosted under its own folder by
    * the brand-card studio, failed four guards that were checking a filename
    * pattern rather than whether the font is really there. Saying where each
    * file lives makes the check true instead of conventional.
@@ -124,14 +127,35 @@ export interface Typeface {
    */
   coverage?: 'full' | 'latin-basic';
   /**
-   * The self-hosted face this one falls back to, glyph by glyph, for the
-   * characters it lacks. Named second in `stack`; loaded with it.
+   * True when `stack` names GLYPH_FALLBACK second, so the characters this face
+   * lacks are drawn from it. ensureTypefacesReady loads it with the face.
    */
-  fallback?: TypefaceKey;
+  glyphFallback?: true;
 }
 
-/** Source Sans 3: every Studio face's own fallback, for the characters it lacks. */
-const COVER = '"Source Sans 3"';
+/**
+ * The family every Studio stack falls back to for the glyphs a face lacks.
+ *
+ * Source Sans 3's own files, declared a second time in index.css under this
+ * name with `unicodeRange`. The range leaves out U+0000-00FF on purpose: if a
+ * face fails to load, its Latin must fall to the web-safe face of the same
+ * shape (Bebas to Arial Narrow, Playfair to Georgia), not to a humanist sans.
+ * The `humanist` face keeps its own, unrestricted rules as "Source Sans 3".
+ */
+export const GLYPH_FALLBACK = {
+  family: 'NowOpen Glyph Fallback',
+  /** The face whose files serve it. */
+  source: 'humanist' as TypefaceKey,
+  unicodeRange: ['U+0100-024F', 'U+0250-02FF', 'U+0300-036F', 'U+1E00-1EFF', 'U+20A0-20CF'],
+  /*
+   * A string inside the range. document.fonts.load() defaults to a space,
+   * which is outside it, and a unicode-range face only downloads when text
+   * needs it — so loading without this would load nothing at all.
+   */
+  sample: '₦ẹɛ',
+} as const;
+
+const COVER = `"${GLYPH_FALLBACK.family}"`;
 
 /** Where each family's files came from: one pinned commit of Google's repository. */
 const GOOGLE_FONTS = (folder: string) =>
@@ -149,71 +173,71 @@ export const TYPEFACES: Typeface[] = [
     key: 'sans', label: 'Outfit', family: 'Outfit',
     stack: `Outfit, ${COVER}, ${FALLBACK.sans}`, weights: [400, 600, 800], role: 'text',
     voice: 'Clean geometric sans. The safe, modern default for anything that has to be read.',
-    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/outfit-400.woff', 600: '/fonts/studio/outfit-600.woff', 800: '/fonts/studio/outfit-800.woff' },
-    source: GOOGLE_FONTS('outfit'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/outfit-400.woff2', 600: '/fonts/studio/outfit-600.woff2', 800: '/fonts/studio/outfit-800.woff2' },
+    source: GOOGLE_FONTS('outfit'), glyphFallback: true,
   },
   {
     key: 'serif', label: 'Playfair Display', family: 'Playfair Display',
     stack: `"Playfair Display", ${COVER}, ${FALLBACK.serif}`, weights: [700, 900], role: 'display',
     voice: 'High-contrast serif. Fashion, property, anything that needs to feel expensive.',
-    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/playfair-display-700.woff', 900: '/fonts/studio/playfair-display-900.woff' },
-    source: GOOGLE_FONTS('playfairdisplay'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/playfair-display-700.woff2', 900: '/fonts/studio/playfair-display-900.woff2' },
+    source: GOOGLE_FONTS('playfairdisplay'), glyphFallback: true,
   },
   {
     key: 'mono', label: 'Space Mono', family: 'Space Mono',
     stack: `"Space Mono", ${COVER}, ${FALLBACK.mono}`, weights: [700], role: 'accent',
     voice: 'Technical monospace. Use small and spaced, for eyebrows and codes.',
-    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/space-mono-700.woff' },
-    source: GOOGLE_FONTS('spacemono'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/space-mono-700.woff2' },
+    source: GOOGLE_FONTS('spacemono'), glyphFallback: true,
   },
   {
     key: 'condensed', label: 'Bebas Neue', family: 'Bebas Neue',
     stack: `"Bebas Neue", ${COVER}, ${FALLBACK.condensed}`, weights: [400], role: 'display',
     voice: 'Tall condensed caps. Sales, events, street posters — loud without shouting.',
-    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/bebas-neue-400.woff' },
-    source: GOOGLE_FONTS('bebasneue'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/bebas-neue-400.woff2' },
+    source: GOOGLE_FONTS('bebasneue'), glyphFallback: true,
   },
   {
     key: 'editorial', label: 'DM Serif Display', family: 'DM Serif Display',
     stack: `"DM Serif Display", ${COVER}, ${FALLBACK.serif}`, weights: [400], role: 'display',
     voice: 'Editorial serif with tight fit. Magazine covers, menus, considered headlines.',
-    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/dm-serif-display-400.woff' },
-    source: GOOGLE_FONTS('dmserifdisplay'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/dm-serif-display-400.woff2' },
+    source: GOOGLE_FONTS('dmserifdisplay'), glyphFallback: true,
   },
   {
     key: 'soft', label: 'Fraunces', family: 'Fraunces',
     stack: `Fraunces, ${COVER}, ${FALLBACK.serif}`, weights: [600], role: 'display',
     voice: 'Warm, slightly odd serif. Food, wellness, anything that should feel handmade.',
-    licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/fraunces-600.woff' },
-    source: GOOGLE_FONTS('fraunces'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/fraunces-600.woff2' },
+    source: GOOGLE_FONTS('fraunces'), glyphFallback: true,
   },
   {
     key: 'grotesk', label: 'Space Grotesk', family: 'Space Grotesk',
     stack: `"Space Grotesk", ${COVER}, ${FALLBACK.sans}`, weights: [500, 700], role: 'text',
     voice: 'Modern grotesk with character. Tech, agencies, studios.',
-    licence: 'SIL OFL 1.1', files: { 500: '/fonts/studio/space-grotesk-500.woff', 700: '/fonts/studio/space-grotesk-700.woff' },
-    source: GOOGLE_FONTS('spacegrotesk'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 500: '/fonts/studio/space-grotesk-500.woff2', 700: '/fonts/studio/space-grotesk-700.woff2' },
+    source: GOOGLE_FONTS('spacegrotesk'), glyphFallback: true,
   },
   {
     key: 'heavy', label: 'Archivo Black', family: 'Archivo Black',
     stack: `"Archivo Black", ${COVER}, ${FALLBACK.sans}`, weights: [400], role: 'display',
     voice: 'One weight, very heavy. For a headline that is the whole design.',
-    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/archivo-black-400.woff' },
-    source: GOOGLE_FONTS('archivoblack'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/archivo-black-400.woff2' },
+    source: GOOGLE_FONTS('archivoblack'), glyphFallback: true,
   },
   {
     key: 'humanist', label: 'Source Sans 3', family: 'Source Sans 3',
-    stack: `${COVER}, ${FALLBACK.sans}`, weights: [400, 700], role: 'text',
+    stack: `"Source Sans 3", ${FALLBACK.sans}`, weights: [400, 600, 700], role: 'text',
     voice: 'Open humanist sans. Long reading and small print; the widest African-letter coverage we ship.',
-    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/source-sans-3-400.woff', 700: '/fonts/studio/source-sans-3-700.woff' },
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/source-sans-3-400.woff2', 600: '/fonts/studio/source-sans-3-600.woff2', 700: '/fonts/studio/source-sans-3-700.woff2' },
     source: GOOGLE_FONTS('sourcesans3'),
   },
   {
     key: 'script', label: 'Dancing Script', family: 'Dancing Script',
     stack: `"Dancing Script", ${COVER}, ${FALLBACK.sans}`, weights: [400], role: 'display',
     voice: 'Lively handwritten script. Invitations, cakes and boutiques; keep it to a few words.',
-    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/dancing-script-400.woff' },
-    source: GOOGLE_FONTS('dancingscript'), fallback: 'humanist',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/dancing-script-400.woff2' },
+    source: GOOGLE_FONTS('dancingscript'), glyphFallback: true,
   },
   {
     key: 'coolvetica', label: 'Coolvetica', family: 'Coolvetica',
@@ -321,21 +345,35 @@ export const pairingOf = (key: string): TypePairing =>
 export async function ensureTypefacesReady(keys?: TypefaceKey[]): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts?.load) return;
 
-  const named = keys?.length ? keys.map((k) => typefaceOf(k)) : TYPEFACES;
-  // A face's fallback draws its missing glyphs, so it has to be ready too.
-  const faces = [...new Set([...named, ...named.flatMap((f) => (f.fallback ? [typefaceOf(f.fallback)] : []))])];
-  await Promise.all(
-    faces.flatMap((face) =>
+  const faces = keys?.length ? keys.map((k) => typefaceOf(k)) : TYPEFACES;
+  /*
+   * The glyph fallback draws every ₦ a canvas frame sets, so it has to be
+   * ready too, with text inside its range (see GLYPH_FALLBACK.sample).
+   */
+  const fallbackWeights = faces.some((f) => f.glyphFallback) ? typefaceOf(GLYPH_FALLBACK.source).weights : [];
+  await Promise.all([
+    ...faces.flatMap((face) =>
       face.weights.map((w) =>
         // 100px because some engines cache per-size; a size no layout uses
         // still warms the face itself.
         document.fonts.load(`${w} 100px "${face.family}"`).catch(() => undefined),
       ),
     ),
-  );
+    ...fallbackWeights.map((w) =>
+      document.fonts.load(`${w} 100px "${GLYPH_FALLBACK.family}"`, GLYPH_FALLBACK.sample).catch(() => undefined),
+    ),
+  ]);
   // `ready` settles once no font load is pending at all, which also covers
   // faces the page started fetching on its own.
   await document.fonts.ready.catch(() => undefined);
+}
+
+/** The glyph-fallback `@font-face` rules, one per weight, as index.css declares them. */
+export function glyphFallbackFaces(): { family: string; weight: number; url: string; unicodeRange: string }[] {
+  const src = typefaceOf(GLYPH_FALLBACK.source);
+  return src.weights.map((weight) => ({
+    family: GLYPH_FALLBACK.family, weight, url: src.files[weight], unicodeRange: GLYPH_FALLBACK.unicodeRange.join(', '),
+  }));
 }
 
 /** Every family the templates can name, for a preload or a smoke test. */

@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
 import { SUPPORTED_CHARS, UPSTREAM_GAPS, codepointsOf, missingChars } from './fontCoverage';
-import { TYPEFACES, typefaceOf, type Typeface, type TypefaceKey } from './typefaces';
+import { GLYPH_FALLBACK, TYPEFACES, typefaceOf, type Typeface, type TypefaceKey } from './typefaces';
 import { resolveLook, slotFace } from './look';
 import {
   DESIGN_TEMPLATES, MIN_TYPE_PX, fitSlotSize, isListRole, type SlotSpec,
@@ -12,11 +12,22 @@ import type { TemplateContent } from '../../components/studio/TemplateSurface';
 
 const read = (publicPath: string): Buffer => readFileSync(`public${publicPath}`);
 
-/** Everything a face's fallback can draw for it: the union of its files. */
+/** GLYPH_FALLBACK's unicode-range, as [first, last] pairs. */
+const FALLBACK_RANGES = GLYPH_FALLBACK.unicodeRange.map((r) => {
+  const [a, z] = r.replace('U+', '').split('-');
+  return [parseInt(a, 16), parseInt(z ?? a, 16)] as const;
+});
+const inFallbackRange = (c: number) => FALLBACK_RANGES.some(([a, z]) => c >= a && c <= z);
+
+/** What the glyph fallback can draw: its source files, inside its unicode-range only. */
+const FALLBACK_CODEPOINTS: Set<number> = (() => {
+  const src = typefaceOf(GLYPH_FALLBACK.source);
+  return new Set(src.weights.flatMap((w) => [...codepointsOf(read(src.files[w]))]).filter(inFallbackRange));
+})();
+
+/** Everything a face's fallback can draw for it. */
 function fallbackCodepoints(face: Typeface): Set<number> {
-  if (!face.fallback || face.coverage === 'latin-basic') return new Set();
-  const fb = typefaceOf(face.fallback);
-  return new Set(fb.weights.flatMap((w) => [...codepointsOf(read(fb.files[w]))]));
+  return face.glyphFallback && face.coverage !== 'latin-basic' ? FALLBACK_CODEPOINTS : new Set();
 }
 
 /** What the face cannot draw, even with its fallback, from `chars`. */
@@ -41,7 +52,7 @@ describe('the cmap reader', () => {
     }
   });
 
-  it('reads the WOFF 1.0 Studio files', () => {
+  it('reads the Studio WOFF2 files', () => {
     const outfit = codepointsOf(read(typefaceOf('sans').files[400]));
     expect(outfit.has(0x41)).toBe(true); // A
     expect(outfit.has(0x1eb8)).toBe(false); // Ẹ: Outfit has none upstream
@@ -105,16 +116,23 @@ describe('every face draws every supported language and currency (spec §12, C3)
     expect(TYPEFACES.filter((f) => f.coverage === 'latin-basic').map((f) => f.key)).toEqual(['coolvetica']);
   });
 
-  it('names its fallback second in the stack, and the fallback needs none of its own', () => {
+  it('names the glyph fallback second, and never lets Latin fall to it', () => {
+    const src = typefaceOf(GLYPH_FALLBACK.source);
+    expect(src.coverage).not.toBe('latin-basic');
+    expect(src.glyphFallback, 'the source face needs no fallback of its own').toBeUndefined();
     for (const face of TYPEFACES) {
-      if (!face.fallback) continue;
-      const fb = typefaceOf(face.fallback);
-      expect(fb.key, face.key).toBe(face.fallback);
-      expect(fb.fallback, `${fb.key} chains`).toBeUndefined();
-      expect(fb.coverage, fb.key).not.toBe('latin-basic');
       const names = face.stack.split(',').map((s) => s.trim().replace(/"/g, ''));
-      expect(names.slice(0, 2), face.key).toEqual([face.family, fb.family]);
+      if (!face.glyphFallback) {
+        expect(names, face.key).not.toContain(GLYPH_FALLBACK.family);
+        continue;
+      }
+      expect(names.slice(0, 2), face.key).toEqual([face.family, GLYPH_FALLBACK.family]);
+      // A failed load must land on the web-safe face of the same shape.
+      expect(names[2], face.key).not.toBe(src.family);
     }
+    // Nothing in Basic Latin or Latin-1 is in the range.
+    for (let c = 0; c <= 0xff; c++) expect(inFallbackRange(c), `U+${c.toString(16)}`).toBe(false);
+    for (const ch of '₦₵ẹɛʼ\u0301') expect(inFallbackRange(ch.codePointAt(0) as number), ch).toBe(true);
   });
 });
 
@@ -201,6 +219,20 @@ describe('every character of the demo copy is drawn by the face its template use
 const TEXT_ROLES = new Set(['brand', 'eyebrow', 'headline', 'subline', 'meta', 'cta']);
 const LISTED = DESIGN_TEMPLATES.filter((t) => t.look);
 
+/*
+ * The slots of listed designs that sit at the MIN_TYPE_PX floor today
+ * (2026-11-07), with demo copy and with the longest sample name alike. Each is
+ * a small meta, CTA or brand line. A slot not on this list reaching the floor
+ * is a design that has run out of room, and fails.
+ */
+const AT_FLOOR_TODAY = new Set([
+  'brand-intro-reveal.meta',
+  'campaign-key-visual.cta',
+  'event-lineup.meta',
+  'insight-stat.brand',
+  'tiered-sale.cta',
+]);
+
 /**
  * The longest name the demo copy sets: the longest brand or headline of any
  * template's sample. Put into both name-bearing slots of every listed design.
@@ -209,7 +241,7 @@ const LONGEST_SAMPLE_NAME = DESIGN_TEMPLATES
   .flatMap((t) => { const c = sampleFor(t); return [c.brand ?? '', c.headline ?? '']; })
   .reduce((a, b) => (b.length > a.length ? b : a), '');
 
-describe('Review Focus 4: no listed design shrinks below MIN_TYPE_PX', () => {
+describe('Review Focus 4: no listed design is squeezed to MIN_TYPE_PX', () => {
   it('there are 67 listed designs', () => {
     expect(LISTED).toHaveLength(67);
   });
@@ -219,11 +251,16 @@ describe('Review Focus 4: no listed design shrinks below MIN_TYPE_PX', () => {
    * the new files cannot move these numbers; the snapshot pins them so any
    * change to the fitter or the copy that does is reviewed. Real line breaks
    * in the new faces can only be seen in a browser.
+   *
+   * fitSlotSize clamps at MIN_TYPE_PX, so "at or above" cannot fail. What can
+   * is a slot landing ON the floor: that is where text stops shrinking and
+   * starts overrunning.
    */
   it('holds with the demo copy and with the longest sample name', () => {
     expect(LONGEST_SAMPLE_NAME.length).toBeGreaterThan(15);
     const sizes: Record<string, Record<string, number>> = {};
-    const below: string[] = [];
+    const atFloor: string[] = [];
+    const seen = new Set<string>();
     for (const tpl of LISTED) {
       const demo = sampleFor(tpl);
       const named = { ...demo, brand: LONGEST_SAMPLE_NAME, headline: LONGEST_SAMPLE_NAME };
@@ -235,12 +272,18 @@ describe('Review Focus 4: no listed design shrinks below MIN_TYPE_PX', () => {
           if (!text) continue;
           const px = fitSlotSize(slot, tpl.slots, text, 1080, 1080);
           row[`${slot.role}.${label}`] = px;
-          if (px < MIN_TYPE_PX) below.push(`${tpl.key}.${slot.role} ${label}: ${px}px`);
+          const where = `${tpl.key}.${slot.role}`;
+          if (px <= MIN_TYPE_PX) {
+            seen.add(where);
+            if (!AT_FLOOR_TODAY.has(where)) atFloor.push(`${where} ${label}: ${px}px`);
+          }
         }
       }
       sizes[tpl.key] = row;
     }
-    expect(below).toEqual([]);
+    expect(atFloor).toEqual([]);
+    // The allowlist only shrinks: an entry that no longer hits the floor goes.
+    expect([...seen].sort()).toEqual([...AT_FLOOR_TODAY].sort());
     expect({ name: LONGEST_SAMPLE_NAME, sizes }).toMatchSnapshot();
   });
 });

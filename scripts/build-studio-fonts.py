@@ -14,13 +14,13 @@ github.com/google/fonts, and keeps every glyph the family really has in the
 ranges below. What a family does not have upstream it still does not have:
 src/lib/design/fontCoverage.test.ts reads the result and names any gap.
 
-USAGE (fontTools 4.66+; brotli is NOT needed, the output is WOFF 1.0):
+USAGE (fontTools 4.66+ and the brotli module; the output is WOFF2):
 
     python -I scripts/build-studio-fonts.py --fetch <empty-download-dir>
     python -I scripts/build-studio-fonts.py <download-dir>
 
 The first form downloads the TTFs and each family's OFL.txt into the directory;
-the second builds public/fonts/studio/*.woff and copies the licences.
+the second builds public/fonts/studio/*.woff2 and copies the licences.
 """
 import argparse
 import os
@@ -29,7 +29,7 @@ import site
 import sys
 import urllib.request
 
-# `-I` drops the user site-packages, which is where fontTools is installed.
+# `-I` drops the user site-packages, which is where fontTools and brotli live.
 sys.path.append(site.getusersitepackages())
 
 from fontTools import subset  # noqa: E402
@@ -51,9 +51,9 @@ FAMILIES = [
     ('fraunces', 'fraunces', 'Fraunces[SOFT,WONK,opsz,wght].ttf', {600: {'opsz': 144, 'SOFT': 0, 'WONK': 1}}),
     ('space-grotesk', 'spacegrotesk', 'SpaceGrotesk[wght].ttf', {500: {}, 700: {}}),
     ('archivo-black', 'archivoblack', 'ArchivoBlack-Regular.ttf', {400: None}),
-    # Two weights and one: the 600 KB budget in typefaces.test.ts holds every
-    # face, and WOFF 1.0 is about 30% larger than the WOFF2 it replaced.
-    ('source-sans-3', 'sourcesans3', 'SourceSans3[wght].ttf', {400: {}, 700: {}}),
+    # Dancing Script ships one weight: the 600 KB budget in typefaces.test.ts
+    # holds every face, Coolvetica included.
+    ('source-sans-3', 'sourcesans3', 'SourceSans3[wght].ttf', {400: {}, 600: {}, 700: {}}),
     ('dancing-script', 'dancingscript', 'DancingScript[wght].ttf', {400: {}}),
 ]
 
@@ -98,9 +98,9 @@ def build(src, out_dir, licence_dir):
     # Unhinted: the variable instances carry no hinting worth keeping, and on
     # the static display faces it was a third of the file for type set large.
     opts.hinting = False
-    # WOFF 1.0 (zlib), as ruled for this build on 2026-11-07. 'woff2' works
-    # here too wherever the brotli module is importable, and is ~30% smaller.
-    opts.flavor = 'woff'
+    # WOFF2 needs the `brotli` module. It is installed in the user
+    # site-packages, which `-I` hides; the sys.path line at the top re-adds it.
+    opts.flavor = 'woff2'
     opts.with_zopfli = False
 
     for slug, _folder, file, weights in FAMILIES:
@@ -112,7 +112,7 @@ def build(src, out_dir, licence_dir):
             sub = subset.Subsetter(opts)
             sub.populate(unicodes=UNICODES)
             sub.subset(font)
-            target = os.path.join(out_dir, f'{slug}-{weight}.woff')
+            target = os.path.join(out_dir, f'{slug}-{weight}.{opts.flavor}')
             font.flavor = opts.flavor
             font.save(target)
             print(f'{target}  {os.path.getsize(target)} bytes  {len(font.getBestCmap())} code points')

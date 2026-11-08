@@ -1,6 +1,6 @@
 // Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
 
-exports[`Review Focus 4: no listed design shrinks below MIN_TYPE_PX > holds with the demo copy and with the longest sample name 1`] = `
+exports[`Review Focus 4: no listed design is squeezed to MIN_TYPE_PX > holds with the demo copy and with the longest sample name 1`] = `
 {
   "name": "Your tagline, in one line",
   "sizes": {

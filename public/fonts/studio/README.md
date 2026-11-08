@@ -1,6 +1,8 @@
 # Studio typefaces
 
-Self-hosted WOFF 1.0 files, built by `scripts/build-studio-fonts.py`.
+Self-hosted WOFF2 files, built by `scripts/build-studio-fonts.py`
+(fontTools plus the `brotli` module; the script re-adds the user site-packages
+that `python -I` hides).
 
 ## Source
 
@@ -18,7 +20,7 @@ Self-hosted WOFF 1.0 files, built by `scripts/build-studio-fonts.py`.
 | Fraunces | `fraunces/Fraunces[SOFT,WONK,opsz,wght].ttf` | 600 (opsz 144, SOFT 0, WONK 1) |
 | Space Grotesk | `spacegrotesk/SpaceGrotesk[wght].ttf` | 500, 700 |
 | Archivo Black | `archivoblack/ArchivoBlack-Regular.ttf` | 400 |
-| Source Sans 3 | `sourcesans3/SourceSans3[wght].ttf` | 400, 700 |
+| Source Sans 3 | `sourcesans3/SourceSans3[wght].ttf` | 400, 600, 700 |
 | Dancing Script | `dancingscript/DancingScript[wght].ttf` | 400 |
 
 Variable fonts are instanced to each weight with `fontTools.varLib.instancer`.
@@ -36,9 +38,16 @@ Variable fonts are instanced to each weight with `fontTools.varLib.instancer`.
 
 Glyphs a family does not have upstream are still absent. OpenType features
 kept: kern, liga, mark, mkmk, ccmp, locl, calt, clig, rlig, rvrn (where the
-family has them). Hinting is dropped. WOFF rather than WOFF2, as ruled for the
-2026-11-07 build; setting `opts.flavor = 'woff2'` in the script (which needs
-the `brotli` Python module) would make the files about 30% smaller.
+family has them). Hinting is dropped.
+
+## The glyph fallback
+
+`src/index.css` declares the Source Sans 3 files a second time, as
+`"NowOpen Glyph Fallback"`, with `unicode-range: U+0100-024F, U+0250-02FF,
+U+0300-036F, U+1E00-1EFF, U+20A0-20CF`. Every Studio stack names it second, so a
+face's missing ₦, ẹ or ɛ comes from it, while Basic Latin and Latin-1 never do:
+if a face fails to load, its Latin falls to the web-safe face of the same
+shape. See `GLYPH_FALLBACK` in `src/lib/design/typefaces.ts`.
 
 `src/lib/design/fontCoverage.test.ts` reads these files and checks them against
 the supported languages and currencies.
@@ -46,7 +55,10 @@ the supported languages and currencies.
 ## Licences
 
 Every family above is SIL Open Font License 1.1. Each family's `OFL.txt`, as
-published in that commit, is in `licences/<family>-OFL.txt`.
+published in that commit, is in the `licences/` subfolder as
+`licences/<family>-OFL.txt`, byte-identical to upstream:
+`licences/.gitattributes` turns off line-ending conversion, because four of
+the upstream files use CRLF.
 
 Coolvetica (`public/fonts/coolvetica/`) is not built here and is not OFL. Its
 licence text is still pending from the founder.

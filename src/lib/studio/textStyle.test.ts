@@ -2,14 +2,15 @@ import { describe, it, expect } from 'vitest';
 
 import {
   clampLineHeight, clampOpacity, clampTextSize, clampTracking, FONT_CHOICES, MAX_TEXT_SIZE,
-  MIN_TEXT_SIZE, opacityToPercent, percentToOpacity, percentToSize, resolveWeight, safeColour,
+  MIN_TEXT_SIZE, NOT_YET_OFFERED, opacityToPercent, percentToOpacity, percentToSize, resolveWeight, safeColour,
   sizeToPercent, weightsFor,
 } from './textStyle';
 import { FONT_STACKS, TYPEFACES } from '../design/typefaces';
 
 describe('the faces on offer', () => {
-  it('offers every typeface the product actually ships', () => {
-    expect(FONT_CHOICES).toHaveLength(TYPEFACES.length);
+  it('offers every typeface the product actually ships, except those held back', () => {
+    expect(FONT_CHOICES).toHaveLength(TYPEFACES.length - NOT_YET_OFFERED.size);
+    for (const key of NOT_YET_OFFERED) expect(FONT_CHOICES.map((c) => c.key)).not.toContain(key);
     for (const choice of FONT_CHOICES) {
       expect(FONT_STACKS[choice.key], choice.key).toBeTruthy();
     }

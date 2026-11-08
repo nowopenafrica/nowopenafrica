@@ -16,9 +16,9 @@
  * So coverage is read from the file itself, from its `cmap` table, rather than
  * from a family's marketing page or a subset's name.
  *
- * Reads WOFF2 (brotli), WOFF 1.0 (zlib), and bare OpenType/TrueType.
+ * Reads WOFF2 (brotli) and bare OpenType/TrueType, which is everything we ship.
  */
-import { brotliDecompressSync, inflateSync } from 'node:zlib';
+import { brotliDecompressSync } from 'node:zlib';
 
 /** WOFF2's known-table index (spec §5.1). A tag byte of 63 means "spelled out". */
 const WOFF2_TAGS = [
@@ -64,21 +64,6 @@ function woff2Cmap(buf: Buffer): Buffer {
     off += d.len;
   }
   throw new Error('woff2: no cmap table');
-}
-
-function woffCmap(buf: Buffer): Buffer {
-  const numTables = buf.readUInt16BE(12);
-  for (let i = 0; i < numTables; i++) {
-    const r = 44 + 20 * i;
-    if (buf.toString('latin1', r, r + 4) !== 'cmap') continue;
-    const offset = buf.readUInt32BE(r + 4);
-    const compLength = buf.readUInt32BE(r + 8);
-    const origLength = buf.readUInt32BE(r + 12);
-    const raw = buf.subarray(offset, offset + compLength);
-    // A table is stored uncompressed when zlib would not have made it smaller.
-    return compLength < origLength ? inflateSync(raw) : raw;
-  }
-  throw new Error('woff: no cmap table');
 }
 
 function sfntCmap(buf: Buffer): Buffer {
@@ -145,7 +130,6 @@ function parseCmap(t: Buffer): Set<number> {
 export function codepointsOf(file: Buffer): Set<number> {
   const sig = file.toString('latin1', 0, 4);
   if (sig === 'wOF2') return parseCmap(woff2Cmap(file));
-  if (sig === 'wOFF') return parseCmap(woffCmap(file));
   if (sig === 'OTTO' || sig === 'true' || file.readUInt32BE(0) === 0x00010000) return parseCmap(sfntCmap(file));
   throw new Error(`not a font file (signature ${JSON.stringify(sig)})`);
 }
@@ -167,7 +151,8 @@ export const SUPPORTED_CHARS: Record<string, string> = {
   swahili: BASIC,
   yoruba: `ẸẹỌọṢṣŃńǸǹḾḿ${TONES}`,
   igbo: `ỊịỌọỤụṄṅŃń${TONES}`,
-  hausa: 'ƁɓƊɗƘƙƳƴ',
+  // ʼ U+02BC is the Hausa glottal apostrophe (ʼy), not a quotation mark.
+  hausa: 'ƁɓƊɗƘƙƳƴʼ',
   twi_akan: `ƐɛƆɔ${TONES}`,
   ewe: `ƐɛƆɔƉɖŊŋƲʋƑƒƔɣ${TONES}`,
   zulu: BASIC,
@@ -185,6 +170,10 @@ export const SUPPORTED_CHARS: Record<string, string> = {
  * checks that each one really is missing everywhere, so the day a face that
  * has them is added, this list has to shrink. Closing it needs one more OFL
  * family with full African Latin, which is a founder decision.
+ *
+ * Ruling L (2026-11-07): closed only by approving a covering OFL face (Noto
+ * Sans / SIL Andika / Charis / Gentium). Until then C3 checks a template's own
+ * copy, plus SUPPORTED_CHARS minus these.
  */
 export const UPSTREAM_GAPS = 'ƘƙƳƴƉƲƑ';
 

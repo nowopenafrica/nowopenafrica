@@ -21,9 +21,17 @@ import { nearestWeight, TYPEFACES, typefaceOf, type FontKey } from '../design/ty
  * what can still be seen and grabbed.
  */
 
+/**
+ * Shipped, but not offered yet. Source Sans 3 and Dancing Script came in for
+ * glyph coverage (2026-11-07); putting them in the picker is design work for
+ * later, together with their pairings.
+ */
+export const NOT_YET_OFFERED: ReadonlySet<FontKey> = new Set<FontKey>(['humanist', 'script']);
+
 /** The faces on offer, with the names a designer would recognise. */
 export const FONT_CHOICES: { key: FontKey; label: string; voice: string }[] =
-  TYPEFACES.map((face) => ({ key: face.key, label: face.label, voice: face.voice }));
+  TYPEFACES.filter((face) => !NOT_YET_OFFERED.has(face.key))
+    .map((face) => ({ key: face.key, label: face.label, voice: face.voice }));
 
 /** The weights a given face actually ships. */
 export const weightsFor = (font: FontKey | undefined): number[] => typefaceOf(font).weights;

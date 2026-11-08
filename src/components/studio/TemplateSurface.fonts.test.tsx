@@ -5,7 +5,7 @@ import { render, screen } from '@testing-library/react';
 import TemplateSurface from './TemplateSurface';
 import { templateByKey } from '../../lib/designTemplates';
 import { sampleFor } from '../../lib/create/sampleCopy';
-import { pairingOf, typefaceOf, TYPEFACES } from '../../lib/design/typefaces';
+import { GLYPH_FALLBACK, glyphFallbackFaces, pairingOf, typefaceOf, TYPEFACES } from '../../lib/design/typefaces';
 import { codepointsOf } from '../../lib/design/fontCoverage';
 
 /**
@@ -32,22 +32,29 @@ describe('a ₦ menu is set in its template face', () => {
 
     const price = screen.getByText('₦4,500');
     expect(familyOf(price)).toBe(typefaceOf(pairing.text).stack);
-    expect(familyOf(price)).toMatch(/^Outfit, "Source Sans 3",/);
+    expect(familyOf(price)).toMatch(/^Outfit, "NowOpen Glyph Fallback", Inter,/);
 
     expect(familyOf(screen.getByText('Drinks'))).toBe(typefaceOf(pairing.display).stack);
   });
 
-  it('has a self-hosted file early in that stack that draws ₦', () => {
+  it('has a self-hosted file, second in that stack, that draws ₦', () => {
     const stack = typefaceOf(pairingOf('editorial').text).stack
       .split(',').map((s) => s.trim().replace(/"/g, ''));
-    const drawer = stack.find((family) => {
+    /** The files a family in the stack resolves to, as index.css declares them. */
+    const filesOf = (family: string): string[] => {
+      if (family === GLYPH_FALLBACK.family) return glyphFallbackFaces().map((f) => f.url);
       const face = TYPEFACES.find((f) => f.family === family);
-      if (!face) return false;
-      return face.weights.every((w) => codepointsOf(readFileSync(`public${face.files[w]}`)).has(0x20a6));
+      return face ? face.weights.map((w) => face.files[w]) : [];
+    };
+    const drawer = stack.find((family) => {
+      const files = filesOf(family);
+      return files.length > 0 && files.every((u) => codepointsOf(readFileSync(`public${u}`)).has(0x20a6));
     });
-    // Outfit has no naira upstream; Source Sans 3, named second, does. Before
-    // this, the ₦ fell through to Inter or whatever the device had.
-    expect(drawer).toBe('Source Sans 3');
+    // Outfit has no naira upstream; the glyph fallback, named second, does
+    // (and U+20A6 is inside its unicode-range). Before this, the ₦ fell
+    // through to Inter or whatever the device had.
+    expect(drawer).toBe(GLYPH_FALLBACK.family);
     expect(stack.indexOf(drawer as string)).toBe(1);
+    expect(GLYPH_FALLBACK.unicodeRange).toContain('U+20A0-20CF');
   });
 });

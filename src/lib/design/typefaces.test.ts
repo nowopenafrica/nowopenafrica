@@ -2,8 +2,8 @@ import { existsSync, readFileSync, statSync } from 'node:fs';
 import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import {
-  FONT_STACKS, TYPEFACES, TYPEFACE_FAMILIES, TYPE_PAIRINGS, ensureTypefacesReady, fontStack,
-  nearestWeight, pairingOf, typefaceOf,
+  FONT_STACKS, GLYPH_FALLBACK, TYPEFACES, TYPEFACE_FAMILIES, TYPE_PAIRINGS, ensureTypefacesReady,
+  fontStack, glyphFallbackFaces, nearestWeight, pairingOf, typefaceOf,
 } from './typefaces';
 
 const css = readFileSync('src/index.css', 'utf8');
@@ -141,14 +141,49 @@ describe('pairings', () => {
 describe('loading', () => {
   afterEach(() => vi.unstubAllGlobals());
 
-  it('loads each face with its fallback, because the fallback draws its missing glyphs', async () => {
-    const load = vi.fn(() => Promise.resolve([]));
+  it('loads each face with the glyph fallback, using text inside its range', async () => {
+    const load = vi.fn((..._args: unknown[]) => Promise.resolve([]));
     vi.stubGlobal('document', { fonts: { load, ready: Promise.resolve() } });
     await ensureTypefacesReady(['sans']);
-    const loaded = load.mock.calls.map((c) => String((c as unknown[])[0]));
-    expect(loaded.some((s) => s.includes('"Outfit"'))).toBe(true);
-    expect(loaded.some((s) => s.includes('"Source Sans 3"'))).toBe(true);
-    expect(loaded.some((s) => s.includes('"Playfair Display"'))).toBe(false);
+    const calls = load.mock.calls.map((c) => ({ font: String(c[0]), text: c[1] as string | undefined }));
+    expect(calls.some((c) => c.font.includes('"Outfit"'))).toBe(true);
+    expect(calls.some((c) => c.font.includes('"Playfair Display"'))).toBe(false);
+    /*
+     * A unicode-range face only downloads for text inside its range, and
+     * load() defaults to a space. Without the sample, nothing would load and
+     * the first canvas frame would draw ₦ from a device font.
+     */
+    const fb = calls.filter((c) => c.font.includes(`"${GLYPH_FALLBACK.family}"`));
+    expect(fb.map((c) => parseInt(c.font, 10))).toEqual(typefaceOf(GLYPH_FALLBACK.source).weights);
+    for (const c of fb) expect(c.text).toBe(GLYPH_FALLBACK.sample);
+    expect(GLYPH_FALLBACK.sample).toContain('₦');
+  });
+
+  it('skips the glyph fallback for a face that does not use it', async () => {
+    const load = vi.fn((..._args: unknown[]) => Promise.resolve([]));
+    vi.stubGlobal('document', { fonts: { load, ready: Promise.resolve() } });
+    await ensureTypefacesReady(['coolvetica']);
+    expect(load.mock.calls.some((c) => String(c[0]).includes(GLYPH_FALLBACK.family))).toBe(false);
+  });
+});
+
+describe('the glyph fallback', () => {
+  it('is declared in the stylesheet at every source weight, with exactly its unicode-range', () => {
+    const rules = css.split('@font-face').filter((r) => r.includes(`font-family: '${GLYPH_FALLBACK.family}'`));
+    const faces = glyphFallbackFaces();
+    expect(rules).toHaveLength(faces.length);
+    for (const f of faces) {
+      const rule = rules.find((r) => r.includes(`font-weight: ${f.weight};`));
+      expect(rule, `${f.weight}`).toBeTruthy();
+      expect(rule).toContain(`url('${f.url}') format('woff2')`);
+      expect(rule).toContain(`unicode-range: ${f.unicodeRange};`);
+    }
+  });
+
+  it('leaves the humanist face its own unrestricted rules', () => {
+    const rules = css.split('@font-face').filter((r) => r.includes("font-family: 'Source Sans 3'"));
+    expect(rules).toHaveLength(typefaceOf('humanist').weights.length);
+    for (const r of rules) expect(r).not.toContain('unicode-range');
   });
 });
 

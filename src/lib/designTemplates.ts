@@ -375,6 +375,14 @@ const ADVANCE: Record<string, number> = {
   sans: 0.53,       // Outfit
   mono: 0.60,       // Space Mono — monospaced, so this one is exact
   condensed: 0.38,  // Bebas Neue — tall and narrow
+  /*
+   * Measured 2026-11-07 with fontTools: mean advance / unitsPerEm over a–z,
+   * which is what the eight above track most closely (A–Z runs 0.05–0.2
+   * wider). Before these existed the three fell through to 0.53.
+   */
+  humanist: 0.49,   // Source Sans 3 (600)
+  script: 0.39,     // Dancing Script — narrow lowercase, wide capitals (A–Z 0.60)
+  coolvetica: 0.47, // Coolvetica Regular
 };
 
 /**
