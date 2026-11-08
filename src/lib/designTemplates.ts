@@ -185,6 +185,7 @@ import type { StyleTag, TemplateUse } from './design/tags';
 // back would be a cycle (the same reason catalogueTemplates.ts avoids one).
 import type { Look, GradientSpec } from './design/look';
 import type { PaletteRole } from './design/palettes';
+import type { DirectionKey } from './design/directions';
 import { CATALOGUE_TEMPLATES } from './design/catalogueTemplates';
 
 export interface SlotMotion {
@@ -295,6 +296,10 @@ export interface DesignTemplate {
    * nothing.
    */
   industries?: string[];
+  /** Named art direction (design/directions.ts). Absent until a template is classified. */
+  direction?: DirectionKey;
+  /** Key of the icon set this template draws from, when it uses one. */
+  iconSet?: string;
   styles?: StyleTag[];
   /** Free words somebody might type. Not displayed; searched. */
   tags?: string[];
