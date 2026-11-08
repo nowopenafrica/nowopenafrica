@@ -40,6 +40,7 @@ import {
   type Deliverable, type DeliverableCategory,
 } from '../design/deliverables';
 import { supabase } from '../supabase';
+import { isListedWith, type ListingRule } from './needs';
 
 /** Editorial state. Import state is separate — see the migration. */
 export type TemplateStatus =
@@ -157,6 +158,16 @@ export function entryFromRow(
     ...(template.key !== row.key ? { renamedFrom: row.key } : {}),
     notes: result.notes,
   };
+}
+
+/**
+ * The entries that may be offered. `fetchCatalogue` returns every entry (the
+ * code half is never dropped); listing is decided here, by the same rule as
+ * `isListed`. An uploaded row in a gated subcategory with no passing review,
+ * or with no review at all, is not offered.
+ */
+export function listedEntries(entries: readonly CatalogueEntry[], rule?: ListingRule): CatalogueEntry[] {
+  return entries.filter((e) => isListedWith(e.template, rule));
 }
 
 /** Merge, with the code half first and collisions going to the code half. */
