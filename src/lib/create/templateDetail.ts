@@ -47,20 +47,21 @@ export function canvasOf(tpl: DesignTemplate): DetailCanvas {
  * The export formats that work today, and where.
  *
  * The Create customiser downloads a PNG (TemplateCustomiser's "Download PNG");
- * Studio's editor writes a PDF (lib/studio/exportDesign.ts `pdfPlan`). Nothing
+ * Studio's editor writes a PDF holding the page as a raster image
+ * (lib/studio/exportDesign.ts `pdfPlan`), hence "Image PDF". Nothing
  * else is offered, so nothing else is listed: no SVG, no JPG, and no
  * "print-ready" until bleed PDFs exist (spec §10, Phase 6).
  */
 export const EXPORT_FORMATS: { key: 'png' | 'pdf'; label: string; where: string }[] = [
-  { key: 'png', label: 'PNG', where: 'Download from the customiser. Free, no account.' },
-  { key: 'pdf', label: 'PDF', where: 'Export from Studio.' },
+  { key: 'png', label: 'PNG', where: 'download from the customiser, free, no account' },
+  /* Studio's PDF is the page as a raster image, so it is never called print-ready. */
+  { key: 'pdf', label: 'Image PDF', where: 'open in Studio, then Export' },
 ];
 
 /* Mirrors quality/checks/geometry.ts `isTextRole` (a single-line text role). */
 const isTextRole = (role: SlotRole): boolean => !isListRole(role) && role !== 'qr';
 
 const OTHER_LABELS: Partial<Record<SlotRole, string>> = {
-  meta: 'Small print line',
   qr: 'QR code',
   services: 'Services list',
   stats: 'Figures',
@@ -170,10 +171,11 @@ export interface MockupScene { id: string; label: string }
 const NO_SCENES: MockupScene[] = [];
 
 /**
- * TASK 16 SEAM: the mockup scenes whose ratio matches this design's format.
- * Replace the body with `scenesFor(template)` once it exists. Empty today.
+ * TASK 16 SEAM: the mockup scenes whose ratio matches a design's format.
+ * Task 16 gives this a `tpl` parameter and returns `scenesFor(tpl)`; the page
+ * already calls it once per render. Empty today, so no mockup is shown.
  */
-export function useMockupScenes(_template: DesignTemplate | null): MockupScene[] {
+export function mockupScenesFor(): MockupScene[] {
   return NO_SCENES;
 }
 

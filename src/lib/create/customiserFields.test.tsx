@@ -27,10 +27,13 @@ describe('CUSTOMISER_TEXT_FIELDS', () => {
     expect(routed.sort()).toEqual(Object.keys(CUSTOMISER_TEXT_FIELDS).sort());
   });
 
-  it('leaves meta out: the customiser fixes it and offers no field', () => {
-    expect(customiser).toMatch(/meta: 'yourbusiness\.nowopenafrica\.com'/);
-    expect(isCustomiserTextRole('meta')).toBe(false);
+  it('offers meta as "Small print" and feeds the surface from it, not a fixed address (Ruling Z)', () => {
+    expect(customiser).not.toMatch(/meta: 'yourbusiness\.nowopenafrica\.com'/);
+    expect(customiser).toMatch(/^\s*meta,\r?$/m);
+    expect(CUSTOMISER_TEXT_FIELDS.meta).toBe('Small print');
+    expect(isCustomiserTextRole('meta')).toBe(true);
     expect(isCustomiserTextRole('headline')).toBe(true);
+    expect(isCustomiserTextRole('services')).toBe(false);
   });
 });
 
@@ -46,25 +49,32 @@ afterEach(() => cleanup());
 
 const ROLES = Object.keys(CUSTOMISER_TEXT_FIELDS) as (keyof typeof CUSTOMISER_TEXT_FIELDS)[];
 
-/** A template whose front shows every role the customiser edits. */
-const everyRole = DESIGN_TEMPLATES.find((t) => ROLES.every((r) => t.slots.some((s) => s.role === r)));
+/**
+ * For each role, a template whose front shows it. One template rarely carries
+ * all six (meta joined in Ruling Z), so each field is typed into on a design
+ * that draws it.
+ */
+const showing = (role: (typeof ROLES)[number]) => DESIGN_TEMPLATES.find((t) => t.slots.some((s) => s.role === role));
 
 describe('CUSTOMISER_TEXT_FIELDS, rendered', () => {
-  it('changes the drawn design when each field is typed into', () => {
-    expect(everyRole, 'a template with all five roles').toBeDefined();
+  it.each(ROLES)('changes the drawn design when the %s field is typed into', (role) => {
+    const tpl = showing(role);
+    expect(tpl, `a template whose front shows ${role}`).toBeDefined();
     const { container } = render(
       <MemoryRouter>
-        <TemplateCustomiser template={everyRole!} initialStyle="signature" initialBrand="#2563eb" onClose={() => {}} />
+        <TemplateCustomiser template={tpl!} initialStyle="signature" initialBrand="#2563eb" onClose={() => {}} />
       </MemoryRouter>,
     );
     const drawn = () => (container.querySelector('[data-export-width]')?.textContent ?? '').toLowerCase();
     expect(drawn()).not.toBe('');
-    for (const role of ROLES) {
-      const typed = `Zq${role}word`;
-      expect(drawn(), role).not.toContain(typed.toLowerCase());
-      fireEvent.change(screen.getByLabelText(CUSTOMISER_TEXT_FIELDS[role]), { target: { value: typed } });
-      // Compared case-blind: a slot may set its words in capitals.
-      expect(drawn(), role).toContain(typed.toLowerCase());
-    }
+    const typed = `Zq${role}word`;
+    expect(drawn(), role).not.toContain(typed.toLowerCase());
+    fireEvent.change(screen.getByLabelText(CUSTOMISER_TEXT_FIELDS[role]), { target: { value: typed } });
+    // Compared case-blind: a slot may set its words in capitals.
+    expect(drawn(), role).toContain(typed.toLowerCase());
+  });
+
+  it('covers the Small print field', () => {
+    expect(ROLES).toContain('meta');
   });
 });

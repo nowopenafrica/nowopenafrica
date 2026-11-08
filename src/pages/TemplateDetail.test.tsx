@@ -5,6 +5,7 @@ import { MemoryRouter, Route, Routes } from 'react-router-dom';
 import { DESIGN_TEMPLATES, type DesignTemplate } from '../lib/designTemplates';
 import { isListed } from '../lib/create/needs';
 import { subcategoryFor } from '../lib/create/catalogueTaxonomy';
+import { cardTitle } from '../lib/design/deliverables';
 import {
   EXPORT_FORMATS, isPreviewOnly, relatedTemplates, templateDetailFacts,
 } from '../lib/create/templateDetail';
@@ -14,9 +15,14 @@ import TemplateFacts from '../components/create/TemplateFacts';
  * The catalogue is the code templates (plus fixtures below), with no network:
  * the hook is replaced so a test never waits on, or writes to, Supabase.
  */
-const catalogue = vi.hoisted(() => ({ templates: [] as DesignTemplate[], ready: true }));
+const catalogue = vi.hoisted(() => ({
+  templates: [] as DesignTemplate[], ready: true, incomplete: null as string | null, invalidated: 0,
+}));
 vi.mock('../hooks/useDesignCatalogue', () => ({
-  useDesignCatalogue: () => ({ entries: [], templates: catalogue.templates, ready: catalogue.ready, incomplete: null }),
+  useDesignCatalogue: () => ({
+    entries: [], templates: catalogue.templates, ready: catalogue.ready, incomplete: catalogue.incomplete,
+  }),
+  invalidateCatalogue: () => { catalogue.invalidated += 1; },
 }));
 /* The real customiser has its own tests; here only WHICH design it opens matters. */
 vi.mock('../components/create/TemplateCustomiser', () => ({
@@ -42,9 +48,10 @@ const EDITABLE_CARD: DesignTemplate = (() => {
   return { ...CARD, slots: keep(CARD.slots), extraPages: CARD.extraPages?.map((p) => ({ ...p, slots: keep(p.slots) })) };
 })();
 
-function mount(key: string, templates: DesignTemplate[] = DESIGN_TEMPLATES, ready = true) {
+function mount(key: string, templates: DesignTemplate[] = DESIGN_TEMPLATES, ready = true, incomplete: string | null = null) {
   catalogue.templates = templates;
   catalogue.ready = ready;
+  catalogue.incomplete = incomplete;
   return render(
     <MemoryRouter initialEntries={[`/media/templates/${key}`]}>
       <Routes>
@@ -83,11 +90,12 @@ describe('template detail page', () => {
     expect(screen.getByTestId('detail-preview')).toHaveAttribute('data-side', names[1]);
   });
 
-  it('lists only PNG and PDF as export formats', () => {
+  it('lists only PNG and an image PDF as export formats', () => {
     mount(CARD.key);
     const block = screen.getByTestId('facts-exports');
     expect([...block.querySelectorAll('[data-export]')].map((n) => n.getAttribute('data-export'))).toEqual(['png', 'pdf']);
-    expect(EXPORT_FORMATS.map((f) => f.label)).toEqual(['PNG', 'PDF']);
+    expect(EXPORT_FORMATS.map((f) => f.label)).toEqual(['PNG', 'Image PDF']);
+    expect(block.querySelector('[data-export="pdf"]')).toHaveTextContent('Image PDF: open in Studio, then Export');
     expect(block.textContent).not.toMatch(/svg|jpe?g|print-ready/i);
   });
 
@@ -132,10 +140,24 @@ describe('template detail page', () => {
     expect(screen.getByTestId('customiser')).toHaveAttribute('data-key', EDITABLE_CARD.key);
   });
 
-  it('shows "Preview only" and no "Use this template" when C7 fails', () => {
+  it('offers "Use this template" for a design with a meta line (Ruling Z)', () => {
     const tpl = DESIGN_TEMPLATES.find((t) => t.key === 'editorial-split')!;
-    expect(isPreviewOnly(tpl)).toBe(true);
+    expect(tpl.slots.some((s) => s.role === 'meta')).toBe(true);
+    expect(isPreviewOnly(tpl)).toBe(false);
     mount(tpl.key);
+    expect(screen.queryByTestId('preview-only')).toBeNull();
+    fireEvent.click(screen.getByRole('button', { name: /Use this template/ }));
+    expect(screen.getByTestId('customiser')).toHaveAttribute('data-key', 'editorial-split');
+  });
+
+  it('shows "Preview only" and no "Use this template" when C7 fails', () => {
+    /* Every real single-line role has a field now, so an unknown one stands in. */
+    const odd: DesignTemplate = {
+      ...CARD, key: 'c7-fixture',
+      slots: [...CARD.slots, { role: 'caption' as DesignTemplate['slots'][number]['role'], x: 0.1, y: 0.1, w: 0.5 }],
+    };
+    expect(isPreviewOnly(odd)).toBe(true);
+    mount(odd.key, [...DESIGN_TEMPLATES, odd]);
     expect(screen.getByTestId('preview-only')).toHaveTextContent('Preview only');
     expect(screen.queryByRole('button', { name: /Use this template/ })).toBeNull();
   });
@@ -159,6 +181,31 @@ describe('template detail page', () => {
     const box = screen.getByTestId('template-not-found');
     expect(within(box).getByRole('link', { name: /all designs/i })).toHaveAttribute('href', '/media');
     expect(document.head.querySelector('meta[name="robots"]')?.getAttribute('content')).toMatch(/noindex/);
+  });
+
+  it('says the uploaded designs could not be loaded, and offers a retry, when the read failed', () => {
+    mount('uploaded-only-key', DESIGN_TEMPLATES, true, 'We could not load uploaded templates just now.');
+    expect(screen.queryByTestId('template-not-found')).toBeNull();
+    const box = screen.getByTestId('template-unavailable');
+    expect(box).toHaveTextContent('The uploaded designs could not be loaded');
+    expect(box.textContent).not.toMatch(/taken down|removed|renamed/i);
+    const before = catalogue.invalidated;
+    fireEvent.click(within(box).getByRole('button', { name: /Try again/ }));
+    expect(catalogue.invalidated).toBe(before + 1);
+  });
+
+  it('scrolls to the top when the key changes', () => {
+    const spy = vi.spyOn(window, 'scrollTo').mockImplementation(() => {});
+    mount(CARD.key);
+    const calls = spy.mock.calls.length;
+    const link = within(screen.getByTestId('related')).getAllByRole('link')[0];
+    const next = link.getAttribute('data-template')!;
+    fireEvent.click(link);
+    expect(screen.getByTestId('facts-use')).toBeInTheDocument();
+    expect(document.title).toContain(cardTitle(DESIGN_TEMPLATES.find((t) => t.key === next)!));
+    expect(spy.mock.calls.length).toBeGreaterThan(calls);
+    expect(spy).toHaveBeenLastCalledWith({ top: 0, left: 0 });
+    spy.mockRestore();
   });
 
   it('waits for the uploaded half before calling a key unknown', () => {
@@ -218,5 +265,8 @@ describe('the route', () => {
     const detail = app.indexOf('path="/media/templates/:key"');
     expect(detail).toBeGreaterThan(-1);
     expect(detail).toBeLessThan(app.indexOf('path="/media/:id"'));
+    const index = app.indexOf('<Route path="/media/templates" element={<Navigate to="/media" replace />} />');
+    expect(index).toBeGreaterThan(-1);
+    expect(index).toBeLessThan(app.indexOf('path="/media/:id"'));
   });
 });

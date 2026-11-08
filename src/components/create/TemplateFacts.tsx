@@ -74,7 +74,7 @@ export default function TemplateFacts({
           {EXPORT_FORMATS.map((f) => (
             <li key={f.key} data-export={f.key}>
               <span className="font-semibold text-gray-900 dark:text-white">{f.label}</span>
-              <span className="text-gray-500 dark:text-gray-400"> · {f.where}</span>
+              <span className="text-gray-500 dark:text-gray-400">: {f.where}</span>
             </li>
           ))}
         </ul>

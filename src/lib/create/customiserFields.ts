@@ -9,11 +9,11 @@ import type { SlotRole } from '../designTemplates';
  * per template because the customiser edits by ROLE: any template's headline is
  * edited by the one Headline field.
  *
- * NOT here, deliberately read by the quality scorer (C7): `meta`. The
- * customiser sets it to a fixed address and offers no field for it, so a
- * template that shows a meta line is showing words the visitor cannot change.
- * List roles (services, stats, contact, price) are not single-line fields and
- * are out of scope for C7.
+ * `meta` (the small print: an address, terms, a web address) has its own
+ * "Small print" field since Ruling Z (Task 13 fix round 1). Before that the
+ * customiser fixed it to one web address, so every template with a meta line
+ * failed C7. List roles (services, stats, contact, price) are not single-line
+ * fields and are out of scope for C7.
  */
 export const CUSTOMISER_TEXT_FIELDS = {
   brand: 'Business name',
@@ -21,6 +21,7 @@ export const CUSTOMISER_TEXT_FIELDS = {
   headline: 'Headline',
   subline: 'Supporting line',
   cta: 'Button or badge text',
+  meta: 'Small print',
 } as const satisfies Partial<Record<SlotRole, string>>;
 
 export type CustomiserTextRole = keyof typeof CUSTOMISER_TEXT_FIELDS;

@@ -187,11 +187,17 @@ describe('automatedCriticals', () => {
     }
   });
 
-  it('C7: a text role the customiser cannot edit fails', () => {
-    expect(Object.keys(CUSTOMISER_TEXT_FIELDS)).not.toContain('meta');
+  it('C7: a meta line passes now that the customiser has a Small print field (Ruling Z)', () => {
+    expect(Object.keys(CUSTOMISER_TEXT_FIELDS)).toContain('meta');
     const withMeta = base({ slots: [...card.slots, { role: 'meta', x: 0.09, y: 0.6, w: 0.5, size: 0.03 }] });
-    expect(codes(withMeta)).toContain('C7');
+    expect(codes(withMeta)).not.toContain('C7');
     expect(codes(base())).not.toContain('C7');
+  });
+
+  it('C7: a text role the customiser cannot edit still fails', () => {
+    /* Every real single-line role has a field now, so an unknown one stands in. */
+    const odd = base({ slots: [...card.slots, { role: 'caption' as SlotSpec['role'], x: 0.09, y: 0.6, w: 0.5, size: 0.03 }] });
+    expect(codes(odd)).toContain('C7');
   });
 
   it('C8 is never returned in P1-P2 and is listed as not checked', () => {

@@ -1,6 +1,6 @@
 import { Suspense } from 'react';
 import { lazyRoute } from './lib/lazyRoute';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Navigate, Routes, Route, useLocation } from 'react-router-dom';
 import AdvertiseRedirect from './components/promote/AdvertiseRedirect';
 import { Toaster } from 'react-hot-toast';
 import Navbar from './components/layout/Navigation';
@@ -220,6 +220,8 @@ function App() {
               <Route path="/media/services" element={<MediaServices />} />
               {/* One design, before you edit it. Before /media/:id, or "templates" would be read as a media id. */}
               <Route path="/media/templates/:key" element={<TemplateDetail />} />
+              {/* No index page of its own: the catalogue is /media. */}
+              <Route path="/media/templates" element={<Navigate to="/media" replace />} />
               <Route path="/media/:id" element={<MediaDetail />} />
               {/* Tracking a Create order. Placed without an account, so the
                   reference in the URL is the only way back to it. Static

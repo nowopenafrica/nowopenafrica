@@ -214,6 +214,12 @@ export default function TemplateCustomiser({
   const [eyebrow, setEyebrow] = useState(sample.eyebrow ?? '');
   const [brandName, setBrandName] = useState(sample.brand ?? 'Your business');
   const [cta, setCta] = useState(sample.cta ?? 'Book now');
+  /*
+   * The small print (the `meta` role): an address, a web address, terms.
+   * It used to be fixed to one web address with no field, so every design
+   * that showed it carried words the visitor could not change (C7).
+   */
+  const [meta, setMeta] = useState(sample.meta ?? '');
 
   const stage = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -328,7 +334,7 @@ export default function TemplateCustomiser({
     eyebrow,
     headline,
     subline,
-    meta: 'yourbusiness.nowopenafrica.com',
+    meta,
     cta,
     /* The template's OWN sample lists (its tiers, prices, services), as the card shows them. */
     services: sample.services,
@@ -583,6 +589,7 @@ export default function TemplateCustomiser({
                       else if (role === 'eyebrow') setEyebrow(value);
                       else if (role === 'brand') setBrandName(value);
                       else if (role === 'cta') setCta(value);
+                      else if (role === 'meta') setMeta(value);
                     }}
                   />
                 </div>
@@ -622,6 +629,7 @@ export default function TemplateCustomiser({
               <textarea value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={120} rows={2} aria-label="Headline" placeholder="Headline" className={`${field} mt-2 py-2`} />
               <textarea value={subline} onChange={(e) => setSubline(e.target.value)} maxLength={200} rows={2} aria-label="Supporting line" placeholder="Supporting line" className={`${field} mt-2 py-2`} />
               <input value={cta} onChange={(e) => setCta(e.target.value)} maxLength={40} aria-label="Button or badge text" placeholder="Book now" className={`${field} mt-2`} />
+              <input value={meta} onChange={(e) => setMeta(e.target.value)} maxLength={120} aria-label="Small print" placeholder="Small print" className={`${field} mt-2`} />
             </Group>
 
             {effectiveLook && (

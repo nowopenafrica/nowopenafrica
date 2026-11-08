@@ -1,18 +1,18 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, ArrowRight, Eye } from 'lucide-react';
+import { ArrowLeft, ArrowRight, Eye, RotateCcw } from 'lucide-react';
 
 import TemplateSurface from '../components/studio/TemplateSurface';
 import TemplateCustomiser from '../components/create/TemplateCustomiser';
 import TemplateFacts from '../components/create/TemplateFacts';
 import { PreviewCard } from '../components/create/TemplateGallery';
 import { defaultMediaScrim, type DesignTemplate } from '../lib/designTemplates';
-import { useDesignCatalogue } from '../hooks/useDesignCatalogue';
+import { invalidateCatalogue, useDesignCatalogue } from '../hooks/useDesignCatalogue';
 import { isListed } from '../lib/create/needs';
 import { sampleFor } from '../lib/create/sampleCopy';
 import {
   canvasOf, detailElements, mmText, pxText, relatedTemplates, templateDetailFacts, uneditableTextRoles,
-  useMockupScenes,
+  mockupScenesFor,
 } from '../lib/create/templateDetail';
 import { cardTitle } from '../lib/design/deliverables';
 import { previewPhotoFor } from '../lib/design/previewMedia';
@@ -41,15 +41,35 @@ const BRAND = '#2563eb';
 /** Long edge the surface lays itself out at, then scaled by CSS (as the cards do). */
 const DESIGN = 1080;
 
+/**
+ * The route element. A retry after a failed uploaded read remounts the body,
+ * so the catalogue hook reads again once its cache has been dropped.
+ */
 export default function TemplateDetail() {
+  const [attempt, setAttempt] = useState(0);
+  return (
+    <TemplateDetailBody
+      key={attempt}
+      onRetry={() => { invalidateCatalogue(); setAttempt((n) => n + 1); }}
+    />
+  );
+}
+
+function TemplateDetailBody({ onRetry }: { onRetry: () => void }) {
   const { key = '' } = useParams<{ key: string }>();
-  const { templates, ready } = useDesignCatalogue();
+  const { templates, ready, incomplete } = useDesignCatalogue();
   const template = useMemo(() => templates.find((t) => t.key === key) ?? null, [templates, key]);
-  const scenes = useMockupScenes(template);
+  const scenes = mockupScenesFor();
   const listed = useMemo(() => templates.filter(isListed), [templates]);
   const [editing, setEditing] = useState<DesignTemplate | null>(null);
 
   useEffect(() => { void ensureTypefacesReady(); }, []);
+
+  /* A related design is a new page: start it at the top, with nothing open. */
+  useEffect(() => {
+    setEditing(null);
+    try { window.scrollTo({ top: 0, left: 0 }); } catch { /* no layout (tests) */ }
+  }, [key]);
 
   const facts = useMemo(() => (template ? templateDetailFacts(template) : null), [template]);
   const related = useMemo(() => (template ? relatedTemplates(template, listed) : []), [template, listed]);
@@ -81,7 +101,29 @@ export default function TemplateDetail() {
     return (
       <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
         <div className="site-container py-10">
-          {ready ? (
+          {ready && incomplete ? (
+            /*
+             * The uploaded half could not be read, so an uploaded design's key
+             * is unknown for now, not gone. Saying "taken down" here would be
+             * a claim the page cannot make.
+             */
+            <div data-testid="template-unavailable" className="mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-800">
+              <h1 className="text-lg font-bold text-gray-900 dark:text-white">We could not load this design just now</h1>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                The uploaded designs could not be loaded. If this is one of them, try again in a moment.
+              </p>
+              <div className="mt-4 flex flex-wrap justify-center gap-2">
+                <button type="button" onClick={onRetry}
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl bg-green-700 px-5 text-sm font-bold text-white hover:bg-green-800">
+                  <RotateCcw size={16} /> Try again
+                </button>
+                <Link to="/media"
+                  className="inline-flex min-h-[44px] items-center gap-1.5 rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-800 dark:border-gray-600 dark:text-gray-200">
+                  <ArrowLeft size={16} /> All designs
+                </Link>
+              </div>
+            </div>
+          ) : ready ? (
             <div data-testid="template-not-found" className="mx-auto max-w-md rounded-2xl border border-gray-200 bg-white p-6 text-center dark:border-gray-700 dark:bg-gray-800">
               <h1 className="text-lg font-bold text-gray-900 dark:text-white">We could not find that design</h1>
               <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
