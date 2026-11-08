@@ -49,6 +49,7 @@ import { invalidateCatalogue } from '../../hooks/useDesignCatalogue';
  */
 export default function TemplateManager() {
   const [tab, setTab] = useState<'templates' | 'assets'>('templates');
+  const [assetsSeen, setAssetsSeen] = useState(false);
   return (
     <div className="space-y-5">
       <div role="tablist" className="flex gap-2">
@@ -58,7 +59,7 @@ export default function TemplateManager() {
             type="button"
             role="tab"
             aria-selected={tab === key}
-            onClick={() => setTab(key)}
+            onClick={() => { setTab(key); if (key === 'assets') setAssetsSeen(true); }}
             className={`min-h-[40px] rounded-lg px-4 text-xs font-bold ${
               tab === key
                 ? 'bg-purple-600 text-white'
@@ -69,7 +70,9 @@ export default function TemplateManager() {
           </button>
         ))}
       </div>
-      {tab === 'templates' ? <TemplatesTab /> : <AssetReview />}
+      {/* Both stay mounted so staged uploads survive a visit to the other tab. */}
+      <div hidden={tab !== 'templates'}><TemplatesTab /></div>
+      {assetsSeen && <div hidden={tab !== 'assets'}><AssetReview /></div>}
     </div>
   );
 }

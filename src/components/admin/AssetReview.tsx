@@ -3,7 +3,7 @@ import toast from 'react-hot-toast';
 import { Loader2 } from 'lucide-react';
 import ConfirmDialog from '../ConfirmDialog';
 import {
-  approveAsset, evidenceUrl, listAssets, retireAsset, returnAsset,
+  approvalBlockers, approveAsset, evidenceUrl, listAssets, retireAsset, returnAsset,
   type AssetStatus, type Outcome, type ReviewAsset,
 } from '../../lib/design/assetAdmin';
 
@@ -44,16 +44,19 @@ export default function AssetReview() {
     else if (kind === 'send-back') r = await returnAsset(asset.id);
     else r = await retireAsset(asset.id, reason);
     setBusy(false);
-    if (!r.ok) { toast.error(r.reason); setProblem(r.reason); close(); return; }
-    toast.success(kind === 'approve' ? 'Approved.' : kind === 'send-back' ? 'Sent back.' : 'Retired.');
     close();
+    // One message, not two: a failure shows inline; a success clears it.
+    if (!r.ok) { setProblem(r.reason); return; }
+    setProblem(null);
+    if (r.warning) toast.error(r.warning);
+    else toast.success(kind === 'approve' ? 'Approved.' : kind === 'send-back' ? 'Sent back.' : 'Retired.');
     void load();
   };
 
   const viewEvidence = async (a: ReviewAsset) => {
     if (!a.licence_evidence_path) return;
     const r = await evidenceUrl(a.licence_evidence_path);
-    if (!r.ok) { toast.error(r.reason); return; }
+    if (!r.ok) { setProblem(r.reason); return; }
     window.open(r.url, '_blank', 'noopener,noreferrer');
   };
 
@@ -92,7 +95,9 @@ export default function AssetReview() {
         <p className="text-xs text-gray-500">Nothing here.</p>
       ) : (
         <ul className="space-y-3">
-          {assets.map((a) => (
+          {assets.map((a) => {
+            const blockers = approvalBlockers(a, { permits_people_without_release: a.licence_permits_people });
+            return (
             <li key={a.id} className="rounded-2xl border border-gray-200 bg-white p-4 dark:border-gray-700 dark:bg-gray-800">
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0 space-y-1 text-xs text-gray-600 dark:text-gray-300">
@@ -105,6 +110,11 @@ export default function AssetReview() {
                     {a.contains_brands ? ' · Shows a brand' : ''}
                     {a.mime === 'image/svg+xml' ? (a.sanitised_at ? ' · SVG checked' : ' · SVG not checked') : ''}
                   </p>
+                  {a.status !== 'approved' && blockers.length > 0 && (
+                    <ul className="list-disc pl-4 text-amber-800 dark:text-amber-200">
+                      {blockers.map((b) => <li key={b}>{b}</li>)}
+                    </ul>
+                  )}
                   <button
                     type="button"
                     disabled={!a.licence_evidence_path}
@@ -116,8 +126,8 @@ export default function AssetReview() {
                 </div>
                 {a.status !== 'approved' && (
                   <div className="flex shrink-0 gap-2">
-                    <button type="button" onClick={() => setPending({ kind: 'approve', asset: a })}
-                      className="min-h-[40px] rounded-lg bg-green-600 px-3 text-xs font-bold text-white hover:bg-green-700">Approve</button>
+                    <button type="button" disabled={blockers.length > 0} onClick={() => setPending({ kind: 'approve', asset: a })}
+                      className="min-h-[40px] rounded-lg bg-green-600 px-3 text-xs font-bold text-white hover:bg-green-700 disabled:opacity-50">Approve</button>
                     {a.status === 'in_review' && (
                       <button type="button" onClick={() => setPending({ kind: 'send-back', asset: a })}
                         className="min-h-[40px] rounded-lg border border-gray-300 px-3 text-xs font-semibold dark:border-gray-600 dark:text-gray-200">Send back</button>
@@ -132,7 +142,8 @@ export default function AssetReview() {
                 )}
               </div>
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 

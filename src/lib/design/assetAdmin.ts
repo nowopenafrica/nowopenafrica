@@ -15,7 +15,7 @@ export const EVIDENCE_URL_SECONDS = 300;
 
 export type AssetStatus = 'draft' | 'in_review' | 'approved' | 'retired';
 
-export type Outcome = { ok: true } | { ok: false; reason: string };
+export type Outcome = { ok: true; warning?: string } | { ok: false; reason: string };
 
 export interface ReviewAsset {
   id: string;
@@ -24,9 +24,12 @@ export interface ReviewAsset {
   status: AssetStatus;
   mime: string;
   storage_path: string;
+  thumb_path: string | null;
+  tags: string[];
   licence_key: string;
   licence_name: string;
   licence_restrictions: string;
+  licence_permits_people: boolean;
   licence_evidence_path: string | null;
   retrieved_at: string | null;
   restrictions: string | null;
@@ -39,7 +42,7 @@ export interface ReviewAsset {
 }
 
 const ASSET_COLUMNS =
-  'id, kind, title, status, mime, storage_path, licence_key, licence_evidence_path, retrieved_at, ' +
+  'id, kind, title, status, mime, storage_path, thumb_path, tags, licence_key, licence_evidence_path, retrieved_at, ' +
   'restrictions, source_name, creator_name, sanitised_at, contains_people, contains_brands, release_on_file';
 
 const CONSTRAINT_SENTENCES: Record<string, string> = {
@@ -51,8 +54,14 @@ const CONSTRAINT_SENTENCES: Record<string, string> = {
   design_assets_svg_sanitised_before_approval: 'This SVG has not passed the safety check.',
 };
 
+// Raised by the design_assets_guard trigger, which has no constraint name.
+const GUARD_PEOPLE = /people without a release cannot be approved under licence/i;
+const GUARD_PEOPLE_SENTENCE =
+  'This shows people with no release on file, and its licence does not allow that.';
+
 /** Known constraint names become short sentences; anything else shows raw. */
 export function explainDbError(message: string): string {
+  if (GUARD_PEOPLE.test(message)) return GUARD_PEOPLE_SENTENCE;
   for (const [name, sentence] of Object.entries(CONSTRAINT_SENTENCES)) {
     if (message.includes(name)) return sentence;
   }
@@ -72,11 +81,11 @@ export async function listAssets(
 
   const lic = await supabase
     .from('design_asset_licences')
-    .select('key, name, restrictions');
+    .select('key, name, restrictions, permits_people_without_release');
   if (lic.error) return { ok: false, reason: explainDbError(lic.error.message) };
   const byKey = new Map((lic.data ?? []).map((l) => [l.key as string, l]));
 
-  const rows = (data ?? []) as unknown as Omit<ReviewAsset, 'licence_name' | 'licence_restrictions'>[];
+  const rows = (data ?? []) as unknown as Omit<ReviewAsset, 'licence_name' | 'licence_restrictions' | 'licence_permits_people'>[];
   return {
     ok: true,
     assets: rows.map((r) => {
@@ -85,6 +94,7 @@ export async function listAssets(
         ...r,
         licence_name: (l?.name as string | undefined) ?? r.licence_key,
         licence_restrictions: (l?.restrictions as string | undefined) ?? '',
+        licence_permits_people: Boolean(l?.permits_people_without_release),
       };
     }),
   };
@@ -97,27 +107,75 @@ async function setRow(id: string, patch: Record<string, unknown>): Promise<Outco
   return { ok: true };
 }
 
-/** Copies the asset file to the public bucket, then approves the row. */
-export async function approveAsset(id: string): Promise<Outcome> {
-  const found = await supabase.from('design_assets').select('storage_path').eq('id', id);
-  if (found.error) return { ok: false, reason: explainDbError(found.error.message) };
-  const path = (found.data?.[0] as { storage_path?: string } | undefined)?.storage_path;
-  if (!path) return { ok: false, reason: 'We could not find that asset.' };
-
-  // The evidence file stays in the private intake bucket; only the asset goes public.
-  const copied = await supabase.storage
-    .from(INTAKE_BUCKET)
-    .copy(path, path, { destinationBucket: PUBLIC_BUCKET });
-  if (copied.error) return { ok: false, reason: copied.error.message };
-
-  const updated = await setRow(id, { status: 'approved' });
-  if (!updated.ok) {
-    const removed = await supabase.storage.from(PUBLIC_BUCKET).remove([path]);
-    if (removed.error) {
-      return { ok: false, reason: `${updated.reason} The public copy could not be removed: ${removed.error.message}` };
+/**
+ * Client-side pre-check of the approval rules, so Approve can say why it is
+ * unavailable. The database stays the authority: it enforces every rule.
+ */
+export function approvalBlockers(
+  row: Pick<ReviewAsset, 'contains_brands' | 'licence_evidence_path' | 'retrieved_at' | 'mime' | 'sanitised_at'
+    | 'contains_people' | 'release_on_file' | 'tags'>,
+  licence: { permits_people_without_release: boolean } | undefined,
+): string[] {
+  const out: string[] = [];
+  if (row.contains_brands) out.push(CONSTRAINT_SENTENCES.design_assets_brands_never_approved);
+  if (!row.licence_evidence_path?.trim() || !row.retrieved_at) {
+    out.push(CONSTRAINT_SENTENCES.design_assets_approved_needs_evidence);
+  }
+  if (row.mime === 'image/svg+xml' && !row.sanitised_at) {
+    out.push(CONSTRAINT_SENTENCES.design_assets_svg_sanitised_before_approval);
+  }
+  if (row.contains_people && !row.release_on_file) {
+    if (!licence?.permits_people_without_release) out.push(GUARD_PEOPLE_SENTENCE);
+    if (!row.tags.includes('no-endorsement')) {
+      out.push('This shows people with no release on file, so it needs the no-endorsement tag.');
     }
   }
-  return updated;
+  return out;
+}
+
+/** Paths are content-addressed, so an object that is already there is the same file. */
+function alreadyThere(err: { message: string; statusCode?: string | number; status?: number }): boolean {
+  return /already exists|duplicate/i.test(err.message) || String(err.statusCode ?? err.status ?? '') === '409';
+}
+
+async function readFiles(id: string): Promise<
+  { ok: true; status: AssetStatus; paths: string[] } | { ok: false; reason: string }
+> {
+  const found = await supabase.from('design_assets').select('status, storage_path, thumb_path').eq('id', id);
+  if (found.error) return { ok: false, reason: explainDbError(found.error.message) };
+  const row = found.data?.[0] as { status?: AssetStatus; storage_path?: string; thumb_path?: string | null } | undefined;
+  if (!row?.storage_path || !row.status) return { ok: false, reason: 'We could not find that asset.' };
+  return { ok: true, status: row.status, paths: [row.storage_path, row.thumb_path].filter((p): p is string => !!p) };
+}
+
+/**
+ * The database decides first: the row is approved (every rule is enforced
+ * there, atomically), and only then are the file and thumbnail copied to the
+ * public bucket. A refused row never touches the public bucket. If a copy
+ * fails, the row goes back to its previous status.
+ */
+export async function approveAsset(id: string): Promise<Outcome> {
+  const read = await readFiles(id);
+  if (!read.ok) return read;
+
+  const updated = await setRow(id, { status: 'approved' });
+  if (!updated.ok) return updated;
+
+  const copied: string[] = [];
+  for (const path of read.paths) {
+    const r = await supabase.storage.from(INTAKE_BUCKET).copy(path, path, { destinationBucket: PUBLIC_BUCKET });
+    if (r.error && !alreadyThere(r.error)) {
+      const problems = [`The file could not be copied to the public library: ${r.error.message}`];
+      if (copied.length) await supabase.storage.from(PUBLIC_BUCKET).remove(copied);
+      if (read.status !== 'approved') {
+        const back = await setRow(id, { status: read.status });
+        if (!back.ok) problems.push(`The asset could not be put back to ${read.status}: ${back.reason}`);
+      }
+      return { ok: false, reason: problems.join(' ') };
+    }
+    if (!r.error) copied.push(path);
+  }
+  return { ok: true };
 }
 
 /** Send back: status goes to draft. No note is stored (no column for it yet). */
@@ -125,10 +183,23 @@ export function returnAsset(id: string): Promise<Outcome> {
   return setRow(id, { status: 'draft' });
 }
 
+/** Retires the row first; an approved asset's public files are removed after. */
 export async function retireAsset(id: string, reason: string): Promise<Outcome> {
   const why = reason.trim();
   if (!why) return { ok: false, reason: 'Give a reason before retiring.' };
-  return setRow(id, { status: 'retired', retired_reason: why });
+  const read = await readFiles(id);
+  if (!read.ok) return read;
+
+  const retired = await setRow(id, { status: 'retired', retired_reason: why });
+  if (!retired.ok) return retired;
+
+  if (read.status === 'approved') {
+    const removed = await supabase.storage.from(PUBLIC_BUCKET).remove(read.paths);
+    if (removed.error) {
+      return { ok: true, warning: `Retired, but the public files could not be removed: ${removed.error.message}` };
+    }
+  }
+  return { ok: true };
 }
 
 /** The evidence file is private: a short-lived signed URL, never a public one. */
