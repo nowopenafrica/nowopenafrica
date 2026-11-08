@@ -59,13 +59,17 @@ describe('CatalogueFilters', () => {
     }
   });
 
-  it('offers "Clear filters" only once something is chosen, as a 44px button', async () => {
+  it('offers "Clear filters" only once a non-category filter is chosen, as a 44px button', async () => {
     const user = userEvent.setup();
     mount();
     expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
     cleanup();
+    /* Category alone is browse navigation, which Clear keeps: no button that does nothing. */
+    mount({ category: 'brand' });
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+    cleanup();
     const onClear = vi.fn();
-    mount({ category: 'brand' }, vi.fn(), onClear);
+    mount({ category: 'brand', colour: 'cool' }, vi.fn(), onClear);
     const clear = screen.getByRole('button', { name: 'Clear filters' });
     expect(minHeightPx(clear)).toBeGreaterThanOrEqual(44);
     clear.focus();

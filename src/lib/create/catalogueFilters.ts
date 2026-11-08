@@ -54,8 +54,23 @@ const capital = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 const orientationOf = (w: number, h: number): Orientation =>
   w === h ? 'square' : h > w ? 'portrait' : 'landscape';
 
-/** Every value each group reads off one template. Industry may hold several. */
-export function facetsOf(tpl: DesignTemplate): Record<FilterGroupKey, string[]> {
+/*
+ * filterOptions reads every template once per group, and the grid re-reads on
+ * each change, so the facets are cached per template OBJECT. A template is
+ * replaced (never mutated) when it changes, so a new object is read afresh.
+ */
+const FACETS = new WeakMap<DesignTemplate, Readonly<Record<FilterGroupKey, readonly string[]>>>();
+
+/** Every value each group reads off one template. Industry may hold several. Cached; do not mutate. */
+export function facetsOf(tpl: DesignTemplate): Readonly<Record<FilterGroupKey, readonly string[]>> {
+  const hit = FACETS.get(tpl);
+  if (hit) return hit;
+  const facets = readFacets(tpl);
+  FACETS.set(tpl, facets);
+  return facets;
+}
+
+function readFacets(tpl: DesignTemplate): Readonly<Record<FilterGroupKey, readonly string[]>> {
   const canvas = canvasOf(tpl);
   const category = subcategoryFor(tpl)?.category;
   const direction = directionOf(tpl.direction)?.key;

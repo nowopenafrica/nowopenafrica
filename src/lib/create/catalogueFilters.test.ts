@@ -43,6 +43,15 @@ describe('facetsOf', () => {
     expect(facetsOf({ ...card, direction: 'luxury' }).direction).toEqual(['luxury']);
   });
 
+  it('caches per template object: a second call returns the same record, a new object is read afresh', () => {
+    const card = LISTED.find((t) => t.key === 'card-minimal')!;
+    const first = facetsOf(card);
+    expect(facetsOf(card)).toBe(first);
+    const changed = { ...card, direction: 'bold' as const };
+    expect(facetsOf(changed)).not.toBe(first);
+    expect(facetsOf(changed).direction).toEqual(['bold']);
+  });
+
   it('gives a template with no format of its own no format or dimensions, and the square it renders at', () => {
     const noFormat = LISTED.find((t) => t.key === 'quiet-luxe')!;
     const f = facetsOf(noFormat);

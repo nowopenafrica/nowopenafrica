@@ -136,6 +136,53 @@ describe('CategoryBrowse', () => {
     expect(cardKeys().length).toBeGreaterThan(0);
   });
 
+  it('shows no Clear for a category alone; with a filter too, Clear drops the filter and keeps the category', () => {
+    browse(DIRECTED);
+    const social = () => screen.getAllByTestId('browse-category').find((b) => b.getAttribute('data-category') === 'social')!;
+    fireEvent.click(social());
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+    fireEvent.change(screen.getByLabelText('Colour'), { target: { value: 'warm' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Clear filters' }));
+    expect(social()).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByLabelText('Colour')).toHaveValue('');
+    expect(cardKeys().sort()).toEqual(inSub('sale-post').map((t) => t.key).sort());
+    expect(screen.queryByRole('button', { name: 'Clear filters' })).toBeNull();
+  });
+
+  it('lets a product chip go once it is no longer shown, so the grid is never stuck empty', () => {
+    const { rerender } = browse(DIRECTED);
+    fireEvent.click(screen.getAllByTestId('browse-subcategory').find((b) => b.getAttribute('data-subcategory') === 'sale-post')!);
+    expect(cardKeys().sort()).toEqual(inSub('sale-post').map((t) => t.key).sort());
+    /* Sale posts lose their directions: only business cards stay shown. */
+    const onlyCards = DIRECTED.map((t) => (subcategoryFor(t)?.key === 'sale-post' ? { ...t, direction: undefined } : t));
+    rerender(<MemoryRouter><CategoryBrowse listed={onlyCards} onEdit={() => {}} /></MemoryRouter>);
+    expect(screen.getAllByTestId('browse-subcategory').map((b) => b.getAttribute('data-subcategory'))).toEqual(['business-card']);
+    expect(cardKeys().sort()).toEqual(inSub('business-card').map((t) => t.key).sort());
+  });
+
+  it('the empty state\'s Clear also releases the chosen product', () => {
+    browse(DIRECTED);
+    fireEvent.click(screen.getAllByTestId('browse-subcategory').find((b) => b.getAttribute('data-subcategory') === 'sale-post')!);
+    fireEvent.change(screen.getByLabelText('Colour'), { target: { value: 'warm' } });
+    fireEvent.click(screen.getAllByTestId('browse-subcategory').find((b) => b.getAttribute('data-subcategory') === 'business-card')!);
+    expect(screen.getByTestId('browse-empty')).toBeInTheDocument();
+    fireEvent.click(within(screen.getByTestId('browse-empty')).getByRole('button', { name: 'Clear filters' }));
+    for (const b of screen.getAllByTestId('browse-subcategory')) expect(b).toHaveAttribute('aria-pressed', 'false');
+    expect(cardKeys()).toHaveLength(12);
+  });
+
+  it('announces the result count, politely, after a change and not on arrival', () => {
+    browse(DIRECTED);
+    const live = screen.getByTestId('browse-count');
+    expect(live).toHaveAttribute('aria-live', 'polite');
+    expect(live).toHaveTextContent('');
+    fireEvent.click(screen.getAllByTestId('browse-category').find((b) => b.getAttribute('data-category') === 'social')!);
+    expect(live).toHaveTextContent(`${inSub('sale-post').length} designs`);
+    fireEvent.change(screen.getByLabelText('Direction'), { target: { value: 'luxury' } });
+    const n = DIRECTED.filter((t) => subcategoryFor(t)?.key === 'sale-post' && t.direction === 'luxury').length;
+    expect(live).toHaveTextContent(`${n} ${n === 1 ? 'design' : 'designs'}`);
+  });
+
   it('keeps the category buttons keyboard reachable at 44px', () => {
     browse(DIRECTED);
     for (const b of [...screen.getAllByTestId('browse-category'), ...screen.getAllByTestId('browse-subcategory')]) {

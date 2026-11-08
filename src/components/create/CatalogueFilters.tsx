@@ -25,7 +25,11 @@ export default function CatalogueFilters({
   onClear: () => void;
 }) {
   const id = useId();
-  const active = Object.values(selection).some(Boolean);
+  /*
+   * Category is excluded: CategoryBrowse writes it as browse navigation and
+   * its Clear keeps it, so counting it showed a Clear that did nothing.
+   */
+  const active = Object.entries(selection).some(([k, v]) => k !== 'category' && Boolean(v));
 
   const set = (key: FilterGroupKey, value: string) => {
     const next: FilterSelection = { ...selection };

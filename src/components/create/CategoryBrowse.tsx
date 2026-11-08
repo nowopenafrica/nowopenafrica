@@ -58,10 +58,20 @@ export default function CategoryBrowse({
   );
 
   const [selection, setSelection] = useState<FilterSelection>({});
-  const [sub, setSub] = useState('');
+  const [picked, setSub] = useState('');
   const [pages, setPages] = useState(1);
+  /* Set by the visitor's first change, so arrival is not announced. */
+  const [changed, setChanged] = useState(false);
 
   const category = selection.category as CategoryKey | undefined;
+  /*
+   * The product chip in force: a stale one (no longer shown, or outside the
+   * chosen category) is let go here, so it can never hold the grid empty
+   * with no chip on screen to release it.
+   */
+  const sub = picked && shownKeys.has(picked)
+    && (!category || shown.some((s) => s.key === picked && s.category === category))
+    ? picked : '';
   const subs = category ? shown.filter((s) => s.category === category) : shown;
   const inSub = useMemo(
     () => (sub ? pool.filter((t) => subcategoryFor(t)?.key === sub) : pool),
@@ -75,7 +85,7 @@ export default function CategoryBrowse({
 
   if (shown.length === 0) return null;
 
-  const update = (next: FilterSelection) => { setSelection(next); setPages(1); };
+  const update = (next: FilterSelection) => { setSelection(next); setPages(1); setChanged(true); };
 
   const pickCategory = (key: CategoryKey | '') => {
     const next: FilterSelection = { ...selection };
@@ -85,9 +95,12 @@ export default function CategoryBrowse({
     update(next);
   };
 
-  const pickSub = (key: string) => { setSub(sub === key ? '' : key); setPages(1); };
+  const pickSub = (key: string) => { setSub(sub === key ? '' : key); setPages(1); setChanged(true); };
 
+  /* The filters' own Clear: the category is browse navigation and stays. */
   const clear = () => { update(category ? { category } : {}); };
+  /* The empty state's Clear also lets the product go, so it always leads somewhere. */
+  const clearAll = () => { setSub(''); clear(); };
 
   const visible = results.slice(0, pages * PAGE);
 
@@ -155,6 +168,11 @@ export default function CategoryBrowse({
         </p>
       )}
 
+      {/* Said once per change, short: the count, not the cards. */}
+      <p data-testid="browse-count" aria-live="polite" className="sr-only">
+        {changed ? `${results.length} ${results.length === 1 ? 'design' : 'designs'}` : ''}
+      </p>
+
       <div data-testid="browse-results" aria-busy={loading && results.length === 0} className="mt-4">
         {results.length === 0 ? (
           loading ? (
@@ -166,7 +184,7 @@ export default function CategoryBrowse({
               <p className="text-sm text-gray-600 dark:text-gray-400">No designs match these filters.</p>
               <button
                 type="button"
-                onClick={clear}
+                onClick={clearAll}
                 className="mt-3 inline-flex min-h-[44px] items-center rounded-xl border border-gray-300 px-4 text-sm font-semibold text-gray-800 hover:border-green-400 dark:border-gray-600 dark:text-gray-200"
               >
                 Clear filters
