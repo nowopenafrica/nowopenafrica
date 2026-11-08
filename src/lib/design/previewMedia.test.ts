@@ -96,16 +96,26 @@ describe('a template that names a photo subject', () => {
     for (const t of DESIGN_TEMPLATES.filter((x) => x.photoSubject)) expect(t.key.startsWith('pilot-'), t.key).toBe(true);
   });
 
-  it('gets a photograph of that subject', () => {
+  it('gets a photograph of that subject, or none when the pool has none', () => {
     const named = DESIGN_TEMPLATES.filter((t) => t.photoSubject);
     expect(named.length).toBeGreaterThan(0);
     for (const t of named) {
-      const photo = PREVIEW_PHOTOS.find((p) => p.url === previewPhotoForTemplate(t));
-      expect(photo?.subject, t.key).toBe(t.photoSubject);
+      const url = previewPhotoForTemplate(t);
+      const has = PREVIEW_PHOTOS.some((p) => p.subject === t.photoSubject);
+      if (has) expect(PREVIEW_PHOTOS.find((p) => p.url === url)?.subject, t.key).toBe(t.photoSubject);
+      else expect(url, t.key).toBeNull();
     }
-    // The case that prompted it: the dish post shows food, not a laptop.
+  });
+
+  it('picks within the subject, stably, and misses to no photo rather than to the hash', () => {
+    const work = previewPhotoForTemplate({ key: 'qa-work', photoSubject: 'work' });
+    expect(PREVIEW_PHOTOS.find((p) => p.url === work)?.subject).toBe('work');
+    expect(previewPhotoForTemplate({ key: 'qa-work', photoSubject: 'work' })).toBe(work);
+    // Ruling AH: the pool holds no food photograph, so the dish post shows none (not a gavel).
+    expect(PREVIEW_PHOTOS.some((p) => p.subject === 'food')).toBe(false);
+    expect(previewPhotoForTemplate({ key: 'pilot-ig-industry', photoSubject: 'food' })).toBeNull();
     const dish = DESIGN_TEMPLATES.find((t) => t.key === 'pilot-ig-industry')!;
-    expect(PREVIEW_PHOTOS.find((p) => p.url === previewPhotoForTemplate(dish))?.subject).toBe('food');
+    expect(previewPhotoForTemplate(dish)).toBeNull();
   });
 
   it('is named on every photo-led pilot design', () => {
