@@ -271,9 +271,17 @@ const HOURS = [
   /\b\d{1,2}:\d{2}\b/,
   /\byour days\b/i,
 ];
-/** A street-type word: it makes the row an address before a weekday or "number" can claim it. */
-const STREET = /\b(street|road|avenue|close|crescent|way|lane|plot|estate)\b/i;
-const ADDRESS = /\b(street|road|avenue|close|crescent|way|lane|plot|boulevard|estate|junction|plaza|your address|your area|your location)\b|\b(st|rd|ave)\.(\s|$)/i;
+/*
+ * A street-type word makes the row an address before a weekday or "number"
+ * can claim it. Close, Way, Lane and Crescent are everyday words too ("close
+ * at 10pm", "find your way"), so they count only as part of a street's
+ * proper name: capitalised, after a capitalised word or a number ("Allen
+ * Close", "12 Admiralty Way"). Lowercase, they never do.
+ */
+const STREET_WORD = /\b(street|road|avenue|plot|estate)\b/i;
+const STREET_NAME = /(?:\b\p{Lu}[\p{L}'-]*|\b\d+[A-Za-z]?)\s+(Close|Way|Lane|Crescent)\b/u;
+const isStreet = (t: string): boolean => STREET_WORD.test(t) || STREET_NAME.test(t);
+const ADDRESS = /\b(street|road|avenue|plot|boulevard|estate|junction|plaza|your address|your area|your location)\b|\b(st|rd|ave)\.(\s|$)/i;
 const PHONE_WORDS = /\b(phone|number|call|booking line|telephone|tel)\b/i;
 const MAIL_WORDS = /\b(e-?mail)\b/i;
 const WEB_WORDS = /\b(website|web)\b/i;
@@ -295,7 +303,7 @@ export function classifyRow(text: string): LucideName | null {
   if (PHONE.test(t) && (t.match(/\d/g)?.length ?? 0) >= 7) return 'phone';
   if (EMAIL.test(t)) return 'mail';
   if (isWebAddress(t)) return 'globe';
-  if (STREET.test(t)) return 'map-pin';
+  if (isStreet(t)) return 'map-pin';
   if (PHONE_WORDS.test(t)) return 'phone';
   if (HOURS.some((re) => re.test(t))) return 'clock';
   if (ADDRESS.test(t)) return 'map-pin';

@@ -101,9 +101,19 @@ describe('classifyRow (Ruling AL)', () => {
     expect(classifyRow('Friday Market Road')).toBe('map-pin');
     expect(classifyRow('Plot Number 5, Allen Avenue')).toBe('map-pin');
     expect(classifyRow('Off Admiralty Way, Lekki')).toBe('map-pin');
+    expect(classifyRow('Allen Close, Ikeja')).toBe('map-pin');
+    expect(classifyRow('12 Admiralty Way')).toBe('map-pin');
+    expect(classifyRow('4 Bourdillon Crescent')).toBe('map-pin');
     // A real number still wins over everything.
     expect(classifyRow('0803 123 4567')).toBe('phone');
     expect(classifyRow('Sunday')).toBe('clock');
+  });
+
+  it('counts Close, Way, Lane and Crescent only as part of a street name', () => {
+    expect(classifyRow('Open late, close at 10pm')).toBe('clock');
+    expect(classifyRow('Find your way to us')).toBeNull();
+    expect(classifyRow('We close early on Sundays')).toBe('clock');
+    expect(classifyRow('down the lane from the market')).toBeNull();
   });
 
   it('does not read a name with an honorific or a capitalised word as a domain', () => {
