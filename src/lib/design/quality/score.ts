@@ -135,6 +135,7 @@ function image(tpl: DesignTemplate, manifest: AssetManifest): Part {
   let note = '';
   for (const r of raster) {
     if (!r.asset) { worst = 0; note = `asset:${r.id} not in the manifest`; break; }
+    if (r.asset.w <= 0 || r.asset.h <= 0) { worst = 0; note = `asset:${r.id} has no pixel size (${r.asset.w}x${r.asset.h})`; break; }
     const share = Math.min(1, r.asset.w / needW, r.asset.h / needH);
     if (share <= worst) { worst = share; note = `asset:${r.id} ${r.asset.w}x${r.asset.h} for ${Math.round(needW)}x${Math.round(needH)} placed`; }
   }

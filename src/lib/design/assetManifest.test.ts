@@ -6,6 +6,9 @@ import {
   type AssetManifest, type ManifestAsset,
 } from './assetManifest';
 import { externalUrls } from './quality/checks/assets';
+import { automatedCriticals } from './quality/critical';
+import { DESIGN_TEMPLATES as ALL } from '../designTemplates';
+import { partitionRows, serialise, toManifestAsset } from '../../../scripts/assets/manifestRows.mjs';
 
 const ID_A = '11111111-1111-4111-8111-111111111111';
 const ID_B = '22222222-2222-4222-8222-222222222222';
@@ -33,8 +36,20 @@ describe('lookup', () => {
     expect(assetById('nope', FIXTURE)).toBeNull();
   });
 
-  it('ships a manifest that is a well-formed list', () => {
+  it('ships a manifest whose entries have the right field types', () => {
     expect(Array.isArray(MANIFEST.assets)).toBe(true);
+    for (const a of MANIFEST.assets) {
+      expect(typeof a.id, a.id).toBe('string');
+      expect(typeof a.kind, a.id).toBe('string');
+      expect(typeof a.path, a.id).toBe('string');
+      expect(typeof a.w, a.id).toBe('number');
+      expect(typeof a.h, a.id).toBe('number');
+      expect(typeof a.licence, a.id).toBe('string');
+      expect(a.attribution === null || typeof a.attribution === 'string', a.id).toBe(true);
+      expect(Array.isArray(a.tags) && a.tags.every((x) => typeof x === 'string'), a.id).toBe(true);
+      expect(typeof a.people, a.id).toBe('boolean');
+      expect(a.iconSet === null || typeof a.iconSet === 'string', a.id).toBe(true);
+    }
   });
 });
 
@@ -96,5 +111,63 @@ describe('no external image URLs in templates', () => {
     const found = DESIGN_TEMPLATES.flatMap((t) =>
       externalUrls(t).filter((u) => !ALLOWED.includes(u.value)).map((u) => `${t.key} ${u.where}: ${u.value}`));
     expect(found).toEqual([]);
+  });
+});
+
+describe('C11: no mockup_scene baked into a template', () => {
+  const SCENE = '33333333-3333-4333-8333-333333333333';
+  const withScene: AssetManifest = { assets: [asset(SCENE, { kind: 'mockup_scene' }), asset(ID_A)] };
+
+  it('flags a template that references a mockup_scene asset', () => {
+    const tpl = withRefs('bakes-scene', SCENE);
+    const c11 = automatedCriticals(tpl, [tpl], withScene).filter((f) => f.code === 'C11');
+    expect(c11).toHaveLength(1);
+    expect(c11[0].detail).toContain(SCENE);
+  });
+
+  it('does not flag an ordinary photo', () => {
+    const tpl = withRefs('plain', ID_A);
+    expect(automatedCriticals(tpl, [tpl], withScene).filter((f) => f.code === 'C11')).toEqual([]);
+  });
+
+  it('holds for the whole shipped library', () => {
+    const baked = ALL.flatMap((t) => templateAssetIds(t)
+      .filter((id) => assetById(id)?.kind === 'mockup_scene').map((id) => `${t.key}: ${id}`));
+    expect(baked).toEqual([]);
+  });
+});
+
+describe('manifest generator rows', () => {
+  const row = (id: string, over: Record<string, unknown> = {}) => ({
+    id, kind: 'photo', storage_path: `p/${id}.webp`, width_px: 100, height_px: 50, licence_key: 'pexels',
+    attribution_text: 'Credit', tags: ['a'], contains_people: true, icon_set: null, ...over,
+  });
+
+  it('sorts unsorted rows by id', () => {
+    const out = JSON.parse(serialise([row('c'), row('a'), row('b')])) as AssetManifest;
+    expect(out.assets.map((a) => a.id)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('maps nulls to [] or null and people to a boolean', () => {
+    const a = toManifestAsset(row('x', { tags: null, attribution_text: null, icon_set: null, contains_people: null }));
+    expect(a).toMatchObject({ tags: [], attribution: null, iconSet: null, people: false });
+    expect(toManifestAsset(row('y', { contains_people: true })).people).toBe(true);
+    expect(toManifestAsset(row('z', { icon_set: 'lucide', kind: 'icon' })).iconSet).toBe('lucide');
+  });
+
+  it('ends with a newline and has no carriage return', () => {
+    const s = serialise([row('a')]);
+    expect(s.endsWith('\n')).toBe(true);
+    expect(s).not.toContain('\r');
+  });
+
+  it('refuses raster rows with a null or zero size and keeps vectors', () => {
+    const { ok, skipped } = partitionRows([
+      row('nullw', { width_px: null }), row('zeroh', { height_px: 0 }),
+      row('svg', { kind: 'icon', width_px: null, height_px: null }), row('fine'),
+    ]);
+    expect(ok.map((r) => r.id)).toEqual(['svg', 'fine']);
+    expect(skipped.map((s) => s.id)).toEqual(['nullw', 'zeroh']);
+    expect(skipped[0].problem).toMatch(/no pixel size/);
   });
 });

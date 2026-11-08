@@ -17,6 +17,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { partitionRows, serialise } from './manifestRows.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, 'src', 'lib', 'design', 'assetManifest.json');
@@ -46,33 +47,15 @@ function fail(message) {
   throw new Error(message);
 }
 
-/** A manifest entry from a design_assets row (ManifestAsset in assetManifestTypes.ts). */
-export const toManifestAsset = (r) => ({
-  id: r.id,
-  kind: r.kind,
-  path: r.storage_path,
-  w: r.width_px ?? 0,
-  h: r.height_px ?? 0,
-  licence: r.licence_key,
-  attribution: r.attribution_text ?? null,
-  tags: [...(r.tags ?? [])],
-  people: r.contains_people === true,
-  iconSet: r.icon_set ?? null,
-});
-
-/** Sorted by id, two-space JSON, LF endings, trailing newline. */
-export function serialise(rows) {
-  const assets = rows.map(toManifestAsset).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
-  return `${JSON.stringify({ assets }, null, 2)}\n`;
-}
-
 async function fetchApproved(url, key) {
   const rows = [];
-  for (let from = 0; ; from += PAGE) {
+  for (;;) {
+    const from = rows.length; // advance by what arrived, not by PAGE
     const res = await fetch(
       `${url}/rest/v1/design_assets?status=eq.approved&select=${COLUMNS}&order=id`,
       { headers: { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + PAGE - 1}`, 'Range-Unit': 'items' } },
     );
+    if (res.status === 416) return rows; // PostgREST: range starts past the last row
     if (res.status === 404) fail('design_assets not found: has the migration been applied?');
     if (!res.ok) {
       const body = await res.text();
@@ -80,8 +63,10 @@ async function fetchApproved(url, key) {
       fail(`HTTP ${res.status} reading design_assets: ${body.slice(0, 200)}`);
     }
     const page = await res.json();
+    // Stop only on an empty page: a server max-rows below PAGE would otherwise
+    // look like the last page and silently truncate.
+    if (page.length === 0) return rows;
     rows.push(...page);
-    if (page.length < PAGE) return rows;
   }
 }
 
@@ -93,8 +78,13 @@ async function main() {
     fail('VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY are not set (process.env, .env.local or .env). Nothing written.');
   }
   const rows = await fetchApproved(url, key);
-  writeFileSync(OUT, serialise(rows), 'utf8');
-  console.log(`assets:manifest: wrote ${rows.length} approved asset${rows.length === 1 ? '' : 's'} to src/lib/design/assetManifest.json`);
+  const { ok, skipped } = partitionRows(rows);
+  writeFileSync(OUT, serialise(ok), 'utf8');
+  console.log(`assets:manifest: wrote ${ok.length} approved asset${ok.length === 1 ? '' : 's'} to src/lib/design/assetManifest.json`);
+  if (skipped.length) {
+    for (const s of skipped) console.error(`assets:manifest: SKIPPED ${s.id}: ${s.problem}`);
+    throw new Error(`${skipped.length} approved row${skipped.length === 1 ? '' : 's'} skipped (no pixel size). Fix them in design_assets.`);
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
