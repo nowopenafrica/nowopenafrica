@@ -227,6 +227,33 @@ export const DELIVERABLES: Record<string, CodeDeliverable> = {
   'led-screen-ad': { category: 'flyers', name: 'LED screen ad', format: 'led', need: 'outdoor', deliverable: 'billboard', subcategory: 'billboard' },
   'pavement-sign': { category: 'flyers', name: 'Pavement A-board', format: 'a4', need: 'outdoor', deliverable: 'shopfront-sign', subcategory: 'shopfront-sign' },
   'round-sticker': { category: 'branding', name: 'Round sticker label', format: 'square', need: 'brand', deliverable: 'product-label', subcategory: 'product-label' },
+  /*
+   * ── THE PILOT COLLECTION (pilotTemplates.ts) ─────────────────────────
+   *
+   * Directed designs for the three products the catalogue gate pilots on.
+   * The cards join the business-card collection, so their palettes are held
+   * apart from the existing eight by libraryVariety.test.ts.
+   */
+  'pilot-card-luxury': { category: 'branding', name: 'Luxury business card', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-card-minimal': { category: 'branding', name: 'Minimal business card', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-card-corporate': { category: 'branding', name: 'Corporate business card', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-card-editorial': { category: 'branding', name: 'Editorial business card', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-card-bold': { category: 'branding', name: 'Bold business card', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-card-contemporary': { category: 'branding', name: 'Contemporary business card with QR code', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-card-playful': { category: 'branding', name: 'Playful business card', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-card-industry': { category: 'branding', name: 'Clinic appointment card', slug: 'business-card', format: 'business-card', need: 'stationery', deliverable: 'business-card', subcategory: 'business-card' },
+  'pilot-ig-luxury': { category: 'social', name: 'Collection launch post', format: 'instagram-portrait', need: 'social', deliverable: 'instagram-post', subcategory: 'instagram-post' },
+  'pilot-ig-editorial': { category: 'social', name: 'Feature post', format: 'instagram-portrait', need: 'social', deliverable: 'instagram-post', subcategory: 'instagram-post' },
+  'pilot-ig-bold': { category: 'social', name: 'Big news post', format: 'instagram-portrait', need: 'social', deliverable: 'instagram-post', subcategory: 'instagram-post' },
+  'pilot-ig-contemporary': { category: 'social', name: 'Booking post', format: 'instagram-portrait', need: 'social', deliverable: 'instagram-post', subcategory: 'instagram-post' },
+  'pilot-ig-industry': { category: 'social', name: 'Dish of the day post', format: 'instagram-portrait', need: 'social', deliverable: 'instagram-post', subcategory: 'instagram-post' },
+  'pilot-ig-minimal': { category: 'social', name: 'Photo caption post', format: 'instagram-portrait', need: 'social', deliverable: 'instagram-post', subcategory: 'instagram-post' },
+  'pilot-bb-bold': { category: 'flyers', name: 'Bold 48-sheet billboard', format: 'board-48-sheet', need: 'outdoor', deliverable: 'billboard-48-sheet', subcategory: 'billboard-48-sheet' },
+  'pilot-bb-minimal': { category: 'flyers', name: 'One-line 48-sheet billboard', format: 'board-48-sheet', need: 'outdoor', deliverable: 'billboard-48-sheet', subcategory: 'billboard-48-sheet' },
+  'pilot-bb-luxury': { category: 'flyers', name: 'Hotel or property 48-sheet billboard', format: 'board-48-sheet', need: 'outdoor', deliverable: 'billboard-48-sheet', subcategory: 'billboard-48-sheet' },
+  'pilot-bb-contemporary': { category: 'flyers', name: 'Campaign 48-sheet billboard', format: 'board-48-sheet', need: 'outdoor', deliverable: 'billboard-48-sheet', subcategory: 'billboard-48-sheet' },
+  'pilot-bb-industry': { category: 'flyers', name: 'Delivery service 48-sheet billboard', format: 'board-48-sheet', need: 'outdoor', deliverable: 'billboard-48-sheet', subcategory: 'billboard-48-sheet' },
+  'pilot-bb-editorial': { category: 'flyers', name: 'Season or exhibition 48-sheet billboard', format: 'board-48-sheet', need: 'outdoor', deliverable: 'billboard-48-sheet', subcategory: 'billboard-48-sheet' },
 };
 
 /**

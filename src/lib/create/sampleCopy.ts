@@ -394,6 +394,71 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
     cta: 'Come in',
   },
   'round-sticker': { eyebrow: 'Handmade', headline: 'Your brand', meta: 'Your product · Your city' },
+  /*
+    ── THE PILOT COLLECTION (pilotTemplates.ts) ───────────────────────────
+
+    Same rule, held harder: these are the designs the founder scores. Every
+    line is a label for what the business writes there. The clinic card and
+    the dish post name what THAT trade puts on them (a booking line, a
+    registration number, opening hours, a price per plate) because that is
+    the layout's job, not a claim about any clinic or kitchen.
+  */
+
+  /* Business cards: the headline is the person, the back carries the house */
+  'pilot-card-luxury': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'What you are known for, in one line.', contact: ['Your phone', 'Your email', 'Your website'] },
+  'pilot-card-minimal': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', contact: ['Your phone', 'Your email', 'Your website'] },
+  'pilot-card-corporate': {
+    brand: 'Your firm',
+    eyebrow: 'Your role',
+    headline: 'Your name',
+    subline: 'What the firm does, and for whom.',
+    contact: ['Your phone', 'Your email', 'Your website'],
+    services: ['Your first service', 'Your second service', 'Your third service'],
+  },
+  'pilot-card-editorial': { brand: 'Your studio', eyebrow: 'Your role', headline: 'Your name', subline: 'The work you are known for.', contact: ['Your phone', 'Your email', 'Your website'] },
+  'pilot-card-bold': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'Your one-line promise', meta: 'Your website', contact: ['Your phone', '@yourhandle'] },
+  'pilot-card-contemporary': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', contact: ['Your phone', 'Your email', '@yourhandle'] },
+  'pilot-card-playful': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'What you make, said warmly.', meta: '@yourhandle', contact: ['Your phone', 'Your area'] },
+  'pilot-card-industry': {
+    brand: 'Your clinic',
+    eyebrow: 'Your specialty',
+    headline: 'Your name and title',
+    contact: ['Your booking line', 'Your address', 'Your website'],
+    cta: 'Book an appointment',
+    meta: 'Your registration number',
+    services: ['Monday to Friday · Your hours', 'Saturday · Your hours', 'Emergencies · Your number'],
+    subline: 'Next appointment: date and time',
+  },
+
+  /* Instagram posts */
+  'pilot-ig-luxury': { brand: 'Your brand', eyebrow: 'New collection', headline: 'Your collection name', subline: 'One line on what makes it worth seeing.' },
+  'pilot-ig-editorial': { brand: 'Your brand', eyebrow: 'Feature', headline: 'Your feature title', subline: 'One line that makes people read on.' },
+  'pilot-ig-bold': { brand: 'Your brand', eyebrow: 'Big news', headline: 'Your big news', subline: 'The detail people need, in one line.', cta: 'Link in bio' },
+  'pilot-ig-contemporary': { brand: 'Your brand', eyebrow: 'Now booking', headline: 'Your service, in a line', subline: 'Who it is for, and when.', cta: 'Book now' },
+  'pilot-ig-industry': {
+    brand: 'Your restaurant',
+    eyebrow: 'Special of the day',
+    headline: 'Your dish name',
+    price: [{ label: 'Per plate', price: '₦4,500' }],
+    subline: 'What is in it, in one line.',
+    cta: 'Order now',
+    contact: ['Your phone', 'Your area'],
+  },
+  'pilot-ig-minimal': { brand: 'Your brand', headline: 'Your one quiet line' },
+
+  /* 48-sheet billboards: a line, a name, at most one thing to do */
+  'pilot-bb-bold': { brand: 'Your brand', headline: 'Your big line', cta: 'Visit today' },
+  'pilot-bb-minimal': { brand: 'Your brand', headline: 'Your one line' },
+  'pilot-bb-luxury': { brand: 'Your hotel', eyebrow: 'Now open', headline: 'Your quiet promise', meta: 'Your address' },
+  'pilot-bb-contemporary': { brand: 'Your brand', headline: 'Five words, said big', contact: ['Your website'] },
+  'pilot-bb-industry': {
+    brand: 'Your company',
+    eyebrow: 'Delivery',
+    headline: 'Your delivery promise',
+    services: ['Your delivery areas', 'Your delivery hours', 'Your tracking line'],
+    cta: 'Book a pickup',
+  },
+  'pilot-bb-editorial': { brand: 'Your brand', eyebrow: 'Coming this season', headline: 'Your headline, set large', subline: 'One line of detail.' },
 };
 
 /**

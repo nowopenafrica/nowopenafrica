@@ -100,13 +100,14 @@ describe('the Create page, top to bottom', () => {
   it('renders spec §4 in order, and the need view only once something is chosen', () => {
     /*
      * Task 15 added the featured collections (spec §10) below the need view.
-     * "browse" is absent: no product spans four directions yet, so Browse by
-     * category is not rendered (CategoryBrowse.test.tsx covers it once one does).
+     * Task 18's pilot directs business cards, posts and 48-sheets across
+     * four directions or more, so Browse by category now renders after them
+     * (CategoryBrowse.test.tsx covers it with and without directions).
      */
     const { container } = at('/media');
-    expect(sections(container)).toEqual(['request', 'products', 'popular', 'collections', 'footer']);
+    expect(sections(container)).toEqual(['request', 'products', 'popular', 'collections', 'browse', 'footer']);
     fireEvent.click(tiles()[0]);
-    expect(sections(container)).toEqual(['request', 'products', 'popular', 'need', 'collections', 'footer']);
+    expect(sections(container)).toEqual(['request', 'products', 'popular', 'need', 'collections', 'browse', 'footer']);
   });
 
   it('carries none of the sections that moved to /media/services', () => {

@@ -69,8 +69,10 @@ describe('filterOptions', () => {
       for (const v of group.values) expect(v.count, `${group.key}=${v.value}`).toBeGreaterThan(0);
     }
     const keys = filterOptions(pool, {}).map((g) => g.key);
-    // No business card is directed today, so there is no direction group.
-    expect(keys).not.toContain('direction');
+    // The eight pilot cards are directed, one per direction, so the group offers all eight.
+    const dir = filterOptions(pool, {}).find((g) => g.key === 'direction')!;
+    expect(dir.values.map((v) => v.value).sort()).toEqual(DIRECTIONS.map((d) => d.key).sort());
+    expect(keys).toContain('direction');
     // Every listed design passes C7, so "Preview only" is never offered.
     const editable = filterOptions(pool, {}).find((g) => g.key === 'editable');
     expect(editable?.values.map((v) => v.value)).toEqual(['editable']);

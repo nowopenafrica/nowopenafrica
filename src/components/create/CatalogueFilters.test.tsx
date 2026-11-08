@@ -25,8 +25,8 @@ describe('CatalogueFilters', () => {
     const selects = screen.getAllByRole('combobox');
     expect(selects).toHaveLength(groups.length);
     for (const g of groups) expect(screen.getByLabelText(g.label)).toBeInTheDocument();
-    // Nothing is directed today, so no Direction filter.
-    expect(screen.queryByLabelText('Direction')).toBeNull();
+    // The pilot designs are directed, so the Direction filter is offered.
+    expect(screen.getByLabelText('Direction')).toBeInTheDocument();
   });
 
   it('offers only values that match something, with their counts', () => {

@@ -187,6 +187,7 @@ import type { Look, GradientSpec } from './design/look';
 import type { PaletteRole } from './design/palettes';
 import type { DirectionKey } from './design/directions';
 import { CATALOGUE_TEMPLATES } from './design/catalogueTemplates';
+import { PILOT_TEMPLATES } from './design/pilotTemplates';
 
 export interface SlotMotion {
   in: MotionIn;
@@ -2890,6 +2891,10 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   // Branding, campaign, social, banner and print layouts from the Template
   // Catalogue canvas. Their own file because there are 38 of them.
   ...CATALOGUE_TEMPLATES,
+
+  // The pilot collection (Task 18): eight directed business cards, six
+  // Instagram portrait posts and six 48-sheet billboards.
+  ...PILOT_TEMPLATES,
 ];
 
 

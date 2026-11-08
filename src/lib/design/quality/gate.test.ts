@@ -110,9 +110,29 @@ describe('the direction rule', () => {
   const failing = (all: DesignTemplate[], reviews: Review[]) =>
     all.filter((t) => t.direction && !gate(t, all, TODAY, reviews).listed).map((t) => t.key);
 
-  it('holds for the catalogue (vacuously: no template has a direction yet)', () => {
-    expect(DESIGN_TEMPLATES.some((t) => t.direction)).toBe(false);
-    expect(failing(DESIGN_TEMPLATES, REVIEWS)).toEqual([]);
+  /*
+   * Task 18's twenty pilot designs are the first directed templates, and they
+   * are not scored yet: the founder scores them (Task 18 step 4) and the
+   * reviews land in ledger.ts. Until then they are named here, and nowhere
+   * else is exempt. The list only shrinks: a key that has a review must come
+   * off it, or the second assertion fails.
+   */
+  const AWAITING_REVIEW = new Set([
+    'pilot-card-luxury', 'pilot-card-minimal', 'pilot-card-corporate', 'pilot-card-editorial',
+    'pilot-card-bold', 'pilot-card-contemporary', 'pilot-card-playful', 'pilot-card-industry',
+    'pilot-ig-luxury', 'pilot-ig-editorial', 'pilot-ig-bold', 'pilot-ig-contemporary',
+    'pilot-ig-industry', 'pilot-ig-minimal',
+    'pilot-bb-bold', 'pilot-bb-minimal', 'pilot-bb-luxury', 'pilot-bb-contemporary',
+    'pilot-bb-industry', 'pilot-bb-editorial',
+  ]);
+
+  it('holds for the catalogue, apart from the pilot designs awaiting the founder\'s review', () => {
+    expect(DESIGN_TEMPLATES.some((t) => t.direction)).toBe(true);
+    expect(failing(DESIGN_TEMPLATES, REVIEWS).filter((key) => !AWAITING_REVIEW.has(key))).toEqual([]);
+    for (const key of AWAITING_REVIEW) {
+      expect(DESIGN_TEMPLATES.some((t) => t.key === key && t.direction), key).toBe(true);
+      expect(REVIEWS.some((r) => r.key === key), `${key} has a review: take it off AWAITING_REVIEW`).toBe(false);
+    }
   });
 
   it('would fail for a directed template with no review', () => {

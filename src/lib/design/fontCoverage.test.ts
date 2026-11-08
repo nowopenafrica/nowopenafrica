@@ -199,8 +199,8 @@ const LONGEST_SAMPLE_NAME = DESIGN_TEMPLATES
   .reduce((a, b) => (b.length > a.length ? b : a), '');
 
 describe('Review Focus 4: no listed design is squeezed to MIN_TYPE_PX', () => {
-  it('there are 67 listed designs', () => {
-    expect(LISTED).toHaveLength(67);
+  it('there are 87 listed designs (67, and the 20 Task 18 pilot designs)', () => {
+    expect(LISTED).toHaveLength(87);
   });
 
   /*

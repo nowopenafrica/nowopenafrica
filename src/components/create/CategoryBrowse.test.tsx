@@ -38,13 +38,20 @@ const LISTED = DESIGN_TEMPLATES.filter(isListed);
 const inSub = (key: string) => LISTED.filter((t) => subcategoryFor(t)?.key === key);
 
 /**
+ * The library with every direction taken off: what the page had before Task
+ * 18's pilot directed its first designs, and the controlled base the
+ * synthetic fixtures below are built on.
+ */
+const UNDIRECTED: DesignTemplate[] = LISTED.map((t) => ({ ...t, direction: undefined }));
+
+/**
  * Synthetic directed templates, through the real `shownSubcategories` rule:
  * business cards and sale posts each span four directions; everything else
- * keeps no direction and so stays unshown. Task 18's pilot adds the real ones.
+ * keeps no direction and so stays unshown.
  */
 const directed = (tpls: DesignTemplate[], n = 4): DesignTemplate[] =>
   tpls.map((t, i) => ({ ...t, direction: DIRECTIONS[i % n].key }));
-const DIRECTED: DesignTemplate[] = LISTED.map((t) => t);
+const DIRECTED: DesignTemplate[] = UNDIRECTED.map((t) => t);
 for (const sub of ['business-card', 'sale-post']) {
   const d = directed(inSub(sub));
   for (const t of d) DIRECTED[DIRECTED.findIndex((x) => x.key === t.key)] = t;
@@ -54,12 +61,24 @@ const browse = (listed: DesignTemplate[], props: { loading?: boolean; error?: st
   <MemoryRouter><CategoryBrowse listed={listed} onEdit={() => {}} {...props} /></MemoryRouter>,
 );
 const cardKeys = () => screen.queryAllByTestId('template-card').map((c) => c.getAttribute('data-key'));
+/** Every card in the grid, opening each further page of twelve first (the pilot made the cards seventeen). */
+const everyCardKey = () => {
+  for (let more = screen.queryByRole('button', { name: /Show \d+ more/ }); more; more = screen.queryByRole('button', { name: /Show \d+ more/ })) {
+    fireEvent.click(more);
+  }
+  return cardKeys();
+};
 
 describe('CategoryBrowse', () => {
-  it('renders nothing for today\'s library: no subcategory spans four directions', () => {
-    expect(shownSubcategories(LISTED)).toEqual([]);
-    const { container } = browse(LISTED);
+  it('renders nothing when no subcategory spans four directions', () => {
+    expect(shownSubcategories(UNDIRECTED)).toEqual([]);
+    const { container } = browse(UNDIRECTED);
     expect(container.innerHTML).toBe('');
+  });
+
+  it('shows the three pilot products for the real library', () => {
+    expect(shownSubcategories(LISTED).map((s) => s.key).sort())
+      .toEqual(['billboard-48-sheet', 'business-card', 'instagram-post']);
   });
 
   it('offers only the shown subcategories, under their categories', () => {
@@ -94,7 +113,7 @@ describe('CategoryBrowse', () => {
     const cards = screen.getAllByTestId('browse-subcategory').find((b) => b.getAttribute('data-subcategory') === 'business-card')!;
     fireEvent.click(cards);
     expect(cards).toHaveAttribute('aria-pressed', 'true');
-    expect(cardKeys().sort()).toEqual(inSub('business-card').map((t) => t.key).sort());
+    expect(everyCardKey().sort()).toEqual(inSub('business-card').map((t) => t.key).sort());
   });
 
   it('filters with labelled controls, showing the direction filter once directions exist', () => {
@@ -157,7 +176,7 @@ describe('CategoryBrowse', () => {
     const onlyCards = DIRECTED.map((t) => (subcategoryFor(t)?.key === 'sale-post' ? { ...t, direction: undefined } : t));
     rerender(<MemoryRouter><CategoryBrowse listed={onlyCards} onEdit={() => {}} /></MemoryRouter>);
     expect(screen.getAllByTestId('browse-subcategory').map((b) => b.getAttribute('data-subcategory'))).toEqual(['business-card']);
-    expect(cardKeys().sort()).toEqual(inSub('business-card').map((t) => t.key).sort());
+    expect(everyCardKey().sort()).toEqual(inSub('business-card').map((t) => t.key).sort());
   });
 
   it('the empty state\'s Clear also releases the chosen product', () => {
@@ -201,7 +220,8 @@ describe('the Create page with and without directions', () => {
   const sections = (root: HTMLElement) =>
     [...root.querySelectorAll('[data-create-section]')].map((el) => el.getAttribute('data-create-section'));
 
-  it('today keeps the need tiles and has no browse section', () => {
+  it('without directions keeps the need tiles and has no browse section', () => {
+    catalogue.list = UNDIRECTED;
     const { container } = page();
     expect(sections(container)).not.toContain('browse');
     expect(screen.getAllByTestId('need-tile').length).toBe(shownNeeds(LISTED).length);

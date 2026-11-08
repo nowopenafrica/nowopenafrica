@@ -57,7 +57,8 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
  * DESIGN_TEMPLATES; reading only designTemplates.ts would let 38 layouts
  * past the gate unaudited while the report still said "OK".
  */
-const source = read('src/lib/designTemplates.ts') + '\n' + read('src/lib/design/catalogueTemplates.ts');
+const source = read('src/lib/designTemplates.ts') + '\n' + read('src/lib/design/catalogueTemplates.ts')
+  + '\n' + read('src/lib/design/pilotTemplates.ts');
 
 /** Every `{ key: '...', label: '...', ... }` template object, crudely. */
 function templates() {

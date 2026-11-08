@@ -122,6 +122,7 @@ export const NEEDS: Need[] = [
       { slug: 'shopfront-sign', name: 'Shopfront sign' },
       { slug: 'roll-up', name: 'Roll-up banner' },
       { slug: 'billboard', name: 'Billboard' },
+      { slug: 'billboard-48-sheet', name: '48-sheet billboard' },
       { slug: 'banner', name: 'Banner' },
     ],
   },

@@ -23,7 +23,15 @@
       "card-qr",
       "letterhead-edge",
       "email-signature-bar",
-      "invoice-modern"
+      "invoice-modern",
+      "pilot-card-luxury",
+      "pilot-card-minimal",
+      "pilot-card-corporate",
+      "pilot-card-editorial",
+      "pilot-card-bold",
+      "pilot-card-contemporary",
+      "pilot-card-playful",
+      "pilot-card-industry"
     ],
     "brand": [
       "brand-intro-reveal",
@@ -41,7 +49,13 @@
       "carousel-cover-number",
       "insight-stat",
       "reels-cover-centre",
-      "status-order"
+      "status-order",
+      "pilot-ig-luxury",
+      "pilot-ig-editorial",
+      "pilot-ig-bold",
+      "pilot-ig-contemporary",
+      "pilot-ig-industry",
+      "pilot-ig-minimal"
     ],
     "promotions": [
       "flash-sale",
@@ -85,7 +99,13 @@
       "billboard-statement",
       "event-backdrop",
       "led-screen-ad",
-      "pavement-sign"
+      "pavement-sign",
+      "pilot-bb-bold",
+      "pilot-bb-minimal",
+      "pilot-bb-luxury",
+      "pilot-bb-contemporary",
+      "pilot-bb-industry",
+      "pilot-bb-editorial"
     ],
     "documents": [
       "minimal-grid",
@@ -107,7 +127,15 @@
       "card-type-led",
       "card-logo-led",
       "card-colour-block",
-      "card-qr"
+      "card-qr",
+      "pilot-card-luxury",
+      "pilot-card-minimal",
+      "pilot-card-corporate",
+      "pilot-card-editorial",
+      "pilot-card-bold",
+      "pilot-card-contemporary",
+      "pilot-card-playful",
+      "pilot-card-industry"
     ],
     "letterhead": [
       "letterhead-edge"
@@ -139,7 +167,13 @@
     "instagram-post": [
       "testimonial-card",
       "app-download",
-      "insight-stat"
+      "insight-stat",
+      "pilot-ig-luxury",
+      "pilot-ig-editorial",
+      "pilot-ig-bold",
+      "pilot-ig-contemporary",
+      "pilot-ig-industry",
+      "pilot-ig-minimal"
     ],
     "story": [
       "story-caption",
@@ -220,6 +254,14 @@
     "billboard": [
       "billboard-statement",
       "led-screen-ad"
+    ],
+    "billboard-48-sheet": [
+      "pilot-bb-bold",
+      "pilot-bb-minimal",
+      "pilot-bb-luxury",
+      "pilot-bb-contemporary",
+      "pilot-bb-industry",
+      "pilot-bb-editorial"
     ],
     "banner": [
       "event-backdrop"

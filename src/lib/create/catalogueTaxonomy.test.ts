@@ -24,8 +24,8 @@ describe('catalogue taxonomy', () => {
     ]);
   });
 
-  it('maps all 110 code templates to exactly one registered subcategory', () => {
-    expect(DESIGN_TEMPLATES).toHaveLength(110);
+  it('maps all 130 code templates to exactly one registered subcategory', () => {
+    expect(DESIGN_TEMPLATES).toHaveLength(130);
     for (const tpl of DESIGN_TEMPLATES) {
       const sub = subcategoryFor(tpl);
       expect(sub, tpl.key).not.toBeNull();
@@ -65,7 +65,7 @@ describe('catalogue taxonomy', () => {
     }
   });
 
-  it('defines the three pilot subcategories even with no templates', () => {
+  it('defines the three pilot subcategories', () => {
     const card = byKey('business-card')!;
     expect(card.sides).toBe('front-back');
     expect(card.requiredRoles).toEqual(expect.arrayContaining(['brand', 'headline', 'contact']));
@@ -76,7 +76,8 @@ describe('catalogue taxonomy', () => {
     const board = byKey('billboard-48-sheet')!;
     expect(board.formats).toEqual(['board-48-sheet']);
     expect(board.category).toBe('advertising');
-    expect(DESIGN_TEMPLATES.some((t) => subcategoryFor(t)?.key === 'billboard-48-sheet')).toBe(false);
+    // Task 18's six pilot boards are the first work in it.
+    expect(DESIGN_TEMPLATES.filter((t) => subcategoryFor(t)?.key === 'billboard-48-sheet')).toHaveLength(6);
   });
 
   it('resolves every format key in FORMATS', () => {
@@ -124,8 +125,13 @@ describe('shownSubcategories', () => {
   const withDirections = (tpls: DesignTemplate[], n: number): DesignTemplate[] =>
     tpls.map((t, i) => ({ ...t, direction: dirs[i % n] }));
 
-  it('returns nothing for today\'s library, which has no directions yet', () => {
-    expect(shownSubcategories(DESIGN_TEMPLATES)).toEqual([]);
+  it('returns nothing for a library with no directions', () => {
+    expect(shownSubcategories(DESIGN_TEMPLATES.map((t) => ({ ...t, direction: undefined })))).toEqual([]);
+  });
+
+  it('shows the three pilot products once Task 18 directs them', () => {
+    expect(shownSubcategories(DESIGN_TEMPLATES).map((s) => s.key).sort())
+      .toEqual(['billboard-48-sheet', 'business-card', 'instagram-post']);
   });
 
   it('hides a subcategory that spans only 3 directions, shows one with 4', () => {
