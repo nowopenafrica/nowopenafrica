@@ -19,9 +19,10 @@ import {
   type DesignTemplate, type SlotSpec, type SurfaceLayer, type ShapeSpec,
   slotBox, fitSlotSize, motionAt, settleTime, surfaceSpecLayers, hexAlpha, unitOf, fontStack,
   cameraAt, lineHeightFor,
-  isListRole, listRowBoxes, shapeColor, shapeGeometry,
-  type PriceRow,
+  isListRole, listRowBoxes, shapeColor, shapeGeometry, frontShapes, photoBoxPx, coverInBox,
+  type PriceRow, type PhotoBoxPx,
 } from './designTemplates';
+import { resolveFallback, type ResolvedFallback, type ResolvedFallbackLayer } from './design/photoFallback';
 import { resolveLook, pairingFace, type Look, type GradientSpec } from './design/look';
 import { patternZoneBox } from './design/patterns';
 import { ICON_EM, iconIndent, rowGlyph, type Glyph } from './design/icons';
@@ -195,19 +196,25 @@ function scratchCanvas(w: number, h: number) {
   }
 }
 
-/** Media through the two-colour map. False means the caller should draw it plain. */
+/**
+ * Media through the two-colour map, covering `box` (the whole canvas when
+ * absent) from its focal point. False means the caller should draw it plain.
+ */
 function drawDuotoneCover(
   ctx: CanvasRenderingContext2D, media: CanvasImageSource, w: number, h: number, duo: [string, string],
+  box?: PhotoBoxPx, focal?: [number, number],
 ): boolean {
-  const s = scratchCanvas(Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
+  const bw = box ? box.w : w;
+  const bh = box ? box.h : h;
+  const s = scratchCanvas(Math.max(1, Math.round(bw)), Math.max(1, Math.round(bh)));
   if (!s) return false;
   try {
     s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
-    drawCover(s.ctx, media, s.canvas.width, s.canvas.height);
+    drawCoverIn(s.ctx, media, { x: 0, y: 0, w: s.canvas.width, h: s.canvas.height }, focal);
     const img = s.ctx.getImageData(0, 0, s.canvas.width, s.canvas.height);
     applyDuotone(img.data, duo[0], duo[1]);
     s.ctx.putImageData(img, 0, 0);
-    ctx.drawImage(s.canvas, 0, 0, w, h);
+    ctx.drawImage(s.canvas, box ? box.x : 0, box ? box.y : 0, bw, bh);
     return true;
   } catch {
     // A tainted source throws from getImageData. Plain media beats no media.
@@ -273,8 +280,10 @@ export async function preloadTemplatePatterns(
     const resolved = resolveLook(tpl, {
       override: opts.look, brandPalette: opts.brandPalette, accent: opts.accent, base: opts.base, width: w, height: h,
     });
-    if (!resolved.pattern) return;
-    const { loaded } = requestPattern(resolved.pattern.svg);
+    const fb = resolveFallback(tpl, resolved.roles, w, h);
+    const svgs = [resolved.pattern?.svg, fb?.pattern?.svg].filter((x): x is string => !!x);
+    if (svgs.length === 0) return;
+    const loaded = Promise.all(svgs.map((svg) => requestPattern(svg).loaded)).then(() => undefined);
     await Promise.race([loaded, new Promise<void>((r) => setTimeout(r, timeoutMs))]);
   } catch {
     /* a missing pattern is a missing texture, not a failed export */
@@ -444,6 +453,102 @@ function paintShape(
       break;
   }
   ctx.restore();
+}
+
+/** One no-photo fill layer over the box, as TemplateSurface's CSS background paints it. */
+function paintFallbackLayer(ctx: CanvasRenderingContext2D, l: ResolvedFallbackLayer, box: PhotoBoxPx) {
+  if (l.kind === 'flat') {
+    ctx.fillStyle = l.color;
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    return;
+  }
+  if (typeof ctx.createLinearGradient !== 'function') return;
+  let g: CanvasGradient;
+  if (l.kind === 'linear') {
+    const line = gradientLine(l.angle, box.w, box.h);
+    g = ctx.createLinearGradient(box.x + line.x0, box.y + line.y0, box.x + line.x1, box.y + line.y1);
+  } else {
+    g = ctx.createRadialGradient(box.x + l.cx, box.y + l.cy, 0, box.x + l.cx, box.y + l.cy, l.r);
+  }
+  for (const st of l.stops) g.addColorStop(Math.max(0, Math.min(1, st.at)), st.color);
+  ctx.fillStyle = g;
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+}
+
+/**
+ * The designed no-photo state (design/photoFallback.ts), clipped to the photo
+ * box: fill layers, pattern, geometry, keyline, initial, in TemplateSurface's
+ * order. A context that cannot clip still paints the fill, which is the part
+ * that stops the plane being empty.
+ */
+function paintFallback(
+  ctx: CanvasRenderingContext2D,
+  fb: ResolvedFallback,
+  w: number,
+  h: number,
+  accent: string,
+  ink: string,
+  base: string,
+  roles: Record<PaletteRole, string>,
+) {
+  const { box } = fb;
+  ctx.save();
+  if (typeof ctx.clip === 'function' && typeof ctx.beginPath === 'function') {
+    if (box.radius > 0 && canPathHere(ctx)) roundRect(ctx, box.x, box.y, box.w, box.h, box.radius);
+    else { ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); }
+    ctx.clip();
+  }
+  for (const l of fb.layers) paintFallbackLayer(ctx, l, box);
+  if (fb.pattern) {
+    const bitmap = requestPattern(fb.pattern.svg).image;
+    if (bitmap) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, fb.pattern.opacity));
+      try { ctx.drawImage(bitmap, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); } catch { /* texture lost, not the frame */ }
+      ctx.restore();
+    }
+  }
+  for (const shape of fb.shapes) paintShape(ctx, shape, w, h, accent, ink, base, roles);
+  if (fb.keyline && typeof ctx.strokeRect === 'function') {
+    const k = fb.keyline;
+    ctx.strokeStyle = k.color;
+    ctx.lineWidth = k.width;
+    // The DOM draws the border inside its box; a canvas stroke is centred on the path.
+    ctx.strokeRect(k.x + k.width / 2, k.y + k.width / 2, Math.max(0, k.w - k.width), Math.max(0, k.h - k.width));
+  }
+  if (fb.monogram) {
+    const m = fb.monogram;
+    ctx.font = `${m.weight} ${m.sizePx}px ${m.family}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = m.color;
+    ctx.fillText(m.char, m.cx, m.cy);
+  }
+  ctx.restore();
+}
+
+/**
+ * Lines that keep a wrap's line count but even out its widths (S4: what CSS
+ * text-wrap: balance does). The narrowest width that still gives the same
+ * number of lines, found by halving, then wrapped at that width. Cheap: a
+ * dozen wraps of a headline.
+ */
+export function balanceLines(
+  measure: (s: string) => number,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const first = wrapLines(measure, text, maxWidth, maxLines);
+  if (first.length < 2 || first[first.length - 1].endsWith('…')) return first;
+  let lo = maxWidth / first.length;
+  let hi = maxWidth;
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    const at = wrapLines(measure, text, mid, maxLines);
+    if (at.length === first.length && !at[at.length - 1].endsWith('…')) hi = mid; else lo = mid;
+  }
+  return wrapLines(measure, text, hi, maxLines);
 }
 
 /**
@@ -733,18 +838,31 @@ export function drawTemplateFrame(
   ctx.fillRect(0, 0, w, h);
 
   // Media first, so the surface tint sits over it and keeps text readable.
+  // With a photo box (S2) it is clipped to the box and placed by its focal
+  // point; without one it covers the canvas, as it always has.
+  const photoBox = tpl.photo ? photoBoxPx(tpl, w, h) : undefined;
+  const focal = tpl.photo?.focal;
   if (content.media) {
     const alpha = (opts.mediaOpacity ?? 1);
+    // Saved only for a photo box, so a layout without one paints the same calls as before.
+    if (photoBox) ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     try {
+      if (photoBox && typeof ctx.clip === 'function' && typeof ctx.beginPath === 'function') {
+        if (photoBox.radius > 0 && canPathHere(ctx)) roundRect(ctx, photoBox.x, photoBox.y, photoBox.w, photoBox.h, photoBox.radius);
+        else { ctx.beginPath(); ctx.rect(photoBox.x, photoBox.y, photoBox.w, photoBox.h); }
+        ctx.clip();
+      }
       // Duotone maps the photo's luma onto the look's two roles; a context
       // that cannot do the offscreen pass draws it plain.
-      if (!(resolved.duotone && drawDuotoneCover(ctx, content.media, w, h, resolved.duotone))) {
-        drawCover(ctx, content.media, w, h);
+      if (!(resolved.duotone && drawDuotoneCover(ctx, content.media, w, h, resolved.duotone, photoBox, focal))) {
+        if (photoBox) drawCoverIn(ctx, content.media, photoBox, focal);
+        else drawCover(ctx, content.media, w, h);
       }
     } catch {
       // A tainted or not-yet-decoded source must not abort the whole frame.
     }
+    if (photoBox) ctx.restore();
     ctx.globalAlpha = 1;
   }
 
@@ -782,9 +900,16 @@ export function drawTemplateFrame(
     }
   }
 
+  // No photograph: the designed no-photo state (S1), over the ground and its
+  // pattern, under the shapes, exactly where TemplateSurface draws it.
+  const fallback = content.media ? null : resolveFallback(tpl, roles, w, h, content.brand);
+  if (fallback) paintFallback(ctx, fallback, w, h, accent, roles.ink, base, roles);
+
   // Geometry over the surface, under the type. A wedge that covered the
   // headline would make the template unusable, and shapes are decoration.
-  for (const shape of tpl.shapes ?? []) {
+  // A template as written is its front, so back-only shapes (S3) wait for
+  // the side pageTemplate() builds.
+  for (const shape of frontShapes(tpl)) {
     paintShape(ctx, shape, w, h, accent, roles.ink, base, roles);
   }
 
@@ -878,7 +1003,11 @@ export function drawTemplateFrame(
      */
     const glyph = rowGlyph(slot, 0, value, { platform: content.platform, sample: sampleRow(tpl, slot.role, 0) });
     const indent = glyph ? iconIndent(size) : 0;
-    const lines = wrapLines((s) => ctx.measureText(s).width, shown, Math.max(0, box.width - indent), glyph ? 1 : maxLinesFor(slot.role));
+    const lineLimit = glyph ? 1 : (slot.maxLines ?? maxLinesFor(slot.role));
+    const measure = (s: string) => ctx.measureText(s).width;
+    const lines = slot.balance && !glyph
+      ? balanceLines(measure, shown, Math.max(0, box.width - indent), lineLimit)
+      : wrapLines(measure, shown, Math.max(0, box.width - indent), lineLimit);
     const lineHeight = size * ((slot.size ?? 0.05) > 0.07 ? 1.06 : 1.28);
     const widest = lines.reduce((mx, l) => Math.max(mx, ctx.measureText(l).width), 0) + indent;
     const pad = u * 0.014;
@@ -901,7 +1030,9 @@ export function drawTemplateFrame(
       } else {
         ctx.fillStyle = slot.treatment === 'panel'
           ? hexAlpha(base, 0.55)
-          : hexAlpha(role ? roles[role] : slotInk, 0.18);
+          : slot.pillStyle === 'solid'
+            ? (role ? roles[role] : slotInk)
+            : hexAlpha(role ? roles[role] : slotInk, 0.18);
         ctx.fill();
       }
     }
@@ -929,7 +1060,10 @@ export function drawTemplateFrame(
     // that reads on it: today's rule (the surface) without a look, the ink
     // measured for that role with one — TemplateSurface's discText.
     const discText = !role ? accent : hasLook ? inkOn[role] : base;
-    ctx.fillStyle = slot.treatment === 'disc' ? discText : tone;
+    // A solid pill (S7) is the tone at full strength: the words take the ink measured for it.
+    const solidPill = slot.treatment === 'pill' && slot.pillStyle === 'solid';
+    const wordsColour = slot.treatment === 'disc' ? discText : solidPill ? (role ? inkOn[role] : base) : tone;
+    ctx.fillStyle = wordsColour;
 
     /*
      * Gradient headline. The DOM has to gate this on background-clip support;
@@ -958,7 +1092,8 @@ export function drawTemplateFrame(
        */
       const startX = box.textAlign === 'center' ? anchorX - widest / 2 : box.textAlign === 'right' ? anchorX - widest : 0;
       const lead = (lineHeightFor(slot.size) * size - size * ICON_EM) / 2;
-      paintIcon(ctx, glyph, startX, lead, size, tone);
+      // The icon takes its words' colour, which on a solid pill is the pill's ink.
+      paintIcon(ctx, glyph, startX, lead, size, wordsColour);
       ctx.textAlign = 'left';
       ctx.fillText(lines[0] ?? '', startX + indent, lead);
     } else {
@@ -1007,5 +1142,17 @@ function drawCover(ctx: CanvasRenderingContext2D, src: CanvasImageSource, w: num
   const sw = anySrc.videoWidth || anySrc.width || 0;
   const sh = anySrc.videoHeight || anySrc.height || 0;
   const r = coverRect(Number(sw), Number(sh), w, h);
+  ctx.drawImage(src, r.x, r.y, r.w, r.h);
+}
+
+/** object-fit: cover into a box, positioned by a focal point (CSS object-position). */
+function drawCoverIn(
+  ctx: CanvasRenderingContext2D, src: CanvasImageSource,
+  box: { x: number; y: number; w: number; h: number }, focal?: [number, number],
+) {
+  const anySrc = src as unknown as { videoWidth?: number; videoHeight?: number; width?: number; height?: number };
+  const sw = anySrc.videoWidth || anySrc.width || 0;
+  const sh = anySrc.videoHeight || anySrc.height || 0;
+  const r = coverInBox(Number(sw), Number(sh), box, focal);
   ctx.drawImage(src, r.x, r.y, r.w, r.h);
 }

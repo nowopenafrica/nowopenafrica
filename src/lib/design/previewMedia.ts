@@ -33,8 +33,19 @@
  * this one.
  */
 
-/** What a preview photograph shows. */
-export type PreviewSubject = 'food' | 'beauty' | 'retail' | 'work' | 'craft';
+/**
+ * What a preview photograph shows.
+ *
+ * A subject names what the picture shows closely enough that a match is
+ * right (Task 18c, S6): `work` matched a gavel to a courier, so a design
+ * for one asks for `delivery`, and gets no photograph until the pool has a
+ * real one. `interior` is a room or a building inside (a hotel, a
+ * property); `fashion-detail` is a garment, jewellery or product crop, never
+ * a face, so a duotone on it never lands on skin.
+ */
+export type PreviewSubject =
+  | 'food' | 'beauty' | 'retail' | 'work' | 'craft'
+  | 'delivery' | 'interior' | 'fashion-detail';
 
 export interface PreviewPhoto {
   url: string;

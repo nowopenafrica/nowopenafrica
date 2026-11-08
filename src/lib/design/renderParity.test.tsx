@@ -94,10 +94,16 @@ function recordCanvas(tpl: DesignTemplate, look?: Partial<Look>) {
   return { texts, fills };
 }
 
-/** The first painted line of a slot's words: the renderer wraps, line one is a prefix. */
+/**
+ * The first painted line of a slot's words: the renderer wraps, line one is a
+ * prefix. The longest such run, so a no-photo monogram (one letter, the
+ * name's initial: Task 18c S1) is not mistaken for the name itself.
+ */
 const canvasRun = (texts: Painted[], value: string, upper?: boolean): Painted | undefined => {
   const want = (upper ? value.toUpperCase() : value);
-  return texts.find((p) => p.text.length > 0 && want.startsWith(p.text));
+  return texts
+    .filter((p) => p.text.length > 0 && want.startsWith(p.text))
+    .reduce<Painted | undefined>((best, p) => (!best || p.text.length > best.text.length ? p : best), undefined);
 };
 
 /* ---- the DOM, read back -------------------------------------------------- */

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 
 import TemplateSurface, { type TemplateContent } from '../studio/TemplateSurface';
-import { defaultMediaScrim, type DesignTemplate, type SlotRole } from '../../lib/designTemplates';
+import { defaultMediaScrim, pageTemplate, type DesignTemplate, type SlotRole } from '../../lib/designTemplates';
 import { DESIGN_STYLES, applyStyle, contrastRatio, styleColours, styleOf } from '../../lib/design/styles';
 import { TYPE_PAIRINGS, ensureTypefacesReady, typefaceOf } from '../../lib/design/typefaces';
 import { DESIGN_FORMATS } from '../../data/studioPresets';
@@ -574,7 +574,7 @@ export default function TemplateCustomiser({
                       */
                     template={side === 0
                       ? styled
-                      : { ...styled, slots: styled.extraPages?.[side - 1]?.slots ?? styled.slots }}
+                      : pageTemplate(styled, side)}
                     content={content}
                     width={format.w}
                     height={format.h}

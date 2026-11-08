@@ -28,7 +28,7 @@ import {
 } from './palettes';
 import type { GradientSpec, Look, LookPart, PatternSpec } from './look';
 import {
-  isListRole, lineHeightFor, shapeGeometry, slotBox, typePx,
+  frontShapes, isListRole, lineHeightFor, photoBoxPx, shapeGeometry, slotBox, typePx,
   type DesignTemplate, type ShapeSpec, type SlotSpec,
 } from '../designTemplates';
 import { PATTERNS } from './patterns';
@@ -175,8 +175,8 @@ function insidePolygon(x: number, y: number, pts: [number, number][]): boolean {
   return inside;
 }
 
-/** Roles painted at (x, y) by the topmost opaque shape there; the ground if none. */
-function rolesAt(shapes: ShapeSpec[], x: number, y: number, w: number, h: number): PaletteRole[] {
+/** The topmost opaque shape's roles at a point, or null where no shape paints (the ground shows). */
+function shapeRolesAt(shapes: ShapeSpec[], x: number, y: number, w: number, h: number): PaletteRole[] | null {
   for (let i = shapes.length - 1; i >= 0; i -= 1) {
     const shape = shapes[i];
     if (!isOpaque(shape)) continue;
@@ -192,7 +192,35 @@ function rolesAt(shapes: ShapeSpec[], x: number, y: number, w: number, h: number
     const role = shapeRole(shape);
     return role ? [role] : [];
   }
-  return ['ground'];
+  return null;
+}
+
+/**
+ * The roles a design's no-photo state (S1) paints under a point inside its
+ * photo box, for the palette-swap needs: the opaque fill layers, and any of
+ * its geometry over the point. Translucent tints are left out, as rolesAt
+ * leaves out translucent shapes.
+ */
+function fallbackRolesAt(tpl: DesignTemplate, x: number, y: number, w: number, h: number): PaletteRole[] {
+  const fb = tpl.photoLed ? tpl.photo?.fallback : undefined;
+  if (!fb) return [];
+  const b = photoBoxPx(tpl, w, h);
+  if (x < b.x || x > b.x + b.w || y < b.y || y > b.y + b.h) return [];
+  const out = new Set<PaletteRole>();
+  /*
+   * A layer counts as a role only where it shows as that role: opaque itself,
+   * and not tinted over by a later layer. A tinted stack is a mixed colour no
+   * single role describes; the composite is measured by checks/contrast.ts.
+   */
+  const tones = (l: (typeof fb.layers)[number]) => (l.kind === 'flat' ? [l.tone] : l.stops);
+  const strength = (l: (typeof fb.layers)[number]) => Math.max(...tones(l).map((t) => t.alpha ?? 1));
+  fb.layers.forEach((l, i) => {
+    if (fb.layers.slice(i + 1).some((later) => strength(later) >= 0.3)) return;
+    for (const t of tones(l)) if ((t.alpha ?? 1) >= 0.5) out.add(t.role);
+  });
+  const shaped = shapeRolesAt(fb.shapes ?? [], x, y, w, h);
+  if (shaped) return shaped;
+  return [...out];
 }
 
 /**
@@ -251,7 +279,10 @@ export function textNeeds(tpl: DesignTemplate): TextNeed[] {
       const toned = toneRoleOf(slot.tone);
       const bgs = new Set<PaletteRole>();
       for (const [x, y] of sampleBox(textSlotBox(slot, w, h))) {
-        for (const r of rolesAt(tpl.shapes ?? [], x, y, w, h)) bgs.add(r);
+        // Bare ground inside a photo box with a no-photo state is that state.
+        const shaped = shapeRolesAt(frontShapes(tpl), x, y, w, h);
+        const fallback = shaped ? [] : fallbackRolesAt(tpl, x, y, w, h);
+        for (const r of shaped ?? (fallback.length ? fallback : ['ground' as const])) bgs.add(r);
       }
       const size = slot.size ?? 0.05;
       const body = size >= 0.06 ? 3 : 4.5;
@@ -267,8 +298,11 @@ export function textNeeds(tpl: DesignTemplate): TextNeed[] {
           // A price's value is the slot's role or primary in every renderer, never muted.
           if (slot.role === 'price') add(toned ?? 'primary', [...bgs], body);
         }
-      } else if (slot.treatment === 'disc' && toned) {
+      } else if ((slot.treatment === 'disc' || (slot.treatment === 'pill' && slot.pillStyle === 'solid')) && toned) {
         add(`ink-on:${toned}`, [toned], body);
+      } else if (slot.treatment === 'pill' && slot.pillStyle === 'solid' && onRole === 'ground') {
+        // An untoned solid pill is the ground ink, with the words in the ground colour.
+        add('ground', ['ink'], body);
       } else {
         add(toned ?? plain, [...bgs], body, muted);
       }

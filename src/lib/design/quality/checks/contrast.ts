@@ -24,8 +24,8 @@
  * approximation; for looked templates it is exact.
  */
 import {
-  isListRole, shapeColor, shapeGeometry,
-  type DesignTemplate, type ShapeSpec, type SlotSpec,
+  frontShapes, isListRole, photoBoxPx, shapeColor, shapeGeometry,
+  type DesignTemplate, type FallbackTone, type ShapeSpec, type SlotSpec,
 } from '../../../designTemplates';
 import { resolveLook, type Look, type ResolvedLook } from '../../look';
 import type { Palette, PaletteRole } from '../../palettes';
@@ -85,7 +85,36 @@ function coloursAt(
   x: number, y: number, w: number, h: number,
 ): string[] {
   let stack: string[] = groundRoles(look).map((role) => r.roles[role]);
-  for (const shape of tpl.shapes ?? []) {
+  /*
+   * Inside the photo box of a design with a no-photo state (S1), the words may
+   * sit on that state, so it is measured as drawn: each fill layer over the
+   * ground (every stop of a gradient), then its geometry. With a photograph
+   * the scrim governs, as before; this is the case nothing used to measure.
+   */
+  const fb = tpl.photoLed ? tpl.photo?.fallback : undefined;
+  if (fb) {
+    const b = photoBoxPx(tpl, w, h);
+    if (x >= b.x && x <= b.x + b.w && y >= b.y && y <= b.y + b.h) {
+      const over = (t: FallbackTone) => (under: string) => composite(r.roles[t.role], under, t.alpha ?? 1);
+      stack = [];
+      for (const l of fb.layers) {
+        // Outside a radial glow only its last stop paints; inside it, any stop may.
+        const beyond = l.kind === 'radial'
+          && Math.hypot(x - (b.x + l.cx * b.w), y - (b.y + l.cy * b.h)) >= l.r * Math.max(b.w, b.h);
+        const tones = l.kind === 'flat' ? [l.tone] : beyond ? [l.stops[l.stops.length - 1]] : l.stops;
+        stack = stack.length === 0
+          ? tones.map((t) => over(t)(r.roles.ground))
+          : stack.flatMap((under) => tones.map((t) => over(t)(under)));
+      }
+      if (stack.length === 0) stack = [r.roles.ground];
+      for (const shape of fb.shapes ?? []) {
+        if (!covers(shape, x, y, w, h)) continue;
+        const alpha = shape.alpha ?? 1;
+        stack = stack.flatMap((under) => shapeColours(shape, r, accent).map((c) => composite(c, under, alpha)));
+      }
+    }
+  }
+  for (const shape of frontShapes(tpl)) {
     if (!covers(shape, x, y, w, h)) continue;
     const alpha = shape.alpha ?? 1;
     stack = stack.flatMap((under) => shapeColours(shape, r, accent).map((c) => composite(c, under, alpha)));
@@ -94,7 +123,11 @@ function coloursAt(
 }
 
 /** `alpha` below 1 means the renderer draws `fg` translucent; it is composited before measuring. */
-interface Run { label: string; fg: string; min: number; box: TextSlotBox; alpha?: number }
+interface Run {
+  label: string; fg: string; min: number; box: TextSlotBox; alpha?: number;
+  /** A ground the run paints for itself (a solid pill): measured on this alone. */
+  on?: string;
+}
 
 export const toneRole = (tone: SlotSpec['tone']): PaletteRole | null =>
   tone === 'accent' || tone === 'primary' ? 'primary'
@@ -126,6 +159,11 @@ function runsOf(tpl: DesignTemplate, r: ResolvedLook, w: number, h: number): Run
       }
     } else if (slot.treatment === 'disc' && toned) {
       out.push({ label: tag(' on disc'), fg: r.inkOn[toned], min: body, box });
+    } else if (slot.treatment === 'pill' && slot.pillStyle === 'solid') {
+      // A solid pill (S7) paints its own ground: the words are measured on the pill.
+      // Untoned, the pill is the slot's ink and the words are the ground colour.
+      if (toned) out.push({ label: tag(' on pill'), fg: r.inkOn[toned], min: body, box, on: r.roles[toned] });
+      else out.push({ label: tag(' on pill'), fg: r.roles.ground, min: body, box, on: ink });
     } else {
       out.push({ label: tag(''), ...plain, min: body, box });
     }
@@ -167,8 +205,11 @@ export function measureContrast(tpl: DesignTemplate, look: Look | undefined, opt
     const groundLook = r.source === 'look' ? look ?? tpl.look : undefined;
     for (const run of runsOf(tpl, r, w, h)) {
       const beneath = new Set<string>();
-      for (const [x, y] of sampleBox(run.box)) {
-        for (const c of coloursAt(tpl, groundLook, r, accent, x, y, w, h)) beneath.add(c);
+      if (run.on) beneath.add(run.on);
+      else {
+        for (const [x, y] of sampleBox(run.box)) {
+          for (const c of coloursAt(tpl, groundLook, r, accent, x, y, w, h)) beneath.add(c);
+        }
       }
       for (const bg of beneath) {
         const fg = run.alpha !== undefined ? composite(run.fg, bg, run.alpha) : run.fg;

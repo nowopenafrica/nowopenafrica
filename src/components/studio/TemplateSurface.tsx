@@ -2,9 +2,10 @@ import { useId, useMemo, useRef } from 'react';
 import {
   type DesignTemplate, type ShapeSpec, type SlotRole, type SlotSpec, type SurfaceLayer,
   slotBox, typePx, fitSlotSize, motionAt, settleTime, surfaceLayers, hexAlpha, unitOf, fontStack,
-  isListRole, listRowBoxes, shapeColor, shapeGeometry,
+  isListRole, listRowBoxes, shapeColor, shapeGeometry, frontShapes, photoBoxPx, focalCss,
   type PriceRow,
 } from '../../lib/designTemplates';
+import { fallbackLayerCss, resolveFallback, type ResolvedFallback } from '../../lib/design/photoFallback';
 import { resolveLook, gradientCss, duotoneMatrix, pairingFace, type Look, type ResolvedLook } from '../../lib/design/look';
 import { patternZoneBox } from '../../lib/design/patterns';
 import { ICON_EM, ICON_GAP_EM, rowGlyph, type Glyph } from '../../lib/design/icons';
@@ -167,6 +168,80 @@ function Shape({
         background: color, opacity,
       }}
     />
+  );
+}
+
+/**
+ * The designed no-photo state (design/photoFallback.ts), inside the photo box.
+ *
+ * One clipped box; the fill layers, the pattern, the geometry, the keyline
+ * and the initial inside it, in that order, which is the order drawTemplate
+ * paints them in. Pattern and shapes are laid out in canvas coordinates and
+ * shifted by the box corner, so they land where the canvas puts them.
+ */
+function PhotoFallbackLayer({
+  fb, width, height, accent, ink, base, roles,
+}: {
+  fb: ResolvedFallback; width: number; height: number; accent: string; ink: string; base: string;
+  roles: Record<PaletteRole, string>;
+}) {
+  const { box } = fb;
+  const canvasSized: React.CSSProperties = { position: 'absolute', left: -box.x, top: -box.y, width, height };
+  return (
+    <div
+      data-photo-fallback=""
+      aria-hidden="true"
+      style={{
+        position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h,
+        overflow: 'hidden', borderRadius: box.radius || undefined, pointerEvents: 'none',
+      }}
+    >
+      {fb.layers.map((l, i) => (
+        <div key={i} data-fallback-layer={l.kind} style={{ position: 'absolute', inset: 0, background: fallbackLayerCss(l) }} />
+      ))}
+      {fb.pattern && (
+        <div
+          data-fallback-pattern=""
+          style={{
+            ...canvasSized,
+            backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(fb.pattern.svg)}")`,
+            backgroundSize: `${width}px ${height}px`,
+            backgroundRepeat: 'no-repeat',
+            opacity: fb.pattern.opacity,
+          }}
+        />
+      )}
+      {fb.shapes.length > 0 && (
+        <div data-fallback-shapes="" style={canvasSized}>
+          {fb.shapes.map((shape, i) => (
+            <Shape key={i} shape={shape} width={width} height={height} accent={accent} ink={ink} base={base} roles={roles} />
+          ))}
+        </div>
+      )}
+      {fb.keyline && (
+        <div
+          style={{
+            position: 'absolute',
+            left: fb.keyline.x - box.x, top: fb.keyline.y - box.y, width: fb.keyline.w, height: fb.keyline.h,
+            border: `${fb.keyline.width}px solid ${fb.keyline.color}`, boxSizing: 'border-box',
+          }}
+        />
+      )}
+      {fb.monogram && (
+        <div
+          data-fallback-monogram=""
+          style={{
+            position: 'absolute',
+            left: fb.monogram.cx - box.x, top: fb.monogram.cy - box.y,
+            transform: 'translate(-50%, -50%)',
+            fontFamily: fb.monogram.family, fontWeight: fb.monogram.weight, fontSize: fb.monogram.sizePx,
+            lineHeight: 1, color: fb.monogram.color, whiteSpace: 'nowrap',
+          }}
+        >
+          {fb.monogram.char}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -415,6 +490,33 @@ export default function TemplateSurface({
   const duotone = mediaUrl ? resolved.duotone : null;
   const mediaFilter = duotone ? `url(#${filterId})` : undefined;
 
+  /*
+   * The photo box (S2): with one, the photograph is drawn clipped to it and
+   * positioned by its focal point; without one it fills the canvas as it
+   * always has. With no photograph, a photo-led design draws its designed
+   * no-photo state there instead (S1).
+   */
+  const photoBox = template.photo ? photoBoxPx(template, width, height) : null;
+  const fallback = !mediaUrl
+    ? resolveFallback(template, roles, width, height, content.brand)
+    : null;
+  const mediaStyle: React.CSSProperties = photoBox
+    ? { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: focalCss(template.photo?.focal), opacity: mediaOpacity / 100, filter: mediaFilter }
+    : { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: mediaOpacity / 100, filter: mediaFilter };
+  const inPhotoBox = (node: React.ReactNode) => (photoBox
+    ? (
+      <div
+        data-photo-box=""
+        style={{
+          position: 'absolute', left: photoBox.x, top: photoBox.y, width: photoBox.w, height: photoBox.h,
+          overflow: 'hidden', borderRadius: photoBox.radius || undefined,
+        }}
+      >
+        {node}
+      </div>
+    )
+    : node);
+
   /** The ink that reads on whatever this slot sits on. */
   const inkOf = (slot: SlotSpec): string => inkOn[slot.on ?? 'ground'];
 
@@ -451,6 +553,12 @@ export default function TemplateSurface({
     return hasLook ? inkOn[role] : surfaceBase;
   };
 
+  /** Words on a solid pill: the ink measured for the pill role (S7). */
+  const solidPillText = (slot: SlotSpec): string => {
+    const role = toneRole(slot.tone);
+    return role ? inkOn[role] : surfaceBase;
+  };
+
   /*
    * Gradient type. The transparent text fill overrides `color`, so if the clip
    * were dropped the words would vanish into a gradient box. The fill is
@@ -485,6 +593,17 @@ export default function TemplateSurface({
     const slotInk = inkOf(slot);
     switch (slot.treatment) {
       case 'pill':
+        // Solid (S7): the tone at full strength, words in the ink that reads on it.
+        if (slot.pillStyle === 'solid') {
+          const fill = role ? roles[role] : slotInk;
+          return {
+            display: 'inline-block',
+            padding: `${pad * 0.7}px ${pad * 1.6}px`,
+            borderRadius: 999,
+            background: fill,
+            border: `1px solid ${fill}`,
+          };
+        }
         return {
           display: 'inline-block',
           padding: `${pad * 0.7}px ${pad * 1.6}px`,
@@ -543,15 +662,15 @@ export default function TemplateSurface({
         </svg>
       )}
       {/* Media sits beneath the surface layers so the tint keeps text readable. */}
-      {mediaUrl && mediaKind === 'image' && (
+      {mediaUrl && mediaKind === 'image' && inPhotoBox(
         <img
           src={mediaUrl}
           alt=""
           crossOrigin="anonymous"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: mediaOpacity / 100, filter: mediaFilter }}
-        />
+          style={mediaStyle}
+        />,
       )}
-      {mediaUrl && mediaKind === 'video' && (
+      {mediaUrl && mediaKind === 'video' && inPhotoBox(
         <video
           src={mediaUrl}
           muted
@@ -559,8 +678,8 @@ export default function TemplateSurface({
           autoPlay
           loop
           crossOrigin="anonymous"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: mediaOpacity / 100, filter: mediaFilter }}
-        />
+          style={mediaStyle}
+        />,
       )}
 
       {layers.map((bg, i) => (
@@ -593,7 +712,15 @@ export default function TemplateSurface({
       {/* Geometry over the surface, under the type — same order as the canvas
           painter, so a wedge never lands on top of a headline in one renderer
           and behind it in the other. */}
-      {(template.shapes ?? []).map((shape, i) => (
+      {/* No photograph: the designed no-photo state, over the ground and its
+          pattern, under the shapes (the canvas painter's order). */}
+      {fallback && (
+        <PhotoFallbackLayer fb={fallback} width={width} height={height} accent={primary} ink={roles.ink} base={surfaceBase} roles={roles} />
+      )}
+
+      {/* A template as written is its front: back-only shapes (S3) are drawn
+          on the side pageTemplate() builds. */}
+      {frontShapes(template).map((shape, i) => (
         <Shape key={i} shape={shape} width={width} height={height} accent={primary} ink={roles.ink} base={surfaceBase} roles={roles} />
       ))}
 
@@ -662,6 +789,8 @@ export default function TemplateSurface({
         const value = textFor(slot.role);
         if (!value && slot.role !== 'brand') return null;
 
+        const solidPill = slot.treatment === 'pill' && slot.pillStyle === 'solid';
+        const plainFlow = !slot.treatment || slot.treatment === 'plain';
         const typeStyle: React.CSSProperties = {
           /*
            * Fitted, not fixed. A slot carries one size and one y, so a headline
@@ -678,9 +807,14 @@ export default function TemplateSurface({
           textTransform: slot.upper ? 'uppercase' : undefined,
           // On a filled disc the slot tone IS the disc, so the words take the
           // colour that reads on it or they disappear into their own badge.
-          color: slot.treatment === 'disc' ? discText(slot) : toneColor(slot),
+          color: slot.treatment === 'disc' ? discText(slot) : solidPill ? solidPillText(slot) : toneColor(slot),
           ...treatmentStyle(slot),
           ...headlineFill(slot),
+          // S4: balanced lines, and a hard line limit the fitter has already sized for.
+          ...(slot.balance ? ({ textWrap: 'balance' } as React.CSSProperties) : {}),
+          ...(slot.maxLines && plainFlow
+            ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: slot.maxLines, overflow: 'hidden' }
+            : {}),
         };
 
         // The brand slot pairs a logo with the name.

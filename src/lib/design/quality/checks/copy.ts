@@ -4,15 +4,23 @@
  * Shared by the quality checks (C3, C5, C7, C9) and by fontCoverage.test.ts,
  * so "what does this slot draw" has one answer.
  */
-import type { DesignTemplate, SlotSpec } from '../../../designTemplates';
+import { pageTemplate, type DesignTemplate, type SlotSpec } from '../../../designTemplates';
 import { sampleFor } from '../../../create/sampleCopy';
 import type { TemplateContent } from '../../../../components/studio/TemplateSurface';
 
-export interface Page { name: string; slots: SlotSpec[] }
+export interface Page {
+  name: string;
+  slots: SlotSpec[];
+  /** The side as both renderers draw it: its slots and its shapes (pageTemplate). */
+  template: DesignTemplate;
+}
 
 /** The front, then every further side or page. */
 export function pagesOf(tpl: DesignTemplate): Page[] {
-  return [{ name: 'front', slots: tpl.slots }, ...(tpl.extraPages ?? [])];
+  return [
+    { name: 'front', slots: tpl.slots, template: tpl },
+    ...(tpl.extraPages ?? []).map((p, i) => ({ name: p.name, slots: p.slots, template: pageTemplate(tpl, i + 1) })),
+  ];
 }
 
 /** The copy a check measures: the caller's, else the demo copy the gallery shows. */

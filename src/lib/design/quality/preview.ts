@@ -21,6 +21,7 @@ import type { DesignTemplate } from '../../designTemplates';
 import { sampleFor } from '../../create/sampleCopy';
 import { DESIGN_STYLES, applyStyle, styleColours } from '../styles';
 import { pagesOf } from './checks/copy';
+import { fallbackProblems } from '../photoFallback';
 import { canvasFor } from './checks/geometry';
 import { GALLERY_ACCENT } from './checks/styled';
 import type { CriticalFailure } from './critical';
@@ -48,16 +49,26 @@ export function previewCriticals(tpl: DesignTemplate): CriticalFailure[] {
     const k = CARD / Math.max(c.w, c.h);
     const w = Math.round(c.w * k);
     const h = Math.round(c.h * k);
+    /*
+     * S1b: a directed photo-led design is rendered here with no photograph
+     * (the gallery's are not part of the template), so this is also where it
+     * must show its designed no-photo state rather than an empty plane.
+     */
+    const needsFallback = tpl.photoLed && !!tpl.direction;
+    for (const p of needsFallback ? fallbackProblems(tpl) : []) out.push({ code: 'C6', detail: `no photo: ${p}` });
     for (const page of pagesOf(styled)) {
       // React logs an uncaught render error before rethrowing it; the throw is what is reported.
       console.error = () => {};
       act(() => {
         root.render(createElement(TemplateSurface, {
-          template: { ...styled, slots: page.slots },
+          template: page.template,
           content: sampleFor(tpl), width: w, height: h, accent: tone.accent, base: tone.base,
         }));
       });
       console.error = quiet;
+      if (needsFallback && page.name === 'front' && !host.querySelector('[data-photo-fallback] [data-fallback-layer]')) {
+        out.push({ code: 'C6', detail: 'no photo: the photo box renders as an empty plane' });
+      }
       for (const img of Array.from(host.querySelectorAll('img'))) {
         const src = img.getAttribute('src') ?? '';
         if (!src) out.push({ code: 'C6', detail: `${page.name}: an image has no source` });

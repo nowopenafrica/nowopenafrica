@@ -25,7 +25,9 @@ import type { AssetManifest } from '../assetManifestTypes';
 import type { TemplateContent } from '../../../components/studio/TemplateSurface';
 import { assetRefs, externalUrls, iconRefs } from './checks/assets';
 import { LONG_BRAND, LONG_HEADLINE, copyFor, pagesOf, placeholderProblems, slotText } from './checks/copy';
+import { billboardProblems, isBillboard, textOverlaps } from './checks/flow';
 import { faceProblems, gapsOf } from './checks/glyphs';
+import { initialOf } from '../photoFallback';
 import { iconProblems, iconSetsAllowed, slotIconSets } from './checks/icons';
 import {
   NAME_ROLES, atFloor, belowMinimum, canvasFor, clipped, essentialRoles, fits, formatFor, isTextRole, minTextPx, ratioError, safeBreaches,
@@ -89,6 +91,14 @@ function wordsByFace(tpl: DesignTemplate, content: TemplateContent): Map<Typefac
         out.set(face, set);
       }
     }
+  }
+  // The no-photo monogram (S1) sets the name's initial in a face of its own.
+  const mono = tpl.photoLed ? tpl.photo?.fallback?.monogram : undefined;
+  const initial = initialOf(content.brand);
+  if (mono && initial) {
+    const set = out.get(mono.font) ?? new Set<string>();
+    set.add(initial);
+    out.set(mono.font, set);
   }
   return out;
 }
@@ -172,6 +182,12 @@ function c5(tpl: DesignTemplate, content: TemplateContent): string[] {
       if (atFloor(f)) out.push(`${f.where} with ${label} is at MIN_TYPE_PX (${f.fitted}px, designed ${f.natural}px)`);
       if (clipped(f)) out.push(`${f.where} with ${label} is clipped: it needs ${f.lines} lines and is set on one`);
     }
+    // S4b: words wrapped word by word must not run into each other on any page.
+    for (const o of textOverlaps(tpl, copy, w, h)) out.push(`${o} with ${label}`);
+  }
+  // S5: a roadside board is read at speed, so it has floors of its own.
+  if (isBillboard(subcategoryFor(tpl)?.key)) {
+    for (const p of billboardProblems(tpl, content, w, h)) out.push(`billboard: ${p}`);
   }
   return [...new Set(out)];
 }

@@ -21,9 +21,9 @@
  * - A card is 1011x638 at 300 dpi, so 6 pt is 25 px: every word on a card is
  *   set at 0.04 of the short edge (26 px) or larger, and everything sits at
  *   least 5 mm inside the trim (x 0.06-0.94, y 0.095-0.905).
- * - Front and back share one set of shapes (the renderer draws a page as the
- *   template with that page's slots), so every piece of geometry is placed to
- *   work under both sides' words.
+ * - Front and back share their shapes unless a shape names its side
+ *   (`side: 'back'`, Task 18c S3); pageTemplate() builds each side, so a back
+ *   can carry geometry of its own, like the clinic card's write-in lines.
  * - A brand slot is one line by contract (nowrap). Each is wide enough for a
  *   40-character name, or has a neighbour close enough below that the fitter
  *   shrinks a long name onto one line instead of cutting it off.
@@ -33,10 +33,16 @@
  *   estimate the fitter shrinks against is the real face's, not Outfit's.
  * - Photo-led designs carry no image of their own: the gallery supplies its
  *   preview photograph at render time (previewMedia.ts) and a business
- *   replaces it with theirs. Opaque `base` panels decide how much of it shows.
+ *   replaces it with theirs. A photo box (`photo`, Task 18c S2) says where it
+ *   goes; the window is no longer built from abutting opaque panels, which
+ *   left hairline seams. When there is no photograph (a subject the pool
+ *   cannot supply, Ruling AH) each draws its designed no-photo state there
+ *   (`photo.fallback`, S1): a fill, a pattern clipped to the box, geometry,
+ *   and on two of them the business name's initial (Ruling AP).
  * - Billboard copy is read in about three seconds: a headline, a name and at
  *   most one line to act on, with the headline at 0.13 of the board's height
- *   or larger.
+ *   or larger, every other line at 0.07 or larger and the name at 0.08 (S5),
+ *   and no more than seven words besides the name and the action line.
  *
  * Copy lives in create/sampleCopy.ts and is labels only, as everywhere else.
  * Spread into DESIGN_TEMPLATES; types only are imported (see catalogueTemplates.ts).
@@ -291,7 +297,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     slots: [
       { role: 'brand', x: 0.07, y: 0.12, w: 0.62, size: CARD_BRAND, weight: 700, motion: m('fade', 0) },
       { role: 'eyebrow', x: 0.4, y: 0.34, w: 0.54, size: CARD_TEXT, align: 'right', tone: 'secondary', font: 'mono', motion: m('fade', 0.2) },
-      { role: 'headline', x: 0.4, y: 0.42, w: 0.54, size: 0.09, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', motion: m('slide-left', 0.3, 0.6) },
+      { role: 'headline', x: 0.4, y: 0.42, w: 0.54, size: 0.09, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', maxLines: 3, motion: m('slide-left', 0.3, 0.6) },
       { role: 'meta', x: 0.58, y: 0.7, w: 0.36, size: CARD_TEXT, tone: 'muted', font: 'mono', icons: [HANDLE], motion: m('fade', 0.5) },
     ],
     extraPages: [{
@@ -383,13 +389,16 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { kind: 'rect', x: 0.6, y: 0.816, w: 0.34, h: 0.004, tone: 'primary' },
       { kind: 'rect', x: 0.6, y: 0.36, w: 0.0025, h: 0.46, tone: 'primary' },
       { kind: 'rect', x: 0.9375, y: 0.36, w: 0.0025, h: 0.46, tone: 'primary' },
+      // The back only (S3): two write-in lines in the appointment box.
+      { kind: 'rect', x: 0.65, y: 0.62, w: 0.25, h: 0.003, tone: 'primary', alpha: 0.5, side: 'back' },
+      { kind: 'rect', x: 0.65, y: 0.74, w: 0.25, h: 0.003, tone: 'primary', alpha: 0.5, side: 'back' },
     ],
     slots: [
       { role: 'brand', x: 0.07, y: 0.1, w: 0.7, size: 0.05, weight: 700, on: 'ink', motion: m('fade', 0) },
       { role: 'eyebrow', x: 0.07, y: 0.175, w: 0.7, size: CARD_TEXT, tone: 'muted', on: 'ink', motion: m('fade', 0.15) },
       { role: 'headline', x: 0.07, y: 0.34, w: 0.5, size: 0.075, weight: 700, font: 'grotesk', motion: m('rise', 0.25, 0.5) },
       { role: 'contact', x: 0.07, y: 0.54, w: 0.5, size: CARD_TEXT, gap: 1.6, max: 3, icons: [L('phone'), L('map-pin'), L('globe')], motion: m('fade', 0.4) },
-      { role: 'cta', x: 0.63, y: 0.42, w: 0.29, size: CARD_TEXT, weight: 700, treatment: 'pill', motion: m('pop', 0.55) },
+      { role: 'cta', x: 0.63, y: 0.42, w: 0.29, size: CARD_TEXT, weight: 700, treatment: 'pill', pillStyle: 'solid', motion: m('pop', 0.55) },
       { role: 'meta', x: 0.63, y: 0.62, w: 0.29, size: CARD_TEXT, motion: m('fade', 0.65) },
     ],
     extraPages: [{
@@ -419,24 +428,37 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'luxe', scheme: 'dark', font: 'sans',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
-    photoSubject: 'beauty',
     /*
-     * A mount, not a crop: opaque plum on four sides leaves a window of about
-     * 40% of the post, and the duotone carries the plum into the picture so it
+     * A product or detail crop, not a face: the plum duotone must never land
+     * on skin, where tone carries identity (premium-design-brief §4).
+     */
+    photoSubject: 'fashion-detail',
+    /*
+     * A mount, not a crop: a plum mount on four sides leaves a window of 40%
+     * of the post, and the duotone carries the plum into the picture so it
      * belongs to the frame. One lilac hairline sits on the window's sill.
+     * With no photograph the window is an embossed mount: a soft plum glow,
+     * a keyline bevel and the house's initial.
      */
     look: { palette: 'plum-mono', type: 'luxury', duotone: ['ground', 'highlight'] },
+    photo: {
+      x: 0.1, y: 0.1, w: 0.8, h: 0.5,
+      fallback: {
+        layers: [
+          { kind: 'flat', tone: { role: 'ground' } },
+          { kind: 'radial', cx: 0.5, cy: 0.45, r: 0.75, stops: [{ role: 'primary', alpha: 0.24 }, { role: 'primary', alpha: 0 }] },
+        ],
+        keyline: { inset: 0.015, tone: { role: 'highlight', alpha: 0.3 } },
+        monogram: { font: 'serif', size: 0.34, tone: { role: 'primary', alpha: 0.55 } },
+      },
+    },
     shapes: [
-      { kind: 'rect', x: 0, y: 0, w: 0.1, h: 1, tone: 'base' },
-      { kind: 'rect', x: 0.9, y: 0, w: 0.1, h: 1, tone: 'base' },
-      { kind: 'rect', x: 0.1, y: 0, w: 0.8, h: 0.1, tone: 'base' },
-      { kind: 'rect', x: 0.1, y: 0.6, w: 0.8, h: 0.4, tone: 'base' },
       { kind: 'rect', x: 0.1, y: 0.6, w: 0.8, h: 0.003, tone: 'highlight' },
     ],
     slots: [
       { role: 'brand', x: 0.1, y: 0.035, w: 0.8, size: 0.028, weight: 600, upper: true, tracking: 0.14, align: 'center', motion: m('fade', 0) },
       { role: 'eyebrow', x: 0.15, y: 0.64, w: 0.7, size: 0.026, upper: true, tracking: 0.3, align: 'center', tone: 'secondary', font: 'mono', motion: m('fade', 0.3) },
-      { role: 'headline', x: 0.1, y: 0.68, w: 0.8, size: 0.085, weight: 400, align: 'center', font: 'serif', motion: m('rise', 0.45, 0.7) },
+      { role: 'headline', x: 0.1, y: 0.68, w: 0.8, size: 0.085, weight: 400, align: 'center', font: 'serif', balance: true, motion: m('rise', 0.45, 0.7) },
       { role: 'subline', x: 0.15, y: 0.87, w: 0.7, size: 0.03, align: 'center', tone: 'muted', motion: m('fade', 0.8) },
     ],
   },
@@ -460,6 +482,21 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * duotone ties the picture to the brass.
      */
     look: { palette: 'forest-brass', type: 'editorial', duotone: ['ground', 'primary'] },
+    /*
+     * No photograph: a drop initial at poster size, the house's own first
+     * letter in brass at a whisper, on forest with a light grain.
+     */
+    photo: {
+      x: 0, y: 0, w: 1, h: 1,
+      fallback: {
+        layers: [
+          { kind: 'flat', tone: { role: 'ground' } },
+          { kind: 'linear', angle: 160, stops: [{ role: 'secondary', alpha: 0.16 }, { role: 'secondary', alpha: 0 }] },
+        ],
+        pattern: { key: 'grain', role: 'ink', opacity: 0.07, scale: 0.2 },
+        monogram: { font: 'editorial', size: 0.9, tone: { role: 'primary', alpha: 0.16 }, cx: 0.3, cy: 0.3 },
+      },
+    },
     shapes: [
       { kind: 'rect', x: 0.52, y: 0.5, w: 0.48, h: 0.5, tone: 'base' },
       { kind: 'rect', x: 0.52, y: 0.5, w: 0.006, h: 0.5, tone: 'primary' },
@@ -467,7 +504,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     slots: [
       { role: 'brand', x: 0.06, y: 0.05, w: 0.7, size: 0.026, weight: 700, upper: true, tracking: 0.08, motion: m('fade', 0) },
       { role: 'eyebrow', x: 0.56, y: 0.55, w: 0.38, size: 0.024, upper: true, tracking: 0.22, tone: 'accent', font: 'mono', motion: m('wipe', 0.2, 0.5) },
-      { role: 'headline', x: 0.56, y: 0.6, w: 0.38, size: 0.09, weight: 400, font: 'editorial', motion: m('mask-up', 0.35, 0.7) },
+      { role: 'headline', x: 0.56, y: 0.6, w: 0.38, size: 0.09, weight: 400, font: 'editorial', maxLines: 3, balance: true, motion: m('mask-up', 0.35, 0.7) },
       { role: 'subline', x: 0.56, y: 0.83, w: 0.38, size: 0.028, tone: 'muted', motion: m('fade', 0.7) },
     ],
   },
@@ -497,9 +534,9 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     ],
     slots: [
       { role: 'eyebrow', x: 0.07, y: 0.045, w: 0.86, size: 0.032, weight: 700, upper: true, tracking: 0.14, on: 'primary', font: 'condensed', motion: m('fade', 0) },
-      { role: 'headline', x: 0.07, y: 0.1, w: 0.86, size: 0.19, weight: 800, upper: true, tracking: -0.03, on: 'primary', font: 'heavy', motion: m('mask-up', 0.15, 0.7) },
+      { role: 'headline', x: 0.07, y: 0.1, w: 0.86, size: 0.19, weight: 800, upper: true, tracking: -0.03, on: 'primary', font: 'heavy', maxLines: 3, balance: true, motion: m('mask-up', 0.15, 0.7) },
       { role: 'subline', x: 0.07, y: 0.67, w: 0.56, size: 0.036, weight: 600, motion: m('fade', 0.6) },
-      { role: 'cta', x: 0.07, y: 0.8, w: 0.5, size: 0.036, weight: 800, upper: true, tracking: 0.06, treatment: 'pill', tone: 'secondary', icons: [HANDLE], motion: m('pop', 0.8, 0.5) },
+      { role: 'cta', x: 0.07, y: 0.8, w: 0.5, size: 0.036, weight: 800, upper: true, tracking: 0.06, treatment: 'pill', pillStyle: 'solid', tone: 'secondary', icons: [HANDLE], motion: m('pop', 0.8, 0.5) },
       { role: 'brand', x: 0.07, y: 0.06, w: 0.55, size: 0.03, weight: 800, upper: true, tracking: 0.1, fromBottom: true, motion: m('fade', 1) },
     ],
   },
@@ -523,16 +560,28 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * element in the grid, not the background.
      */
     look: { palette: 'deep-sea', type: 'modern' },
+    /*
+     * The window is a photo box: one clipped picture, where four abutting
+     * panels used to leave a hairline of photograph showing at x 0.447 and
+     * 0.93. With no photograph it is a graphic module: a lifted blue field
+     * with the grid clipped to it, the tile still pinning its corner.
+     */
+    photo: {
+      x: 0.44, y: 0.07, w: 0.49, h: 0.4,
+      fallback: {
+        layers: [
+          { kind: 'flat', tone: { role: 'ground' } },
+          { kind: 'flat', tone: { role: 'primary', alpha: 0.12 } },
+        ],
+        pattern: { key: 'grid', role: 'primary', opacity: 0.14, scale: 0.06 },
+      },
+    },
     shapes: [
-      { kind: 'rect', x: 0, y: 0, w: 0.44, h: 1, tone: 'base' },
-      { kind: 'rect', x: 0.93, y: 0, w: 0.07, h: 1, tone: 'base' },
-      { kind: 'rect', x: 0.44, y: 0, w: 0.49, h: 0.07, tone: 'base' },
-      { kind: 'rect', x: 0.44, y: 0.47, w: 0.49, h: 0.53, tone: 'base' },
       { kind: 'rect', x: 0.36, y: 0.4, w: 0.14, h: 0.11, tone: 'primary' },
     ],
     slots: [
       { role: 'eyebrow', x: 0.07, y: 0.56, w: 0.6, size: 0.026, upper: true, tracking: 0.2, tone: 'secondary', font: 'mono', motion: m('fade', 0.2) },
-      { role: 'headline', x: 0.07, y: 0.6, w: 0.86, size: 0.1, weight: 700, tracking: -0.03, font: 'grotesk', motion: m('rise', 0.35, 0.6) },
+      { role: 'headline', x: 0.07, y: 0.6, w: 0.86, size: 0.1, weight: 700, tracking: -0.03, font: 'grotesk', balance: true, motion: m('rise', 0.35, 0.6) },
       { role: 'subline', x: 0.07, y: 0.83, w: 0.56, size: 0.03, tone: 'muted', motion: m('fade', 0.6) },
       { role: 'cta', x: 0.66, y: 0.83, w: 0.27, size: 0.03, weight: 700, upper: true, treatment: 'pill', tone: 'accent', motion: m('pop', 0.8) },
       { role: 'brand', x: 0.07, y: 0.05, w: 0.5, size: 0.026, weight: 700, upper: true, tracking: 0.12, fromBottom: true, motion: m('fade', 1) },
@@ -561,14 +610,30 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * beside the dish name.
      */
     look: { palette: 'cola-nut', type: 'warmth' },
-    shapes: [
-      { kind: 'rect', x: 0, y: 0.56, w: 1, h: 0.44, tone: 'base' },
-    ],
+    /*
+     * No photograph: a plate drawn, not faked. A warm glow and two
+     * concentric rims in the primary, with grain, read as a plate and are
+     * plainly a graphic. Never a duotone on food.
+     */
+    photo: {
+      x: 0, y: 0, w: 1, h: 0.56,
+      fallback: {
+        layers: [
+          { kind: 'flat', tone: { role: 'ground' } },
+          { kind: 'radial', cx: 0.5, cy: 0.52, r: 0.28, stops: [{ role: 'primary', alpha: 0.2 }, { role: 'primary', alpha: 0 }] },
+        ],
+        pattern: { key: 'grain', role: 'ink', opacity: 0.06, scale: 0.2 },
+        shapes: [
+          { kind: 'ring', cx: 0.5, cy: 0.29, r: 0.22, thickness: 0.012, tone: 'primary', alpha: 0.55 },
+          { kind: 'ring', cx: 0.5, cy: 0.29, r: 0.15, thickness: 0.006, tone: 'primary', alpha: 0.4 },
+        ],
+      },
+    },
     slots: [
       { role: 'brand', x: 0.06, y: 0.045, w: 0.7, size: 0.028, weight: 700, motion: m('fade', 0) },
-      { role: 'cta', x: 0.7, y: 0.6, w: 0.24, size: 0.03, weight: 800, upper: true, treatment: 'pill', tone: 'highlight', motion: m('pop', 0.9, 0.5) },
+      { role: 'cta', x: 0.7, y: 0.6, w: 0.24, size: 0.03, weight: 800, upper: true, treatment: 'pill', pillStyle: 'solid', tone: 'highlight', motion: m('pop', 0.9, 0.5) },
       { role: 'eyebrow', x: 0.06, y: 0.6, w: 0.6, size: 0.026, weight: 700, upper: true, tracking: 0.2, tone: 'accent', motion: m('fade', 0.2) },
-      { role: 'headline', x: 0.06, y: 0.64, w: 0.6, size: 0.08, weight: 600, font: 'soft', motion: m('rise', 0.3, 0.6) },
+      { role: 'headline', x: 0.06, y: 0.64, w: 0.6, size: 0.08, weight: 600, font: 'soft', balance: true, motion: m('rise', 0.3, 0.6) },
       { role: 'price', x: 0.06, y: 0.79, w: 0.6, size: 0.034, weight: 600, max: 1, motion: m('rise', 0.55) },
       { role: 'subline', x: 0.06, y: 0.855, w: 0.6, size: 0.028, tone: 'muted', motion: m('fade', 0.7) },
       { role: 'contact', x: 0.06, y: 0.915, w: 0.86, size: 0.026, direction: 'row', max: 2, tone: 'muted', icons: [L('phone'), L('map-pin')], motion: m('fade', 0.8) },
@@ -594,12 +659,27 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * hairline; the name is the only other word.
      */
     look: { palette: 'graphite', type: 'modern' },
+    /*
+     * No photograph: a studio backdrop, seamless paper under one soft light,
+     * with grain. Plainly not a picture, and not an empty plane either.
+     */
+    photo: {
+      x: 0, y: 0, w: 1, h: 1,
+      fallback: {
+        layers: [
+          { kind: 'flat', tone: { role: 'ground' } },
+          { kind: 'linear', angle: 200, stops: [{ role: 'secondary', alpha: 0.14 }, { role: 'secondary', alpha: 0 }] },
+          { kind: 'radial', cx: 0.3, cy: 0.25, r: 0.6, stops: [{ role: 'ink', alpha: 0.08 }, { role: 'ink', alpha: 0 }] },
+        ],
+        pattern: { key: 'grain', role: 'ink', opacity: 0.06, scale: 0.2 },
+      },
+    },
     shapes: [
       { kind: 'rect', x: 0.07, y: 0.71, w: 0.08, h: 0.003, tone: 'highlight' },
     ],
     slots: [
       { role: 'brand', x: 0.07, y: 0.06, w: 0.7, size: 0.026, weight: 600, upper: true, tracking: 0.06, motion: m('fade', 0) },
-      { role: 'headline', x: 0.07, y: 0.74, w: 0.5, size: 0.074, weight: 500, tracking: -0.01, font: 'grotesk', motion: m('fade', 0.3, 0.8) },
+      { role: 'headline', x: 0.07, y: 0.74, w: 0.5, size: 0.074, weight: 500, tracking: -0.01, font: 'grotesk', balance: true, motion: m('fade', 0.3, 0.8) },
     ],
   },
 
@@ -627,14 +707,26 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * of the panel.
      */
     look: { palette: 'royal-orange', type: 'impact', duotone: ['ground', 'secondary'] },
+    /*
+     * The photograph is the right of the board. With none, the board is a
+     * colour split: orange floods everything right of the slash, which
+     * becomes the edge between navy and orange. One focal point, the line.
+     */
+    photo: {
+      x: 0.55, y: 0, w: 0.45, h: 1,
+      fallback: {
+        layers: [{ kind: 'flat', tone: { role: 'ground' } }],
+        // Leaning with the 4 degree slash: tan 4 x the board height, over its width.
+        shapes: [{ kind: 'rect', x: 0.595, y: 0, w: 0.45, h: 1, skew: 0.0699, tone: 'primary' }],
+      },
+    },
     shapes: [
-      { kind: 'rect', x: 0, y: 0, w: 0.55, h: 1, tone: 'base' },
       { kind: 'stripe', x: 0.6, y: 0, w: 0.025, h: 1, angle: 4, tone: 'primary' },
     ],
     slots: [
-      { role: 'brand', x: 0.05, y: 0.06, w: 0.48, size: 0.045, weight: 700, upper: true, tracking: 0.2, motion: m('fade', 0) },
-      { role: 'headline', x: 0.05, y: 0.14, w: 0.48, size: 0.2, weight: 800, upper: true, tracking: -0.02, font: 'heavy', motion: m('slide-right', 0.2, 0.6) },
-      { role: 'cta', x: 0.05, y: 0.72, w: 0.48, size: 0.06, weight: 800, upper: true, tracking: 0.04, treatment: 'underline', motion: m('pop', 0.6, 0.5) },
+      { role: 'brand', x: 0.05, y: 0.05, w: 0.48, size: 0.08, weight: 700, upper: true, tracking: 0.2, maxLines: 1, motion: m('fade', 0) },
+      { role: 'headline', x: 0.05, y: 0.17, w: 0.48, size: 0.2, weight: 800, upper: true, tracking: -0.02, font: 'heavy', maxLines: 2, balance: true, motion: m('slide-right', 0.2, 0.6) },
+      { role: 'cta', x: 0.05, y: 0.72, w: 0.48, size: 0.08, weight: 800, upper: true, tracking: 0.04, treatment: 'underline', motion: m('pop', 0.6, 0.5) },
     ],
   },
 
@@ -658,8 +750,8 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { kind: 'circle', cx: 0.5, cy: 0.24, r: 0.03, tone: 'secondary' },
     ],
     slots: [
-      { role: 'headline', x: 0.1, y: 0.36, w: 0.8, size: 0.2, weight: 800, tracking: -0.03, align: 'center', font: 'heavy', motion: m('rise', 0, 0.7) },
-      { role: 'brand', x: 0.25, y: 0.06, w: 0.5, size: 0.05, weight: 700, upper: true, tracking: 0.2, align: 'center', fromBottom: true, motion: m('fade', 0.5) },
+      { role: 'headline', x: 0.1, y: 0.36, w: 0.8, size: 0.2, weight: 800, tracking: -0.03, align: 'center', font: 'heavy', balance: true, motion: m('rise', 0, 0.7) },
+      { role: 'brand', x: 0.25, y: 0.06, w: 0.5, size: 0.08, weight: 700, upper: true, tracking: 0.2, align: 'center', fromBottom: true, maxLines: 1, motion: m('fade', 0.5) },
     ],
   },
 
@@ -675,25 +767,34 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'luxe', scheme: 'dark', font: 'sans',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
-    photoSubject: 'food',
+    /* A room or a building inside: the board is for a hotel or a property. */
+    photoSubject: 'interior',
     /*
      * A hotel or property board: the photograph mounted inside a deep green
-     * margin rather than bled, a centred serif line, a short sage rule, and
-     * the address. Quiet enough to be read as an invitation, not a shout.
+     * margin rather than bled, a centred serif line, a short sage rule, the
+     * name and the address: three things to read from a road. With no
+     * photograph the mount holds arches (architecture, for a building) in
+     * a lifted green with a keyline bevel.
      */
     look: { palette: 'forest-mono', type: 'luxury', duotone: ['ground', 'highlight'] },
+    photo: {
+      x: 0.5, y: 0.08, w: 0.45, h: 0.84,
+      fallback: {
+        layers: [
+          { kind: 'flat', tone: { role: 'ground' } },
+          { kind: 'flat', tone: { role: 'highlight', alpha: 0.06 } },
+        ],
+        pattern: { key: 'arches', role: 'highlight', opacity: 0.09, scale: 0.12 },
+        keyline: { inset: 0.02, tone: { role: 'highlight', alpha: 0.3 } },
+      },
+    },
     shapes: [
-      { kind: 'rect', x: 0, y: 0, w: 0.5, h: 1, tone: 'base' },
-      { kind: 'rect', x: 0.5, y: 0, w: 0.5, h: 0.08, tone: 'base' },
-      { kind: 'rect', x: 0.5, y: 0.92, w: 0.5, h: 0.08, tone: 'base' },
-      { kind: 'rect', x: 0.95, y: 0.08, w: 0.05, h: 0.84, tone: 'base' },
       { kind: 'rect', x: 0.22, y: 0.69, w: 0.06, h: 0.004, tone: 'primary' },
     ],
     slots: [
-      { role: 'eyebrow', x: 0.06, y: 0.28, w: 0.38, size: 0.035, upper: true, tracking: 0.3, align: 'center', tone: 'secondary', font: 'mono', motion: m('fade', 0) },
-      { role: 'headline', x: 0.06, y: 0.36, w: 0.38, size: 0.13, weight: 400, align: 'center', font: 'serif', motion: m('rise', 0.2, 0.8) },
-      { role: 'brand', x: 0.05, y: 0.72, w: 0.4, size: 0.045, weight: 600, upper: true, tracking: 0.12, align: 'center', motion: m('fade', 0.6) },
-      { role: 'meta', x: 0.06, y: 0.82, w: 0.38, size: 0.03, align: 'center', tone: 'muted', motion: m('fade', 0.8) },
+      { role: 'headline', x: 0.06, y: 0.36, w: 0.38, size: 0.13, weight: 400, align: 'center', font: 'serif', balance: true, motion: m('rise', 0.2, 0.8) },
+      { role: 'brand', x: 0.05, y: 0.72, w: 0.4, size: 0.08, weight: 600, upper: true, tracking: 0.12, align: 'center', maxLines: 1, motion: m('fade', 0.6) },
+      { role: 'meta', x: 0.06, y: 0.82, w: 0.38, size: 0.07, align: 'center', tone: 'muted', motion: m('fade', 0.8) },
     ],
   },
 
@@ -718,14 +819,31 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * carries the only two things a driver needs after that.
      */
     look: { palette: 'indigo-dye', type: 'street', duotone: ['ground', 'secondary'] },
+    /*
+     * The photograph is everything above the foot band. With none, one
+     * large flat orange arch rises behind the band on the left, and the
+     * line stands on indigo to its right: image and colour block, done flat.
+     * An arch rather than a disc because its edge is a fraction of the
+     * width, so it stays clear of the line on every format.
+     *
+     * The line is held to two lines at 0.26 (Task 18c): at 0.3 in a 0.55
+     * column, YOUR / CAMPAIGN / LINE set on three and the third ran into
+     * the handle on the band.
+     */
+    photo: {
+      x: 0, y: 0, w: 1, h: 0.78,
+      fallback: {
+        layers: [{ kind: 'flat', tone: { role: 'ground' } }],
+        shapes: [{ kind: 'rect', x: 0.02, y: 0.12, w: 0.28, h: 0.88, radius: 0.5, tone: 'secondary' }],
+      },
+    },
     shapes: [
-      { kind: 'rect', x: 0, y: 0.78, w: 1, h: 0.22, tone: 'base' },
       { kind: 'rect', x: 0, y: 0.78, w: 0.03, h: 0.22, tone: 'secondary' },
     ],
     slots: [
-      { role: 'headline', x: 0.4, y: 0.08, w: 0.55, size: 0.3, weight: 700, upper: true, align: 'right', font: 'condensed', motion: m('mask-up', 0, 0.7) },
-      { role: 'brand', x: 0.05, y: 0.84, w: 0.5, size: 0.06, weight: 700, upper: true, tracking: 0.1, motion: m('fade', 0.4) },
-      { role: 'contact', x: 0.58, y: 0.84, w: 0.37, size: 0.06, weight: 700, direction: 'row', max: 1, tone: 'accent', icons: [HANDLE], motion: m('fade', 0.6) },
+      { role: 'headline', x: 0.35, y: 0.08, w: 0.6, size: 0.26, weight: 700, upper: true, align: 'right', font: 'condensed', maxLines: 2, balance: true, motion: m('mask-up', 0, 0.7) },
+      { role: 'brand', x: 0.05, y: 0.84, w: 0.5, size: 0.08, weight: 700, upper: true, tracking: 0.1, maxLines: 1, motion: m('fade', 0.4) },
+      { role: 'contact', x: 0.58, y: 0.84, w: 0.37, size: 0.07, weight: 700, direction: 'row', max: 1, tone: 'accent', icons: [HANDLE], motion: m('fade', 0.6) },
     ],
   },
 
@@ -741,7 +859,12 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     mood: 'bold', scheme: 'dark', font: 'grotesk',
     surface: { kind: 'solid', intensity: 0.3 },
     photoLed: true,
-    photoSubject: 'work',
+    /*
+     * A rider, a van or a loading bay. The pool has no such photograph yet,
+     * so this previews with none (Ruling AH) rather than over a gavel, which
+     * is what `work` matched.
+     */
+    photoSubject: 'delivery',
     /*
      * Built from what a delivery business is asked before anyone books: what
      * it promises, and how to book (with where it goes, in the same line).
@@ -751,14 +874,22 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * foot. Coral and teal, the colours of a dispatch board.
      */
     look: { palette: 'ink-coral', type: 'modern', duotone: ['ground', 'secondary'] },
+    /* No photograph: a map-like topography in teal, the areas served, abstract and with no icon. */
+    photo: {
+      x: 0, y: 0, w: 1, h: 1,
+      fallback: {
+        layers: [{ kind: 'flat', tone: { role: 'ground' } }],
+        pattern: { key: 'topography', role: 'secondary', opacity: 0.14, scale: 0.18 },
+      },
+    },
     shapes: [
       { kind: 'rect', x: 0.52, y: 0.12, w: 0.44, h: 0.76, tone: 'base' },
       { kind: 'rect', x: 0.56, y: 0.27, w: 0.08, h: 0.012, tone: 'primary' },
     ],
     slots: [
       { role: 'headline', x: 0.56, y: 0.34, w: 0.36, size: 0.16, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', motion: m('rise', 0.1, 0.6) },
-      { role: 'cta', x: 0.56, y: 0.78, w: 0.36, size: 0.045, weight: 700, upper: true, align: 'right', treatment: 'pill', tone: 'accent', motion: m('pop', 0.6) },
-      { role: 'brand', x: 0.04, y: 0.05, w: 0.44, size: 0.05, weight: 800, upper: true, tracking: 0.02, fromBottom: true, motion: m('fade', 0.8) },
+      { role: 'cta', x: 0.56, y: 0.72, w: 0.36, size: 0.07, weight: 700, upper: true, align: 'right', treatment: 'pill', pillStyle: 'solid', tone: 'accent', maxLines: 2, motion: m('pop', 0.6) },
+      { role: 'brand', x: 0.04, y: 0.05, w: 0.44, size: 0.08, weight: 800, upper: true, tracking: 0.02, fromBottom: true, maxLines: 1, motion: m('fade', 0.8) },
     ],
   },
 
@@ -786,14 +917,26 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       duotone: ['ground', 'primary'],
       pattern: { role: 'highlight', key: 'resist-dots', opacity: 0.1, scale: 0.08, zone: 'bottom' },
     },
+    /*
+     * No photograph: a two-tone indigo and clay poster. The L around the
+     * indigo block is clay with adire-style resist dots clipped to it: the
+     * heritage pattern used as structure, not as a border. The name sits on
+     * the clay, so it takes the ink measured for clay, on any palette.
+     */
+    photo: {
+      x: 0, y: 0, w: 1, h: 1,
+      fallback: {
+        layers: [{ kind: 'flat', tone: { role: 'primary' } }],
+        pattern: { key: 'resist-dots', role: 'ink', opacity: 0.12, scale: 0.08 },
+      },
+    },
     shapes: [
       { kind: 'rect', x: 0, y: 0, w: 0.55, h: 0.62, tone: 'base' },
       { kind: 'rect', x: 0.05, y: 0.62, w: 0.12, h: 0.012, tone: 'primary' },
     ],
     slots: [
-      { role: 'eyebrow', x: 0.05, y: 0.07, w: 0.45, size: 0.035, upper: true, tracking: 0.2, tone: 'accent', font: 'mono', motion: m('fade', 0) },
-      { role: 'headline', x: 0.05, y: 0.14, w: 0.47, size: 0.15, weight: 400, tracking: -0.01, font: 'editorial', motion: m('mask-up', 0.2, 0.8) },
-      { role: 'brand', x: 0.56, y: 0.06, w: 0.4, size: 0.05, weight: 700, upper: true, tracking: 0.08, fromBottom: true, motion: m('fade', 0.8) },
+      { role: 'headline', x: 0.05, y: 0.14, w: 0.47, size: 0.15, weight: 400, tracking: -0.01, font: 'editorial', balance: true, motion: m('mask-up', 0.2, 0.8) },
+      { role: 'brand', x: 0.56, y: 0.06, w: 0.4, size: 0.08, weight: 700, upper: true, tracking: 0.08, fromBottom: true, on: 'primary', maxLines: 1, motion: m('fade', 0.8) },
     ],
   },
 ];

@@ -28,7 +28,7 @@ function dressed(tpl: DesignTemplate, style: DesignStyle, accent: string): Contr
   const tone = styleColours(style, accent, styled.scheme);
   const out: ContrastResult = { failures: [], worstMargin: Infinity };
   for (const page of pagesOf(styled)) {
-    const onPage = { ...styled, slots: page.slots };
+    const onPage = page.template;
     const r = styled.look
       ? measureContrast(onPage, styled.look, { formats, accent })
       : measureContrast(onPage, undefined, { formats, accent: tone.accent, base: tone.base, styleKey: style.key });
@@ -73,7 +73,7 @@ export function brandTrials(tpl: DesignTemplate): BrandTrial[] {
     if (tpl.look) {
       const pal = brandPaletteFor(tpl, { primary: brand, harmony: 'analogous' }, tpl.look.gradient);
       if (!pal) return { brand, ok: false, detail: 'no readable brand palette' };
-      failures = pagesOf(tpl).flatMap((p) => measureContrast({ ...tpl, slots: p.slots }, tpl.look, { formats, brand: pal }).failures);
+      failures = pagesOf(tpl).flatMap((p) => measureContrast(p.template, tpl.look, { formats, brand: pal }).failures);
     } else {
       failures = dressed(tpl, DESIGN_STYLES[0], brand).failures;
     }

@@ -10,7 +10,7 @@
 // library (which has none yet) produces no issues.
 
 import {
-  DESIGN_TEMPLATES,
+  DESIGN_TEMPLATES, frontShapes, photoIsFullBleed, photoMaskShapes,
   type DesignTemplate, type ShapeSpec, type SlotSpec,
 } from '../designTemplates';
 import { subcategoryFor } from '../create/catalogueTaxonomy';
@@ -91,14 +91,27 @@ const OPAQUE = 0.9;
  */
 function imageShareOf(t: DesignTemplate, ar: number): Descriptor['imageShare'] {
   if (!t.photoLed) return 0;
+  /*
+   * A photo box (Task 18c, S2) is the exact share; a rect is then counted only
+   * where it overlaps the box. The no-photo state (S1) is never counted: it
+   * stands in for the photograph, and the descriptor describes the design the
+   * photograph is for.
+   */
+  const box = t.photo && !photoIsFullBleed(t)
+    ? { x0: Math.max(0, t.photo.x), y0: Math.max(0, t.photo.y), x1: Math.min(1, t.photo.x + t.photo.w), y1: Math.min(1, t.photo.y + t.photo.h) }
+    : { x0: 0, y0: 0, x1: 1, y1: 1 };
+  const area = Math.max(0, box.x1 - box.x0) * Math.max(0, box.y1 - box.y0);
   let covered = 0;
-  for (const s of t.shapes ?? []) {
+  for (const s of frontShapes(t)) {
     if (s.kind === 'ring' || s.kind === 'stripe' || (s.alpha ?? 1) < OPAQUE) continue;
-    if (s.kind === 'rect') covered += s.w * s.h;
-    else if (s.kind === 'wedge') covered += (s.w * s.h) / 2;
+    if (s.kind === 'rect') {
+      const ix = Math.min(s.x + s.w, box.x1) - Math.max(s.x, box.x0);
+      const iy = Math.min(s.y + s.h, box.y1) - Math.max(s.y, box.y0);
+      covered += Math.max(0, ix) * Math.max(0, iy);
+    } else if (s.kind === 'wedge') covered += (s.w * s.h) / 2;
     else if (s.kind === 'circle') covered += Math.PI * s.r * s.r * ar;
   }
-  const share = Math.max(0, 1 - covered);
+  const share = Math.max(0, area - covered);
   return share > 0.6 ? 3 : share >= 0.25 ? 2 : share > 0 ? 1 : 0;
 }
 
@@ -141,7 +154,8 @@ function containerOf(t: DesignTemplate, h: SlotSpec | undefined, shortOverH: num
   const height = (h.size ?? 0.05) * 2.2 * shortOverH;
   const top = h.fromBottom ? 1 - h.y - height : h.y;
   const box = { x0: h.x, y0: top, x1: h.x + h.w, y1: top + height };
-  return (t.shapes ?? []).some((s) => covers(s, box));
+  // The ground around a photo box is the solid panel a window used to be built from.
+  return [...photoMaskShapes(t), ...frontShapes(t)].some((s) => covers(s, box));
 }
 
 /** Canvas proportions from the template's format; square when unknown. */
