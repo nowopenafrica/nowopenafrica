@@ -228,7 +228,11 @@ BEGIN
     UPDATE public.design_assets SET status = 'approved' WHERE id = v_untagged;
   EXCEPTION WHEN check_violation THEN v_untagged_raised := true;
   END;
+  -- As staff, so the guard's FOR SHARE on the licence row runs under RLS and
+  -- column privileges as it will in the admin tab.
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('staff'));
   UPDATE public.design_assets SET status = 'approved' WHERE id = v_tagged;
+  PERFORM pg_temp.chk_back();
   BEGIN
     UPDATE public.design_assets SET status = 'approved' WHERE id = v_cc0;
   EXCEPTION WHEN check_violation THEN v_cc0_raised := true;
@@ -547,7 +551,7 @@ END $$;
 DO $$
 DECLARE
   v_path text := 'zz-asset-check/' || gen_random_uuid() || '.png';
-  v_anon int; v_user int; v_staff int;
+  v_anon int; v_user int; v_staff int; v_updated int;
 BEGIN
   INSERT INTO storage.objects (bucket_id, name) VALUES ('design-assets', v_path);
   PERFORM pg_temp.chk_as('anon', NULL);
@@ -558,10 +562,14 @@ BEGIN
   PERFORM pg_temp.chk_back();
   PERFORM pg_temp.chk_as('authenticated', pg_temp.id('staff'));
   SELECT count(*) INTO v_staff FROM storage.objects WHERE bucket_id = 'design-assets' AND name = v_path;
+  UPDATE storage.objects SET metadata = '{"zz-asset-check": true}'::jsonb
+   WHERE bucket_id = 'design-assets' AND name = v_path;
+  GET DIAGNOSTICS v_updated = ROW_COUNT;
   PERFORM pg_temp.chk_back();
   ASSERT v_anon = 0, 'anon_cannot_list_library: anon can list design-assets';
   ASSERT v_user = 0, 'anon_cannot_list_library: a non-staff user can list design-assets';
   ASSERT v_staff = 1, 'anon_cannot_list_library: staff cannot read design-assets, so the check proves nothing';
+  ASSERT v_updated = 1, 'anon_cannot_list_library: staff cannot update a design-assets object';
   ASSERT (SELECT public FROM storage.buckets WHERE id = 'design-assets'),
     'anon_cannot_list_library: design-assets is not a public bucket, so public URLs would not work';
   PERFORM pg_temp.chk_pass('anon_cannot_list_library');
@@ -618,6 +626,46 @@ BEGIN
   ASSERT (SELECT reviewed_by = pg_temp.id('staff') AND reviewed_at = v_at FROM public.design_assets WHERE id = v_row),
     'review_stamps_frozen: an edit without a status change moved the review stamps';
   PERFORM pg_temp.chk_pass('review_stamps_frozen');
+END $$;
+
+-- 21 ------------------------------------------------------------------------
+-- A swapped file loses its sanitising. On an approved SVG the swap is refused
+-- unless the same statement re-sets sanitised_at or leaves approved. (Every
+-- check runs in one transaction, so now() never moves: clock_timestamp()
+-- gives a fresh value.)
+DO $$
+DECLARE
+  v_svg uuid := pg_temp.chk_asset('svg swap');
+  v_png uuid := pg_temp.chk_asset('png swap', 'approved');
+  v_raised boolean := false; v_at timestamptz;
+BEGIN
+  UPDATE public.design_assets SET mime = 'image/svg+xml', sanitised_at = clock_timestamp(),
+         storage_path = 'zz-asset-check/' || gen_random_uuid() || '.svg' WHERE id = v_svg;
+  ASSERT (SELECT sanitised_at IS NOT NULL FROM public.design_assets WHERE id = v_svg),
+    'swapped_file_needs_resanitising: setup failed, the SVG did not keep its sanitised_at';
+  UPDATE public.design_assets SET status = 'approved' WHERE id = v_svg;
+
+  BEGIN
+    UPDATE public.design_assets SET sha256 = pg_temp.chk_sha() WHERE id = v_svg;
+  EXCEPTION WHEN check_violation THEN v_raised := true;
+  END;
+  ASSERT v_raised, 'swapped_file_needs_resanitising: an approved SVG took a new file without re-sanitising';
+
+  v_at := clock_timestamp();
+  UPDATE public.design_assets SET sha256 = pg_temp.chk_sha(), sanitised_at = v_at WHERE id = v_svg;
+  ASSERT (SELECT status = 'approved' AND sanitised_at = v_at FROM public.design_assets WHERE id = v_svg),
+    'swapped_file_needs_resanitising: a swap that re-set sanitised_at was not kept';
+
+  UPDATE public.design_assets SET storage_path = 'zz-asset-check/' || gen_random_uuid() || '.svg',
+         status = 'in_review' WHERE id = v_svg;
+  ASSERT (SELECT status = 'in_review' AND sanitised_at IS NULL FROM public.design_assets WHERE id = v_svg),
+    'swapped_file_needs_resanitising: a swap that left approved kept its old sanitised_at';
+
+  UPDATE public.design_assets SET sanitised_at = clock_timestamp() WHERE id = v_png;
+  UPDATE public.design_assets SET sha256 = pg_temp.chk_sha() WHERE id = v_png;
+  ASSERT (SELECT status = 'approved' AND sanitised_at IS NULL FROM public.design_assets WHERE id = v_png),
+    'swapped_file_needs_resanitising: a raster swap was refused or kept a stale sanitised_at';
+  PERFORM pg_temp.chk_pass('swapped_file_needs_resanitising');
 END $$;
 
 -- Summary row (visible even when the client drops NOTICEs), then discard it all.

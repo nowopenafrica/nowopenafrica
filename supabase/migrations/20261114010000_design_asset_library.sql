@@ -272,9 +272,26 @@ BEGIN
     NEW.reviewed_at := NULL;
   END IF;
 
+  -- A swapped file is a new file: its sanitising no longer counts. Unless the
+  -- same statement sets a new sanitised_at, it is cleared, and an approved SVG
+  -- then fails design_assets_svg_sanitised_before_approval, so the UPDATE is
+  -- refused unless it also moves the row out of approved.
+  IF TG_OP = 'UPDATE'
+     AND (NEW.sha256 IS DISTINCT FROM OLD.sha256
+          OR NEW.storage_path IS DISTINCT FROM OLD.storage_path
+          OR NEW.mime IS DISTINCT FROM OLD.mime)
+     AND NEW.sanitised_at IS NOT DISTINCT FROM OLD.sanitised_at THEN
+    NEW.sanitised_at := NULL;
+  END IF;
+
+  -- FOR SHARE: the licence row stays locked until this transaction ends, so a
+  -- concurrent switch-off of the flag (design_asset_licences_guard, which
+  -- needs the row lock) waits and then sees this approval, or this approval
+  -- waits and sees the switch-off. Lock order is always asset, then licence.
   IF NEW.status = 'approved' AND NEW.contains_people AND NOT NEW.release_on_file THEN
     SELECT l.permits_people_without_release INTO v_permits
-      FROM public.design_asset_licences l WHERE l.key = NEW.licence_key;
+      FROM public.design_asset_licences l WHERE l.key = NEW.licence_key
+       FOR SHARE;
     IF NOT coalesce(v_permits, false) THEN
       RAISE EXCEPTION 'design asset %: people without a release cannot be approved under licence %',
         NEW.id, NEW.licence_key
@@ -563,13 +580,16 @@ CREATE POLICY "design_assets_staff_delete" ON storage.objects
 -- Restrictive backstops. Storage policies are permissive, so one broad policy
 -- added later (an unscoped "authenticated may upload") would open these
 -- buckets. A restrictive policy is ANDed with every permissive one: whatever
--- is added later, only staff touch intake, and only staff write the library.
+-- is added later, only staff list or write either bucket. Public files stay
+-- reachable by public URL, which needs no SELECT policy.
 -- Other buckets are unaffected (the bucket_id test passes them through), and
 -- the sub-select makes is_staff() run once per statement, not once per row.
+-- (design_assets_intake_only_staff was this policy's earlier, intake-only name.)
 DROP POLICY IF EXISTS "design_assets_intake_only_staff" ON storage.objects;
-CREATE POLICY "design_assets_intake_only_staff" ON storage.objects
+DROP POLICY IF EXISTS "design_assets_select_only_staff" ON storage.objects;
+CREATE POLICY "design_assets_select_only_staff" ON storage.objects
   AS RESTRICTIVE FOR SELECT TO public
-  USING (bucket_id <> 'design-assets-intake' OR (SELECT public.is_staff()));
+  USING (bucket_id NOT IN ('design-assets-intake', 'design-assets') OR (SELECT public.is_staff()));
 
 DROP POLICY IF EXISTS "design_assets_insert_only_staff" ON storage.objects;
 CREATE POLICY "design_assets_insert_only_staff" ON storage.objects

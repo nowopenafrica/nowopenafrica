@@ -19,7 +19,7 @@
 // NOWOPEN_SUPABASE_CWD to point somewhere else. Nothing is written there.
 //
 // Exits non-zero on ERROR or an assertion failure, or (for the check modes)
-// unless all 20 checks are confirmed passed.
+// unless all 21 checks are confirmed passed.
 
 import { spawnSync } from 'node:child_process';
 import { readFileSync, writeFileSync, unlinkSync } from 'node:fs';
@@ -30,7 +30,7 @@ import { fileURLToPath } from 'node:url';
 
 // fileURLToPath, not URL.pathname: this project's path contains spaces.
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const EXPECTED = 20;
+const EXPECTED = 21;
 const migrationOnly = process.argv.includes('--dry-run-only');
 const dryRun = migrationOnly || process.argv.includes('--dry-run');
 
