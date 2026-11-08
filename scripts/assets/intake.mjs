@@ -9,7 +9,9 @@
 // industries, regions, source_name, source_url, source_asset_id, creator_name,
 // creator_url, licence_key, evidence_file, attribution_text, restrictions,
 // contains_people, contains_brands, release_on_file. Tags, subjects, industries
-// and regions are ';'-separated. `file` and `evidence_file` are paths inside
+// and regions are ';'-separated. An optional `retrieved_at` column (ISO date)
+// records when the licence was captured; without it, the intake time is used
+// and a note is printed. `file` and `evidence_file` are paths inside
 // <folder>.
 //
 // --dry-run   Parses, hashes and measures every row and prints what it would
@@ -20,8 +22,8 @@
 //   SUPABASE_SERVICE_ROLE_KEY   the service key (bypasses RLS: keep it secret)
 //
 // Storage paths in design-assets-intake:
-//   <sha256>.<ext>             the asset (an SVG is sanitised first, and the
-//                              hash is of the sanitised bytes that are stored)
+//   <sha256>.<ext>             the asset (an SVG must pass the allowlist
+//                              validator or the row is rejected)
 //   evidence/<sha256>.<ext>    the licence evidence
 // A sha256 already in design_assets is reported and skipped, not an error.
 //
@@ -31,7 +33,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { join, relative, resolve, sep } from 'node:path';
 import {
-  MAX_BYTES, extOf, imageInfo, parseCsv, parseRow, sanitiseSvg, seededLicenceKeys, sha256,
+  MAX_BYTES, classifyUploadResponse, extOf, imageInfo, parseCsv, parseRow, validateLibrarySvg, seededLicenceKeys, sha256,
   svgInfo, toInsertRow, CSV_COLUMNS, MIME_BY_EXT,
 } from './intake-lib.mjs';
 import { fileURLToPath } from 'node:url';
@@ -78,13 +80,11 @@ function prepare(folder, csvRow, licenceKeys, now) {
   let bytes = main.buf;
   let measured;
   let sanitisedAt = null;
-  let removed = [];
 
   if (v.mime === 'image/svg+xml') {
-    const clean = sanitiseSvg(bytes.toString('utf8'));
-    if (!clean.ok) return { error: `SVG rejected: ${clean.reason}` };
+    const clean = validateLibrarySvg(bytes.toString('utf8'));
+    if (!clean.ok) return { error: `SVG rejected (re-export a clean file): ${clean.reason}` };
     bytes = Buffer.from(clean.svg, 'utf8');
-    removed = clean.removed;
     sanitisedAt = now;
     measured = svgInfo(clean.svg);
   } else {
@@ -108,7 +108,7 @@ function prepare(folder, csvRow, licenceKeys, now) {
     storagePath, evidencePath, sanitisedAt, now,
   });
   return {
-    row, hash, removed,
+    row, hash,
     uploads: [
       { path: storagePath, mime: v.mime, body: bytes },
       { path: evidencePath, mime: evidenceMime, body: evidence.buf },
@@ -124,6 +124,8 @@ async function realMode(prepared, url, key) {
 
   const results = [];
   for (const p of prepared) {
+    // Objects THIS run created for this row, so a failure can name them.
+    const created = [];
     try {
       const dup = await fetch(`${base}/rest/v1/design_assets?sha256=eq.${p.hash}&select=id`, { headers });
       if (!dup.ok) throw new Error(`duplicate check failed (${dup.status})`);
@@ -135,10 +137,10 @@ async function realMode(prepared, url, key) {
           headers: { ...headers, 'Content-Type': u.mime, 'x-upsert': 'false' },
           body: u.body,
         });
-        // The same evidence file can serve many rows; an existing identical path is fine.
-        if (!res.ok && !(u.path.startsWith('evidence/') && (res.status === 409 || res.status === 400))) {
-          throw new Error(`upload of ${u.path} failed (${res.status})`);
-        }
+        const kind = classifyUploadResponse(res.status, await res.text());
+        if (kind === 'failed') throw new Error(`upload of ${u.path} failed (${res.status})`);
+        if (kind === 'uploaded') created.push(u.path);
+        // 'exists': content-addressed, so the same bytes are already there.
       }
 
       const ins = await fetch(`${base}/rest/v1/design_assets`, {
@@ -149,7 +151,8 @@ async function realMode(prepared, url, key) {
       if (!ins.ok) throw new Error(`insert failed (${ins.status}): ${(await ins.text()).slice(0, 300)}`);
       results.push({ file: p.file, status: 'inserted' });
     } catch (e) {
-      results.push({ file: p.file, status: 'failed', reason: e instanceof Error ? e.message : String(e) });
+      const left = created.length ? ` Objects left behind in ${BUCKET}: ${created.join(', ')}` : '';
+      results.push({ file: p.file, status: 'failed', reason: (e instanceof Error ? e.message : String(e)) + left });
     }
   }
   return results;
@@ -198,12 +201,14 @@ async function main() {
     prepared.push({ ...p, file: label });
   });
 
+  const noDate = rows.filter((r) => !r.retrieved_at).length;
   console.log(`${dryRun ? 'DRY RUN (no network calls, nothing written)' : 'INTAKE'}: ${rows.length} row(s), ${prepared.length} parsed, ${rejected.length} rejected.`);
   for (const p of prepared) {
-    console.log(`\n+ ${p.file}  sha256 ${p.hash.slice(0, 12)}...${p.removed.length ? `  (sanitiser removed: ${p.removed.join(', ')})` : ''}`);
+    console.log(`\n+ ${p.file}  sha256 ${p.hash.slice(0, 12)}...`);
     console.log(JSON.stringify(p.row, null, 2));
     console.log(`  uploads: ${p.uploads.map((u) => `${BUCKET}/${u.path} (${u.body.length} bytes)`).join('  ')}`);
   }
+  if (noDate > 0) console.log(`\nNote: ${noDate} row(s) have no retrieved_at; the intake time (${now}) is used. Add a retrieved_at column (ISO date) to record when the licence was captured.`);
   for (const r of rejected) console.log(`\n! REJECTED ${r.file}: ${r.reason}`);
 
   let failed = rejected.length > 0;

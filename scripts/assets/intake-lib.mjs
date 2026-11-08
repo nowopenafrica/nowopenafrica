@@ -11,14 +11,14 @@
 //   - sources the spec bans: canva.com, freepik.com, and the Unsplash API;
 //   - kinds, mimes and industries the schema does not know;
 //   - contains_brands, which can never be approved, so it is refused here;
-//   - an SVG that still carries script, handlers or javascript: after
-//     sanitising.
+//   - an SVG with anything outside the allowlist (validateLibrarySvg refuses,
+//     it never repairs: Ruling V).
 
 import { createHash } from 'node:crypto';
 import { inflateSync } from 'node:zlib';
-import { sanitiseSvg } from '../../src/lib/studio/svgSanitise.mjs';
+import { validateLibrarySvg } from '../../src/lib/studio/svgSanitise.mjs';
 
-export { sanitiseSvg };
+export { validateLibrarySvg };
 
 /** design_assets.kind CHECK, from the migration. */
 export const KINDS = [
@@ -88,7 +88,7 @@ export function seededLicenceKeys(sql) {
 
 /** RFC 4180-ish: quoted fields, doubled quotes, CRLF or LF, optional BOM. */
 export function parseCsv(text) {
-  const src = String(text).replace(/^﻿/, '');
+  const src = String(text).replace(/^\ufeff/, '');
   const rows = [];
   let row = [];
   let field = '';
@@ -192,6 +192,14 @@ export function parseRow(row, licenceKeys) {
   const badRegion = regions.find((r) => !/^[A-Z]{2}$/.test(r));
   if (badRegion) return fail(`region "${badRegion}" is not a two-letter country code`);
 
+  let retrievedAt = null;
+  const rawRetrieved = get('retrieved_at');
+  if (rawRetrieved) {
+    const t = Date.parse(rawRetrieved);
+    if (!/^\d{4}-\d{2}-\d{2}/.test(rawRetrieved) || Number.isNaN(t)) return fail(`retrieved_at "${rawRetrieved}" is not an ISO date`);
+    retrievedAt = new Date(t).toISOString();
+  }
+
   const people = bool(get('contains_people'), 'contains_people');
   if (people.error) return fail(people.error);
   const brands = bool(get('contains_brands'), 'contains_brands');
@@ -221,6 +229,7 @@ export function parseRow(row, licenceKeys) {
       contains_people: people.v,
       contains_brands: false,
       release_on_file: release.v,
+      retrieved_at: retrievedAt,
     },
   };
 }
@@ -258,7 +267,7 @@ function decodePng(buf, width, height) {
   const interlace = buf[28];
   const channels = { 0: 1, 2: 3, 3: 1, 4: 2, 6: 4 }[colourType];
   if (depth !== 8 || interlace !== 0 || !channels) return null;
-  if (width * height > 100_000_000) return null;
+  if (width * height > 100_000_000 || width > 30000 || height > 30000) return null;
 
   const idat = [];
   let plte = null;
@@ -272,9 +281,9 @@ function decodePng(buf, width, height) {
   }
   if (idat.length === 0 || (colourType === 3 && !plte)) return null;
 
-  let raw;
-  try { raw = inflateSync(Buffer.concat(idat)); } catch { return null; }
   const stride = width * channels;
+  let raw;
+  try { raw = inflateSync(Buffer.concat(idat), { maxOutputLength: (stride + 1) * height }); } catch { return null; }
   if (raw.length < (stride + 1) * height) return null;
 
   // Un-filter row by row, keeping only the previous row.
@@ -433,7 +442,7 @@ export function toInsertRow(v, m) {
     creator_url: v.creator_url,
     licence_key: v.licence_key,
     licence_evidence_path: m.evidencePath,
-    retrieved_at: m.now,
+    retrieved_at: v.retrieved_at ?? m.now,
     attribution_text: v.attribution_text,
     restrictions: v.restrictions,
     contains_people: v.contains_people,
@@ -441,4 +450,22 @@ export function toInsertRow(v, m) {
     release_on_file: v.release_on_file,
     status: 'draft',
   };
+}
+
+/**
+ * How to read the storage API's answer to an upload.
+ *   'uploaded'  2xx: this call created the object.
+ *   'exists'    the object is already there. Paths are content-addressed
+ *               (<sha>.<ext>), so the same path means the same bytes and that
+ *               counts as success. Accepted ONLY from a JSON body with
+ *               error === 'Duplicate' or statusCode === '409' (Supabase Storage
+ *               answers 400 with that body); any other 400 is a failure.
+ *   'failed'    anything else.
+ */
+export function classifyUploadResponse(status, bodyText) {
+  if (status >= 200 && status < 300) return 'uploaded';
+  let body = null;
+  try { body = JSON.parse(bodyText); } catch { /* not JSON: a failure */ }
+  if (body && typeof body === 'object' && (body.error === 'Duplicate' || String(body.statusCode) === '409')) return 'exists';
+  return 'failed';
 }

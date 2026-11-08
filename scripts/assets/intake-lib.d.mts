@@ -17,6 +17,7 @@ export interface IntakeRow {
   creator_name: string | null; creator_url: string | null; licence_key: string;
   evidence_file: string; attribution_text: string | null; restrictions: string | null;
   contains_people: boolean; contains_brands: boolean; release_on_file: boolean;
+  retrieved_at: string | null;
 }
 export type ParseRowResult = { ok: true; value: IntakeRow } | { ok: false; reason: string };
 export function parseRow(row: Record<string, string>, licenceKeys: string[]): ParseRowResult;
@@ -27,8 +28,9 @@ export function imageInfo(buf: Buffer, mime: string): ImageInfo | null;
 export function svgInfo(svgText: string): { width: number | null; height: number | null; colours: string[] };
 export function orientationOf(width: number | null, height: number | null): 'landscape' | 'portrait' | 'square' | null;
 
-export type SvgSanitiseResult = { ok: true; svg: string; removed: string[] } | { ok: false; reason: string };
-export function sanitiseSvg(text: string): SvgSanitiseResult;
+export type LibrarySvgResult = { ok: true; svg: string } | { ok: false; reason: string };
+export function validateLibrarySvg(text: string): LibrarySvgResult;
+export function classifyUploadResponse(status: number, bodyText: string): 'uploaded' | 'exists' | 'failed';
 
 export interface Measured {
   sha256: string; ext: string; mime: string; bytes: number;
