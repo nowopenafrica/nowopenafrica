@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DESIGN_TEMPLATES, type DesignTemplate } from '../designTemplates';
@@ -7,8 +9,9 @@ import {
 } from './assetManifest';
 import { externalUrls } from './quality/checks/assets';
 import { automatedCriticals } from './quality/critical';
-import { DESIGN_TEMPLATES as ALL } from '../designTemplates';
-import { partitionRows, serialise, toManifestAsset } from '../../../scripts/assets/manifestRows.mjs';
+import {
+  mayWrite, nextPageDecision, partitionRows, serialise, toManifestAsset, totalFromContentRange,
+} from '../../../scripts/assets/manifestRows.mjs';
 
 const ID_A = '11111111-1111-4111-8111-111111111111';
 const ID_B = '22222222-2222-4222-8222-222222222222';
@@ -131,7 +134,7 @@ describe('C11: no mockup_scene baked into a template', () => {
   });
 
   it('holds for the whole shipped library', () => {
-    const baked = ALL.flatMap((t) => templateAssetIds(t)
+    const baked = DESIGN_TEMPLATES.flatMap((t) => templateAssetIds(t)
       .filter((id) => assetById(id)?.kind === 'mockup_scene').map((id) => `${t.key}: ${id}`));
     expect(baked).toEqual([]);
   });
@@ -169,5 +172,62 @@ describe('manifest generator rows', () => {
     expect(ok.map((r) => r.id)).toEqual(['svg', 'fine']);
     expect(skipped.map((s) => s.id)).toEqual(['nullw', 'zeroh']);
     expect(skipped[0].problem).toMatch(/no pixel size/);
+  });
+});
+
+describe('paging decisions', () => {
+  const pg = (...ids: string[]) => ids.map((id) => ({ id }));
+  const P = 1000;
+
+  it('reads the total from Content-Range', () => {
+    expect(totalFromContentRange('0-999/2500')).toBe(2500);
+    expect(totalFromContentRange('*/0')).toBe(0);
+    expect(totalFromContentRange(null)).toBeNull();
+  });
+
+  it('continues through a normal multi-page read, then stops at the total', () => {
+    expect(nextPageDecision({ page: pg('a'), got: 1000, total: 2500, iteration: 1, pageSize: P })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('b'), prevFirstId: 'a', got: 2000, total: 2500, iteration: 2, pageSize: P })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('c'), prevFirstId: 'b', got: 2500, total: 2500, iteration: 3, pageSize: P })).toEqual({ action: 'done' });
+  });
+
+  it('keeps going when the server max-rows is below the page size', () => {
+    expect(nextPageDecision({ page: pg('a'), got: 100, total: 250, iteration: 1, pageSize: 100 })).toEqual({ action: 'continue' });
+    expect(nextPageDecision({ page: pg('b'), prevFirstId: 'a', got: 200, total: 250, iteration: 2, pageSize: 100 })).toEqual({ action: 'continue' });
+  });
+
+  it('errors when Range is ignored and the same page comes back', () => {
+    expect(nextPageDecision({ page: pg('a'), prevFirstId: 'a', got: 2000, total: 5000, iteration: 2, pageSize: P }).action).toBe('error');
+  });
+
+  it('errors past ceil(total/pageSize)+1 pages even with distinct ids', () => {
+    expect(nextPageDecision({ page: pg('z'), prevFirstId: 'y', got: 10, total: 5000, iteration: 6, pageSize: P }).action).toBe('error');
+  });
+
+  it('is done at once for a total of 0, and errors on a premature empty page', () => {
+    expect(nextPageDecision({ page: [], got: 0, total: 0, iteration: 1, pageSize: P })).toEqual({ action: 'done' });
+    expect(nextPageDecision({ page: [], got: 10, total: 50, iteration: 2, pageSize: P }).action).toBe('error');
+  });
+});
+
+describe('all-or-nothing writing', () => {
+  const r = (id: string, over: Record<string, unknown> = {}) => ({
+    id, kind: 'photo', storage_path: 'p', width_px: 10, height_px: 10, licence_key: 'l', ...over,
+  });
+
+  it('allows a write only when no row is refused', () => {
+    expect(mayWrite(partitionRows([r('a'), r('b')]).skipped)).toBe(true);
+    const { skipped } = partitionRows([r('a'), r('bad', { width_px: null })]);
+    expect(skipped.map((s) => s.id)).toEqual(['bad']);
+    expect(mayWrite(skipped)).toBe(false);
+  });
+
+  it('the script writes only behind that check', () => {
+    const src = readFileSync(resolve(process.cwd(), 'scripts/assets/manifest.mjs'), 'utf8');
+    const guard = src.indexOf('if (!mayWrite(skipped))');
+    const write = src.indexOf('writeFileSync(OUT');
+    expect(guard).toBeGreaterThan(-1);
+    expect(write).toBeGreaterThan(guard);
+    expect(src.slice(guard, write)).toContain('throw new Error');
   });
 });

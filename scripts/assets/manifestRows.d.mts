@@ -19,3 +19,8 @@ export function toManifestAsset(r: DesignAssetRow): {
 };
 export function partitionRows(rows: DesignAssetRow[]): { ok: DesignAssetRow[]; skipped: { id: string; problem: string }[] };
 export function serialise(rows: DesignAssetRow[]): string;
+export function totalFromContentRange(header: string | null | undefined): number | null;
+export function nextPageDecision(a: {
+  page: { id: string }[]; prevFirstId?: string | null; got: number; total?: number | null; iteration: number; pageSize: number;
+}): { action: 'continue' | 'done' } | { action: 'error'; reason: string };
+export function mayWrite(skipped: unknown[]): boolean;

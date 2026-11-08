@@ -43,3 +43,36 @@ export function serialise(rows) {
   const assets = rows.map(toManifestAsset).sort((a, b) => (a.id < b.id ? -1 : a.id > b.id ? 1 : 0));
   return `${JSON.stringify({ assets }, null, 2)}\n`;
 }
+
+/** The total from a PostgREST Content-Range header ("0-999/1234" or "star/0"), or null when absent. */
+export function totalFromContentRange(header) {
+  const m = /\/(\d+)\s*$/.exec(header ?? '');
+  return m ? Number(m[1]) : null;
+}
+
+/**
+ * What to do after one page of a Range-paged read.
+ *
+ * `got` is the rows held after adding this page, `iteration` the pages fetched
+ * so far (1 for the first), `total` the count from Content-Range (or null).
+ * Returns {action: 'continue' | 'done'} or {action: 'error', reason}. Bounded
+ * so a server that ignores Range and replays the table cannot loop forever.
+ */
+export function nextPageDecision({ page, prevFirstId = null, got, total = null, iteration, pageSize }) {
+  if (total === 0) return { action: 'done' };
+  if (page.length === 0) {
+    return total !== null && got < total
+      ? { action: 'error', reason: `server returned an empty page after ${got} of ${total} rows` }
+      : { action: 'done' };
+  }
+  if (prevFirstId !== null && page[0].id === prevFirstId) {
+    return { action: 'error', reason: 'the server repeated a page: it is ignoring the Range header' };
+  }
+  if (total !== null && got >= total) return { action: 'done' };
+  const limit = total === null ? 1000 : Math.ceil(total / pageSize) + 1;
+  if (iteration >= limit) return { action: 'error', reason: `still paging after ${iteration} pages (limit ${limit})` };
+  return { action: 'continue' };
+}
+
+/** Whether the manifest may be written: only when no row was refused. */
+export const mayWrite = (skipped) => skipped.length === 0;

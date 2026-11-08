@@ -17,7 +17,7 @@
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { partitionRows, serialise } from './manifestRows.mjs';
+import { mayWrite, nextPageDecision, partitionRows, serialise, totalFromContentRange } from './manifestRows.mjs';
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, 'src', 'lib', 'design', 'assetManifest.json');
@@ -49,11 +49,14 @@ function fail(message) {
 
 async function fetchApproved(url, key) {
   const rows = [];
-  for (;;) {
+  let prevFirstId = null;
+  let total = null;
+  let perPage = PAGE;
+  for (let iteration = 1; ; iteration += 1) {
     const from = rows.length; // advance by what arrived, not by PAGE
     const res = await fetch(
       `${url}/rest/v1/design_assets?status=eq.approved&select=${COLUMNS}&order=id`,
-      { headers: { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + PAGE - 1}`, 'Range-Unit': 'items' } },
+      { headers: { apikey: key, Authorization: `Bearer ${key}`, Range: `${from}-${from + PAGE - 1}`, 'Range-Unit': 'items', Prefer: 'count=exact' } },
     );
     if (res.status === 416) return rows; // PostgREST: range starts past the last row
     if (res.status === 404) fail('design_assets not found: has the migration been applied?');
@@ -63,10 +66,14 @@ async function fetchApproved(url, key) {
       fail(`HTTP ${res.status} reading design_assets: ${body.slice(0, 200)}`);
     }
     const page = await res.json();
-    // Stop only on an empty page: a server max-rows below PAGE would otherwise
-    // look like the last page and silently truncate.
-    if (page.length === 0) return rows;
+    total = totalFromContentRange(res.headers.get('content-range')) ?? total;
     rows.push(...page);
+    // The server may cap rows below PAGE; the bound is on the size it actually serves.
+    if (iteration === 1) perPage = Math.max(1, Math.min(PAGE, page.length));
+    const d = nextPageDecision({ page, prevFirstId, got: rows.length, total, iteration, pageSize: perPage });
+    if (d.action === 'error') fail(d.reason);
+    if (d.action === 'done') return rows;
+    prevFirstId = page[0].id;
   }
 }
 
@@ -79,12 +86,13 @@ async function main() {
   }
   const rows = await fetchApproved(url, key);
   const { ok, skipped } = partitionRows(rows);
+  // All or nothing: a refused row means the committed manifest is left alone.
+  if (!mayWrite(skipped)) {
+    for (const s of skipped) console.error(`assets:manifest: REFUSED ${s.id}: ${s.problem}`);
+    throw new Error(`${skipped.length} approved row${skipped.length === 1 ? '' : 's'} refused (ids above). Nothing written. Fix them in design_assets.`);
+  }
   writeFileSync(OUT, serialise(ok), 'utf8');
   console.log(`assets:manifest: wrote ${ok.length} approved asset${ok.length === 1 ? '' : 's'} to src/lib/design/assetManifest.json`);
-  if (skipped.length) {
-    for (const s of skipped) console.error(`assets:manifest: SKIPPED ${s.id}: ${s.problem}`);
-    throw new Error(`${skipped.length} approved row${skipped.length === 1 ? '' : 's'} skipped (no pixel size). Fix them in design_assets.`);
-  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
