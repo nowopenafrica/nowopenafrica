@@ -351,20 +351,19 @@ END $$;
 
 -- 11 ------------------------------------------------------------------------
 -- anon (and a non-staff user) cannot list or read the intake bucket, even with
--- the exact path; anon can read the public library; staff can read intake.
+-- the exact path; staff can read intake.
 DO $$
 DECLARE
   v_intake text := 'zz-asset-check/' || gen_random_uuid() || '.png';
-  v_public text := 'zz-asset-check/' || gen_random_uuid() || '.png';
-  v_anon_list int; v_anon_exact int; v_anon_public int; v_user int; v_staff int;
+  -- (The public library bucket is covered by check 18.)
+  v_anon_list int; v_anon_exact int; v_user int; v_staff int;
 BEGIN
   INSERT INTO storage.objects (bucket_id, name) VALUES
-    ('design-assets-intake', v_intake), ('design-assets', v_public);
+    ('design-assets-intake', v_intake);
 
   PERFORM pg_temp.chk_as('anon', NULL);
   SELECT count(*) INTO v_anon_list FROM storage.objects WHERE bucket_id = 'design-assets-intake';
   SELECT count(*) INTO v_anon_exact FROM storage.objects WHERE name = v_intake;
-  SELECT count(*) INTO v_anon_public FROM storage.objects WHERE bucket_id = 'design-assets' AND name = v_public;
   PERFORM pg_temp.chk_back();
 
   PERFORM pg_temp.chk_as('authenticated', pg_temp.id('user'));
@@ -377,7 +376,6 @@ BEGIN
 
   ASSERT v_anon_list = 0 AND v_anon_exact = 0, 'anon_cannot_list_intake: anon can see intake objects';
   ASSERT v_user = 0, 'anon_cannot_list_intake: a non-staff user can see intake objects';
-  ASSERT v_anon_public = 1, 'anon_cannot_list_intake: anon cannot read the public library, so the check proves nothing';
   ASSERT v_staff = 1, 'anon_cannot_list_intake: staff cannot read intake, so the check proves nothing';
   ASSERT (SELECT public = false FROM storage.buckets WHERE id = 'design-assets-intake'),
     'anon_cannot_list_intake: the intake bucket is public';
@@ -419,11 +417,207 @@ BEGIN
   ASSERT NOT (v_mimes && ARRAY['application/x-msdownload', 'application/x-msdos-program',
                                'application/vnd.microsoft.portable-executable', 'application/octet-stream']),
     format('exe_upload_refused: intake allows an executable type: %s', v_mimes);
-  ASSERT v_mimes <@ ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'font/woff2', 'font/otf']
-     AND cardinality(v_mimes) = 6,
-    format('exe_upload_refused: intake types are not exactly the six allowed: %s', v_mimes);
+  ASSERT v_mimes <@ ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']
+     AND cardinality(v_mimes) = 4,
+    format('exe_upload_refused: intake types are not exactly the four allowed: %s', v_mimes);
   ASSERT v_limit = 26214400, format('exe_upload_refused: intake size limit is %s, not 25 MB', v_limit);
   PERFORM pg_temp.chk_pass('exe_upload_refused');
+END $$;
+
+-- 13 ------------------------------------------------------------------------
+-- A licence cannot stop permitting people without a release while an approved
+-- asset relies on it; once nothing relies on it, it can.
+DO $$
+DECLARE
+  v_row uuid := pg_temp.chk_asset('licence reliance', 'draft', 'pixabay', ARRAY['no-endorsement']);
+  v_raised boolean := false;
+BEGIN
+  UPDATE public.design_assets SET contains_people = true WHERE id = v_row;
+  UPDATE public.design_assets SET status = 'approved' WHERE id = v_row;
+  BEGIN
+    UPDATE public.design_asset_licences SET permits_people_without_release = false WHERE key = 'pixabay';
+  EXCEPTION WHEN check_violation THEN v_raised := true;
+  END;
+  ASSERT v_raised, 'licence_people_flag_frozen_while_relied_on: the flag was switched off under an approved asset';
+  ASSERT (SELECT permits_people_without_release FROM public.design_asset_licences WHERE key = 'pixabay'),
+    'licence_people_flag_frozen_while_relied_on: the flag changed despite the refusal';
+  UPDATE public.design_assets SET status = 'retired', retired_reason = 'zz-asset-check' WHERE id = v_row;
+  -- Only provable when no real approved asset relies on pixabay (true before
+  -- any intake); otherwise the refusal above is the whole check.
+  IF NOT EXISTS (SELECT 1 FROM public.design_assets
+                  WHERE licence_key = 'pixabay' AND status = 'approved' AND contains_people AND NOT release_on_file) THEN
+    UPDATE public.design_asset_licences SET permits_people_without_release = false WHERE key = 'pixabay';
+    ASSERT NOT (SELECT permits_people_without_release FROM public.design_asset_licences WHERE key = 'pixabay'),
+      'licence_people_flag_frozen_while_relied_on: the flag could not be switched off with nothing relying on it';
+  END IF;
+  PERFORM pg_temp.chk_pass('licence_people_flag_frozen_while_relied_on');
+END $$;
+
+-- 14 ------------------------------------------------------------------------
+DO $$
+DECLARE
+  v_row uuid := pg_temp.chk_asset('svg');
+  v_raised boolean := false;
+BEGIN
+  UPDATE public.design_assets SET mime = 'image/svg+xml',
+         storage_path = 'zz-asset-check/' || gen_random_uuid() || '.svg' WHERE id = v_row;
+  BEGIN
+    UPDATE public.design_assets SET status = 'approved' WHERE id = v_row;
+  EXCEPTION WHEN check_violation THEN v_raised := true;
+  END;
+  ASSERT v_raised, 'svg_needs_sanitising: an unsanitised SVG was approved';
+  UPDATE public.design_assets SET sanitised_at = now() WHERE id = v_row;
+  UPDATE public.design_assets SET status = 'approved' WHERE id = v_row;
+  ASSERT (SELECT status FROM public.design_assets WHERE id = v_row) = 'approved',
+    'svg_needs_sanitising: a sanitised SVG could not be approved';
+  PERFORM pg_temp.chk_pass('svg_needs_sanitising');
+END $$;
+
+-- 15 ------------------------------------------------------------------------
+-- A non-staff user (and anon) cannot upload to the public library bucket;
+-- staff can.
+DO $$
+DECLARE
+  v_user boolean := false; v_anon boolean := false;
+BEGIN
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('user'));
+  BEGIN
+    INSERT INTO storage.objects (bucket_id, name) VALUES ('design-assets', 'zz-asset-check/' || gen_random_uuid() || '.png');
+  EXCEPTION WHEN insufficient_privilege THEN v_user := true;
+  END;
+  PERFORM pg_temp.chk_back();
+  PERFORM pg_temp.chk_as('anon', NULL);
+  BEGIN
+    INSERT INTO storage.objects (bucket_id, name) VALUES ('design-assets', 'zz-asset-check/' || gen_random_uuid() || '.png');
+  EXCEPTION WHEN insufficient_privilege THEN v_anon := true;
+  END;
+  PERFORM pg_temp.chk_back();
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('staff'));
+  INSERT INTO storage.objects (bucket_id, name) VALUES ('design-assets', 'zz-asset-check/' || gen_random_uuid() || '.png');
+  PERFORM pg_temp.chk_back();
+  ASSERT v_user, 'non_staff_cannot_upload_library: a non-staff user uploaded to design-assets';
+  ASSERT v_anon, 'non_staff_cannot_upload_library: anon uploaded to design-assets';
+  PERFORM pg_temp.chk_pass('non_staff_cannot_upload_library');
+END $$;
+
+-- 16 ------------------------------------------------------------------------
+-- A non-staff user's UPDATE or DELETE on licences touches nothing.
+DO $$
+DECLARE
+  v_before text; v_after text; v_resale boolean; v_n int;
+BEGIN
+  SELECT restrictions INTO v_before FROM public.design_asset_licences WHERE key = 'mit';
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('user'));
+  UPDATE public.design_asset_licences SET restrictions = 'zz-asset-check hijacked', standalone_resale = true WHERE key = 'mit';
+  DELETE FROM public.design_asset_licences WHERE key = 'mit';
+  PERFORM pg_temp.chk_back();
+  SELECT count(*) INTO v_n FROM public.design_asset_licences WHERE key = 'mit';
+  SELECT restrictions, standalone_resale INTO v_after, v_resale FROM public.design_asset_licences WHERE key = 'mit';
+  ASSERT v_n = 1, 'non_staff_cannot_change_licences: a non-staff user deleted a licence';
+  ASSERT v_after = v_before AND NOT v_resale, 'non_staff_cannot_change_licences: a non-staff user updated a licence';
+  PERFORM pg_temp.chk_pass('non_staff_cannot_change_licences');
+END $$;
+
+-- 17 ------------------------------------------------------------------------
+-- Mockup surfaces follow their scene: hidden from anon while it is a draft.
+DO $$
+DECLARE
+  v_draft uuid := pg_temp.chk_asset('scene draft');
+  v_live  uuid := pg_temp.chk_asset('scene approved', 'approved');
+  v_hidden int; v_shown int;
+BEGIN
+  UPDATE public.design_assets SET kind = 'mockup_scene' WHERE id IN (v_draft, v_live);
+  INSERT INTO public.design_mockup_surfaces
+    (asset_id, tl_x, tl_y, tr_x, tr_y, br_x, br_y, bl_x, bl_y, ratio, format_keys, label)
+  VALUES (v_draft, 0.1, 0.1, 0.9, 0.1, 0.9, 0.9, 0.1, 0.9, 1, ARRAY['square'], 'zz-asset-check draft'),
+         (v_live,  0.1, 0.1, 0.9, 0.1, 0.9, 0.9, 0.1, 0.9, 1, ARRAY['square'], 'zz-asset-check live');
+  PERFORM pg_temp.chk_as('anon', NULL);
+  SELECT count(*) INTO v_hidden FROM public.design_mockup_surfaces WHERE asset_id = v_draft;
+  SELECT count(*) INTO v_shown FROM public.design_mockup_surfaces WHERE asset_id = v_live;
+  PERFORM pg_temp.chk_back();
+  ASSERT v_hidden = 0, 'draft_scene_surfaces_hidden: anon can read surfaces of a draft scene';
+  ASSERT v_shown = 1, 'draft_scene_surfaces_hidden: anon cannot read surfaces of an approved scene, so the check proves nothing';
+  PERFORM pg_temp.chk_pass('draft_scene_surfaces_hidden');
+END $$;
+
+-- 18 ------------------------------------------------------------------------
+-- anon cannot list the public library bucket (no SELECT policy). Files are
+-- still served by public URL by design: the Storage API serves a public
+-- bucket's objects without RLS, which SQL cannot fetch to prove.
+DO $$
+DECLARE
+  v_path text := 'zz-asset-check/' || gen_random_uuid() || '.png';
+  v_anon int; v_user int; v_staff int;
+BEGIN
+  INSERT INTO storage.objects (bucket_id, name) VALUES ('design-assets', v_path);
+  PERFORM pg_temp.chk_as('anon', NULL);
+  SELECT count(*) INTO v_anon FROM storage.objects WHERE bucket_id = 'design-assets';
+  PERFORM pg_temp.chk_back();
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('user'));
+  SELECT count(*) INTO v_user FROM storage.objects WHERE bucket_id = 'design-assets';
+  PERFORM pg_temp.chk_back();
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('staff'));
+  SELECT count(*) INTO v_staff FROM storage.objects WHERE bucket_id = 'design-assets' AND name = v_path;
+  PERFORM pg_temp.chk_back();
+  ASSERT v_anon = 0, 'anon_cannot_list_library: anon can list design-assets';
+  ASSERT v_user = 0, 'anon_cannot_list_library: a non-staff user can list design-assets';
+  ASSERT v_staff = 1, 'anon_cannot_list_library: staff cannot read design-assets, so the check proves nothing';
+  ASSERT (SELECT public FROM storage.buckets WHERE id = 'design-assets'),
+    'anon_cannot_list_library: design-assets is not a public bucket, so public URLs would not work';
+  PERFORM pg_temp.chk_pass('anon_cannot_list_library');
+END $$;
+
+-- 19 ------------------------------------------------------------------------
+-- anon never reads staff ids; it still reads the public columns and searches.
+DO $$
+DECLARE
+  v_row uuid := pg_temp.chk_asset('staff ids', 'approved', 'pexels', ARRAY['zzassetidstag']);
+  v_creator boolean := false; v_reviewer boolean := false; v_lic boolean := false;
+  v_title text; v_found int; v_x uuid;
+BEGIN
+  PERFORM pg_temp.chk_as('anon', NULL);
+  BEGIN
+    SELECT created_by INTO v_x FROM public.design_assets WHERE id = v_row;
+  EXCEPTION WHEN insufficient_privilege THEN v_creator := true;
+  END;
+  BEGIN
+    SELECT reviewed_by INTO v_x FROM public.design_assets WHERE id = v_row;
+  EXCEPTION WHEN insufficient_privilege THEN v_reviewer := true;
+  END;
+  BEGIN
+    SELECT reviewed_by INTO v_x FROM public.design_asset_licences WHERE key = 'pexels';
+  EXCEPTION WHEN insufficient_privilege THEN v_lic := true;
+  END;
+  SELECT title INTO v_title FROM public.design_assets WHERE id = v_row;
+  SELECT count(*) INTO v_found FROM public.search_design_assets('zzassetidstag') s WHERE s.id = v_row;
+  PERFORM pg_temp.chk_back();
+  ASSERT v_creator AND v_reviewer, 'anon_cannot_read_staff_ids: anon can read created_by or reviewed_by on design_assets';
+  ASSERT v_lic, 'anon_cannot_read_staff_ids: anon can read reviewed_by on design_asset_licences';
+  ASSERT v_title = 'zz-asset-check staff ids', 'anon_cannot_read_staff_ids: anon cannot read the public columns';
+  ASSERT v_found = 1, 'anon_cannot_read_staff_ids: search no longer works for anon';
+  PERFORM pg_temp.chk_pass('anon_cannot_read_staff_ids');
+END $$;
+
+-- 20 ------------------------------------------------------------------------
+-- Review stamps cannot be set by hand: they move only on a change into
+-- approved or retired.
+DO $$
+DECLARE
+  v_row uuid := pg_temp.chk_asset('stamps');
+  v_at timestamptz;
+BEGIN
+  UPDATE public.design_assets SET reviewed_by = pg_temp.id('user'), reviewed_at = now() - interval '1 year' WHERE id = v_row;
+  ASSERT (SELECT reviewed_by IS NULL AND reviewed_at IS NULL FROM public.design_assets WHERE id = v_row),
+    'review_stamps_frozen: a draft took hand-set review stamps';
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('staff'));
+  UPDATE public.design_assets SET status = 'approved' WHERE id = v_row;
+  PERFORM pg_temp.chk_back();
+  SELECT reviewed_at INTO v_at FROM public.design_assets WHERE id = v_row;
+  UPDATE public.design_assets SET title = 'zz-asset-check stamps edited', reviewed_by = pg_temp.id('user'),
+         reviewed_at = now() - interval '1 year' WHERE id = v_row;
+  ASSERT (SELECT reviewed_by = pg_temp.id('staff') AND reviewed_at = v_at FROM public.design_assets WHERE id = v_row),
+    'review_stamps_frozen: an edit without a status change moved the review stamps';
+  PERFORM pg_temp.chk_pass('review_stamps_frozen');
 END $$;
 
 -- Summary row (visible even when the client drops NOTICEs), then discard it all.

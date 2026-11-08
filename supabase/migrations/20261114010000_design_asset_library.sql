@@ -15,8 +15,8 @@
 --                           ordered by id so paging is stable under the
 --                           1000-row cap.
 --   storage buckets         design-assets-intake (private, staff only, type and
---                           size limited) and design-assets (public read, staff
---                           write). Approval copies the file across, so a draft
+--                           size limited) and design-assets (public URLs, no listing,
+--                           staff write). Approval copies the file across, so a draft
 --                           is never reachable by URL.
 --
 -- RULES THE DATABASE ENFORCES
@@ -25,9 +25,18 @@
 --              never with contains_brands;
 --              people without a release on file only under a licence whose
 --              permits_people_without_release is true, and then only with the
---              'no-endorsement' tag.
+--              'no-endorsement' tag;
+--              an SVG only once sanitised_at is set.
 --   retired    needs a retired_reason.
 --   sha256     unique: one row per file.
+--   licences   cannot stop permitting people without a release while approved
+--              assets rely on it.
+--   review     reviewed_by / reviewed_at move only on a change into approved
+--              or retired.
+--   anon       never reads created_by or reviewed_by (column-level grants).
+--
+-- Fonts are not library assets (they are self-hosted in the repo), so neither
+-- the mime check nor the buckets accept them.
 --
 -- permits_people_without_release is the one column this migration adds beyond
 -- the spec's licence list. The spec says the people rule depends on whether a
@@ -40,7 +49,8 @@
 -- find, not the evidence.
 --
 -- Re-runnable: tables and indexes are IF NOT EXISTS, policies and triggers are
--- dropped first, seeds and buckets are ON CONFLICT DO NOTHING.
+-- dropped first, seeds are ON CONFLICT DO NOTHING, and buckets are ON CONFLICT
+-- DO UPDATE so a pre-existing bucket takes these settings.
 
 -- ---------------------------------------------------------------------------
 -- 1. Licences
@@ -158,12 +168,15 @@ CREATE TABLE IF NOT EXISTS public.design_assets (
   width_px               integer CHECK (width_px > 0),
   height_px              integer CHECK (height_px > 0),
   bytes                  bigint NOT NULL CHECK (bytes > 0),
+  -- Fonts are not library assets: they are self-hosted in the repo.
   mime                   text NOT NULL CHECK (mime IN (
-                           'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml',
-                           'font/woff2', 'font/otf')),
+                           'image/png', 'image/jpeg', 'image/webp', 'image/svg+xml')),
   storage_path           text NOT NULL UNIQUE CHECK (btrim(storage_path) <> ''),
   thumb_path             text,
   sha256                 text NOT NULL UNIQUE CHECK (sha256 ~ '^[0-9a-f]{64}$'),
+  -- When the SVG was run through Studio's SVG import stripping. An SVG cannot
+  -- be approved until it has been.
+  sanitised_at           timestamptz,
 
   -- Provenance
   source_name            text NOT NULL CHECK (btrim(source_name) <> ''),
@@ -210,7 +223,9 @@ CREATE TABLE IF NOT EXISTS public.design_assets (
     NOT (status = 'approved' AND contains_people AND NOT release_on_file)
     OR 'no-endorsement' = ANY (tags)),
   CONSTRAINT design_assets_retired_needs_reason CHECK (
-    status <> 'retired' OR nullif(btrim(retired_reason), '') IS NOT NULL)
+    status <> 'retired' OR nullif(btrim(retired_reason), '') IS NOT NULL),
+  CONSTRAINT design_assets_svg_sanitised_before_approval CHECK (
+    mime <> 'image/svg+xml' OR status <> 'approved' OR sanitised_at IS NOT NULL)
 );
 
 CREATE INDEX IF NOT EXISTS design_assets_search_idx      ON public.design_assets USING gin (search);
@@ -243,10 +258,18 @@ BEGIN
     NEW.created_at := OLD.created_at;
   END IF;
 
+  -- Review stamps move only when the status changes into approved or retired.
+  -- Any other write keeps them as they were, so they cannot be set by hand.
   IF NEW.status IN ('approved', 'retired')
      AND (TG_OP = 'INSERT' OR NEW.status IS DISTINCT FROM OLD.status) THEN
     NEW.reviewed_by := coalesce(auth.uid(), NEW.reviewed_by);
     NEW.reviewed_at := now();
+  ELSIF TG_OP = 'UPDATE' THEN
+    NEW.reviewed_by := OLD.reviewed_by;
+    NEW.reviewed_at := OLD.reviewed_at;
+  ELSE
+    NEW.reviewed_by := NULL;
+    NEW.reviewed_at := NULL;
   END IF;
 
   IF NEW.status = 'approved' AND NEW.contains_people AND NOT NEW.release_on_file THEN
@@ -267,6 +290,38 @@ DROP TRIGGER IF EXISTS design_assets_guard ON public.design_assets;
 CREATE TRIGGER design_assets_guard
   BEFORE INSERT OR UPDATE ON public.design_assets
   FOR EACH ROW EXECUTE FUNCTION public.design_assets_guard();
+
+-- A licence cannot stop permitting people without a release while approved
+-- assets rely on it: those rows would break the rule silently. Retire them
+-- (or record their releases) first. SECURITY INVOKER: only staff update
+-- licences, and staff read every asset.
+CREATE OR REPLACE FUNCTION public.design_asset_licences_guard()
+RETURNS trigger
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  v_n bigint;
+BEGIN
+  IF OLD.permits_people_without_release AND NOT NEW.permits_people_without_release THEN
+    SELECT count(*) INTO v_n
+      FROM public.design_assets a
+     WHERE a.licence_key = OLD.key
+       AND a.status = 'approved' AND a.contains_people AND NOT a.release_on_file;
+    IF v_n > 0 THEN
+      RAISE EXCEPTION 'licence %: % approved asset(s) show people without a release under it; retire them or record releases first',
+        OLD.key, v_n
+        USING ERRCODE = 'check_violation';
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS design_asset_licences_guard ON public.design_asset_licences;
+CREATE TRIGGER design_asset_licences_guard
+  BEFORE UPDATE ON public.design_asset_licences
+  FOR EACH ROW EXECUTE FUNCTION public.design_asset_licences_guard();
 
 -- ---------------------------------------------------------------------------
 -- 3. Mockup surfaces
@@ -319,9 +374,24 @@ ALTER TABLE public.design_assets ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.design_mockup_surfaces ENABLE ROW LEVEL SECURITY;
 
 -- TRUNCATE is not subject to RLS, and Supabase's default privileges grant it.
--- anon only ever reads.
+-- anon only ever reads, and never the staff ids (created_by, reviewed_by):
+-- its SELECT is column-level, so an anon query must name its columns
+-- (select=* is refused). search_design_assets returns a TABLE of public
+-- columns and reads only granted ones, so it works for anon.
 REVOKE ALL ON public.design_asset_licences, public.design_assets, public.design_mockup_surfaces FROM anon;
-GRANT SELECT ON public.design_asset_licences, public.design_assets, public.design_mockup_surfaces TO anon;
+GRANT SELECT (key, name, url, terms_snapshot_path, commercial_use, modification,
+              attribution_required, standalone_resale, template_embedding, print_use,
+              permits_people_without_release, restrictions, reviewed_at, created_at)
+  ON public.design_asset_licences TO anon;
+GRANT SELECT (id, kind, title, description, tags, subjects, industries, regions,
+              dominant_colours, orientation, width_px, height_px, bytes, mime,
+              storage_path, thumb_path, sha256, sanitised_at, source_name, source_url,
+              source_asset_id, creator_name, creator_url, licence_key,
+              licence_evidence_path, retrieved_at, attribution_text, restrictions,
+              icon_set, stroke_style, contains_people, contains_brands, release_on_file,
+              status, retired_reason, reviewed_at, created_at, updated_at, search)
+  ON public.design_assets TO anon;
+GRANT SELECT ON public.design_mockup_surfaces TO anon;
 REVOKE TRUNCATE ON public.design_asset_licences, public.design_assets, public.design_mockup_surfaces FROM authenticated;
 
 -- Licences are the published policy: anyone reads, staff edit.
@@ -427,10 +497,13 @@ GRANT EXECUTE ON FUNCTION public.search_design_assets(text, text, text, text, te
 INSERT INTO storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 VALUES
   ('design-assets-intake', 'design-assets-intake', false, 26214400,
-   ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'font/woff2', 'font/otf']),
+   ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml']),
   ('design-assets', 'design-assets', true, 26214400,
-   ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml', 'font/woff2', 'font/otf'])
-ON CONFLICT (id) DO NOTHING;
+   ARRAY['image/png', 'image/jpeg', 'image/webp', 'image/svg+xml'])
+ON CONFLICT (id) DO UPDATE SET
+  public             = EXCLUDED.public,
+  file_size_limit    = EXCLUDED.file_size_limit,
+  allowed_mime_types = EXCLUDED.allowed_mime_types;
 
 -- Intake: staff only, for every operation. No anon or non-staff policy exists,
 -- so a guessed path reads nothing and a signed URL cannot be minted.
@@ -444,38 +517,43 @@ DROP POLICY IF EXISTS "design_assets_intake_staff_insert" ON storage.objects;
 CREATE POLICY "design_assets_intake_staff_insert" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'design-assets-intake' AND public.is_staff()
-              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg', 'woff2', 'otf'));
+              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg'));
 
 DROP POLICY IF EXISTS "design_assets_intake_staff_update" ON storage.objects;
 CREATE POLICY "design_assets_intake_staff_update" ON storage.objects
   FOR UPDATE TO authenticated
   USING (bucket_id = 'design-assets-intake' AND public.is_staff())
   WITH CHECK (bucket_id = 'design-assets-intake' AND public.is_staff()
-              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg', 'woff2', 'otf'));
+              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg'));
 
 DROP POLICY IF EXISTS "design_assets_intake_staff_delete" ON storage.objects;
 CREATE POLICY "design_assets_intake_staff_delete" ON storage.objects
   FOR DELETE TO authenticated
   USING (bucket_id = 'design-assets-intake' AND public.is_staff());
 
--- Public library: anyone reads; staff write.
+-- Public library: a public bucket serves its files by URL with no SELECT
+-- policy, so none is granted to anon: the library cannot be listed, only
+-- fetched by a path the manifest names. Staff read (the Storage API needs it
+-- to update or delete) and write.
 DROP POLICY IF EXISTS "design_assets_public_read" ON storage.objects;
-CREATE POLICY "design_assets_public_read" ON storage.objects
-  FOR SELECT TO anon, authenticated
-  USING (bucket_id = 'design-assets');
+
+DROP POLICY IF EXISTS "design_assets_staff_read" ON storage.objects;
+CREATE POLICY "design_assets_staff_read" ON storage.objects
+  FOR SELECT TO authenticated
+  USING (bucket_id = 'design-assets' AND public.is_staff());
 
 DROP POLICY IF EXISTS "design_assets_staff_insert" ON storage.objects;
 CREATE POLICY "design_assets_staff_insert" ON storage.objects
   FOR INSERT TO authenticated
   WITH CHECK (bucket_id = 'design-assets' AND public.is_staff()
-              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg', 'woff2', 'otf'));
+              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg'));
 
 DROP POLICY IF EXISTS "design_assets_staff_update" ON storage.objects;
 CREATE POLICY "design_assets_staff_update" ON storage.objects
   FOR UPDATE TO authenticated
   USING (bucket_id = 'design-assets' AND public.is_staff())
   WITH CHECK (bucket_id = 'design-assets' AND public.is_staff()
-              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg', 'woff2', 'otf'));
+              AND lower(storage.extension(name)) IN ('png', 'jpg', 'jpeg', 'webp', 'svg'));
 
 DROP POLICY IF EXISTS "design_assets_staff_delete" ON storage.objects;
 CREATE POLICY "design_assets_staff_delete" ON storage.objects
