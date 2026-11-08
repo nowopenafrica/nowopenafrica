@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { ArrowRight, Pencil, Search, Shuffle } from 'lucide-react';
 
@@ -557,9 +557,11 @@ function previewPage(template: DesignTemplate): { w: number; h: number } {
  * Exported for the products carousel on the Create page, which shows the
  * same cards: `caption` replaces the two lines under the picture, and
  * `tabIndex` lets a decorative duplicate be skipped by the keyboard.
+ * `body` replaces everything under the picture, for the catalogue's
+ * TemplateCard, which states more about the design than a gallery tile.
  */
 export function PreviewCard({
-  template, styleKey, brand, showStyleName = false, onOpen, caption, tabIndex,
+  template, styleKey, brand, showStyleName = false, onOpen, caption, tabIndex, body,
 }: {
   template: DesignTemplate;
   styleKey: string;
@@ -568,6 +570,7 @@ export function PreviewCard({
   onOpen: () => void;
   caption?: { title: string; sub: string };
   tabIndex?: number;
+  body?: ReactNode;
 }) {
   const box = useRef<HTMLDivElement>(null);
   const [seen, setSeen] = useState(false);
@@ -690,6 +693,7 @@ export function PreviewCard({
         four lines under every card, which is what turns a grid into a wall of
         text with pictures in it.
       */}
+      {body ?? (
       <div className="p-2.5" title={template.desc}>
         {caption ? (
           <>
@@ -720,6 +724,7 @@ export function PreviewCard({
         </>
         )}
       </div>
+      )}
     </Link>
     <button
       type="button"
