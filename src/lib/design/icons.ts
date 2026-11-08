@@ -201,7 +201,8 @@ export function isProfilePointer(text: string): boolean {
 const NAMED: readonly [RegExp, string][] = [
   [/\binstagram\b|\binsta\b|\bIG\b/i, 'instagram'],
   [/\btik ?tok\b/i, 'tiktok'],
-  [/\btwitter\b|\bX\b/, 'x'],
+  // Bare "X" is a letter as often as a platform: it names X only after "on" ("follow us on x").
+  [/\btwitter\b|\bon x\b/i, 'x'],
   [/\byou ?tube\b/i, 'youtube'],
   [/\bfacebook\b/i, 'facebook'],
   [/\bwhats ?app\b/i, 'whatsapp'],
@@ -211,9 +212,27 @@ const NAMED: readonly [RegExp, string][] = [
   [/\blinked ?in\b/i, 'linkedin'],
 ];
 
-/** The platforms a row's words name, by registry key ('linkedin' included, which has no mark). */
+/** A handle that IS a platform's name ("@instagram") names that platform; any other handle names none. */
+const HANDLE_TOKEN = /@([\p{L}\p{N}._]+)/gu;
+const HANDLE_NAMES: Record<string, string> = {
+  instagram: 'instagram', tiktok: 'tiktok', x: 'x', twitter: 'x', youtube: 'youtube', facebook: 'facebook',
+  whatsapp: 'whatsapp', threads: 'threads', snapchat: 'snapchat', pinterest: 'pinterest', linkedin: 'linkedin',
+};
+
+/**
+ * The platforms a row's words name, by registry key ('linkedin' included,
+ * which has no mark). A handle token is the business's own name, not a
+ * platform's: "@insta.cafe" and "@Mama.X" name nothing; "@instagram" does.
+ */
 export function namedPlatforms(text: string): string[] {
-  return NAMED.filter(([re]) => re.test(text)).map(([, key]) => key);
+  const keys = new Set<string>();
+  const rest = text.replace(HANDLE_TOKEN, (_whole, body: string) => {
+    const key = HANDLE_NAMES[body.toLowerCase()];
+    if (key) keys.add(key);
+    return ' ';
+  });
+  for (const [re, key] of NAMED) if (re.test(rest)) keys.add(key);
+  return [...keys];
 }
 
 /* ── WHAT THE WORDS ARE (Ruling AL) ───────────────────────────────────────
@@ -225,7 +244,24 @@ export function namedPlatforms(text: string): string[] {
  * classify AND whose words are still the template's own sample text there.
  */
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const URL_OR_DOMAIN = /^(https?:\/\/|www\.)\S+$|^[a-z0-9-]+(\.[a-z0-9-]+)*\.[a-z]{2,}(\/\S*)?$/i;
+const URL = /^(https?:\/\/|www\.)\S+$/i;
+const DOMAIN = /^[a-z0-9-]+(?:\.[a-z0-9-]+)*\.([a-z]{2,})(\/\S*)?$/i;
+/** "Dr.Ade" and "Mr.Smith" are names, not domains. */
+const HONORIFIC = /^(dr|mr|mrs|ms|prof)\./i;
+/** Top-level domains accepted in capitals too ("MamaPut.NG"); any other TLD must be written lowercase. */
+const KNOWN_TLDS = new Set([
+  'com', 'net', 'org', 'ng', 'africa', 'co', 'io', 'za', 'ke', 'gh', 'ug', 'tz', 'rw', 'uk', 'biz', 'info',
+  'shop', 'store', 'online', 'site', 'app', 'dev', 'me',
+]);
+
+/** A web address: a URL, or a bare domain whose TLD is lowercase or a known one. */
+function isWebAddress(t: string): boolean {
+  if (URL.test(t)) return true;
+  if (HONORIFIC.test(t)) return false;
+  const m = DOMAIN.exec(t);
+  if (!m) return false;
+  return m[1] === m[1].toLowerCase() || KNOWN_TLDS.has(m[1].toLowerCase());
+}
 const PHONE = /^\+?[\d\s().\-/]+$/;
 const HOURS = [
   /\b(mon|tue|tues|wed|thu|thur|thurs|fri|sat|sun)(day)?s?\b/i,
@@ -235,7 +271,9 @@ const HOURS = [
   /\b\d{1,2}:\d{2}\b/,
   /\byour days\b/i,
 ];
-const ADDRESS = /\b(street|road|avenue|close|crescent|lane|boulevard|estate|junction|plaza|your address|your area|your location)\b|\b(st|rd|ave)\.(\s|$)/i;
+/** A street-type word: it makes the row an address before a weekday or "number" can claim it. */
+const STREET = /\b(street|road|avenue|close|crescent|way|lane|plot|estate)\b/i;
+const ADDRESS = /\b(street|road|avenue|close|crescent|way|lane|plot|boulevard|estate|junction|plaza|your address|your area|your location)\b|\b(st|rd|ave)\.(\s|$)/i;
 const PHONE_WORDS = /\b(phone|number|call|booking line|telephone|tel)\b/i;
 const MAIL_WORDS = /\b(e-?mail)\b/i;
 const WEB_WORDS = /\b(website|web)\b/i;
@@ -243,18 +281,21 @@ const WEB_WORDS = /\b(website|web)\b/i;
 /**
  * The Lucide icon a row's words call for, or null when they say nothing an icon can.
  *
- * Precedence (Ruling AM): a phone-like run of digits outranks everything;
- * then an email or a web address; then explicit contact words (number,
- * phone, call, tel, booking line) outrank hours cues, because "Out of hours
- * · Your number" is a phone line, not opening times; then hours, then an
- * address, then the remaining placeholder words.
+ * Precedence (Rulings AM and fix round 2): a phone-like run of digits
+ * outranks everything; then an email or a web address; then a street-type
+ * word makes it an address ("5 Sun Street", "Friday Market Road", "Plot
+ * Number 5, Allen Avenue"); then explicit contact words (number, phone,
+ * call, tel, booking line) outrank hours cues, because "Out of hours · Your
+ * number" is a phone line, not opening times; then hours, then other
+ * address cues, then the remaining placeholder words.
  */
 export function classifyRow(text: string): LucideName | null {
   const t = text.trim();
   if (!t) return null;
   if (PHONE.test(t) && (t.match(/\d/g)?.length ?? 0) >= 7) return 'phone';
   if (EMAIL.test(t)) return 'mail';
-  if (URL_OR_DOMAIN.test(t)) return 'globe';
+  if (isWebAddress(t)) return 'globe';
+  if (STREET.test(t)) return 'map-pin';
   if (PHONE_WORDS.test(t)) return 'phone';
   if (HOURS.some((re) => re.test(t))) return 'clock';
   if (ADDRESS.test(t)) return 'map-pin';
@@ -282,9 +323,11 @@ export interface RowGlyphOptions {
  * - No icon at all unless the template put icons on this slot.
  * - A handle or profile pointer takes the slot's platform mark (the visitor's
  *   choice, else the template's), unless the words name another platform.
- * - Anything else takes the icon its words call for (classifyRow); if they
- *   call for none, the template's hint for this row, but only while the row
- *   is still the template's own sample text.
+ * - Anything else takes the icon its words call for (classifyRow), but only
+ *   on a slot the template gave at least one Lucide hint: a slot that carries
+ *   only a platform mark never gets a general icon. If the words call for
+ *   none, the template's hint for this row, but only while the row is still
+ *   the template's own sample text.
  */
 export function rowGlyph(slot: SlotSpec, index: number, text: string, opts: RowGlyphOptions = {}): Glyph | null {
   const icons = slot.icons ?? [];
@@ -301,6 +344,7 @@ export function rowGlyph(slot: SlotSpec, index: number, text: string, opts: RowG
     return glyph;
   }
 
+  if (!icons.some((i) => i?.set === 'lucide')) return null;
   const read = classifyRow(text);
   if (read) return glyphOf({ set: 'lucide', name: read });
   if (hint?.set === 'lucide' && opts.sample !== undefined && text === opts.sample) return glyphOf(hint);

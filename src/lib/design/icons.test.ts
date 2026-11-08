@@ -96,6 +96,26 @@ describe('classifyRow (Ruling AL)', () => {
     ['Out of hours', 'clock'],
   ])('reads the placeholder %s as %s', (text, want) => expect(classifyRow(text)).toBe(want));
 
+  it('reads a street-type word as an address before a weekday or "number" (fix round 2)', () => {
+    expect(classifyRow('5 Sun Street')).toBe('map-pin');
+    expect(classifyRow('Friday Market Road')).toBe('map-pin');
+    expect(classifyRow('Plot Number 5, Allen Avenue')).toBe('map-pin');
+    expect(classifyRow('Off Admiralty Way, Lekki')).toBe('map-pin');
+    // A real number still wins over everything.
+    expect(classifyRow('0803 123 4567')).toBe('phone');
+    expect(classifyRow('Sunday')).toBe('clock');
+  });
+
+  it('does not read a name with an honorific or a capitalised word as a domain', () => {
+    expect(classifyRow('Dr.Ade')).toBeNull();
+    expect(classifyRow('Mr.Smith')).toBeNull();
+    expect(classifyRow('Mrs.Okafor')).toBeNull();
+    expect(classifyRow('John.Smith')).toBeNull();
+    expect(classifyRow('shop.ng')).toBe('globe');
+    expect(classifyRow('MamaPut.NG')).toBe('globe');
+    expect(classifyRow('mamaput.kitchen')).toBe('globe');
+  });
+
   it('lets contact words outrank hours, and a phone number outrank everything (Ruling AM)', () => {
     expect(classifyRow('Out of hours · Your number')).toBe('phone');
     expect(classifyRow('Out of hours')).toBe('clock');
@@ -144,7 +164,7 @@ describe('rowGlyph', () => {
 
   it('never puts a mark beside words that are not a handle', () => {
     expect(rowGlyph(contact, 1, 'Your website')?.name).toBe('globe');
-    expect(rowGlyph({ role: 'contact', x: 0, y: 0, w: 1, icons: [IG] }, 0, 'Your website')?.set).toBe('lucide');
+    expect(rowGlyph({ role: 'contact', x: 0, y: 0, w: 1, icons: [IG] }, 0, 'Your website')).toBeNull();
   });
 
   it('never puts a mark beside words that name another platform', () => {
@@ -168,8 +188,32 @@ describe('rowGlyph', () => {
   it('names platforms in words', () => {
     expect(namedPlatforms('Find us on Instagram')).toEqual(['instagram']);
     expect(namedPlatforms('Follow us on X')).toEqual(['x']);
+    expect(namedPlatforms('follow us on x')).toEqual(['x']);
+    expect(namedPlatforms('Find us on Twitter')).toEqual(['x']);
     expect(namedPlatforms('@yourhandle')).toEqual([]);
     expect(namedPlatforms('Link in bio')).toEqual([]);
+    // A bare X elsewhere is a letter, not a platform.
+    expect(namedPlatforms('Find us on Instagram, 2 X a week')).toEqual(['instagram']);
+  });
+
+  it('reads a handle as the business, unless it is exactly a platform name', () => {
+    expect(namedPlatforms('@insta.cafe')).toEqual([]);
+    expect(namedPlatforms('@Mama.X')).toEqual([]);
+    expect(namedPlatforms('@ig_kitchen')).toEqual([]);
+    expect(namedPlatforms('@instagram')).toEqual(['instagram']);
+    expect(namedPlatforms('@X')).toEqual(['x']);
+    const meta: SlotSpec = { role: 'meta', x: 0, y: 0, w: 1, icons: [IG] };
+    expect(rowGlyph(meta, 0, '@insta.cafe', { platform: 'tiktok' })?.name).toBe('tiktok');
+    expect(rowGlyph(meta, 0, '@Mama.X')?.name).toBe('instagram');
+    expect(rowGlyph(meta, 0, '@instagram', { platform: 'x' })).toBeNull();
+  });
+
+  it('never gives a general icon on a slot that carries only a platform mark (fix round 2)', () => {
+    const meta: SlotSpec = { role: 'meta', x: 0, y: 0, w: 1, icons: [IG] };
+    expect(rowGlyph(meta, 0, 'Call us')).toBeNull();
+    expect(rowGlyph(meta, 0, 'shop.ng')).toBeNull();
+    expect(rowGlyph(meta, 0, '+234 803 123 4567')).toBeNull();
+    expect(rowGlyph(meta, 0, '@yourhandle')?.name).toBe('instagram');
   });
 
   it('keeps icons off the name, the headline, the subline and a disc', () => {

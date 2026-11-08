@@ -320,6 +320,32 @@ describe('the pilot collection', () => {
     }
   });
 
+  it('never draws a general icon on a platform-only design, whatever its words (fix round 2)', () => {
+    const free = {
+      meta: 'Call us on 0803 123 4567', cta: 'shop.ng', contact: ['www.mamaput.ng', 'hello@mamaput.ng'],
+    };
+    for (const t of PILOT_TEMPLATES.filter((x) => x.iconSet === 'platform' || subcategoryFor(x)?.key === 'billboard-48-sheet')) {
+      const { w, h } = canvasFor(t);
+      for (const page of pagesOf(t)) {
+        const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+        const was = g.IS_REACT_ACT_ENVIRONMENT;
+        g.IS_REACT_ACT_ENVIRONMENT = true;
+        const el = document.createElement('div');
+        document.body.appendChild(el);
+        const root = createRoot(el);
+        act(() => {
+          root.render(createElement(TemplateSurface, {
+            template: { ...t, slots: page.slots }, content: { ...sampleFor(t), ...free }, width: w, height: h, accent: '#2563eb',
+          }));
+        });
+        expect(el.querySelectorAll('svg[data-icon^="lucide:"]').length, `${t.key} ${page.name}`).toBe(0);
+        act(() => root.unmount());
+        el.remove();
+        g.IS_REACT_ACT_ENVIRONMENT = was;
+      }
+    }
+  });
+
   it.each(keys)('renders %s at its true canvas, every page, without throwing', (key) => {
     expect(renderProblems(key)).toEqual([]);
   });

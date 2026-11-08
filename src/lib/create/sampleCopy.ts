@@ -468,6 +468,8 @@ export function sampleFor(template: Pick<DesignTemplate, 'key'>): TemplateConten
 /** How many templates carry purpose-shaped copy. For the test, and for honesty. */
 export const TEMPLATES_WITH_OWN_COPY = Object.keys(BY_KEY).length;
 
+const SAMPLE_CACHE = new Map<string, TemplateContent>();
+
 /**
  * The template's own sample words for one row of a slot: row `index` of a
  * contact or services list, or a text role's line (index 0). Undefined when
@@ -475,7 +477,9 @@ export const TEMPLATES_WITH_OWN_COPY = Object.keys(BY_KEY).length;
  * icon hint only while the row still reads exactly this (Ruling AL).
  */
 export function sampleRow(template: Pick<DesignTemplate, 'key'>, role: string, index: number): string | undefined {
-  const s = sampleFor(template);
+  // BY_KEY never changes, so one merged copy per template serves every row of every render.
+  let s = SAMPLE_CACHE.get(template.key);
+  if (!s) { s = sampleFor(template); SAMPLE_CACHE.set(template.key, s); }
   if (role === 'contact') return s.contact?.[index];
   if (role === 'services') return s.services?.[index];
   if (index !== 0) return undefined;
