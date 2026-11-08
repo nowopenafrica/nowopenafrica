@@ -6,6 +6,7 @@ import {
 
 import TemplateSurface from '../studio/TemplateSurface';
 import ConfirmDialog from '../ConfirmDialog';
+import AssetReview from './AssetReview';
 import { supabase } from '../../lib/supabase';
 import { DESIGN_TEMPLATES } from '../../lib/designTemplates';
 import { DESIGN_FORMATS } from '../../data/studioPresets';
@@ -47,6 +48,33 @@ import { invalidateCatalogue } from '../../hooks/useDesignCatalogue';
  * So it is refused with the reason, and pointed at the Brand Asset Manager.
  */
 export default function TemplateManager() {
+  const [tab, setTab] = useState<'templates' | 'assets'>('templates');
+  return (
+    <div className="space-y-5">
+      <div role="tablist" className="flex gap-2">
+        {([['templates', 'Templates'], ['assets', 'Assets']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => setTab(key)}
+            className={`min-h-[40px] rounded-lg px-4 text-xs font-bold ${
+              tab === key
+                ? 'bg-purple-600 text-white'
+                : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {tab === 'templates' ? <TemplatesTab /> : <AssetReview />}
+    </div>
+  );
+}
+
+function TemplatesTab() {
   const [rows, setRows] = useState<TemplateRow[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
