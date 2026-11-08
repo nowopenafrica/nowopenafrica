@@ -6,6 +6,7 @@ import {
   MIN_TYPE_PX, estimateLines, fitSlotSize, isListRole, typePx,
   type DesignTemplate, type SlotRole, type SlotSpec,
 } from '../../../designTemplates';
+import { subcategoryFor } from '../../../create/catalogueTaxonomy';
 import { deliverableFor } from '../../deliverables';
 import { formatOf, type Format } from '../../formats';
 import { textSlotBox } from '../../remix';
@@ -35,6 +36,13 @@ export const isTextRole = (role: SlotRole): boolean => !isListRole(role) && role
 /** The roles that carry a name: what a long real-world name is put into. */
 export const NAME_ROLES: readonly SlotRole[] = ['brand', 'headline'];
 
+/**
+ * The words a template cannot do without: its product's required roles
+ * (catalogueTaxonomy), or the name and headline when it is not filed.
+ */
+export const essentialRoles = (tpl: DesignTemplate): readonly SlotRole[] =>
+  subcategoryFor(tpl)?.requiredRoles ?? NAME_ROLES;
+
 export interface Fit {
   where: string;
   role: SlotRole;
@@ -44,14 +52,28 @@ export interface Fit {
   lines: number;
 }
 
-/** Each single-line text slot's fitted pixel size, on every page, for this copy. */
+/**
+ * Each text slot's fitted pixel size, on every page, for this copy.
+ *
+ * Without `roles`, single-line text slots only. A list role (contact,
+ * services, stats, price) is included when `roles` names it; its rows are
+ * laid out at the slot's own size (the text fitter does not shrink them), so
+ * its "fitted" size is that size and `lines` is its row count.
+ */
 export function fits(tpl: DesignTemplate, content: TemplateContent, w: number, h: number, roles?: readonly SlotRole[]): Fit[] {
   const out: Fit[] = [];
   for (const page of pagesOf(tpl)) {
     for (const slot of page.slots) {
-      if (!isTextRole(slot.role) || (roles && !roles.includes(slot.role))) continue;
-      const text = slotText(slot, content).join(' ');
-      if (!text) continue;
+      if (slot.role === 'qr') continue;
+      if (roles ? !roles.includes(slot.role) : !isTextRole(slot.role)) continue;
+      const rows = slotText(slot, content);
+      if (!rows.length) continue;
+      if (isListRole(slot.role)) {
+        const px = typePx(slot.size, w, h);
+        out.push({ where: `${page.name}.${slot.role}`, role: slot.role, natural: px, fitted: px, lines: rows.length });
+        continue;
+      }
+      const text = rows.join(' ');
       const fitted = fitSlotSize(slot, page.slots, text, w, h);
       out.push({
         where: `${page.name}.${slot.role}`,
@@ -78,6 +100,9 @@ export const atFloor = (f: Fit): boolean =>
  * whiteSpace nowrap), so a name that needs a second line is cut off.
  */
 export const clipped = (f: Fit): boolean => f.role === 'brand' && f.lines > 1;
+
+/** Text set smaller than the format's minimum (minTextPx). */
+export const belowMinimum = (f: Fit, minPx: number): boolean => f.fitted < minPx - 1e-9;
 
 /** Physical dpi of the editable canvas, when the format is a real object. */
 export function canvasDpi(f: Format): number | null {

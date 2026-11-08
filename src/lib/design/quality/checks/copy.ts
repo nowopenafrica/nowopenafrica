@@ -4,7 +4,7 @@
  * Shared by the quality checks (C3, C5, C7, C9) and by fontCoverage.test.ts,
  * so "what does this slot draw" has one answer.
  */
-import { DESIGN_TEMPLATES, type DesignTemplate, type SlotSpec } from '../../../designTemplates';
+import type { DesignTemplate, SlotSpec } from '../../../designTemplates';
 import { sampleFor } from '../../../create/sampleCopy';
 import type { TemplateContent } from '../../../../components/studio/TemplateSurface';
 
@@ -38,14 +38,19 @@ export function slotText(slot: SlotSpec, content: TemplateContent): string[] {
   return out.filter(Boolean).map((t) => (slot.upper ? t.toUpperCase() : t));
 }
 
-/**
- * The longest name the demo copy sets: the longest brand or headline of any
- * template's sample. The "long real-world name" C5 and editability put into
- * both name-bearing slots.
+/*
+ * ── LONG REAL-WORLD COPY (Ruling Q) ─────────────────────────────────────
+ *
+ * What C5 and the editability score put into the name and the headline to
+ * see whether a layout survives a real business's words. Test strings only:
+ * never displayed, so neutral words and no real business. The lengths are a
+ * founder decision and may change; the customiser itself allows a name of 60
+ * characters and a headline of 120.
  */
-export const LONGEST_SAMPLE_NAME = DESIGN_TEMPLATES
-  .flatMap((t) => { const c = sampleFor(t); return [c.brand ?? '', c.headline ?? '']; })
-  .reduce((a, b) => (b.length > a.length ? b : a), '');
+/** A business-name-shaped string, exactly 40 characters. */
+export const LONG_BRAND = 'Northgate Building and Roofing Materials';
+/** A realistic headline, exactly 60 characters. */
+export const LONG_HEADLINE = 'Fresh roofing sheets, cement and floor tiles delivered today';
 
 /* ── C9: placeholder and nonsense copy ─────────────────────────────────── */
 

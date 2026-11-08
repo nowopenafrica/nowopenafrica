@@ -24,9 +24,11 @@ import { typefaceOf, type TypefaceKey } from '../typefaces';
 import type { AssetManifest } from '../assetManifestTypes';
 import type { TemplateContent } from '../../../components/studio/TemplateSurface';
 import { assetRefs, externalUrls, iconRefs } from './checks/assets';
-import { LONGEST_SAMPLE_NAME, copyFor, pagesOf, placeholderProblems, slotText } from './checks/copy';
+import { LONG_BRAND, LONG_HEADLINE, copyFor, pagesOf, placeholderProblems, slotText } from './checks/copy';
 import { faceProblems, gapsOf } from './checks/glyphs';
-import { NAME_ROLES, atFloor, canvasFor, clipped, fits, formatFor, isTextRole, ratioError, safeBreaches } from './checks/geometry';
+import {
+  NAME_ROLES, atFloor, belowMinimum, canvasFor, clipped, essentialRoles, fits, formatFor, isTextRole, minTextPx, ratioError, safeBreaches,
+} from './checks/geometry';
 import { contrastUnderStyles } from './checks/styled';
 
 export type CriticalCode = `C${1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12 | 13}`;
@@ -151,10 +153,20 @@ function c5(tpl: DesignTemplate, content: TemplateContent): string[] {
   for (const s of contrastUnderStyles(tpl)) {
     if (s.failures.length) out.push(`under ${s.style}: ${s.failures[0]}${s.failures.length > 1 ? ` (+${s.failures.length - 1} more)` : ''}`);
   }
+  /*
+   * Essentials are the product's required roles: each must be at least the
+   * format's minimum (6 pt at print size, else MIN_TYPE_PX). Those and the
+   * name roles must not be squeezed to the floor, and the one-line name must
+   * not be cut off, with the demo copy and with long real-world copy
+   * (LONG_BRAND in the brand, LONG_HEADLINE in the headline).
+   */
   const { w, h } = canvasFor(tpl);
-  const long = { ...content, brand: LONGEST_SAMPLE_NAME, headline: LONGEST_SAMPLE_NAME };
-  for (const [label, copy] of [['copy', content], ['long name', long]] as const) {
-    for (const f of fits(tpl, copy, w, h, NAME_ROLES)) {
+  const min = minTextPx(formatFor(tpl));
+  const essentials = essentialRoles(tpl);
+  const long = { ...content, brand: LONG_BRAND, headline: LONG_HEADLINE };
+  for (const [label, copy] of [['copy', content], ['long copy', long]] as const) {
+    for (const f of fits(tpl, copy, w, h, [...new Set([...essentials, ...NAME_ROLES])])) {
+      if (essentials.includes(f.role) && belowMinimum(f, min)) out.push(`${f.where} with ${label} is ${f.fitted}px, below the format's ${min.toFixed(1)}px minimum`);
       if (atFloor(f)) out.push(`${f.where} with ${label} is at MIN_TYPE_PX (${f.fitted}px, designed ${f.natural}px)`);
       if (clipped(f)) out.push(`${f.where} with ${label} is clipped: it needs ${f.lines} lines and is set on one`);
     }

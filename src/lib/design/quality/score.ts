@@ -17,10 +17,10 @@ import { TYPEFACES, TYPE_PAIRINGS, typefaceOf } from '../typefaces';
 import { deliveredDpiOf, exportCeilingDpi, exportPixelRatio } from '../printSpec';
 import type { AssetManifest } from '../assetManifestTypes';
 import { assetMetadataGaps, assetRefs, isRaster } from './checks/assets';
-import { LONGEST_SAMPLE_NAME, copyFor, pagesOf, slotText } from './checks/copy';
+import { LONG_BRAND, LONG_HEADLINE, copyFor, pagesOf, slotText } from './checks/copy';
 import { faceProblems } from './checks/glyphs';
 import {
-  NAME_ROLES, atFloor, canvasDpi, clipped, canvasFor, fits, formatFor, isTextRole, minTextPx, ratioError, safeBreaches, slotCount,
+  NAME_ROLES, atFloor, belowMinimum, canvasDpi, clipped, essentialRoles, canvasFor, fits, formatFor, isTextRole, minTextPx, ratioError, safeBreaches, slotCount,
 } from './checks/geometry';
 import { brandTrials, contrastUnderStyles } from './checks/styled';
 import type { QualityOptions } from './critical';
@@ -143,7 +143,6 @@ function image(tpl: DesignTemplate, manifest: AssetManifest): Part {
 
 /* ── editability: 10 (styles 3, brand colour 2, long name 3, empty field 2) ── */
 
-const OPTIONAL = ['eyebrow', 'subline', 'cta', 'meta'] as const;
 
 function editability(tpl: DesignTemplate, opts: QualityOptions): Part {
   const styles = contrastUnderStyles(tpl);
@@ -152,22 +151,35 @@ function editability(tpl: DesignTemplate, opts: QualityOptions): Part {
   const brandsOk = brands.filter((b) => b.ok).length;
 
   const { w, h } = canvasFor(tpl);
+  const min = minTextPx(formatFor(tpl));
   const content = copyFor(tpl, opts.copy);
-  const named = fits(tpl, { ...content, brand: LONGEST_SAMPLE_NAME, headline: LONGEST_SAMPLE_NAME }, w, h, NAME_ROLES);
+  const named = fits(tpl, { ...content, brand: LONG_BRAND, headline: LONG_HEADLINE }, w, h, NAME_ROLES);
   const nameOk = named.filter((f) => !atFloor(f) && !clipped(f)).length;
   const nameShare = named.length ? nameOk / named.length : 1;
 
-  // Every optional field emptied: the essentials must still be there and fit.
-  const emptied = { ...content, ...Object.fromEntries(OPTIONAL.map((k) => [k, ''])) };
-  const essentials = fits(tpl, emptied, w, h, NAME_ROLES);
-  const emptyOk = essentials.length > 0 && essentials.every((f) => !atFloor(f) && !clipped(f));
+  /*
+   * Every optional text role (any text role that is not one of the product's
+   * required roles) emptied: each required role must still be on the design,
+   * carry words, and fit (at or above the format's minimum, not squeezed to
+   * the floor, not cut off). Measured per required role.
+   */
+  const essentials = essentialRoles(tpl);
+  const present = new Set(pagesOf(tpl).flatMap((p) => p.slots.map((sl) => sl.role)));
+  const optional = [...present].filter((r) => isTextRole(r) && !essentials.includes(r));
+  const emptied = { ...content, ...Object.fromEntries(optional.map((k) => [k, ''])) };
+  const fitted = fits(tpl, emptied, w, h, essentials);
+  const keptRoles = essentials.filter((role) => {
+    const mine = fitted.filter((f) => f.role === role);
+    return mine.length > 0 && mine.every((f) => !belowMinimum(f, min) && !atFloor(f) && !clipped(f));
+  });
+  const emptyShare = essentials.length ? keptRoles.length / essentials.length : 1;
 
-  const points = 3 * (stylesOk / styles.length) + 2 * (brandsOk / brands.length) + 3 * nameShare + (emptyOk ? 2 : 0);
+  const points = 3 * (stylesOk / styles.length) + 2 * (brandsOk / brands.length) + 3 * nameShare + 2 * emptyShare;
   return {
     points,
     evidence: `${stylesOk}/${styles.length} styles readable; ${brandsOk}/${brands.length} brand colours; `
-      + `${nameOk}/${named.length} name slots hold a ${LONGEST_SAMPLE_NAME.length}-character name; `
-      + `empty optional fields ${emptyOk ? 'keep the essentials' : 'lose an essential'}`,
+      + `${nameOk}/${named.length} name slots hold a ${LONG_BRAND.length}-character name or ${LONG_HEADLINE.length}-character headline; `
+      + `with ${optional.length} optional field(s) empty, ${keptRoles.length}/${essentials.length} required roles (${essentials.join(', ')}) present and fitting`,
   };
 }
 
@@ -245,6 +257,7 @@ function access(tpl: DesignTemplate, opts: QualityOptions): Part {
 
   const f = formatFor(tpl);
   const { w, h } = canvasFor(tpl);
+  // The same format-aware floor C5 holds the essentials to.
   const all = fits(tpl, copyFor(tpl, opts.copy), w, h);
   const smallest = all.length ? Math.min(...all.map((x) => x.fitted)) : Infinity;
   const min = minTextPx(f);
@@ -296,6 +309,7 @@ function mobile(tpl: DesignTemplate, opts: QualityOptions): Part {
   const head: SlotSpec | undefined = text.find((s) => s.role === 'headline')
     ?? [...text].sort((a, b) => (b.size ?? 0.05) - (a.size ?? 0.05))[0];
   if (!head) return { points: 0, evidence: '' };
+  // fitSlotSize is the renderers' own estimate, not a browser layout: jsdom lays nothing out.
   const px = fitSlotSize(head, tpl.slots, slotText(head, content).join(' '), pw, ph) * (PHONE_CARD / CARD);
   return {
     points: AUTO_MAX.mobile * Math.min(1, px / MIN_TYPE_PX),

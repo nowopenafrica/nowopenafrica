@@ -7,6 +7,8 @@ import { clearUploadedDeliverables, registerUploadedDeliverable } from '../deliv
 import type { AssetManifest, ManifestAsset } from '../assetManifestTypes';
 import type { TemplateContent } from '../../../components/studio/TemplateSurface';
 import { CUSTOMISER_TEXT_FIELDS } from '../../create/customiserFields';
+import { typefaceOf } from '../typefaces';
+import { LONG_BRAND, LONG_HEADLINE } from './checks/copy';
 import {
   NOT_CHECKED, automatedCriticals, type CriticalCode, type QualityOptions,
 } from './critical';
@@ -34,6 +36,21 @@ const card = templateByKey('card-front');
 const base = (patch: Partial<DesignTemplate> = {}): DesignTemplate => ({
   ...card, key: KEY, direction: 'minimal', ...patch,
 });
+
+/*
+ * The card set large enough for print: every line at least 6 pt on an
+ * 85.6 mm card (25 px at its 300 dpi canvas), and the one-line name wide and
+ * untracked enough to hold LONG_BRAND.
+ */
+const roomy = (): DesignTemplate => {
+  const grow = (s: SlotSpec): SlotSpec => ({
+    ...s, size: Math.max(s.size ?? 0.05, 0.045), ...(s.role === 'brand' ? { tracking: 0, w: 0.82 } : {}),
+  });
+  return base({
+    slots: card.slots.map(grow),
+    extraPages: card.extraPages?.map((p) => ({ ...p, slots: p.slots.map(grow) })),
+  });
+};
 
 const deliver = (format: string, subcategory: string) =>
   registerUploadedDeliverable(KEY, { category: 'branding', name: 'QA fixture', format, subcategory });
@@ -114,7 +131,7 @@ describe('automatedCriticals', () => {
     expect(m, c5[0].detail).not.toBeNull();
     expect(Number(m![1])).toBeGreaterThan(2.9);
     expect(Number(m![1])).toBeLessThan(3.5);
-    expect(codes(base())).not.toContain('C5');
+    expect(codes(roomy())).not.toContain('C5');
   });
 
   it('C5: a 120-character name squeezed to MIN_TYPE_PX, or clipped, fails', () => {
@@ -122,15 +139,52 @@ describe('automatedCriticals', () => {
     expect(long).toHaveLength(120);
     const named = { copy: { ...CLEAN, brand: long, headline: long } };
     // A supporting line just under the headline leaves it one line of room.
-    const tight = base({
-      slots: [...card.slots, { role: 'subline', x: 0.09, y: 0.2, w: 0.6, size: 0.03 }],
-    });
-    const details = automatedCriticals(tight, [], EMPTY, named).filter((f) => f.code === 'C5').map((f) => f.detail);
-    const all = details.join(' | ');
+    const tight = roomy();
+    const crowded = { ...tight, slots: [...tight.slots, { role: 'subline' as const, x: 0.09, y: 0.2, w: 0.6, size: 0.03 }] };
+    const all = automatedCriticals(crowded, [], EMPTY, named).filter((f) => f.code === 'C5').map((f) => f.detail).join(' | ');
     expect(all).toMatch(/front\.headline with copy is at MIN_TYPE_PX/);
     // The name line never wraps: a long name is cut off with an ellipsis.
     expect(all).toMatch(/front\.brand with copy is clipped/);
-    expect(codes(base())).not.toContain('C5');
+    expect(codes(roomy())).not.toContain('C5');
+  });
+
+  it("C5: an essential below the format's minimum fails (6 pt on a business card, not 9 px)", () => {
+    // card-front sets its brand and contact at about 19 px; 6 pt on this card is 25 px.
+    const all = automatedCriticals(base(), [], EMPTY, { copy: CLEAN })
+      .filter((f) => f.code === 'C5').map((f) => f.detail).join(' | ');
+    expect(all).toMatch(/front\.brand with copy is 19px, below the format's 25\.0px minimum/);
+    // contact is a required role of a business card, and a list.
+    expect(all).toMatch(/\.contact with copy is \d+px, below the format's 25\.0px minimum/);
+    // eyebrow is not a required role, so its size is the access score's business, not C5's.
+    expect(all).not.toMatch(/eyebrow/);
+  });
+
+  it('C5: the long-copy trial puts LONG_BRAND in the brand and LONG_HEADLINE in the headline', () => {
+    expect(LONG_BRAND).toHaveLength(40);
+    expect(LONG_HEADLINE).toHaveLength(60);
+    const narrow = roomy();
+    const squeezed = { ...narrow, slots: narrow.slots.map((s) => (s.role === 'brand' ? { ...s, w: 0.4 } : s)) };
+    const all = automatedCriticals(squeezed, [], EMPTY, { copy: CLEAN })
+      .filter((f) => f.code === 'C5').map((f) => f.detail).join(' | ');
+    expect(all).toMatch(/front\.brand with long copy is clipped/);
+    expect(all).not.toMatch(/with copy is clipped/);
+  });
+
+  it('C3: a registered font file that is missing is reported, not thrown', () => {
+    const face = typefaceOf('script');
+    const real = face.files[400];
+    face.files[400] = '/fonts/studio/no-such-face-400.woff2';
+    try {
+      const scripted = base({
+        look: undefined, font: 'script',
+        slots: card.slots.map((s): SlotSpec => ({ ...s, font: undefined })),
+        extraPages: undefined,
+      });
+      const c3 = automatedCriticals(scripted, [], EMPTY, { copy: CLEAN }).filter((f) => f.code === 'C3');
+      expect(c3.map((f) => f.detail).join(' | ')).toMatch(/Dancing Script 400 file \/fonts\/studio\/no-such-face-400\.woff2 is missing/);
+    } finally {
+      face.files[400] = real;
+    }
   });
 
   it('C7: a text role the customiser cannot edit fails', () => {

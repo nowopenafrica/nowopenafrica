@@ -12,7 +12,7 @@ import type { TemplateContent } from '../../components/studio/TemplateSurface';
 // The coverage rule (face OR its glyph fallback) and "what a slot draws" are
 // shared with the quality scorer's C3 check, so they live there.
 import { gapsOf, inFallbackRange, readPublic as read } from './quality/checks/glyphs';
-import { LONGEST_SAMPLE_NAME, slotText } from './quality/checks/copy';
+import { slotText } from './quality/checks/copy';
 
 const cp = (ch: string) => `U+${(ch.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, '0')}`;
 
@@ -189,6 +189,14 @@ const AT_FLOOR_TODAY = new Set([
   'insight-stat.brand',
   'tiered-sale.cta',
 ]);
+
+/**
+ * The longest name the demo copy sets: the longest brand or headline of any
+ * template's sample. Put into both name-bearing slots of every listed design.
+ */
+const LONGEST_SAMPLE_NAME = DESIGN_TEMPLATES
+  .flatMap((t) => { const c = sampleFor(t); return [c.brand ?? '', c.headline ?? '']; })
+  .reduce((a, b) => (b.length > a.length ? b : a), '');
 
 describe('Review Focus 4: no listed design is squeezed to MIN_TYPE_PX', () => {
   it('there are 67 listed designs', () => {

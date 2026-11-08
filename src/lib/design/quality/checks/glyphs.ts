@@ -8,14 +8,19 @@
  *
  * Each file is read and parsed once per process.
  */
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
 import { codepointsOf, missingFrom } from '../../fontCoverage';
 import { GLYPH_FALLBACK, typefaceOf, type Typeface } from '../../typefaces';
 
+const onDisk = (publicPath: string): string => join(process.cwd(), 'public', publicPath);
+
 /** A public path, read from the repository's public/ folder. */
-export const readPublic = (publicPath: string): Buffer => readFileSync(join(process.cwd(), 'public', publicPath));
+export const readPublic = (publicPath: string): Buffer => readFileSync(onDisk(publicPath));
+
+/** Whether a public path really exists in public/. */
+export const publicFileExists = (publicPath: string): boolean => existsSync(onDisk(publicPath));
 
 const CACHE = new Map<string, Set<number>>();
 
@@ -43,7 +48,9 @@ let fallbackSet: Set<number> | null = null;
 export function fallbackCodepointsAll(): Set<number> {
   if (!fallbackSet) {
     const src = typefaceOf(GLYPH_FALLBACK.source);
-    fallbackSet = new Set(src.weights.flatMap((w) => [...codepointsAt(src.files[w])]).filter(inFallbackRange));
+    fallbackSet = new Set(src.weights
+      .filter((w) => publicFileExists(src.files[w]))
+      .flatMap((w) => [...codepointsAt(src.files[w])]).filter(inFallbackRange));
   }
   return fallbackSet;
 }
@@ -53,21 +60,27 @@ export function fallbackCodepoints(face: Typeface): Set<number> {
   return face.glyphFallback && face.coverage !== 'latin-basic' ? fallbackCodepointsAll() : new Set();
 }
 
-/** What the face cannot draw, even with its fallback, from `chars`. */
+/**
+ * What the face cannot draw, even with its fallback, from `chars`.
+ * A file that is missing draws nothing; faceProblems reports it, so this
+ * returns '' for it rather than throwing.
+ */
 export function gapsOf(face: Typeface, weight: number, chars: string): string {
+  if (!publicFileExists(face.files[weight] ?? '')) return '';
   const fb = fallbackCodepoints(face);
   return [...missingFrom(codepointsAt(face.files[weight]), chars)]
     .filter((ch) => !fb.has(ch.codePointAt(0) as number))
     .join('');
 }
 
-/** Why a face cannot be shipped at all: not self-hosted, or no licence. */
+/** Why a face cannot be shipped at all: not self-hosted, a file missing, or no licence. */
 export function faceProblems(face: Typeface): string[] {
   const out: string[] = [];
   if (!face.licence) out.push(`${face.label} has no licence`);
   for (const w of face.weights) {
     const path = face.files[w];
     if (!path || !path.startsWith('/fonts/')) out.push(`${face.label} ${w} is not self-hosted (${path ?? 'no file'})`);
+    else if (!publicFileExists(path)) out.push(`${face.label} ${w} file ${path} is missing from public/`);
   }
   return out;
 }
