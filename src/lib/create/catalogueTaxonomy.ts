@@ -67,7 +67,7 @@ export const SUBCATEGORIES: Subcategory[] = [
   sub('brand-guidelines', 'Brand guidelines', 'brand', ['x-post']),
 
   // B. Social & digital marketing
-  sub('instagram-post', 'Social post', 'social', ['instagram-portrait', 'instagram-post']),
+  sub('instagram-post', 'Social post', 'social', ['instagram-portrait', 'instagram-post', 'pinterest']),
   sub('story', 'Story / WhatsApp status', 'social', ['story']),
   sub('carousel', 'Carousel', 'social', ['instagram-portrait']),
   sub('reels-cover', 'Reels cover', 'social', ['story']),
@@ -76,7 +76,7 @@ export const SUBCATEGORIES: Subcategory[] = [
   sub('sale-post', 'Sale post', 'social', ['instagram-portrait', 'instagram-post']),
 
   // C. Advertising
-  sub('display-ad', 'Display ad', 'advertising', ['display-leaderboard', 'display-mpu', 'website-banner']),
+  sub('display-ad', 'Display ad', 'advertising', ['display-leaderboard', 'display-mpu', 'website-banner', 'x-post']),
   sub('billboard', 'Billboard', 'advertising', ['billboard', 'led']),
   sub('billboard-48-sheet', '48-sheet billboard', 'advertising', ['board-48-sheet']),
   sub('roll-up', 'Roll-up banner', 'advertising', ['rollup']),

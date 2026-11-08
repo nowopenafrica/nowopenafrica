@@ -86,6 +86,16 @@ describe('catalogue taxonomy', () => {
     }
   });
 
+  it('files every template whose deliverable names a format under a subcategory made on it', () => {
+    const misfiled: string[] = [];
+    for (const tpl of DESIGN_TEMPLATES) {
+      const format = DELIVERABLES[tpl.key]?.format;
+      const sub = subcategoryFor(tpl);
+      if (format && sub && !sub.formats.includes(format)) misfiled.push(`${tpl.key}: ${format} not in ${sub.key}`);
+    }
+    expect(misfiled).toEqual([]);
+  });
+
   it('keeps industry facets inside INDUSTRY_GROUPS', () => {
     for (const tpl of DESIGN_TEMPLATES) {
       for (const industry of tpl.industries ?? []) {

@@ -185,7 +185,11 @@ const IGNORED = new Set([0x09, 0x0a, 0x0d]);
  * order. An empty string means it covers them all.
  */
 export function missingChars(file: Buffer, chars: string): string {
-  const have = codepointsOf(file);
+  return missingFrom(codepointsOf(file), chars);
+}
+
+/** missingChars against code points already read, so a caller can read each file once. */
+export function missingFrom(have: Set<number>, chars: string): string {
   const missing = new Set<string>();
   for (const ch of chars) {
     const cp = ch.codePointAt(0) as number;

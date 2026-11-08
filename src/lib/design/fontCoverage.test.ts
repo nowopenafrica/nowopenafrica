@@ -2,41 +2,17 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 
 import { SUPPORTED_CHARS, UPSTREAM_GAPS, codepointsOf, missingChars } from './fontCoverage';
-import { GLYPH_FALLBACK, TYPEFACES, typefaceOf, type Typeface, type TypefaceKey } from './typefaces';
+import { GLYPH_FALLBACK, TYPEFACES, typefaceOf, type TypefaceKey } from './typefaces';
 import { resolveLook, slotFace } from './look';
 import {
-  DESIGN_TEMPLATES, MIN_TYPE_PX, fitSlotSize, isListRole, type SlotSpec,
+  DESIGN_TEMPLATES, MIN_TYPE_PX, fitSlotSize, isListRole,
 } from '../designTemplates';
 import { sampleFor } from '../create/sampleCopy';
 import type { TemplateContent } from '../../components/studio/TemplateSurface';
-
-const read = (publicPath: string): Buffer => readFileSync(`public${publicPath}`);
-
-/** GLYPH_FALLBACK's unicode-range, as [first, last] pairs. */
-const FALLBACK_RANGES = GLYPH_FALLBACK.unicodeRange.map((r) => {
-  const [a, z] = r.replace('U+', '').split('-');
-  return [parseInt(a, 16), parseInt(z ?? a, 16)] as const;
-});
-const inFallbackRange = (c: number) => FALLBACK_RANGES.some(([a, z]) => c >= a && c <= z);
-
-/** What the glyph fallback can draw: its source files, inside its unicode-range only. */
-const FALLBACK_CODEPOINTS: Set<number> = (() => {
-  const src = typefaceOf(GLYPH_FALLBACK.source);
-  return new Set(src.weights.flatMap((w) => [...codepointsOf(read(src.files[w]))]).filter(inFallbackRange));
-})();
-
-/** Everything a face's fallback can draw for it. */
-function fallbackCodepoints(face: Typeface): Set<number> {
-  return face.glyphFallback && face.coverage !== 'latin-basic' ? FALLBACK_CODEPOINTS : new Set();
-}
-
-/** What the face cannot draw, even with its fallback, from `chars`. */
-function gapsOf(face: Typeface, weight: number, chars: string): string {
-  const fb = fallbackCodepoints(face);
-  return [...missingChars(read(face.files[weight]), chars)]
-    .filter((ch) => !fb.has(ch.codePointAt(0) as number))
-    .join('');
-}
+// The coverage rule (face OR its glyph fallback) and "what a slot draws" are
+// shared with the quality scorer's C3 check, so they live there.
+import { gapsOf, inFallbackRange, readPublic as read } from './quality/checks/glyphs';
+import { LONGEST_SAMPLE_NAME, slotText } from './quality/checks/copy';
 
 const cp = (ch: string) => `U+${(ch.codePointAt(0) as number).toString(16).toUpperCase().padStart(4, '0')}`;
 
@@ -138,25 +114,6 @@ describe('every face draws every supported language and currency (spec §12, C3)
 
 /* ── The copy each template actually sets, in the face that sets it ─────── */
 
-/** Every string a slot draws, with the case transform applied. */
-function slotText(slot: SlotSpec, content: TemplateContent): string[] {
-  const out: string[] = [];
-  switch (slot.role) {
-    case 'services': out.push(...(content.services ?? [])); break;
-    case 'contact': out.push(...(content.contact ?? [])); break;
-    case 'price':
-      for (const r of content.price ?? []) out.push(r.label, r.price, r.was ?? '');
-      break;
-    case 'stats':
-      // Stat labels are always set in capitals.
-      for (const s of content.stats ?? []) out.push(s.value, s.label.toUpperCase());
-      break;
-    case 'qr': break;
-    default: out.push(String(content[slot.role as keyof TemplateContent] ?? ''));
-  }
-  return out.filter(Boolean).map((t) => (slot.upper ? t.toUpperCase() : t));
-}
-
 interface Use { face: TypefaceKey; text: string; where: string }
 
 /** Which face draws which words, across every template's demo copy and every page. */
@@ -232,14 +189,6 @@ const AT_FLOOR_TODAY = new Set([
   'insight-stat.brand',
   'tiered-sale.cta',
 ]);
-
-/**
- * The longest name the demo copy sets: the longest brand or headline of any
- * template's sample. Put into both name-bearing slots of every listed design.
- */
-const LONGEST_SAMPLE_NAME = DESIGN_TEMPLATES
-  .flatMap((t) => { const c = sampleFor(t); return [c.brand ?? '', c.headline ?? '']; })
-  .reduce((a, b) => (b.length > a.length ? b : a), '');
 
 describe('Review Focus 4: no listed design is squeezed to MIN_TYPE_PX', () => {
   it('there are 67 listed designs', () => {
