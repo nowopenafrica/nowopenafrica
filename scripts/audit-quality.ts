@@ -23,7 +23,7 @@ if (process.argv.includes('--json')) {
     console.log(`${c.name}`);
     if (subs.length === 0) console.log('  (no subcategories yet)');
     for (const r of subs) {
-      console.log(`  ${r.subcategoryName} [${r.subcategory}]  directions ${r.directions}/${MIN_DIRECTIONS}  ${r.shown ? 'SHOWN' : 'hidden'}  templates ${r.templates.length}`);
+      console.log(`  ${r.subcategoryName} [${r.subcategory}]  listed ${r.listedDirections}/${MIN_DIRECTIONS} directions (${r.directions} present in drafts)  ${r.shown ? 'SHOWN' : 'hidden'}  templates ${r.templates.length}`);
       for (const t of r.templates) {
         const flags = [
           t.listed ? 'listed' : 'unlisted',

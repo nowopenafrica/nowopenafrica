@@ -15,7 +15,7 @@ import type { AssetManifest } from '../assetManifestTypes';
 import { automatedCriticals, NOT_CHECKED } from './critical';
 import { gate } from './gate';
 import { contentHash } from './hash';
-import { REVIEWS } from './ledger';
+import { REVIEWS, type Review } from './ledger';
 import { automatedScore } from './score';
 
 export const NOT_CHECKED_TEXT = (code: string): string => `${code}: not checked`;
@@ -41,14 +41,25 @@ export interface ReportRow {
   categoryName: string;
   subcategory: string;
   subcategoryName: string;
-  /** Distinct directions across the subcategory's templates. */
+  /** Distinct directions among LISTED templates: the figure compared with MIN_DIRECTIONS. */
+  listedDirections: number;
+  /** Distinct directions across all the subcategory's templates, listed or not. */
   directions: number;
   shown: boolean;
   templates: TemplateRow[];
 }
 
-export function buildReport(ts: DesignTemplate[], manifest: AssetManifest, today: string): ReportRow[] {
-  const listed = ts.filter((t) => gate(t, ts, today).listed);
+/**
+ * `reviews` is the ledger seam (defaults to the real REVIEWS) so tests can pass
+ * synthetic reviews. Scope: every figure for a template is computed against its
+ * subcategory siblings. `gate` takes the full catalogue as `_all` but ignores
+ * it today (it reads the review's stored snapshot), so passing `siblings` is
+ * consistent with the scorer.
+ */
+export function buildReport(
+  ts: DesignTemplate[], manifest: AssetManifest, today: string, reviews: readonly Review[] = REVIEWS,
+): ReportRow[] {
+  const listed = ts.filter((t) => gate(t, ts, today, reviews).listed);
   const shown = new Set(shownSubcategories(listed).map((s) => s.key));
   const notChecked = [...NOT_CHECKED.map(NOT_CHECKED_TEXT), CHECKED_IN_TESTS('C6')];
 
@@ -60,12 +71,13 @@ export function buildReport(ts: DesignTemplate[], manifest: AssetManifest, today
       categoryName: category?.name ?? sub.category,
       subcategory: sub.key,
       subcategoryName: sub.name,
+      listedDirections: new Set(siblings.filter((t) => listed.includes(t)).map((t) => t.direction).filter(Boolean)).size,
       directions: new Set(siblings.map((t) => t.direction).filter(Boolean)).size,
       shown: shown.has(sub.key),
       templates: siblings.map((t): TemplateRow => {
         const auto = automatedScore(t, siblings, manifest);
-        const review = REVIEWS.find((r) => r.key === t.key);
-        const g = gate(t, ts, today);
+        const review = reviews.find((r) => r.key === t.key);
+        const g = gate(t, siblings, today, reviews);
         return {
           key: t.key,
           score: g.score ?? auto.total,
