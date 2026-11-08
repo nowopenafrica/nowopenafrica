@@ -14,6 +14,8 @@ import {
   type DesignTemplate, type ShapeSpec, type SlotSpec,
 } from '../designTemplates';
 import { subcategoryFor } from '../create/catalogueTaxonomy';
+import { deliverableFor } from './deliverables';
+import { formatOf } from './formats';
 import type { DirectionKey } from './directions';
 
 export interface Descriptor {
@@ -84,16 +86,17 @@ const OPAQUE = 0.9;
  * circle) are then laid over it and subtract their area. Overlaps are summed,
  * which can only over-subtract, and skew/rotation are ignored; both are
  * acceptable for a four-bucket measure. Shapes are in canvas fractions, circle
- * radii in short-edge fractions, so a square canvas is assumed. Not photoLed: 0.
+ * radii in short-edge units, so a circle's canvas fraction is pi r^2 x ar, where
+ * ar = short/long edge of the template's format (1:1 when unknown). Not photoLed: 0.
  */
-function imageShareOf(t: DesignTemplate): Descriptor['imageShare'] {
+function imageShareOf(t: DesignTemplate, ar: number): Descriptor['imageShare'] {
   if (!t.photoLed) return 0;
   let covered = 0;
   for (const s of t.shapes ?? []) {
     if (s.kind === 'ring' || s.kind === 'stripe' || (s.alpha ?? 1) < OPAQUE) continue;
     if (s.kind === 'rect') covered += s.w * s.h;
     else if (s.kind === 'wedge') covered += (s.w * s.h) / 2;
-    else if (s.kind === 'circle') covered += Math.PI * s.r * s.r;
+    else if (s.kind === 'circle') covered += Math.PI * s.r * s.r * ar;
   }
   const share = Math.max(0, 1 - covered);
   return share > 0.6 ? 3 : share >= 0.25 ? 2 : share > 0 ? 1 : 0;
@@ -131,27 +134,37 @@ function covers(s: ShapeSpec, box: { x0: number; y0: number; x1: number; y1: num
   return false;
 }
 
-function containerOf(t: DesignTemplate, h: SlotSpec | undefined): boolean {
+function containerOf(t: DesignTemplate, h: SlotSpec | undefined, shortOverH: number): boolean {
   if (!h) return false;
   // Height is content-driven; budget two lines of the headline's own size.
-  const height = (h.size ?? 0.05) * 2.2;
+  // size is in short-edge units; convert to a fraction of the canvas height.
+  const height = (h.size ?? 0.05) * 2.2 * shortOverH;
   const top = h.fromBottom ? 1 - h.y - height : h.y;
   const box = { x0: h.x, y0: top, x1: h.x + h.w, y1: top + height };
   return (t.shapes ?? []).some((s) => covers(s, box));
 }
 
+/** Canvas proportions from the template's format; square when unknown. */
+function canvasOf(t: DesignTemplate): { ar: number; shortOverH: number } {
+  const f = formatOf(deliverableFor(t)?.format ?? '');
+  if (!f) return { ar: 1, shortOverH: 1 };
+  const short = Math.min(f.w, f.h);
+  return { ar: short / Math.max(f.w, f.h), shortOverH: short / f.h };
+}
+
 export function describe(t: DesignTemplate): Descriptor {
+  const canvas = canvasOf(t);
   const headline = t.slots.find((s) => s.role === 'headline');
   // Text blocks: every slot except the QR code; a list role is one block.
   const text = t.slots.filter((s) => s.role !== 'qr');
   return {
     anchor: anchorOf(headline),
     headlineStep: stepOf(headline?.size),
-    imageShare: imageShareOf(t),
+    imageShare: imageShareOf(t, canvas.ar),
     textBlocks: text.length,
     align: alignOf(text),
     pattern: patternOf(t),
-    container: containerOf(t, headline),
+    container: containerOf(t, headline, canvas.shortOverH),
   };
 }
 

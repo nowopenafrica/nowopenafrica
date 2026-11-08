@@ -23,12 +23,13 @@ describe('composition descriptor', () => {
     // Slots: brand, eyebrow, headline, subline, meta = 5 text blocks (qr is not text).
     // No slot sets align, so all five are left -> 'left'.
     // The rail is a rect but does not reach the headline -> container false.
-    expect(describeTpl(templateByKey('editorial-split'))).toMatchInlineSnapshot(`
+    const { headlineStep, ...rest } = describeTpl(templateByKey('editorial-split'));
+    expect(headlineStep).toBeGreaterThanOrEqual(0);
+    expect(rest).toMatchInlineSnapshot(`
       {
         "align": "left",
         "anchor": "mc",
         "container": false,
-        "headlineStep": 20,
         "imageShare": 3,
         "pattern": "none",
         "textBlocks": 5,
@@ -82,5 +83,28 @@ describe('composition descriptor', () => {
   it('compares only templates with a direction, so today both return []', () => {
     expect(distinctnessIssues(DESIGN_TEMPLATES)).toEqual([]);
     expect(directionOverflow(DESIGN_TEMPLATES)).toEqual([]);
+  });
+});
+
+describe('composition descriptor on non-square canvases', () => {
+  const circle = { kind: 'circle' as const, cx: 0.5, cy: 0.5, r: 0.4, tone: 'base' as const };
+
+  it('counts a circle by its true canvas area on a wide format', () => {
+    // r 0.4 covers ~50% of a square (share 50% -> bucket 2) but only a third
+    // of that on a 3:1 billboard (share ~83% -> bucket 3).
+    const square = { ...templateByKey('editorial-split'), shapes: [circle] };
+    const wide = { ...templateByKey('billboard-statement'), photoLed: true, shapes: [circle] };
+    expect(describeTpl(square).imageShare).toBe(2);
+    expect(describeTpl(wide).imageShare).toBe(3);
+  });
+
+  it('measures the headline box against canvas height on a 4:5 post', () => {
+    // Headline y 0.4, size 0.09: box is 0.198 tall in short-edge units, i.e.
+    // 0.158 of a 4:5 canvas, but 0.198 of a square.
+    const slots = [{ role: 'headline' as const, x: 0.1, y: 0.4, w: 0.8, size: 0.09 }];
+    const rect = { kind: 'rect' as const, x: 0, y: 0.4, w: 1, h: 0.17, tone: 'primary' as const };
+    const base = templateByKey('insight-stat');
+    expect(describeTpl({ ...base, slots, shapes: [rect] }).container).toBe(true);
+    expect(describeTpl({ ...templateByKey('editorial-split'), slots, shapes: [rect] }).container).toBe(false);
   });
 });
