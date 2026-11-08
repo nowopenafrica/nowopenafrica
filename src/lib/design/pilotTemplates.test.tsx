@@ -11,15 +11,19 @@ import { createRoot } from 'react-dom/client';
 import { describe, expect, it } from 'vitest';
 
 import TemplateSurface from '../../components/studio/TemplateSurface';
+import { drawTemplateFrame } from '../drawTemplate';
 import { DESIGN_TEMPLATES } from '../designTemplates';
 import { subcategoryFor } from '../create/catalogueTaxonomy';
 import { sampleFor } from '../create/sampleCopy';
 import { directionOverflow, distinctnessIssues } from './composition';
 import { deliverableFor } from './deliverables';
+import { isProfilePointer } from './icons';
+import { platformMark } from './platformMarks';
 import { previewPhotoFor, previewPhotoForTemplate } from './previewMedia';
 import { PILOT_TEMPLATES } from './pilotTemplates';
 import { automatedCriticals } from './quality/critical';
 import { externalUrls } from './quality/checks/assets';
+import { slotIconSets, slotIcons } from './quality/checks/icons';
 import { pagesOf } from './quality/checks/copy';
 import { canvasFor } from './quality/checks/geometry';
 import { previewCriticals } from './quality/preview';
@@ -74,6 +78,26 @@ function renderProblems(key: string): string[] {
   return problems;
 }
 
+/** One page drawn by TemplateSurface with its demo copy, at its true canvas. */
+function drawDom(tpl: (typeof PILOT_TEMPLATES)[number], slots: (typeof PILOT_TEMPLATES)[number]['slots']) {
+  const { w, h } = canvasFor(tpl);
+  const g = globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean };
+  const was = g.IS_REACT_ACT_ENVIRONMENT;
+  g.IS_REACT_ACT_ENVIRONMENT = true;
+  const el = document.createElement('div');
+  document.body.appendChild(el);
+  const root = createRoot(el);
+  act(() => {
+    root.render(createElement(TemplateSurface, {
+      template: { ...tpl, slots }, content: sampleFor(tpl), width: w, height: h, accent: '#2563eb',
+    }));
+  });
+  return {
+    el,
+    done: () => { act(() => root.unmount()); el.remove(); g.IS_REACT_ACT_ENVIRONMENT = was; },
+  };
+}
+
 describe('the pilot collection', () => {
   it('is twenty designs: eight cards, six posts, six 48-sheets, all in the library', () => {
     expect(PILOT_TEMPLATES).toHaveLength(20);
@@ -119,11 +143,34 @@ describe('the pilot collection', () => {
     }
   });
 
-  it('carries no image of its own and no icon set', () => {
+  it('carries no image of its own, and declares an icon set exactly when it draws icons', () => {
     for (const t of PILOT_TEMPLATES) {
       expect(externalUrls(t), t.key).toEqual([]);
-      expect(t.iconSet, t.key).toBeUndefined();
+      const sets = slotIconSets(t);
+      const want = sets.size === 0 ? undefined : sets.has('lucide') ? 'lucide' : 'platform';
+      expect(t.iconSet, t.key).toBe(want);
     }
+  });
+
+  it('puts icons where the design spec says (Task 18b)', () => {
+    const on = (key: string) => slotIcons(PILOT_TEMPLATES.find((t) => t.key === key)!)
+      .map((p) => `${p.where}=${p.icon.set}:${p.icon.name}`);
+    expect(on('pilot-card-industry')).toEqual([
+      'front.contact[0]=lucide:phone', 'front.contact[1]=lucide:map-pin', 'front.contact[2]=lucide:globe',
+      'Back.services[0]=lucide:clock', 'Back.services[1]=lucide:clock', 'Back.services[2]=lucide:phone',
+    ]);
+    // Every card leads its contact rows with icons; the handle cards carry one Instagram mark.
+    for (const t of inSub('business-card')) expect(slotIconSets(t).has('lucide'), t.key).toBe(true);
+    const marks = (t: (typeof PILOT_TEMPLATES)[number]) => slotIcons(t).filter((p) => p.icon.set === 'platform');
+    expect(PILOT_TEMPLATES.filter((t) => marks(t).length > 0).map((t) => t.key).sort()).toEqual([
+      'pilot-bb-contemporary', 'pilot-card-bold', 'pilot-card-contemporary', 'pilot-card-playful', 'pilot-ig-bold',
+    ]);
+    // Billboards: at most one handle line, one mark, and no general icons (few words, large type).
+    for (const t of inSub('billboard-48-sheet')) {
+      expect(marks(t).length, t.key).toBeLessThanOrEqual(1);
+      expect(slotIconSets(t).has('lucide'), t.key).toBe(false);
+    }
+    for (const t of PILOT_TEMPLATES) for (const p of marks(t)) expect(p.icon.name, t.key).toBe('instagram');
   });
 
   it('has no automated critical failure', () => {
@@ -135,6 +182,86 @@ describe('the pilot collection', () => {
   it('renders every page as the gallery card does (C6)', () => {
     const failures = PILOT_TEMPLATES.flatMap((t) => previewCriticals(t).map((c) => `${t.key}: ${c.code} ${c.detail}`));
     expect(failures).toEqual([]);
+  });
+
+  /*
+   * The trademark rule, as drawn: on every page of every pilot, a platform
+   * mark sits only on a row whose words are a handle or a profile pointer,
+   * and it is painted in that row's own text colour.
+   */
+  it('draws a platform mark only beside a handle, in the row text colour', () => {
+    let seen = 0;
+    for (const tpl of PILOT_TEMPLATES) {
+      for (const page of pagesOf(tpl)) {
+        const host = drawDom(tpl, page.slots);
+        for (const svg of Array.from(host.el.querySelectorAll<SVGElement>('svg[data-icon^="platform:"]'))) {
+          seen += 1;
+          const row = svg.parentElement as HTMLElement;
+          const words = row.textContent ?? '';
+          expect(isProfilePointer(words), `${tpl.key} ${page.name}: "${words}"`).toBe(true);
+          // The row (or, in a text slot, its flex line) carries the words' colour; the mark takes it unchanged.
+          expect(svg.style.color, `${tpl.key} ${page.name}`).not.toBe('');
+          expect(svg.style.color, `${tpl.key} ${page.name}`).toBe(row.style.color);
+          expect(svg.getAttribute('fill')).toBe('currentColor');
+          const name = svg.getAttribute('data-icon')!.split(':')[1];
+          expect(svg.querySelector('path')?.getAttribute('d')).toBe(platformMark(name)!.path);
+        }
+        host.done();
+      }
+    }
+    // Five pilots carry a handle row, one each.
+    expect(seen).toBe(5);
+  });
+
+  /*
+   * And the export matches: the canvas painter draws each icon from the same
+   * path data as the DOM, in the colour of the words it leads.
+   */
+  it('paints the same icons on the canvas, from the same paths, in the words colour', () => {
+    const g = globalThis as { Path2D?: unknown };
+    const had = g.Path2D;
+    class FakePath { d: string; constructor(d: string) { this.d = d; } }
+    g.Path2D = FakePath;
+    try {
+      for (const tpl of PILOT_TEMPLATES) {
+        const { w, h } = canvasFor(tpl);
+        for (const page of pagesOf(tpl)) {
+          /* Icons and words in paint order, so each icon can be matched to the words drawn after it. */
+          const events: { d?: string; text?: string; colour: unknown }[] = [];
+          const state: Record<string, unknown> = { fillStyle: '', strokeStyle: '', font: '' };
+          const stack: Record<string, unknown>[] = [];
+          const ctx = new Proxy(state, {
+            get(target, prop: string) {
+              if (prop in target) return target[prop];
+              if (prop === 'save') return () => { stack.push({ ...target }); };
+              if (prop === 'restore') return () => { Object.assign(target, stack.pop() ?? {}); };
+              if (prop === 'fill') return (p?: unknown) => { if (p instanceof FakePath) events.push({ d: p.d, colour: target.fillStyle }); };
+              if (prop === 'stroke') return (p?: unknown) => { if (p instanceof FakePath) events.push({ d: p.d, colour: target.strokeStyle }); };
+              if (prop === 'fillText') return (t: string) => { events.push({ text: t, colour: target.fillStyle }); };
+              if (prop === 'measureText') return (t: string) => ({ width: t.length * 10 });
+              if (prop === 'createLinearGradient' || prop === 'createRadialGradient') return () => ({ addColorStop: () => undefined });
+              return () => undefined;
+            },
+            set(target, prop: string, v) { target[prop] = v; return true; },
+          }) as unknown as CanvasRenderingContext2D;
+          drawTemplateFrame(ctx, { ...tpl, slots: page.slots }, sampleFor(tpl), w, h, { accent: '#2563eb' });
+
+          const host = drawDom(tpl, page.slots);
+          const domPaths = Array.from(host.el.querySelectorAll('svg[data-icon] path')).map((p) => p.getAttribute('d'));
+          host.done();
+
+          expect(events.filter((e) => e.d).map((e) => e.d), `${tpl.key} ${page.name}`).toEqual(domPaths);
+          events.forEach((e, i) => {
+            if (!e.d) return;
+            // The next words painted are the icon's own row: same colour, unchanged.
+            const words = events.slice(i + 1).find((x) => x.text !== undefined);
+            expect(words?.colour, `${tpl.key} ${page.name} before "${words?.text}"`).toBe(e.colour);
+          });
+        }
+      }
+    } finally {
+      g.Path2D = had;
+    }
   });
 
   it.each(keys)('renders %s at its true canvas, every page, without throwing', (key) => {

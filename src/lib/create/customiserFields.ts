@@ -1,4 +1,4 @@
-import type { SlotRole } from '../designTemplates';
+import type { DesignTemplate, SlotRole } from '../designTemplates';
 
 /**
  * The single-line text roles the Create customiser lets a visitor change, with
@@ -28,3 +28,24 @@ export type CustomiserTextRole = keyof typeof CUSTOMISER_TEXT_FIELDS;
 
 export const isCustomiserTextRole = (role: SlotRole): role is CustomiserTextRole =>
   Object.prototype.hasOwnProperty.call(CUSTOMISER_TEXT_FIELDS, role);
+
+/*
+ * ── THE PLATFORM ON A HANDLE ROW (Task 18b) ──────────────────────────────
+ *
+ * A handle row ("@yourhandle") leads with a platform's mark (design/icons.ts).
+ * Which platform is the visitor's choice: one select, labelled this, shown
+ * only for a design with such a row. The handle's words stay editable through
+ * their own role's field above, so C7 is unchanged; the select picks the mark.
+ */
+export const CUSTOMISER_PLATFORM_FIELD = 'Social platform';
+
+/** The default mark of the first handle row on any page, or null when the design has none. */
+export function handlePlatformOf(tpl: Pick<DesignTemplate, 'slots' | 'extraPages'>): string | null {
+  for (const slots of [tpl.slots, ...(tpl.extraPages ?? []).map((p) => p.slots)]) {
+    for (const slot of slots) {
+      const mark = slot.icons?.find((i) => i?.set === 'platform');
+      if (mark) return mark.name;
+    }
+  }
+  return null;
+}

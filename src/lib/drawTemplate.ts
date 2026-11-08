@@ -24,6 +24,7 @@ import {
 } from './designTemplates';
 import { resolveLook, pairingFace, type Look, type GradientSpec } from './design/look';
 import { patternZoneBox } from './design/patterns';
+import { ICON_EM, iconIndent, rowGlyph, type Glyph } from './design/icons';
 import type { Palette, PaletteRole } from './design/palettes';
 
 export interface TemplatePaintContent {
@@ -41,6 +42,8 @@ export interface TemplatePaintContent {
   contact?: string[];
   /** Rows for a 'price' slot: what it is, what it costs, optionally what it was. */
   price?: PriceRow[];
+  /** Which platform's mark a handle row shows (platformMarks.ts). Absent keeps the template's default. */
+  platform?: string;
   /** Already-loaded images. Loading is the caller's job — painting must be sync. */
   logo?: CanvasImageSource | null;
   qr?: CanvasImageSource | null;
@@ -442,6 +445,43 @@ function paintShape(
   ctx.restore();
 }
 
+/**
+ * A row's leading icon, from the same path data TemplateSurface draws as SVG.
+ *
+ * Square box of `size` at (x, top), so it is scaled uniformly and never
+ * stretched; one colour, the row's words' colour. A context without Path2D
+ * (jsdom, old browsers) loses the icon, not the frame, and the words keep
+ * their place either way. Returns how far to indent the words.
+ */
+function paintIcon(
+  ctx: CanvasRenderingContext2D,
+  glyph: Glyph,
+  x: number,
+  top: number,
+  size: number,
+  color: string,
+): number {
+  const px = size * ICON_EM;
+  const P = (globalThis as { Path2D?: typeof Path2D }).Path2D;
+  if (typeof P === 'function' && typeof ctx.scale === 'function') {
+    ctx.save();
+    ctx.translate(x, top);
+    ctx.scale(px / glyph.grid, px / glyph.grid);
+    if (glyph.paint === 'stroke') {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = glyph.strokeWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (const d of glyph.paths) ctx.stroke(new P(d));
+    } else {
+      ctx.fillStyle = color;
+      for (const d of glyph.paths) ctx.fill(new P(d));
+    }
+    ctx.restore();
+  }
+  return iconIndent(size);
+}
+
 /** The marker before a list row. Returns how far to indent the text. */
 function paintBullet(
   ctx: CanvasRenderingContext2D,
@@ -602,7 +642,15 @@ function paintListSlot(
 
     const baseline = row.y + size;
     ctx.textAlign = 'left';
-    const indent = paintBullet(ctx, slot, row.x, baseline, size, i, accent, family);
+    /*
+     * An icon takes the bullet's place. The DOM row is a 1.4 line-height flex
+     * line with the icon centred in it, so the icon's box starts 0.2 em below
+     * the row's top: centred on row.y + 0.7 em, where the DOM puts it.
+     */
+    const glyph = rowGlyph(slot, i, raw ?? '', content.platform);
+    const indent = glyph
+      ? paintIcon(ctx, glyph, row.x, row.y + size * 0.2, size, tone)
+      : paintBullet(ctx, slot, row.x, baseline, size, i, accent, family);
 
     ctx.font = `${weight} ${Math.round(size)}px ${family}`;
     ctx.fillStyle = tone;
@@ -820,9 +868,16 @@ export function drawTemplateFrame(
 
     const tone = slotTone(slot, roles, slotInk);
     const role = toneRole(slot.tone);
-    const lines = wrapLines((s) => ctx.measureText(s).width, shown, box.width, maxLinesFor(slot.role));
+    /*
+     * A one-line slot led by an icon (TemplateSurface's flex line): the words
+     * get one line in what the icon leaves, and the icon and words are placed
+     * together by the slot's alignment.
+     */
+    const glyph = rowGlyph(slot, 0, value, content.platform);
+    const indent = glyph ? iconIndent(size) : 0;
+    const lines = wrapLines((s) => ctx.measureText(s).width, shown, Math.max(0, box.width - indent), glyph ? 1 : maxLinesFor(slot.role));
     const lineHeight = size * ((slot.size ?? 0.05) > 0.07 ? 1.06 : 1.28);
-    const widest = lines.reduce((mx, l) => Math.max(mx, ctx.measureText(l).width), 0);
+    const widest = lines.reduce((mx, l) => Math.max(mx, ctx.measureText(l).width), 0) + indent;
     const pad = u * 0.014;
 
     const anchorX = box.textAlign === 'center' ? box.width / 2 : box.textAlign === 'right' ? box.width : 0;
@@ -890,7 +945,15 @@ export function drawTemplateFrame(
       g.addColorStop(1, roles.secondary);
       ctx.fillStyle = g;
     }
-    lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
+    if (glyph) {
+      // Icon then words, left to right from wherever the alignment starts the pair.
+      const startX = box.textAlign === 'center' ? anchorX - widest / 2 : box.textAlign === 'right' ? anchorX - widest : 0;
+      paintIcon(ctx, glyph, startX, 0, size, tone);
+      ctx.textAlign = 'left';
+      ctx.fillText(lines[0] ?? '', startX + indent, 0);
+    } else {
+      lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
+    }
 
     if (slot.treatment === 'underline') {
       const y = lines.length * lineHeight + pad * 0.4;

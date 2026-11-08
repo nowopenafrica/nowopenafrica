@@ -248,6 +248,51 @@ describe('automatedCriticals', () => {
     expect(codes(withImage(base({ iconSet: 'lucide' }), 'asset:i1'), undefined, icons)).not.toContain('C13');
   });
 
+  /* Code icons (design/icons.ts) on the card's contact rows, on whichever page has them. */
+  const withIcons = (tpl: DesignTemplate, icons: SlotSpec['icons']): DesignTemplate => {
+    const add = (slots: SlotSpec[]) => slots.map((sl) => (sl.role === 'contact' ? { ...sl, icons } : sl));
+    return { ...tpl, slots: add(tpl.slots), extraPages: tpl.extraPages?.map((pg) => ({ ...pg, slots: add(pg.slots) })) };
+  };
+  const PIN = { set: 'lucide' as const, name: 'map-pin' };
+  const IG = { set: 'platform' as const, name: 'instagram' };
+  const c13Details = (tpl: DesignTemplate, manifest = EMPTY) =>
+    automatedCriticals(tpl, [], manifest, { copy: CLEAN }).filter((f) => f.code === 'C13').map((f) => f.detail);
+
+  it('C2: code icons need an iconSet too', () => {
+    expect(codes(withIcons(roomy(), [PIN]))).toContain('C2');
+    expect(codes(withIcons({ ...roomy(), iconSet: 'lucide' }, [PIN]))).not.toContain('C2');
+  });
+
+  it('C13: Lucide alone, platform marks alone, or the two together pass; any other mix fails', () => {
+    const r = (iconSet: string) => ({ ...roomy(), iconSet });
+    expect(c13Details(withIcons(r('lucide'), [PIN]))).toEqual([]);
+    expect(c13Details(withIcons(r('platform'), [null, IG]))).toEqual([]);
+    expect(c13Details(withIcons(r('lucide'), [PIN, IG]))).toEqual([]);
+    expect(c13Details(withIcons(r('tabler'), [PIN])).join(' | ')).toMatch(/mixes icon sets: lucide, tabler/);
+    // A library icon of another set beside the pair fails as well.
+    const icons = { assets: [asset('i1', { kind: 'icon', iconSet: 'tabler' })] };
+    expect(c13Details(withImage(withIcons(r('lucide'), [PIN, IG]), 'asset:i1'), icons).join(' | '))
+      .toMatch(/mixes icon sets: lucide, platform, tabler/);
+  });
+
+  it('C13: a platform mark beside words that are not a handle fails', () => {
+    const tpl = { ...withIcons(roomy(), [IG, IG]), iconSet: 'platform' };
+    const details = c13Details(tpl);
+    // Row 0 is an address; row 1 is @mamaputkitchen, which is a handle.
+    expect(details.some((d) => /contact\[0\]: a platform mark beside "Allen Avenue, Ikeja"/.test(d))).toBe(true);
+    expect(details.some((d) => /contact\[1\]/.test(d))).toBe(false);
+  });
+
+  it('C13: an unknown icon, an icon on the headline and one below the format minimum fail', () => {
+    expect(c13Details({ ...withIcons(roomy(), [{ set: 'lucide', name: 'nope' }]), iconSet: 'lucide' }).join(' | ')).toMatch(/no lucide icon named "nope"/);
+    const head = { ...roomy(), iconSet: 'lucide', slots: roomy().slots.map((sl) => (sl.role === 'headline' ? { ...sl, icons: [PIN] } : sl)) };
+    expect(c13Details(head).join(' | ')).toMatch(/headline slot may not carry an icon/);
+    const tiny = { ...withIcons(roomy(), [PIN]), iconSet: 'lucide' };
+    const shrink = (slots: SlotSpec[]) => slots.map((sl) => (sl.role === 'contact' ? { ...sl, size: 0.02 } : sl));
+    const small = { ...tiny, slots: shrink(tiny.slots), extraPages: tiny.extraPages?.map((pg) => ({ ...pg, slots: shrink(pg.slots) })) };
+    expect(c13Details(small).join(' | ')).toMatch(/below the format's 25\.\dpx minimum/);
+  });
+
   it('C13: a sibling at distance below 3 in the same product fails', () => {
     registerUploadedDeliverable('qa-twin', { category: 'branding', name: 'Twin', format: 'business-card', subcategory: 'business-card' });
     const twin = base({ key: 'qa-twin', direction: 'luxury' });

@@ -187,6 +187,7 @@ import type { Look, GradientSpec } from './design/look';
 import type { PaletteRole } from './design/palettes';
 import type { DirectionKey } from './design/directions';
 import type { PreviewSubject } from './design/previewMedia';
+import type { SlotIcon } from './design/icons';
 import { CATALOGUE_TEMPLATES } from './design/catalogueTemplates';
 import { PILOT_TEMPLATES } from './design/pilotTemplates';
 
@@ -226,6 +227,13 @@ export interface SlotSpec {
   /** Overrides the template font for this slot — a mono eyebrow over a serif headline. */
   font?: FontKey;
   motion?: SlotMotion;
+  /**
+   * A leading icon per row, by row index: a contact or services row, or row
+   * 0 of a one-line text slot (eyebrow, meta, cta). null leaves a row bare.
+   * Lucide icons or a platform mark; the rules for drawing one, and the
+   * geometry both renderers draw, are in design/icons.ts.
+   */
+  icons?: (SlotIcon | null)[];
 
   // --- list slots only -------------------------------------------------------
   /** Gap between rows, as a multiple of the row's type size. */
@@ -300,7 +308,11 @@ export interface DesignTemplate {
   industries?: string[];
   /** Named art direction (design/directions.ts). Absent until a template is classified. */
   direction?: DirectionKey;
-  /** Key of the icon set this template draws from, when it uses one. */
+  /**
+   * Key of the icon set this template draws from, when it uses one. A design
+   * that uses Lucide icons beside platform marks declares 'lucide': the marks
+   * are not a style of icon, so they may pair with it (C13).
+   */
   iconSet?: string;
   styles?: StyleTag[];
   /** Free words somebody might type. Not displayed; searched. */

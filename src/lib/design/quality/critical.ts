@@ -26,6 +26,7 @@ import type { TemplateContent } from '../../../components/studio/TemplateSurface
 import { assetRefs, externalUrls, iconRefs } from './checks/assets';
 import { LONG_BRAND, LONG_HEADLINE, copyFor, pagesOf, placeholderProblems, slotText } from './checks/copy';
 import { faceProblems, gapsOf } from './checks/glyphs';
+import { iconProblems, iconSetsAllowed, slotIconSets } from './checks/icons';
 import {
   NAME_ROLES, atFloor, belowMinimum, canvasFor, clipped, essentialRoles, fits, formatFor, isTextRole, minTextPx, ratioError, safeBreaches,
 } from './checks/geometry';
@@ -67,7 +68,8 @@ function c2(tpl: DesignTemplate, manifest: AssetManifest): string[] {
   else if (!formatOf(fmt)) out.push(`format "${fmt}" does not resolve`);
   if (!tpl.direction) out.push('no direction');
   out.push(...directionProblems(tpl));
-  if (iconRefs(assetRefs(tpl, manifest)).length > 0 && !tpl.iconSet) out.push('uses icons but declares no iconSet');
+  const usesIcons = iconRefs(assetRefs(tpl, manifest)).length > 0 || slotIconSets(tpl).size > 0;
+  if (usesIcons && !tpl.iconSet) out.push('uses icons but declares no iconSet');
   return out;
 }
 
@@ -230,11 +232,20 @@ function c12(tpl: DesignTemplate): string[] {
 
 /* ── C13 ────────────────────────────────────────────────────────────────── */
 
-function c13(tpl: DesignTemplate, siblings: DesignTemplate[], manifest: AssetManifest): string[] {
+/*
+ * One icon style per design, from the library or from code (design/icons.ts),
+ * with one allowed pair: Lucide beside platform marks, which are trademarks
+ * set beside a handle rather than a second style of icon. Every code icon
+ * must also keep its drawing rules (checks/icons.ts).
+ */
+function c13(tpl: DesignTemplate, siblings: DesignTemplate[], manifest: AssetManifest, content: TemplateContent): string[] {
   const out: string[] = [];
-  const sets = new Set(iconRefs(assetRefs(tpl, manifest)).map((r) => r.asset.iconSet ?? '(none)'));
+  const sets = new Set<string>(iconRefs(assetRefs(tpl, manifest)).map((r) => r.asset.iconSet ?? '(none)'));
+  for (const s of slotIconSets(tpl)) sets.add(s);
   if (tpl.iconSet && sets.size > 0) sets.add(tpl.iconSet);
-  if (sets.size > 1) out.push(`mixes icon sets: ${[...sets].sort().join(', ')}`);
+  if (!iconSetsAllowed(sets)) out.push(`mixes icon sets: ${[...sets].sort().join(', ')}`);
+  const { w, h } = canvasFor(tpl);
+  out.push(...iconProblems(tpl, content, w, h, minTextPx(formatFor(tpl))));
   const group = [...siblings.filter((s) => s.key !== tpl.key), tpl];
   for (const i of distinctnessIssues(group)) {
     if (i.a !== tpl.key && i.b !== tpl.key) continue;
@@ -270,7 +281,7 @@ export function automatedCriticals(
     ['C9', c9(tpl, content)],
     ['C11', c11(tpl, manifest)],
     ['C12', c12(tpl)],
-    ['C13', c13(tpl, siblings, manifest)],
+    ['C13', c13(tpl, siblings, manifest, content)],
   ];
   return found.flatMap(([code, details]) => details.map((detail) => ({ code, detail })));
 }

@@ -4,8 +4,9 @@ import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 
 import TemplateCustomiser from '../../components/create/TemplateCustomiser';
-import { DESIGN_TEMPLATES } from '../designTemplates';
-import { CUSTOMISER_TEXT_FIELDS, isCustomiserTextRole } from './customiserFields';
+import { DESIGN_TEMPLATES, templateByKey } from '../designTemplates';
+import { PLATFORM_MARKS } from '../design/platformMarks';
+import { CUSTOMISER_PLATFORM_FIELD, CUSTOMISER_TEXT_FIELDS, handlePlatformOf, isCustomiserTextRole } from './customiserFields';
 
 /*
  * The customiser keeps its field labels inline (createGallery.test.ts reads
@@ -76,5 +77,43 @@ describe('CUSTOMISER_TEXT_FIELDS, rendered', () => {
 
   it('covers the Small print field', () => {
     expect(ROLES).toContain('meta');
+  });
+});
+
+/* ── The platform on a handle row (Task 18b) ──────────────────────────── */
+
+describe('CUSTOMISER_PLATFORM_FIELD', () => {
+  it('is the select the customiser renders, fed from the platform registry', () => {
+    expect(customiser).toContain('aria-label={CUSTOMISER_PLATFORM_FIELD}');
+    expect(customiser).toMatch(/PLATFORM_MARKS\.map\(/);
+    expect(customiser).toMatch(/^\s*platform: platform \?\? undefined,\r?$/m);
+  });
+
+  it('finds the handle row on any page, and nothing on a design without one', () => {
+    expect(handlePlatformOf(templateByKey('pilot-card-bold'))).toBe('instagram');
+    // The playful card's handle is on its back.
+    expect(handlePlatformOf(templateByKey('pilot-card-playful'))).toBe('instagram');
+    expect(handlePlatformOf(templateByKey('pilot-card-luxury'))).toBeNull();
+  });
+
+  const open = (key: string) => render(
+    <MemoryRouter>
+      <TemplateCustomiser template={templateByKey(key)} initialStyle="signature" initialBrand="#2563eb" onClose={() => {}} />
+    </MemoryRouter>,
+  );
+
+  it('offers every platform on a design with a handle row, and switches the mark it draws', () => {
+    const { container } = open('pilot-card-bold');
+    const select = screen.getByLabelText(CUSTOMISER_PLATFORM_FIELD) as HTMLSelectElement;
+    expect([...select.options].map((o) => o.value)).toEqual(PLATFORM_MARKS.map((m) => m.key));
+    const mark = () => container.querySelector('[data-export-width] svg[data-icon^="platform:"]')?.getAttribute('data-icon');
+    expect(mark()).toBe('platform:instagram');
+    fireEvent.change(select, { target: { value: 'tiktok' } });
+    expect(mark()).toBe('platform:tiktok');
+  });
+
+  it('shows no platform select on a design without a handle row', () => {
+    open('pilot-card-luxury');
+    expect(screen.queryByLabelText(CUSTOMISER_PLATFORM_FIELD)).toBeNull();
   });
 });

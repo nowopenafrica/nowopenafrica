@@ -43,9 +43,21 @@
  */
 
 import type { DesignTemplate, MotionIn, SlotMotion } from '../designTemplates';
+import type { LucideName, SlotIcon } from './icons';
 
 /** A slot's arrival, in one call. */
 const m = (kind: MotionIn, at: number, dur = 0.45): SlotMotion => ({ in: kind, at, dur });
+
+/*
+ * Icons (Task 18b). Lucide outlines lead the contact and hours rows; a handle
+ * row leads with its platform's mark, Instagram unless the visitor picks
+ * another in the customiser. The rules (one colour, beside a handle only, at
+ * least the words' cap height) are design/icons.ts and platformMarks.ts.
+ */
+const L = (name: LucideName): SlotIcon => ({ set: 'lucide', name });
+const HANDLE: SlotIcon = { set: 'platform', name: 'instagram' };
+/** Phone, email, website: the contact rows most cards carry, in that order. */
+const PHONE_MAIL_WEB = [L('phone'), L('mail'), L('globe')];
 
 /* Type steps on a business card, in short-edge units (638 px). 0.04 is 26 px. */
 const CARD_TEXT = 0.04;
@@ -62,6 +74,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'Centred serif name over a single brass hairline; the name of the house on the back',
     use: 'business',
     direction: 'luxury',
+    iconSet: 'lucide',
     industries: ['Fashion & Beauty', 'Professional Services', 'Food & Hospitality'],
     styles: ['luxury', 'premium', 'elegant'],
     tags: ['business card', 'luxury', 'premium', 'hotel', 'salon', 'real estate', 'two-sided'],
@@ -87,7 +100,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       slots: [
         { role: 'brand', x: 0.08, y: 0.27, w: 0.84, size: 0.064, weight: 500, tracking: 0.06, align: 'center', font: 'serif', motion: m('fade', 0) },
         { role: 'subline', x: 0.12, y: 0.4, w: 0.76, size: CARD_TEXT, align: 'center', tone: 'muted', motion: m('fade', 0.2) },
-        { role: 'contact', x: 0.1, y: 0.62, w: 0.8, size: CARD_TEXT, direction: 'row', max: 3, tone: 'muted', motion: m('fade', 0.4) },
+        { role: 'contact', x: 0.1, y: 0.62, w: 0.8, size: CARD_TEXT, direction: 'row', max: 3, tone: 'muted', icons: PHONE_MAIL_WEB, motion: m('fade', 0.4) },
       ],
     }],
   },
@@ -98,6 +111,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'One terracotta square and the name, low and to the left; nothing else on the front',
     use: 'business',
     direction: 'minimal',
+    iconSet: 'lucide',
     industries: ['Professional Services', 'Technology & Media', 'Arts & Entertainment'],
     styles: ['minimal', 'modern', 'swiss'],
     tags: ['business card', 'minimal', 'clean', 'architect', 'studio', 'two-sided'],
@@ -120,7 +134,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       name: 'Back',
       slots: [
         { role: 'brand', x: 0.07, y: 0.12, w: 0.7, size: 0.045, weight: 700, motion: m('fade', 0) },
-        { role: 'contact', x: 0.07, y: 0.55, w: 0.6, size: CARD_TEXT, gap: 1.6, max: 3, motion: m('fade', 0.2) },
+        { role: 'contact', x: 0.07, y: 0.55, w: 0.6, size: CARD_TEXT, gap: 1.6, max: 3, icons: PHONE_MAIL_WEB, motion: m('fade', 0.2) },
       ],
     }],
   },
@@ -131,6 +145,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'The firm on a pale header band; name, role and a contact column ruled off below',
     use: 'business',
     direction: 'corporate',
+    iconSet: 'lucide',
     industries: ['Professional Services', 'Trades & Industry', 'Technology & Media'],
     styles: ['corporate', 'modern', 'premium'],
     tags: ['business card', 'corporate', 'law', 'finance', 'consulting', 'accounting', 'two-sided'],
@@ -152,7 +167,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'brand', x: 0.07, y: 0.12, w: 0.76, size: 0.045, weight: 700, upper: true, tracking: 0.08, on: 'secondary', motion: m('fade', 0) },
       { role: 'headline', x: 0.07, y: 0.42, w: 0.46, size: 0.08, weight: 700, tracking: -0.01, font: 'grotesk', motion: m('rise', 0.15, 0.55) },
       { role: 'eyebrow', x: 0.07, y: 0.56, w: 0.46, size: CARD_TEXT, tone: 'secondary', font: 'mono', motion: m('fade', 0.35) },
-      { role: 'contact', x: 0.62, y: 0.42, w: 0.3, size: CARD_TEXT, gap: 1.6, max: 3, motion: m('fade', 0.5) },
+      { role: 'contact', x: 0.62, y: 0.42, w: 0.3, size: CARD_TEXT, gap: 1.6, max: 3, icons: PHONE_MAIL_WEB, motion: m('fade', 0.5) },
     ],
     extraPages: [{
       name: 'Back',
@@ -170,6 +185,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'A large serif name in the left column, contact in a dotted right column, a spine of colour',
     use: 'business',
     direction: 'editorial',
+    iconSet: 'lucide',
     industries: ['Arts & Entertainment', 'Professional Services', 'Education & Community'],
     styles: ['editorial', 'elegant', 'premium'],
     tags: ['business card', 'editorial', 'writer', 'consultant', 'gallery', 'publisher', 'two-sided'],
@@ -192,7 +208,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     slots: [
       { role: 'eyebrow', x: 0.07, y: 0.12, w: 0.5, size: CARD_TEXT, upper: true, tracking: 0.14, tone: 'accent', font: 'mono', motion: m('fade', 0) },
       { role: 'headline', x: 0.07, y: 0.24, w: 0.5, size: 0.11, weight: 400, tracking: -0.02, font: 'editorial', motion: m('mask-up', 0.15, 0.7) },
-      { role: 'contact', x: 0.64, y: 0.3, w: 0.3, size: CARD_TEXT, gap: 1.6, max: 3, motion: m('fade', 0.5) },
+      { role: 'contact', x: 0.64, y: 0.3, w: 0.3, size: CARD_TEXT, gap: 1.6, max: 3, icons: PHONE_MAIL_WEB, motion: m('fade', 0.5) },
       { role: 'brand', x: 0.07, y: 0.8, w: 0.86, size: CARD_BRAND, weight: 700, upper: true, tracking: 0.1, motion: m('fade', 0.6) },
     ],
     extraPages: [{
@@ -211,6 +227,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'The name in heavy capitals across a red band on yellow, with a blue slab bleeding off the corner',
     use: 'business',
     direction: 'bold',
+    iconSet: 'lucide',
     industries: ['Retail & Commerce', 'Food & Hospitality', 'Arts & Entertainment'],
     styles: ['bold', 'high-contrast', 'street'],
     tags: ['business card', 'bold', 'loud', 'shop', 'events', 'food', 'two-sided'],
@@ -230,7 +247,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'headline', x: 0.07, y: 0.17, w: 0.86, size: 0.14, weight: 800, upper: true, tracking: -0.02, on: 'primary', font: 'heavy', motion: m('slide-right', 0, 0.55) },
       { role: 'eyebrow', x: 0.07, y: 0.4, w: 0.86, size: 0.045, weight: 700, upper: true, tracking: 0.1, on: 'primary', font: 'condensed', motion: m('fade', 0.3) },
       { role: 'brand', x: 0.07, y: 0.66, w: 0.66, size: 0.05, weight: 800, upper: true, tracking: 0.02, motion: m('fade', 0.45) },
-      { role: 'contact', x: 0.07, y: 0.78, w: 0.68, size: CARD_TEXT, weight: 700, direction: 'row', max: 2, motion: m('fade', 0.6) },
+      { role: 'contact', x: 0.07, y: 0.78, w: 0.68, size: CARD_TEXT, weight: 700, direction: 'row', max: 2, icons: [L('phone'), HANDLE], motion: m('fade', 0.6) },
     ],
     extraPages: [{
       name: 'Back',
@@ -248,6 +265,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'Right-set name over a fine grid, two colour tiles offset bottom left; a QR code on the back',
     use: 'business',
     direction: 'contemporary',
+    iconSet: 'lucide',
     industries: ['Technology & Media', 'Arts & Entertainment', 'Professional Services'],
     styles: ['modern', 'tech', 'youth'],
     tags: ['business card', 'contemporary', 'creator', 'agency', 'startup', 'qr code', 'two-sided'],
@@ -272,13 +290,13 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'brand', x: 0.07, y: 0.12, w: 0.62, size: CARD_BRAND, weight: 700, motion: m('fade', 0) },
       { role: 'eyebrow', x: 0.4, y: 0.34, w: 0.54, size: CARD_TEXT, align: 'right', tone: 'secondary', font: 'mono', motion: m('fade', 0.2) },
       { role: 'headline', x: 0.4, y: 0.42, w: 0.54, size: 0.09, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', motion: m('slide-left', 0.3, 0.6) },
-      { role: 'meta', x: 0.58, y: 0.7, w: 0.36, size: CARD_TEXT, tone: 'muted', font: 'mono', motion: m('fade', 0.5) },
+      { role: 'meta', x: 0.58, y: 0.7, w: 0.36, size: CARD_TEXT, tone: 'muted', font: 'mono', icons: [HANDLE], motion: m('fade', 0.5) },
     ],
     extraPages: [{
       name: 'Back',
       slots: [
         { role: 'qr', x: 0.07, y: 0.12, w: 0.22, motion: m('pop', 0) },
-        { role: 'contact', x: 0.36, y: 0.14, w: 0.58, size: CARD_TEXT, gap: 1.5, max: 3, motion: m('fade', 0.2) },
+        { role: 'contact', x: 0.36, y: 0.14, w: 0.58, size: CARD_TEXT, gap: 1.5, max: 3, icons: PHONE_MAIL_WEB, motion: m('fade', 0.2) },
         { role: 'brand', x: 0.36, y: 0.64, w: 0.58, size: CARD_BRAND, weight: 700, motion: m('fade', 0.35) },
       ],
     }],
@@ -290,6 +308,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'The name on a soft butter-yellow shape, a lavender sun and a coral dot over polka dots',
     use: 'business',
     direction: 'playful',
+    iconSet: 'lucide',
     industries: ['Food & Hospitality', 'Education & Community', 'Home & Personal Services'],
     styles: ['playful', 'soft', 'youth'],
     tags: ['business card', 'playful', 'cafe', 'bakery', 'kids', 'crafts', 'two-sided'],
@@ -314,14 +333,14 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'brand', x: 0.07, y: 0.12, w: 0.62, size: CARD_BRAND, weight: 700, motion: m('fade', 0) },
       { role: 'headline', x: 0.09, y: 0.36, w: 0.46, size: 0.1, weight: 600, on: 'primary', font: 'soft', motion: m('pop', 0.2, 0.55) },
       { role: 'eyebrow', x: 0.09, y: 0.555, w: 0.5, size: CARD_TEXT, weight: 600, on: 'primary', motion: m('fade', 0.4) },
-      { role: 'contact', x: 0.07, y: 0.76, w: 0.6, size: CARD_TEXT, direction: 'row', max: 2, motion: m('fade', 0.55) },
+      { role: 'contact', x: 0.07, y: 0.76, w: 0.6, size: CARD_TEXT, direction: 'row', max: 2, icons: [L('phone'), L('map-pin')], motion: m('fade', 0.55) },
     ],
     extraPages: [{
       name: 'Back',
       slots: [
         { role: 'brand', x: 0.07, y: 0.12, w: 0.62, size: CARD_BRAND, weight: 700, motion: m('fade', 0) },
         { role: 'subline', x: 0.09, y: 0.38, w: 0.5, size: 0.065, weight: 600, on: 'primary', font: 'soft', motion: m('pop', 0.2, 0.55) },
-        { role: 'meta', x: 0.07, y: 0.76, w: 0.6, size: CARD_TEXT, weight: 600, motion: m('fade', 0.4) },
+        { role: 'meta', x: 0.07, y: 0.76, w: 0.6, size: CARD_TEXT, weight: 600, icons: [HANDLE], motion: m('fade', 0.4) },
       ],
     }],
   },
@@ -332,6 +351,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'A clinic card: the practice on a dark band, the practitioner, a booking panel; hours and the next appointment on the back',
     use: 'industry',
     direction: 'industry',
+    iconSet: 'lucide',
     industries: ['Health & Wellness'],
     styles: ['corporate', 'minimal', 'modern'],
     tags: ['business card', 'appointment card', 'clinic', 'doctor', 'dentist', 'physiotherapy', 'hospital', 'two-sided'],
@@ -366,7 +386,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'brand', x: 0.07, y: 0.1, w: 0.7, size: 0.05, weight: 700, on: 'ink', motion: m('fade', 0) },
       { role: 'eyebrow', x: 0.07, y: 0.175, w: 0.7, size: CARD_TEXT, tone: 'muted', on: 'ink', motion: m('fade', 0.15) },
       { role: 'headline', x: 0.07, y: 0.34, w: 0.5, size: 0.075, weight: 700, font: 'grotesk', motion: m('rise', 0.25, 0.5) },
-      { role: 'contact', x: 0.07, y: 0.54, w: 0.5, size: CARD_TEXT, gap: 1.6, max: 3, motion: m('fade', 0.4) },
+      { role: 'contact', x: 0.07, y: 0.54, w: 0.5, size: CARD_TEXT, gap: 1.6, max: 3, icons: [L('phone'), L('map-pin'), L('globe')], motion: m('fade', 0.4) },
       { role: 'cta', x: 0.63, y: 0.42, w: 0.29, size: CARD_TEXT, weight: 700, treatment: 'pill', motion: m('pop', 0.55) },
       { role: 'meta', x: 0.63, y: 0.62, w: 0.29, size: CARD_TEXT, motion: m('fade', 0.65) },
     ],
@@ -375,7 +395,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       slots: [
         { role: 'brand', x: 0.07, y: 0.1, w: 0.7, size: 0.05, weight: 700, on: 'ink', motion: m('fade', 0) },
         { role: 'eyebrow', x: 0.07, y: 0.175, w: 0.7, size: CARD_TEXT, tone: 'muted', on: 'ink', motion: m('fade', 0.15) },
-        { role: 'services', x: 0.07, y: 0.38, w: 0.5, size: CARD_TEXT, gap: 1.6, bullet: 'none', max: 3, motion: m('fade', 0.3) },
+        { role: 'services', x: 0.07, y: 0.38, w: 0.5, size: CARD_TEXT, gap: 1.6, bullet: 'none', max: 3, icons: [L('clock'), L('clock'), L('phone')], motion: m('fade', 0.3) },
         { role: 'subline', x: 0.63, y: 0.42, w: 0.29, size: 0.045, weight: 700, motion: m('fade', 0.45) },
       ],
     }],
@@ -456,6 +476,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'Type only: the news in heavy capitals on a crimson block, the detail, a teal call to act and an amber dot beneath',
     use: 'social',
     direction: 'bold',
+    iconSet: 'platform',
     industries: ['Retail & Commerce', 'Food & Hospitality', 'Arts & Entertainment'],
     styles: ['bold', 'high-contrast', 'youth'],
     tags: ['instagram', 'announcement', 'news', 'statement', 'typographic', 'portrait post'],
@@ -476,7 +497,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'eyebrow', x: 0.07, y: 0.045, w: 0.86, size: 0.032, weight: 700, upper: true, tracking: 0.14, on: 'primary', font: 'condensed', motion: m('fade', 0) },
       { role: 'headline', x: 0.07, y: 0.1, w: 0.86, size: 0.19, weight: 800, upper: true, tracking: -0.03, on: 'primary', font: 'heavy', motion: m('mask-up', 0.15, 0.7) },
       { role: 'subline', x: 0.07, y: 0.67, w: 0.56, size: 0.036, weight: 600, motion: m('fade', 0.6) },
-      { role: 'cta', x: 0.07, y: 0.8, w: 0.5, size: 0.036, weight: 800, upper: true, tracking: 0.06, treatment: 'pill', tone: 'secondary', motion: m('pop', 0.8, 0.5) },
+      { role: 'cta', x: 0.07, y: 0.8, w: 0.5, size: 0.036, weight: 800, upper: true, tracking: 0.06, treatment: 'pill', tone: 'secondary', icons: [HANDLE], motion: m('pop', 0.8, 0.5) },
       { role: 'brand', x: 0.07, y: 0.06, w: 0.55, size: 0.03, weight: 800, upper: true, tracking: 0.1, fromBottom: true, motion: m('fade', 1) },
     ],
   },
@@ -522,6 +543,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'A restaurant post: the plate above, then the dish, its price in naira, what is in it and how to order',
     use: 'industry',
     direction: 'industry',
+    iconSet: 'lucide',
     industries: ['Food & Hospitality'],
     styles: ['organic', 'bold', 'afro-modern'],
     tags: ['instagram', 'menu', 'special', 'restaurant', 'food', 'buka', 'price', 'order', 'portrait post'],
@@ -547,7 +569,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'headline', x: 0.06, y: 0.64, w: 0.6, size: 0.08, weight: 600, font: 'soft', motion: m('rise', 0.3, 0.6) },
       { role: 'price', x: 0.06, y: 0.79, w: 0.6, size: 0.034, weight: 600, max: 1, motion: m('rise', 0.55) },
       { role: 'subline', x: 0.06, y: 0.855, w: 0.6, size: 0.028, tone: 'muted', motion: m('fade', 0.7) },
-      { role: 'contact', x: 0.06, y: 0.915, w: 0.86, size: 0.026, direction: 'row', max: 2, tone: 'muted', motion: m('fade', 0.8) },
+      { role: 'contact', x: 0.06, y: 0.915, w: 0.86, size: 0.026, direction: 'row', max: 2, tone: 'muted', icons: [L('phone'), L('map-pin')], motion: m('fade', 0.8) },
     ],
   },
 
@@ -679,6 +701,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     desc: 'The photograph almost whole, the line in tall condensed capitals top right, name and number on a foot band',
     use: 'marketing',
     direction: 'contemporary',
+    iconSet: 'platform',
     industries: ['Technology & Media', 'Arts & Entertainment', 'Retail & Commerce'],
     styles: ['modern', 'street', 'youth'],
     tags: ['billboard', '48-sheet', 'outdoor', 'launch', 'campaign', 'event', 'large format'],
@@ -700,7 +723,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     slots: [
       { role: 'headline', x: 0.4, y: 0.08, w: 0.55, size: 0.3, weight: 700, upper: true, align: 'right', font: 'condensed', motion: m('mask-up', 0, 0.7) },
       { role: 'brand', x: 0.05, y: 0.84, w: 0.5, size: 0.06, weight: 700, upper: true, tracking: 0.1, motion: m('fade', 0.4) },
-      { role: 'contact', x: 0.58, y: 0.84, w: 0.37, size: 0.06, weight: 700, direction: 'row', max: 1, tone: 'accent', motion: m('fade', 0.6) },
+      { role: 'contact', x: 0.58, y: 0.84, w: 0.37, size: 0.06, weight: 700, direction: 'row', max: 1, tone: 'accent', icons: [HANDLE], motion: m('fade', 0.6) },
     ],
   },
 

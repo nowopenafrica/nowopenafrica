@@ -379,3 +379,45 @@ describe('applyDuotone', () => {
     expect(b[0]).toBe(Math.round(0.0722 * 255));
   });
 });
+
+describe('row icons (Task 18b)', () => {
+  const tpl = templateByKey('pilot-card-bold');
+  const content = { ...CONTENT, contact: ['Your phone', '@yourhandle'] };
+
+  it('indents an icon row the same whether or not the context can draw paths', () => {
+    const g = globalThis as { Path2D?: unknown };
+    const had = g.Path2D;
+    const at = (withPath: boolean) => {
+      g.Path2D = withPath ? class { d: string; constructor(d: string) { this.d = d; } } : undefined;
+      const { ctx, calls } = stubCtx();
+      drawTemplateFrame(ctx, tpl, content, 1011, 638, { accent: '#9a3412' });
+      return {
+        handle: calls.find((c) => c.op === 'fillText' && c.args[0] === '@yourhandle'),
+        paths: calls.filter((c) => (c.op === 'fill' || c.op === 'stroke') && c.args.length === 1).length,
+      };
+    };
+    try {
+      const drawn = at(true);
+      const bare = at(false);
+      expect(drawn.paths).toBe(2);
+      expect(bare.paths).toBe(0);
+      expect(drawn.handle?.args[1]).toBe(bare.handle?.args[1]);
+    } finally {
+      g.Path2D = had;
+    }
+  });
+
+  it('drops the mark, and keeps the words, when a handle row is rewritten as something else', () => {
+    const g = globalThis as { Path2D?: unknown };
+    const had = g.Path2D;
+    g.Path2D = class { d: string; constructor(d: string) { this.d = d; } };
+    try {
+      const { ctx, calls } = stubCtx();
+      drawTemplateFrame(ctx, tpl, { ...content, contact: ['Your phone', 'Your website'] }, 1011, 638, { accent: '#9a3412' });
+      expect(calls.filter((c) => (c.op === 'fill' || c.op === 'stroke') && c.args.length === 1)).toHaveLength(1);
+      expect(calls.some((c) => c.op === 'fillText' && c.args[0] === 'Your website')).toBe(true);
+    } finally {
+      g.Path2D = had;
+    }
+  });
+});

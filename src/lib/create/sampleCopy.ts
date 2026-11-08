@@ -450,7 +450,7 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
   'pilot-bb-bold': { brand: 'Your brand', headline: 'Your big line', cta: 'Visit today' },
   'pilot-bb-minimal': { brand: 'Your brand', headline: 'Your one line' },
   'pilot-bb-luxury': { brand: 'Your hotel', eyebrow: 'Your opening line', headline: 'Your quiet promise', meta: 'Your address' },
-  'pilot-bb-contemporary': { brand: 'Your brand', headline: 'Your campaign line', contact: ['Your website'] },
+  'pilot-bb-contemporary': { brand: 'Your brand', headline: 'Your campaign line', contact: ['@yourhandle'] },
   'pilot-bb-industry': { brand: 'Your company', headline: 'Your delivery promise', cta: 'Book a pickup · Your areas' },
   'pilot-bb-editorial': { brand: 'Your brand', eyebrow: 'Coming this season', headline: 'Your season or show title' },
 };

@@ -13,6 +13,8 @@ import { DESIGN_FORMATS } from '../../data/studioPresets';
 import { exportPixelRatio, printNoteFor, specFor } from '../../lib/design/printSpec';
 import { formatForTemplate } from '../../lib/design/deliverables';
 import { sampleFor } from '../../lib/create/sampleCopy';
+import { CUSTOMISER_PLATFORM_FIELD, handlePlatformOf } from '../../lib/create/customiserFields';
+import { PLATFORM_MARKS } from '../../lib/design/platformMarks';
 import { downloadUrl, exportNodeToPng, slugForFile } from '../../lib/studio';
 import { track } from '../../lib/telemetry';
 import { PALETTES, type Palette, type PaletteFamily, type PaletteRole } from '../../lib/design/palettes';
@@ -220,6 +222,13 @@ export default function TemplateCustomiser({
    * that showed it carried words the visitor could not change (C7).
    */
   const [meta, setMeta] = useState(sample.meta ?? '');
+  /*
+   * Which platform a handle row's mark shows. Starts at the design's own
+   * default (Instagram on the pilots); null for a design with no handle row,
+   * which shows no select.
+   */
+  const handleDefault = useMemo(() => handlePlatformOf(template), [template]);
+  const [platform, setPlatform] = useState<string | null>(handleDefault);
 
   const stage = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -343,6 +352,7 @@ export default function TemplateCustomiser({
     contact: sample.contact,
     logoUrl: logo?.url ?? null,
     qrUrl: null,
+    platform: platform ?? undefined,
   };
 
   const MAX_MEDIA_BYTES = 12 * 1024 * 1024;
@@ -630,6 +640,16 @@ export default function TemplateCustomiser({
               <textarea value={subline} onChange={(e) => setSubline(e.target.value)} maxLength={200} rows={2} aria-label="Supporting line" placeholder="Supporting line" className={`${field} mt-2 py-2`} />
               <input value={cta} onChange={(e) => setCta(e.target.value)} maxLength={40} aria-label="Button or badge text" placeholder="Book now" className={`${field} mt-2`} />
               <input value={meta} onChange={(e) => setMeta(e.target.value)} maxLength={120} aria-label="Small print" placeholder="Small print" className={`${field} mt-2`} />
+              {handleDefault && (
+                <select
+                  value={platform ?? handleDefault}
+                  onChange={(e) => setPlatform(e.target.value)}
+                  aria-label={CUSTOMISER_PLATFORM_FIELD}
+                  className={`${field} mt-2`}
+                >
+                  {PLATFORM_MARKS.map((mk) => <option key={mk.key} value={mk.key}>{mk.name}</option>)}
+                </select>
+              )}
             </Group>
 
             {effectiveLook && (

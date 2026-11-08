@@ -7,6 +7,7 @@ import {
 } from '../../lib/designTemplates';
 import { resolveLook, gradientCss, duotoneMatrix, pairingFace, type Look, type ResolvedLook } from '../../lib/design/look';
 import { patternZoneBox } from '../../lib/design/patterns';
+import { ICON_EM, ICON_GAP_EM, rowGlyph, type Glyph } from '../../lib/design/icons';
 import type { Palette, PaletteRole } from '../../lib/design/palettes';
 
 // Renders a DesignTemplate. One component for stills and for motion frames.
@@ -40,6 +41,11 @@ export interface TemplateContent {
   logoUrl?: string | null;
   /** data: URL — a remote QR would taint the export canvas. */
   qrUrl?: string | null;
+  /**
+   * Which platform's mark a handle row shows (platformMarks.ts). Absent keeps
+   * the template's own default.
+   */
+  platform?: string;
 }
 
 export interface TemplateSurfaceProps {
@@ -219,6 +225,35 @@ function Bullet({ slot, size, index, accent }: { slot: SlotSpec; size: number; i
 }
 
 /**
+ * A row's leading icon (design/icons.ts), as inline SVG.
+ *
+ * The same path data drawTemplate hands to Path2D, in the same square box (1
+ * em of the row's type), in the row's own text colour through currentColor:
+ * one colour, never stretched (the viewBox is square and so is the box).
+ */
+function IconGlyph({ glyph, size, color }: { glyph: Glyph; size: number; color: string }) {
+  const px = size * ICON_EM;
+  const stroke = glyph.paint === 'stroke';
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox={glyph.viewBox}
+      aria-hidden="true"
+      data-icon={`${glyph.set}:${glyph.name}`}
+      fill={stroke ? 'none' : 'currentColor'}
+      stroke={stroke ? 'currentColor' : 'none'}
+      strokeWidth={stroke ? glyph.strokeWidth : undefined}
+      strokeLinecap={stroke ? 'round' : undefined}
+      strokeLinejoin={stroke ? 'round' : undefined}
+      style={{ color, flexShrink: 0, display: 'block' }}
+    >
+      {glyph.paths.map((d, i) => <path key={i} d={d} />)}
+    </svg>
+  );
+}
+
+/**
  * A repeating slot: a services column, a proof-point strip, a contact bar.
  *
  * Row positions come from listRowBoxes, the same resolver the canvas painter
@@ -312,6 +347,8 @@ function ListSlot({
 
         const text = String((all as (string | unknown)[])[i] ?? '');
         if (!text) return null;
+        // A row's icon takes the bullet's place, in the words' colour.
+        const glyph = rowGlyph(slot, i, text, content.platform);
         return (
           <div
             key={i}
@@ -327,7 +364,9 @@ function ListSlot({
               textTransform: slot.upper ? 'uppercase' : undefined,
             }}
           >
-            <Bullet slot={slot} size={size} index={i} accent={accent} />
+            {glyph
+              ? <IconGlyph glyph={glyph} size={size} color={tone} />
+              : <Bullet slot={slot} size={size} index={i} accent={accent} />}
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
           </div>
         );
@@ -657,6 +696,38 @@ export default function TemplateSurface({
                 />
               )}
               <span style={{ ...typeStyle, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
+            </div>
+          );
+        }
+
+        /*
+         * A one-line slot led by an icon (a handle beside its platform's mark).
+         * The words and the icon share one flex line inside the slot's own
+         * treatment, so a pill wraps both; the words cut off with an ellipsis
+         * rather than wrap, as the canvas painter's one-line fit does.
+         */
+        const glyph = rowGlyph(slot, 0, value, content.platform);
+        if (glyph) {
+          const iconSize = typeStyle.fontSize as number;
+          const words: React.CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
+          return (
+            <div key={slot.role} style={common}>
+              <div
+                style={{
+                  ...typeStyle,
+                  display: typeStyle.display === 'inline-block' ? 'inline-flex' : 'flex',
+                  alignItems: 'center',
+                  gap: iconSize * ICON_GAP_EM,
+                  justifyContent: box.textAlign === 'center' ? 'center' : box.textAlign === 'right' ? 'flex-end' : 'flex-start',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <IconGlyph glyph={glyph} size={iconSize} color={typeStyle.color as string} />
+                {onEditText && TEXT_ROLES.includes(slot.role)
+                  ? <EditableSlot value={value} onCommit={(v) => onEditText(slot.role, v)} style={words} />
+                  : <span style={words}>{value}</span>}
+              </div>
             </div>
           );
         }
