@@ -92,8 +92,17 @@ describe('classifyRow (Ruling AL)', () => {
     ['Your address', 'map-pin'],
     ['Your area', 'map-pin'],
     ['Your days · Your hours', 'clock'],
-    ['Out of hours · Your number', 'clock'],
+    ['Out of hours · Your number', 'phone'],
+    ['Out of hours', 'clock'],
   ])('reads the placeholder %s as %s', (text, want) => expect(classifyRow(text)).toBe(want));
+
+  it('lets contact words outrank hours, and a phone number outrank everything (Ruling AM)', () => {
+    expect(classifyRow('Out of hours · Your number')).toBe('phone');
+    expect(classifyRow('Out of hours')).toBe('clock');
+    expect(classifyRow('Call us Mon to Fri')).toBe('phone');
+    expect(classifyRow('Mon to Fri, 9:00 to 17:00')).toBe('clock');
+    expect(classifyRow('0803 123 4567')).toBe('phone');
+  });
 
   it.each(['Ikeja, Lagos', 'Order at the counter', 'Mama Put Kitchen', '12345', '@yourhandle', ''])(
     'finds nothing in %s', (text) => expect(classifyRow(text)).toBeNull());

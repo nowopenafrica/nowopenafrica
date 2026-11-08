@@ -236,20 +236,28 @@ const HOURS = [
   /\byour days\b/i,
 ];
 const ADDRESS = /\b(street|road|avenue|close|crescent|lane|boulevard|estate|junction|plaza|your address|your area|your location)\b|\b(st|rd|ave)\.(\s|$)/i;
-const PHONE_WORDS = /\b(phone|call|booking line|telephone|tel)\b/i;
+const PHONE_WORDS = /\b(phone|number|call|booking line|telephone|tel)\b/i;
 const MAIL_WORDS = /\b(e-?mail)\b/i;
 const WEB_WORDS = /\b(website|web)\b/i;
 
-/** The Lucide icon a row's words call for, or null when they say nothing an icon can. */
+/**
+ * The Lucide icon a row's words call for, or null when they say nothing an icon can.
+ *
+ * Precedence (Ruling AM): a phone-like run of digits outranks everything;
+ * then an email or a web address; then explicit contact words (number,
+ * phone, call, tel, booking line) outrank hours cues, because "Out of hours
+ * · Your number" is a phone line, not opening times; then hours, then an
+ * address, then the remaining placeholder words.
+ */
 export function classifyRow(text: string): LucideName | null {
   const t = text.trim();
   if (!t) return null;
+  if (PHONE.test(t) && (t.match(/\d/g)?.length ?? 0) >= 7) return 'phone';
   if (EMAIL.test(t)) return 'mail';
   if (URL_OR_DOMAIN.test(t)) return 'globe';
-  if (PHONE.test(t) && (t.match(/\d/g)?.length ?? 0) >= 7) return 'phone';
+  if (PHONE_WORDS.test(t)) return 'phone';
   if (HOURS.some((re) => re.test(t))) return 'clock';
   if (ADDRESS.test(t)) return 'map-pin';
-  if (PHONE_WORDS.test(t)) return 'phone';
   if (MAIL_WORDS.test(t)) return 'mail';
   if (WEB_WORDS.test(t)) return 'globe';
   return null;

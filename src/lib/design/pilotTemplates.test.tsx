@@ -157,7 +157,7 @@ describe('the pilot collection', () => {
       .map((p) => `${p.where}=${p.icon.set}:${p.icon.name}`);
     expect(on('pilot-card-industry')).toEqual([
       'front.contact[0]=lucide:phone', 'front.contact[1]=lucide:map-pin', 'front.contact[2]=lucide:globe',
-      'Back.services[0]=lucide:clock', 'Back.services[1]=lucide:clock', 'Back.services[2]=lucide:clock',
+      'Back.services[0]=lucide:clock', 'Back.services[1]=lucide:clock', 'Back.services[2]=lucide:phone',
     ]);
     // Every card leads its contact rows with icons; the handle cards carry one Instagram mark.
     for (const t of inSub('business-card')) expect(slotIconSets(t).has('lucide'), t.key).toBe(true);
