@@ -66,7 +66,8 @@ export function previewCriticals(tpl: DesignTemplate): CriticalFailure[] {
         }));
       });
       console.error = quiet;
-      if (needsFallback && page.name === 'front' && !host.querySelector('[data-photo-fallback] [data-fallback-layer]')) {
+      if (needsFallback && page.name === 'front' && !host.querySelector('[data-photo-fallback] [data-fallback-strong]')) {
+        // Something besides the ground must show (alpha 0.05 or more): a tint, pattern, shape, keyline or initial.
         out.push({ code: 'C6', detail: 'no photo: the photo box renders as an empty plane' });
       }
       for (const img of Array.from(host.querySelectorAll('img'))) {

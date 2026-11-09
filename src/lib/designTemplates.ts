@@ -1347,8 +1347,12 @@ export function coverInBox(
 }
 
 /** The CSS object-position for a focal point. */
-export const focalCss = (focal: [number, number] | undefined): string =>
-  focal ? `${Math.round(focal[0] * 1000) / 10}% ${Math.round(focal[1] * 1000) / 10}%` : '50% 50%';
+export const focalCss = (focal: [number, number] | undefined): string => {
+  if (!focal) return '50% 50%';
+  // Clamped as coverInBox clamps it, so the DOM and the canvas crop alike.
+  const c = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 1000) / 10;
+  return `${c(focal[0])}% ${c(focal[1])}%`;
+};
 
 // --- list slots --------------------------------------------------------------
 

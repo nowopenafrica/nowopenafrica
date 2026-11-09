@@ -484,7 +484,9 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     look: { palette: 'forest-brass', type: 'editorial', duotone: ['ground', 'primary'] },
     /*
      * No photograph: a drop initial at poster size, the house's own first
-     * letter in brass at a whisper, on forest with a light grain.
+     * letter in brass at a whisper, on forest with a light grain. Set low
+     * on the left, clear of the name at the top, and only once the owner
+     * has typed a name (Ruling AW).
      */
     photo: {
       x: 0, y: 0, w: 1, h: 1,
@@ -494,7 +496,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
           { kind: 'linear', angle: 160, stops: [{ role: 'secondary', alpha: 0.16 }, { role: 'secondary', alpha: 0 }] },
         ],
         pattern: { key: 'grain', role: 'ink', opacity: 0.07, scale: 0.2 },
-        monogram: { font: 'editorial', size: 0.9, tone: { role: 'primary', alpha: 0.16 }, cx: 0.3, cy: 0.3 },
+        monogram: { font: 'editorial', size: 0.9, tone: { role: 'primary', alpha: 0.16 }, cx: 0.26, cy: 0.78 },
       },
     },
     shapes: [

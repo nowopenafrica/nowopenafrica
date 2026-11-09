@@ -186,6 +186,8 @@ function PhotoFallbackLayer({
   roles: Record<PaletteRole, string>;
 }) {
   const { box } = fb;
+  /* What counts as drawn (S1b): the preview gate looks for at least one of these. */
+  const strong = (on: boolean) => (on ? { 'data-fallback-strong': '' } : {});
   const canvasSized: React.CSSProperties = { position: 'absolute', left: -box.x, top: -box.y, width, height };
   return (
     <div
@@ -197,11 +199,12 @@ function PhotoFallbackLayer({
       }}
     >
       {fb.layers.map((l, i) => (
-        <div key={i} data-fallback-layer={l.kind} style={{ position: 'absolute', inset: 0, background: fallbackLayerCss(l) }} />
+        <div key={i} data-fallback-layer={l.kind} {...strong(l.strong)} style={{ position: 'absolute', inset: 0, background: fallbackLayerCss(l) }} />
       ))}
       {fb.pattern && (
         <div
           data-fallback-pattern=""
+          {...strong(fb.pattern.strong)}
           style={{
             ...canvasSized,
             backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(fb.pattern.svg)}")`,
@@ -212,7 +215,7 @@ function PhotoFallbackLayer({
         />
       )}
       {fb.shapes.length > 0 && (
-        <div data-fallback-shapes="" style={canvasSized}>
+        <div data-fallback-shapes="" {...strong(fb.shapesStrong)} style={canvasSized}>
           {fb.shapes.map((shape, i) => (
             <Shape key={i} shape={shape} width={width} height={height} accent={accent} ink={ink} base={base} roles={roles} />
           ))}
@@ -220,6 +223,8 @@ function PhotoFallbackLayer({
       )}
       {fb.keyline && (
         <div
+          data-fallback-keyline=""
+          {...strong(fb.keyline.strong)}
           style={{
             position: 'absolute',
             left: fb.keyline.x - box.x, top: fb.keyline.y - box.y, width: fb.keyline.w, height: fb.keyline.h,
@@ -230,6 +235,7 @@ function PhotoFallbackLayer({
       {fb.monogram && (
         <div
           data-fallback-monogram=""
+          {...strong(fb.monogram.strong)}
           style={{
             position: 'absolute',
             left: fb.monogram.cx - box.x, top: fb.monogram.cy - box.y,

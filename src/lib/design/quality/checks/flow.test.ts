@@ -78,3 +78,16 @@ describe('billboard checks (S5)', () => {
     expect(found).toEqual([]);
   });
 });
+
+describe('fix round 1: the action line is one line', () => {
+  it('counts every contact row after the first', () => {
+    const tpl: DesignTemplate = {
+      ...BB_CONTEMPORARY_BEFORE,
+      slots: BB_CONTEMPORARY_BEFORE.slots.map((s) => (s.role === 'contact' ? { ...s, max: 3, size: 0.08 } : { ...s, size: Math.max(0.08, s.size ?? 0) })),
+    };
+    // Headline 3 + rows two and three (3 + 3) = 9; the first row is the action line.
+    const copy = { ...sampleFor(tpl), contact: ['@yourhandle', 'call us now', 'visit our shop'] };
+    expect(billboardProblems(tpl, copy, BOARD.w, BOARD.h).join('\n')).toMatch(/9 words/);
+    expect(billboardProblems(tpl, { ...copy, contact: ['@yourhandle'] }, BOARD.w, BOARD.h).join('\n')).not.toMatch(/words/);
+  });
+});

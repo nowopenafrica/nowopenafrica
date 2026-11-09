@@ -27,27 +27,41 @@ import {
 import type { PaletteRole } from './palettes';
 import { patternSvg } from './patterns';
 import { fontStack } from './typefaces';
+import { isSampleText } from '../create/sampleCopy';
 
 export interface FallbackStop { at: number; color: string }
 
-export type ResolvedFallbackLayer =
+export type ResolvedFallbackLayer = (
   | { kind: 'flat'; color: string }
   /** Angle as CSS measures it, across the box. */
   | { kind: 'linear'; angle: number; stops: FallbackStop[] }
   /** Centre and radius in pixels, relative to the box's top-left corner. */
-  | { kind: 'radial'; cx: number; cy: number; r: number; stops: FallbackStop[] };
+  | { kind: 'radial'; cx: number; cy: number; r: number; stops: FallbackStop[] }
+) & {
+  /** Paints something besides the ground (S1b): a non-ground role at alpha 0.05 or more. */
+  strong: boolean;
+};
+
+/** The weakest alpha that still counts as drawing something (S1b). */
+export const VISIBLE_ALPHA = 0.05;
+
+const toneStrong = (t: FallbackTone): boolean => t.role !== 'ground' && (t.alpha ?? 1) >= VISIBLE_ALPHA;
+const layerStrong = (l: FallbackLayer): boolean =>
+  (l.kind === 'flat' ? [l.tone] : l.stops).some(toneStrong);
+const shapeStrong = (sh: ShapeSpec): boolean => sh.tone !== 'base' && (sh.alpha ?? 1) >= VISIBLE_ALPHA;
 
 export interface ResolvedFallback {
   box: PhotoBoxPx;
   layers: ResolvedFallbackLayer[];
   /** A canvas-sized pattern SVG; the renderer shows only the box's part of it. */
-  pattern: { svg: string; opacity: number } | null;
+  pattern: { svg: string; opacity: number; strong: boolean } | null;
   /** Canvas-fraction shapes, painted clipped to the box. */
   shapes: ShapeSpec[];
+  shapesStrong: boolean;
   /** Canvas pixels. */
-  keyline: { x: number; y: number; w: number; h: number; width: number; color: string } | null;
-  /** Canvas pixels; the glyph is centred on (cx, cy). */
-  monogram: { char: string; sizePx: number; color: string; family: string; weight: number; cx: number; cy: number } | null;
+  keyline: { x: number; y: number; w: number; h: number; width: number; color: string; strong: boolean } | null;
+  /** Canvas pixels; the glyph's em box is centred on (cx, cy). */
+  monogram: { char: string; sizePx: number; color: string; family: string; weight: number; cx: number; cy: number; strong: boolean } | null;
 }
 
 const toneColour = (t: FallbackTone, roles: Record<PaletteRole, string>): string =>
@@ -57,9 +71,11 @@ const evenStops = (tones: FallbackTone[], roles: Record<PaletteRole, string>): F
   tones.map((t, i) => ({ at: tones.length === 1 ? 0 : i / (tones.length - 1), color: toneColour(t, roles) }));
 
 function resolveLayer(l: FallbackLayer, box: PhotoBoxPx, roles: Record<PaletteRole, string>): ResolvedFallbackLayer {
-  if (l.kind === 'flat') return { kind: 'flat', color: toneColour(l.tone, roles) };
-  if (l.kind === 'linear') return { kind: 'linear', angle: l.angle, stops: evenStops(l.stops, roles) };
+  const strong = layerStrong(l);
+  if (l.kind === 'flat') return { kind: 'flat', color: toneColour(l.tone, roles), strong };
+  if (l.kind === 'linear') return { kind: 'linear', angle: l.angle, stops: evenStops(l.stops, roles), strong };
   return {
+    strong,
     kind: 'radial',
     cx: l.cx * box.w,
     cy: l.cy * box.h,
@@ -68,10 +84,28 @@ function resolveLayer(l: FallbackLayer, box: PhotoBoxPx, roles: Record<PaletteRo
   };
 }
 
-/** The first letter or digit of a business name, in capitals; '' when there is none. */
+/**
+ * The first letter or digit of a business name, in capitals, with any
+ * combining marks it carries; '' when there is none. Composed first (NFC),
+ * so a decomposed É is one letter. A letter whose capital is more than one
+ * character (ß is SS, the ligature ﬁ is FI) keeps its own form: a monogram
+ * is one glyph. Modifier letters such as the apostrophe-like ʼ are skipped.
+ */
 export function initialOf(name: string | undefined): string {
-  const m = (name ?? '').match(/[\p{L}\p{N}]/u);
-  return m ? m[0].toLocaleUpperCase() : '';
+  const m = (name ?? '').normalize('NFC').match(/[\p{Lu}\p{Ll}\p{Lt}\p{Lo}\p{N}]\p{M}*/u);
+  if (!m) return '';
+  const upper = m[0].toUpperCase();
+  const base = [...m[0].replace(/\p{M}+$/u, '')];
+  const upBase = [...upper.replace(/\p{M}+$/u, '')];
+  return upBase.length > base.length ? m[0] : upper.normalize('NFC');
+}
+
+/**
+ * The monogram letter for a name, or '' (Ruling AW): only an owner's real
+ * name earns one. The gallery's sample words ("Your brand") draw none.
+ */
+export function monogramLetter(name: string | undefined): string {
+  return isSampleText(name) ? '' : initialOf(name);
 }
 
 /**
@@ -95,6 +129,7 @@ export function resolveFallback(
     ? {
         svg: patternSvg({ key: fb.pattern.key, role: fb.pattern.role, opacity: fb.pattern.opacity, scale: fb.pattern.scale, zone: 'full' }, w, h, roles[fb.pattern.role]),
         opacity: fb.pattern.opacity,
+        strong: fb.pattern.opacity >= VISIBLE_ALPHA,
       }
     : null;
 
@@ -104,12 +139,12 @@ export function resolveFallback(
         const width = Math.max(1, (fb.keyline.width ?? 0.002) * u);
         return {
           x: box.x + inset, y: box.y + inset, w: Math.max(0, box.w - inset * 2), h: Math.max(0, box.h - inset * 2),
-          width, color: toneColour(fb.keyline.tone, roles),
+          width, color: toneColour(fb.keyline.tone, roles), strong: toneStrong(fb.keyline.tone),
         };
       })()
     : null;
 
-  const char = fb.monogram ? initialOf(brand) : '';
+  const char = fb.monogram ? monogramLetter(brand) : '';
   const monogram = fb.monogram && char
     ? {
         char,
@@ -119,6 +154,7 @@ export function resolveFallback(
         weight: fb.monogram.weight ?? 400,
         cx: (fb.monogram.cx ?? (box.x + box.w / 2) / w) * w,
         cy: (fb.monogram.cy ?? (box.y + box.h / 2) / h) * h,
+        strong: toneStrong(fb.monogram.tone),
       }
     : null;
 
@@ -127,6 +163,7 @@ export function resolveFallback(
     layers: fb.layers.map((l) => resolveLayer(l, box, roles)),
     pattern,
     shapes: fb.shapes ?? [],
+    shapesStrong: (fb.shapes ?? []).some(shapeStrong),
     keyline,
     monogram,
   };
@@ -150,7 +187,15 @@ export function fallbackProblems(tpl: DesignTemplate): string[] {
   const fb = tpl.photo?.fallback;
   if (!fb) return ['photo-led with no designed no-photo state: it shows an empty plane when there is no photograph'];
   if (fb.layers.length === 0) return ['the no-photo state has no fill'];
-  const flatGroundOnly = fb.layers.every((l) => l.kind === 'flat' && l.tone.role === 'ground')
-    && !fb.pattern && !(fb.shapes?.length) && !fb.monogram && !fb.keyline;
-  return flatGroundOnly ? ['the no-photo state is an untreated flat field of ground'] : [];
+  /*
+   * Something must show besides the ground: a non-ground layer, a pattern, a
+   * shape, a keyline or a monogram, at alpha 0.05 or more. A tint at alpha 0
+   * is an untreated field however many layers it is written as.
+   */
+  const strong = fb.layers.some(layerStrong)
+    || (!!fb.pattern && fb.pattern.opacity >= VISIBLE_ALPHA)
+    || (fb.shapes ?? []).some(shapeStrong)
+    || (!!fb.keyline && toneStrong(fb.keyline.tone))
+    || (!!fb.monogram && toneStrong(fb.monogram.tone));
+  return strong ? [] : ['the no-photo state is an untreated flat field of ground'];
 }

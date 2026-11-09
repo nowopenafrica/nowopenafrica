@@ -71,9 +71,11 @@ export function pageTextRects(
       if (!cells.length) continue;
       const size = typePx(slot.size, w, h);
       const rowH = slot.role === 'stats' ? size * 2.4 : size * 1.4;
-      const top = cells[0].y;
-      const bottom = cells[cells.length - 1].y + rowH;
-      out.push({ where, role: slot.role, x: box.left, y: top, w: box.width, h: bottom - top });
+      // Ink, not leading: a 1.4 row carries 0.2 em of air above and below.
+      const air = size * 0.2;
+      const top = cells[0].y + air;
+      const bottom = cells[cells.length - 1].y + rowH - air;
+      out.push({ where, role: slot.role, x: box.left, y: top, w: box.width, h: Math.max(0, bottom - top) });
       continue;
     }
 
@@ -88,12 +90,15 @@ export function pageTextRects(
     const lines = wrapEstimate(text, { ...slot, w: Math.max(0, slot.w - indent / w) }, px, w);
     const n = Math.min(lines.length, lineCap(slot, !!glyph));
     const widest = Math.min(box.width, Math.max(...lines.slice(0, n)) + indent);
-    const height = n * px * lineHeightFor(slot.size);
+    const lh = lineHeightFor(slot.size);
+    const height = n * px * lh;
     const x = box.textAlign === 'center' ? box.left + (box.width - widest) / 2
       : box.textAlign === 'right' ? box.left + box.width - widest
         : box.left;
     const y = slot.fromBottom ? box.top - height : box.top;
-    out.push({ where, role: slot.role, x, y, w: widest, h: height });
+    // Ink, not leading: half the leading above the first line and below the last is air.
+    const air = Math.max(0, (px * (lh - 1)) / 2);
+    out.push({ where, role: slot.role, x, y: y + air, w: widest, h: Math.max(0, height - air * 2) });
   }
   return out;
 }
@@ -105,8 +110,9 @@ export function textRects(tpl: DesignTemplate, content: TemplateContent, w: numb
 
 /**
  * Pairs of text boxes on one page that overlap, by more than a hair in both
- * directions (half a percent of the short edge: line boxes carry their own
- * leading, so touching is not colliding).
+ * directions (half a percent of the short edge). Boxes are the ink, with the
+ * half-leading above and below taken off, so lines that merely share leading
+ * do not count.
  */
 export function textOverlaps(tpl: DesignTemplate, content: TemplateContent, w: number, h: number): string[] {
   const tol = unitOf(w, h) * 0.005;
@@ -164,8 +170,10 @@ export function billboardProblems(tpl: DesignTemplate, content: TemplateContent,
       if (rel < floor - 1e-9) out.push(`${where} is ${rel.toFixed(3)} of the board's height, below ${floor}`);
       const isAction = (slot.role === 'cta' || slot.role === 'contact') && !actionSeen;
       if (slot.role === 'brand') continue;
-      if (isAction) { actionSeen = true; continue; }
-      words += rows.reduce((n, r) => n + wordCount(r), 0);
+      // The action line is ONE line: the first row of a contact list; further rows count.
+      const counted = isAction ? rows.slice(1) : rows;
+      if (isAction) actionSeen = true;
+      words += counted.reduce((n, r) => n + wordCount(r), 0);
     }
   }
   if (words > BILLBOARD_MAX_WORDS) {

@@ -442,13 +442,22 @@ export function documentFromTemplate(
       const W = opts.width;
       const H = opts.height;
       const pad = Math.min(W, H) * 0.014;
-      const widest = Math.max(0, ...wrapEstimate(text, slot, fittedPx, W));
-      const pw = Math.min(slot.w * W, widest) + pad * 3.2;
-      const ph = fittedPx * lineHeightFor(slot.size) + pad * 1.4;
+      /*
+       * As TemplateSurface draws it: an inline-block around the words, padded
+       * pad x 1.6 at the sides and pad x 0.7 above and below, as many lines
+       * tall as the words wrap to. The text object stays where the slot puts
+       * the words, so the pill sits around it: out by the padding on the side
+       * the words start from, up by the top padding.
+       */
+      const lines = wrapEstimate(text, slot, fittedPx, W);
+      const n = Math.max(1, lines.length);
+      const inner = Math.min(slot.w * W, Math.max(0, ...lines));
+      const pw = inner + pad * 3.2;
+      const ph = n * fittedPx * lineHeightFor(slot.size) + pad * 1.4;
       const left = slot.align === 'center' ? slot.x * W + (slot.w * W - pw) / 2
-        : slot.align === 'right' ? (slot.x + slot.w) * W - pw
-          : slot.x * W;
-      const top = (slot.fromBottom ? 1 - slot.y : slot.y) * H;
+        : slot.align === 'right' ? (slot.x + slot.w) * W + pad * 1.6 - pw
+          : slot.x * W - pad * 1.6;
+      const top = (slot.fromBottom ? 1 - slot.y : slot.y) * H - pad * 0.7;
       z += 1;
       objects.push({
         id: objectId('s'),

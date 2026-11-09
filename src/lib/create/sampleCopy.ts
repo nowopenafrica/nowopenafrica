@@ -486,3 +486,26 @@ export function sampleRow(template: Pick<DesignTemplate, 'key'>, role: string, i
   const v = (s as Record<string, unknown>)[role];
   return typeof v === 'string' ? v : undefined;
 }
+
+let SAMPLE_TEXTS: Set<string> | null = null;
+const normText = (s: string): string => s.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
+
+/**
+ * Is this one of the gallery's own sample strings (any role, any template)?
+ * The no-photo monogram (Ruling AW) is the owner's initial only once the
+ * owner has typed a name: "Your brand" must not become a large "Y".
+ */
+export function isSampleText(text: string | undefined): boolean {
+  if (!text || !text.trim()) return false;
+  if (!SAMPLE_TEXTS) {
+    SAMPLE_TEXTS = new Set<string>();
+    const add = (v: unknown) => {
+      if (typeof v === 'string') SAMPLE_TEXTS!.add(normText(v));
+      else if (Array.isArray(v)) v.forEach(add);
+      else if (v && typeof v === 'object') Object.values(v).forEach(add);
+    };
+    add(BASE_SAMPLE);
+    add(BY_KEY);
+  }
+  return SAMPLE_TEXTS.has(normText(text));
+}

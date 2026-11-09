@@ -13,7 +13,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import TemplateSurface from '../../components/studio/TemplateSurface';
 import { balanceLines, drawTemplateFrame } from '../drawTemplate';
 import {
-  coverInBox, fitSlotSize, frontShapes, pageTemplate, photoBoxPx, photoMaskShapes, templateByKey, wrapEstimate,
+  coverInBox, fitSlotSize, frontShapes, lineHeightFor, pageTemplate, photoBoxPx, photoMaskShapes, templateByKey, wrapEstimate,
   type DesignTemplate, type SlotSpec,
 } from '../designTemplates';
 import { sampleFor } from '../create/sampleCopy';
@@ -363,5 +363,110 @@ describe('the bb-contemporary headline (quick fix)', () => {
     const h = templateByKey('pilot-bb-contemporary').slots.find((s) => s.role === 'headline')!;
     expect(h.size).toBeLessThanOrEqual(0.26);
     expect(h.maxLines).toBe(2);
+  });
+});
+
+/* ── fix round 1 ─────────────────────────────────────────────────────── */
+
+describe('fix round 1: the monogram (Ruling AW) and its letter', () => {
+  it('draws no initial for the gallery sample name, in either renderer', () => {
+    for (const t of PHOTO_LED.filter((x) => x.photo?.fallback?.monogram)) {
+      const { w, h } = canvasFor(t);
+      const { container, unmount } = render(
+        <TemplateSurface template={t} content={sampleFor(t)} width={w} height={h} accent={ACCENT} />,
+      );
+      expect(container.querySelector('[data-fallback-monogram]'), t.key).toBeNull();
+      unmount();
+      const { ctx, calls } = recorder();
+      drawTemplateFrame(ctx, t, sampleFor(t), w, h, { accent: ACCENT });
+      const initial = initialOf(sampleFor(t).brand);
+      expect(calls.some((c) => c.op === 'fillText' && c.args[0] === initial), t.key).toBe(false);
+    }
+  });
+
+  it('takes one composed letter, keeping a letter whose capital is two', () => {
+    expect(initialOf('ßeta Bakery')).toBe('ß');
+    expect(initialOf('ﬁne Foods')).toBe('ﬁ');
+    expect(initialOf('Émile Couture')).toBe('É');
+    expect(initialOf('ʼNa Kitchen')).toBe('N');
+    expect(initialOf('12 Degrees')).toBe('1');
+  });
+});
+
+describe('fix round 1: the no-photo state must show something (S1b)', () => {
+  it('fails a fill whose only tint is invisible, in the rule and in the preview gate', () => {
+    const t = templateByKey('pilot-ig-minimal');
+    const faint: DesignTemplate = {
+      ...t,
+      photo: { ...t.photo!, fallback: { layers: [{ kind: 'flat', tone: { role: 'ground' } }, { kind: 'flat', tone: { role: 'ink', alpha: 0 } }] } },
+    };
+    expect(fallbackProblems(faint).join()).toMatch(/untreated flat field/);
+    expect(previewCriticals(faint).map((c) => c.detail).join('\n')).toMatch(/empty plane/);
+  });
+});
+
+describe('fix round 1: the solid pill in the editable document', () => {
+  it('is as tall as the words wrap, and sits around them as the DOM pads them', () => {
+    const t = templateByKey('pilot-bb-industry');
+    const W = 3600;
+    const H = 1800;
+    const slot = t.slots.find((s) => s.role === 'cta')!;
+    const text = sampleFor(t).cta!;
+    const px = fitSlotSize(slot, t.slots, text, W, H);
+    const lines = wrapEstimate(text, slot, px, W).length;
+    expect(lines).toBe(2);
+    const doc = documentFromTemplate(t, sampleFor(t), { width: W, height: H, accent: ACCENT });
+    const pill = doc.pages[0].objects.find((o) => o.type === 'shape' && o.name === 'Pill')!;
+    const pad = Math.min(W, H) * 0.014;
+    expect(pill.h * H).toBeCloseTo(2 * px * lineHeightFor(slot.size) + pad * 1.4, 6);
+    expect(pill.y * H).toBeCloseTo(slot.y * H - pad * 0.7, 6);
+    // Right-aligned: the pill's right edge is the slot's, out by the side padding.
+    expect((pill.x + pill.w) * W).toBeCloseTo((slot.x + slot.w) * W + pad * 1.6, 6);
+  });
+});
+
+describe('fix round 1: focal points and the fallback geometry agree across renderers', () => {
+  it('clamps an out-of-range focal point alike in the DOM and on the canvas', () => {
+    const base = templateByKey('pilot-ig-contemporary');
+    const t: DesignTemplate = { ...base, photo: { ...base.photo!, focal: [1.5, -0.2] } };
+    const box = photoBoxPx(t, 1080, 1350);
+    const { container } = render(
+      <TemplateSurface template={t} content={sampleFor(t)} width={1080} height={1350} accent={ACCENT} mediaUrl="/x.jpg" />,
+    );
+    const pos = (container.querySelector('[data-photo-box] img') as HTMLElement).style.objectPosition;
+    const [fx, fy] = pos.split(' ').map((v) => parseFloat(v) / 100);
+    expect([fx, fy]).toEqual([1, 0]);
+    const { ctx, calls } = recorder();
+    drawTemplateFrame(ctx, t, { ...sampleFor(t), media: { width: 800, height: 600 } as unknown as CanvasImageSource }, 1080, 1350, { accent: ACCENT });
+    const [, x, y, dw, dh] = calls.find((c) => c.op === 'drawImage')!.args as number[];
+    expect(x).toBeCloseTo(box.x + (box.w - dw) * fx, 6);
+    expect(y).toBeCloseTo(box.y + (box.h - dh) * fy, 6);
+  });
+
+  it('sets the monogram in the same face, size and place, and the keyline on the same rectangle', () => {
+    const t = templateByKey('pilot-ig-luxury');
+    const content = { ...sampleFor(t), brand: 'Kaya Studio' };
+    const fb = resolveFallback(t, resolveLook(t, { accent: ACCENT, width: 1080, height: 1350 }).roles, 1080, 1350, content.brand)!;
+    const { container } = render(
+      <TemplateSurface template={t} content={content} width={1080} height={1350} accent={ACCENT} />,
+    );
+    const mono = container.querySelector<HTMLElement>('[data-fallback-monogram]')!;
+    const line = container.querySelector<HTMLElement>('[data-fallback-keyline]')!;
+    const { ctx, calls } = recorder();
+    drawTemplateFrame(ctx, t, content, 1080, 1350, { accent: ACCENT });
+    const painted = calls.find((c) => c.op === 'fillText' && c.args[0] === 'K')!;
+    // Both centre the em box on (cx, cy): the DOM a line-height 1 box moved back by half, the canvas its 'middle' baseline.
+    expect(parseFloat(mono.style.left) + fb.box.x).toBeCloseTo(painted.args[1] as number, 6);
+    expect(parseFloat(mono.style.top) + fb.box.y).toBeCloseTo(painted.args[2] as number, 6);
+    expect(mono.style.transform).toBe('translate(-50%, -50%)');
+    expect(mono.style.lineHeight).toBe('1');
+    expect(parseFloat(mono.style.fontSize)).toBe(fb.monogram!.sizePx);
+    // The keyline: the DOM border sits inside its box; the canvas strokes its centre line half a width in.
+    const k = fb.keyline!;
+    expect([line.style.left, line.style.top, line.style.width, line.style.height].map(parseFloat))
+      .toEqual([k.x - fb.box.x, k.y - fb.box.y, k.w, k.h]);
+    const stroke = calls.find((c) => c.op === 'strokeRect')!.args as number[];
+    expect(stroke[0]).toBeCloseTo(k.x + k.width / 2, 6);
+    expect(stroke[2]).toBeCloseTo(k.w - k.width, 6);
   });
 });

@@ -24,7 +24,7 @@
  * approximation; for looked templates it is exact.
  */
 import {
-  frontShapes, isListRole, photoBoxPx, shapeColor, shapeGeometry,
+  frontShapes, isListRole, photoBoxPx, shapeColor, shapeGeometry, unitOf,
   type DesignTemplate, type FallbackTone, type ShapeSpec, type SlotSpec,
 } from '../../../designTemplates';
 import { resolveLook, type Look, type ResolvedLook } from '../../look';
@@ -111,6 +111,22 @@ function coloursAt(
         if (!covers(shape, x, y, w, h)) continue;
         const alpha = shape.alpha ?? 1;
         stack = stack.flatMap((under) => shapeColours(shape, r, accent).map((c) => composite(c, under, alpha)));
+      }
+      /*
+       * The monogram (S1), as an em square round its centre: conservative, as
+       * any of it may be under the words. Drawn only for a real name, which
+       * any name a business types may be, so it is always measured.
+       */
+      const mono = fb.monogram;
+      if (mono) {
+        const half = (mono.size * unitOf(w, h)) / 2;
+        const mx = (mono.cx ?? (b.x + b.w / 2) / w) * w;
+        const my = (mono.cy ?? (b.y + b.h / 2) / h) * h;
+        if (Math.abs(x - mx) <= half && Math.abs(y - my) <= half) {
+          const col = r.roles[mono.tone.role];
+          const alpha = mono.tone.alpha ?? 1;
+          stack = [...stack, ...stack.map((under) => composite(col, under, alpha))];
+        }
       }
     }
   }
