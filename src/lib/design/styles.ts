@@ -585,6 +585,22 @@ export function applyStyle(
   };
 
   const looked = !!tpl.look;
+  /*
+   * A looked template is DRAWN in its look's pairing, whatever the style
+   * says (TemplateSurface asks look.pairingFace). The slot's `font` is only
+   * the face the fitter estimates widths with, so it must name that face:
+   * the style's face made a 48-sheet's Archivo Black headline fit as if it
+   * were Space Grotesk, and it set on four lines where three were budgeted.
+   * Same rule as look.pairingFace, restated here to keep styles free of a
+   * value import from look.ts (which imports this file).
+   */
+  const lookPairing = looked ? pairingOf(tpl.look!.type) : null;
+  const lookFace = (slot: SlotSpec): TypefaceKey => {
+    const p = lookPairing!;
+    if (slot.face) return p[slot.face];
+    if (slot.role === 'headline' || (slot.size ?? 0) >= 0.06) return p.display;
+    return slot.role === 'eyebrow' ? p.accent : p.text;
+  };
 
   return {
     ...tpl,
@@ -601,7 +617,7 @@ export function applyStyle(
       const size = slot.size != null && t.scale ? slot.size * t.scale : slot.size;
       return {
         ...slot,
-        font: fontFor(slot),
+        font: looked ? lookFace({ ...slot, size }) : fontFor(slot),
         size,
         tracking: (slot.tracking ?? 0) + (t.tracking ?? 0),
         upper: slot.role === 'headline' && t.upperHeadline !== undefined

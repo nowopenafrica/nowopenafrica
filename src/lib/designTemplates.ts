@@ -617,6 +617,12 @@ export const lineHeightFor = (size: number | undefined): number =>
  * caps slot adds this much per character.
  */
 const CAPS_EXTRA = 0.06;
+/**
+ * Faces whose capitals run far wider than their lowercase. Archivo Black's
+ * A-Z average about 0.75 em against 0.62 for a-z: seen on the 48-sheet,
+ * where "COME SEE WHAT'S NEW" set on four lines where the estimate said three.
+ */
+const CAPS_EXTRA_BY_FACE: Record<string, number> = { heavy: 0.13 };
 
 /**
  * How text wraps in a slot at a size, WORD BY WORD (Task 18c, S4).
@@ -638,7 +644,8 @@ export function wrapEstimate(
   const body = (text ?? '').trim();
   if (!body || sizePx <= 0) return [];
   const maxW = Math.max(1, Math.min(1, slot.w) * w);
-  const per = ((ADVANCE[slot.font ?? 'sans'] ?? 0.53) + (slot.upper ? CAPS_EXTRA : 0) + (slot.tracking ?? 0)) * sizePx;
+  const caps = slot.upper ? (CAPS_EXTRA_BY_FACE[slot.font ?? 'sans'] ?? CAPS_EXTRA) : 0;
+  const per = ((ADVANCE[slot.font ?? 'sans'] ?? 0.53) + caps + (slot.tracking ?? 0)) * sizePx;
   const out: number[] = [];
   for (const para of body.split(String.fromCharCode(10))) {
     const words = para.trim().split(/\s+/).filter(Boolean);

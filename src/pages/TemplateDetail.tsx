@@ -7,7 +7,7 @@ import TemplateCustomiser from '../components/create/TemplateCustomiser';
 import MockupView from '../components/create/MockupView';
 import TemplateFacts from '../components/create/TemplateFacts';
 import { PreviewCard } from '../components/create/TemplateGallery';
-import { defaultMediaScrim, type DesignTemplate } from '../lib/designTemplates';
+import { defaultMediaScrim, pageTemplate, type DesignTemplate } from '../lib/designTemplates';
 import { invalidateCatalogue, useDesignCatalogue } from '../hooks/useDesignCatalogue';
 import { useMockupScenes } from '../hooks/useMockupScenes';
 import { isListed } from '../lib/create/needs';
@@ -374,7 +374,8 @@ function Surface({ template, slots, tone, testId, side }: {
         <div className="absolute left-0 top-0 origin-top-left"
           style={{ width: page.w, height: page.h, transform: `scale(${scale})` }}>
           <TemplateSurface
-            template={{ ...template, slots }}
+            /* The side as pageTemplate builds it: its slots and that side's shapes (S3). */
+            template={pageTemplate(template, (template.extraPages ?? []).findIndex((p) => p.slots === slots) + 1)}
             content={sampleFor(template)}
             width={page.w}
             height={page.h}

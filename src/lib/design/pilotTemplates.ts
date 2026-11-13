@@ -515,6 +515,11 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
           { kind: 'linear', angle: 160, stops: [{ role: 'secondary', alpha: 0.16 }, { role: 'secondary', alpha: 0 }] },
         ],
         pattern: { key: 'grain', role: 'ink', opacity: 0.07, scale: 0.2 },
+        // An aperture in brass hairlines: structure that needs no name and implies no picture.
+        shapes: [
+          { kind: 'ring', cx: 0.62, cy: 0.27, r: 0.34, thickness: 0.004, tone: 'primary', alpha: 0.55 },
+          { kind: 'ring', cx: 0.62, cy: 0.27, r: 0.25, thickness: 0.003, tone: 'primary', alpha: 0.35 },
+        ],
         monogram: { font: 'editorial', size: 0.9, tone: { role: 'primary', alpha: 0.16 }, cx: 0.26, cy: 0.78 },
       },
     },
@@ -754,9 +759,9 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { kind: 'stripe', x: 0.6, y: 0, w: 0.025, h: 1, angle: 4, tone: 'primary' },
     ],
     slots: [
-      { role: 'brand', x: 0.05, y: 0.05, w: 0.48, size: 0.08, weight: 700, upper: true, tracking: 0.2, maxLines: 1, motion: m('fade', 0) },
+      { role: 'brand', x: 0.05, y: 0.05, w: 0.48, size: 0.08, weight: 700, upper: true, tracking: 0.2, face: 'text', font: 'grotesk', maxLines: 1, motion: m('fade', 0) },
       { role: 'headline', x: 0.05, y: 0.17, w: 0.48, size: 0.2, weight: 800, upper: true, tracking: -0.02, font: 'heavy', maxLines: 3, balance: true, motion: m('slide-right', 0.2, 0.6) },
-      { role: 'cta', x: 0.05, y: 0.8, w: 0.48, size: 0.08, weight: 800, upper: true, tracking: 0.04, treatment: 'underline', motion: m('pop', 0.6, 0.5) },
+      { role: 'cta', x: 0.05, y: 0.8, w: 0.48, size: 0.08, weight: 800, upper: true, tracking: 0.04, treatment: 'underline', font: 'heavy', maxLines: 1, motion: m('pop', 0.6, 0.5) },
     ],
   },
 
@@ -783,7 +788,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     ],
     slots: [
       { role: 'headline', x: 0.08, y: 0.34, w: 0.72, size: 0.22, weight: 800, tracking: -0.03, font: 'heavy', maxLines: 2, balance: true, motion: m('rise', 0, 0.7) },
-      { role: 'brand', x: 0.56, y: 0.8, w: 0.36, size: 0.08, weight: 700, upper: true, tracking: 0.2, align: 'right', maxLines: 1, motion: m('fade', 0.5) },
+      { role: 'brand', x: 0.56, y: 0.845, w: 0.36, size: 0.08, weight: 700, upper: true, tracking: 0.2, align: 'right', face: 'text', font: 'sans', maxLines: 1, motion: m('fade', 0.5) },
     ],
   },
 
@@ -825,7 +830,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     ],
     slots: [
       { role: 'headline', x: 0.04, y: 0.36, w: 0.42, size: 0.15, weight: 400, align: 'center', font: 'serif', maxLines: 2, balance: true, motion: m('rise', 0.2, 0.8) },
-      { role: 'brand', x: 0.05, y: 0.72, w: 0.4, size: 0.08, weight: 600, upper: true, tracking: 0.12, align: 'center', maxLines: 1, motion: m('fade', 0.6) },
+      { role: 'brand', x: 0.05, y: 0.72, w: 0.4, size: 0.08, weight: 600, upper: true, tracking: 0.12, align: 'center', face: 'text', font: 'sans', maxLines: 1, motion: m('fade', 0.6) },
       { role: 'meta', x: 0.06, y: 0.83, w: 0.38, size: 0.07, align: 'center', tone: 'muted', motion: m('fade', 0.8) },
     ],
   },
@@ -870,7 +875,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     ],
     slots: [
       { role: 'headline', x: 0.35, y: 0.08, w: 0.6, size: 0.26, weight: 700, upper: true, align: 'right', font: 'condensed', maxLines: 2, balance: true, motion: m('mask-up', 0, 0.7) },
-      { role: 'brand', x: 0.05, y: 0.84, w: 0.45, size: 0.08, weight: 700, upper: true, tracking: 0.1, maxLines: 1, motion: m('fade', 0.4) },
+      { role: 'brand', x: 0.05, y: 0.84, w: 0.45, size: 0.08, weight: 700, upper: true, tracking: 0.1, face: 'text', font: 'grotesk', maxLines: 1, motion: m('fade', 0.4) },
       { role: 'contact', x: 0.5, y: 0.84, w: 0.45, size: 0.07, weight: 700, direction: 'row', max: 1, align: 'right', tone: 'accent', icons: [HANDLE], motion: m('fade', 0.6) },
     ],
   },
@@ -907,7 +912,8 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       x: 0, y: 0, w: 1, h: 1,
       focal: [0.3, 0.5],
       fallback: {
-        layers: [{ kind: 'flat', tone: { role: 'ground' } }],
+        // A teal-tinted map, so the navy card reads as a card on it.
+        layers: [{ kind: 'flat', tone: { role: 'ground' } }, { kind: 'flat', tone: { role: 'secondary', alpha: 0.12 } }],
         pattern: { key: 'topography', role: 'secondary', opacity: 0.14, scale: 0.18 },
       },
     },
@@ -918,7 +924,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     slots: [
       { role: 'headline', x: 0.5, y: 0.24, w: 0.42, size: 0.16, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', maxLines: 3, balance: true, motion: m('rise', 0.1, 0.6) },
       { role: 'cta', x: 0.5, y: 0.66, w: 0.42, size: 0.07, weight: 700, upper: true, align: 'right', treatment: 'pill', pillStyle: 'solid', tone: 'accent', maxLines: 1, motion: m('pop', 0.6) },
-      { role: 'brand', x: 0.5, y: 0.78, w: 0.42, size: 0.08, weight: 800, upper: true, tracking: 0.02, align: 'right', maxLines: 1, motion: m('fade', 0.8) },
+      { role: 'brand', x: 0.5, y: 0.78, w: 0.42, size: 0.08, weight: 800, upper: true, tracking: 0.02, align: 'right', face: 'text', font: 'sans', maxLines: 1, motion: m('fade', 0.8) },
     ],
   },
 
@@ -968,7 +974,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     ],
     slots: [
       { role: 'headline', x: 0.05, y: 0.12, w: 0.47, size: 0.17, weight: 400, tracking: -0.01, font: 'editorial', maxLines: 3, balance: true, motion: m('mask-up', 0.2, 0.8) },
-      { role: 'brand', x: 0.55, y: 0.81, w: 0.4, size: 0.08, weight: 700, upper: true, tracking: 0.08, align: 'right', on: 'primary', maxLines: 1, motion: m('fade', 0.8) },
+      { role: 'brand', x: 0.55, y: 0.81, w: 0.4, size: 0.08, weight: 700, upper: true, tracking: 0.08, align: 'right', on: 'primary', face: 'text', font: 'sans', maxLines: 1, motion: m('fade', 0.8) },
     ],
   },
 ];
