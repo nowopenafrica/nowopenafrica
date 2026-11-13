@@ -16,9 +16,11 @@
  * is an estimate in the same units both renderers lay out with.
  */
 import {
-  fitSlotSize, isListRole, lineHeightFor, listRowBoxes, slotBox, typePx, unitOf, wrapEstimate,
-  type DesignTemplate, type SlotRole, type SlotSpec,
+  fitSlotSize, frontShapes, isListRole, lineHeightFor, listRowBoxes, photoMaskShapes, shapeGeometry, slotBox, typePx, unitOf,
+  wrapEstimate,
+  type DesignTemplate, type ShapeSpec, type SlotRole, type SlotSpec,
 } from '../../../designTemplates';
+import type { PaletteRole } from '../../palettes';
 import { iconIndent, rowGlyph } from '../../icons';
 import { sampleRow } from '../../../create/sampleCopy';
 import type { TemplateContent } from '../../../../components/studio/TemplateSurface';
@@ -178,6 +180,95 @@ export function billboardProblems(tpl: DesignTemplate, content: TemplateContent,
   }
   if (words > BILLBOARD_MAX_WORDS) {
     out.push(`${words} words besides the name and one action line, more than ${BILLBOARD_MAX_WORDS}`);
+  }
+  return out;
+}
+
+/* ── S4b, second half: words across a shape's edge ───────────────────── */
+
+const SHAPE_ROLE: Partial<Record<ShapeSpec['tone'], PaletteRole>> = {
+  primary: 'primary', accent: 'primary', secondary: 'secondary', highlight: 'highlight', ink: 'ink', base: 'ground',
+};
+
+/** Is (x, y) inside the shape as drawn? Rings and translucent shapes are not edges anyone reads across. */
+function inside(shape: ShapeSpec, x: number, y: number, w: number, h: number): boolean {
+  const g = shapeGeometry(shape, w, h);
+  if (g.kind === 'rect') return x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h;
+  if (g.kind === 'circle') return (x - g.cx) ** 2 + (y - g.cy) ** 2 <= g.r ** 2;
+  if (g.kind === 'polygon') {
+    let hit = false;
+    for (let i = 0, j = g.points.length - 1; i < g.points.length; j = i, i += 1) {
+      const [xi, yi] = g.points[i];
+      const [xj, yj] = g.points[j];
+      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) hit = !hit;
+    }
+    return hit;
+  }
+  return false;
+}
+
+/**
+ * Text whose ink runs across the edge of an opaque shape it does not say it
+ * sits `on`: half the words on one colour, half on another, or a rule drawn
+ * through them. The ground around a photo box counts as a shape (its edge is
+ * where the photograph starts). The ink box is sampled on a 9 x 5 grid; some
+ * samples inside and some outside is a crossing.
+ */
+export function shapeEdgeCrossings(tpl: DesignTemplate, content: TemplateContent, w: number, h: number): string[] {
+  const out: string[] = [];
+  for (const page of pagesOf(tpl)) {
+    // The panels round a photo box are one ground: only its outline is an edge.
+    const mask = photoMaskShapes(page.template);
+    const groups: ShapeSpec[][] = [
+      ...(mask.length ? [mask] : []),
+      ...frontShapes(page.template).filter((s) => s.kind !== 'ring' && (s.alpha ?? 1) >= 0.5).map((s) => [s]),
+    ];
+    const rects = pageTextRects(tpl, page.name, page.slots, content, w, h);
+    for (const r of rects) {
+      const slot = page.slots.find((s) => `${page.name}.${s.role}` === r.where);
+      if (!slot || r.w <= 0 || r.h <= 0) continue;
+      for (const group of groups) {
+        const shape = group[0];
+        if (SHAPE_ROLE[shape.tone] && SHAPE_ROLE[shape.tone] === (slot.on ?? 'none')) continue;
+        let n = 0;
+        let k = 0;
+        for (let iy = 0; iy < 5; iy += 1) {
+          for (let ix = 0; ix < 9; ix += 1) {
+            n += 1;
+            const px = r.x + (r.w * (ix + 0.5)) / 9;
+            const py = r.y + (r.h * (iy + 0.5)) / 5;
+            if (group.some((g) => inside(g, px, py, w, h))) k += 1;
+          }
+        }
+        if (k > 0 && k < n) {
+          out.push(`${r.where} runs across the edge of a ${shape.tone} ${shape.kind} (${k} of ${n} samples on it)`);
+          break;
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/* ── S13: the Instagram crops (Ruling AN) ────────────────────────────── */
+
+/** The profile grid shows the central 3:4 of a 4:5 post: 0.032 off each side. */
+export const IG_SIDE = 0.032;
+/** The headline and the call to act also clear the old square crop's band. */
+export const IG_TOP = 0.1;
+export const IG_BOTTOM = 0.9;
+
+/** Words outside the crops a 4:5 post is seen through. */
+export function instagramCropProblems(tpl: DesignTemplate, content: TemplateContent, w: number, h: number): string[] {
+  const out: string[] = [];
+  const tol = 0.5;
+  for (const r of textRects(tpl, content, w, h)) {
+    if (r.x < IG_SIDE * w - tol || r.x + r.w > (1 - IG_SIDE) * w + tol) {
+      out.push(`${r.where} reaches outside the 3:4 profile crop`);
+    }
+    if ((r.role === 'headline' || r.role === 'cta') && (r.y < IG_TOP * h - tol || r.y + r.h > IG_BOTTOM * h + tol)) {
+      out.push(`${r.where} reaches outside the square crop band (y ${IG_TOP} to ${IG_BOTTOM})`);
+    }
   }
   return out;
 }

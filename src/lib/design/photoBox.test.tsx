@@ -11,12 +11,12 @@ import { cleanup, render } from '@testing-library/react';
 import { afterEach, describe, expect, it } from 'vitest';
 
 import TemplateSurface from '../../components/studio/TemplateSurface';
-import { balanceLines, drawTemplateFrame } from '../drawTemplate';
+import { balanceLines, drawTemplateFrame, tabularWidth } from '../drawTemplate';
 import {
   coverInBox, fitSlotSize, frontShapes, lineHeightFor, pageTemplate, photoBoxPx, photoMaskShapes, templateByKey, wrapEstimate,
   type DesignTemplate, type SlotSpec,
 } from '../designTemplates';
-import { sampleFor } from '../create/sampleCopy';
+import { isSampleText, sampleFor } from '../create/sampleCopy';
 import { documentFromTemplate, type ShapeObject } from '../studio/designDocument';
 import { describe as describeLayout } from './composition';
 import { resolveLook } from './look';
@@ -116,7 +116,7 @@ describe('the photo box (S2)', () => {
     const rect = calls.slice(0, clipAt).reverse().find((c) => c.op === 'rect');
     expect(rect?.args).toEqual([box.x, box.y, box.w, box.h]);
     const draw = calls.find((c) => c.op === 'drawImage')!;
-    expect(draw.args.slice(1)).toEqual(Object.values(coverInBox(800, 600, box)));
+    expect(draw.args.slice(1)).toEqual(Object.values(coverInBox(800, 600, box, t.photo?.focal)));
   });
 
   it('keeps the window as panels in the editable document, overlapped so no seam opens', () => {
@@ -407,15 +407,18 @@ describe('fix round 1: the no-photo state must show something (S1b)', () => {
 
 describe('fix round 1: the solid pill in the editable document', () => {
   it('is as tall as the words wrap, and sits around them as the DOM pads them', () => {
-    const t = templateByKey('pilot-bb-industry');
+    // bb-industry's call to act, given two lines and a longer line to wrap onto them.
+    const base = templateByKey('pilot-bb-industry');
+    const t: DesignTemplate = { ...base, slots: base.slots.map((x) => (x.role === 'cta' ? { ...x, maxLines: 2 } : x)) };
     const W = 3600;
     const H = 1800;
     const slot = t.slots.find((s) => s.role === 'cta')!;
-    const text = sampleFor(t).cta!;
+    const copy = { ...sampleFor(t), cta: 'Book a pickup in your area today' };
+    const text = copy.cta;
     const px = fitSlotSize(slot, t.slots, text, W, H);
     const lines = wrapEstimate(text, slot, px, W).length;
     expect(lines).toBe(2);
-    const doc = documentFromTemplate(t, sampleFor(t), { width: W, height: H, accent: ACCENT });
+    const doc = documentFromTemplate(t, copy, { width: W, height: H, accent: ACCENT });
     const pill = doc.pages[0].objects.find((o) => o.type === 'shape' && o.name === 'Pill')!;
     const pad = Math.min(W, H) * 0.014;
     expect(pill.h * H).toBeCloseTo(2 * px * lineHeightFor(slot.size) + pad * 1.4, 6);
@@ -468,5 +471,79 @@ describe('fix round 1: focal points and the fallback geometry agree across rende
     const stroke = calls.find((c) => c.op === 'strokeRect')!.args as number[];
     expect(stroke[0]).toBeCloseTo(k.x + k.width / 2, 6);
     expect(stroke[2]).toBeCloseTo(k.w - k.width, 6);
+  });
+});
+
+/* ── Task 18c-2 ──────────────────────────────────────────────────────── */
+
+describe('Task 18c-2: carry-overs', () => {
+  it('asks only whether the brand is a sample brand, so a real name matching a sample headline keeps its initial', () => {
+    expect(isSampleText('Your brand', ['brand'])).toBe(true);
+    // "Now open" is a sample headline (ig-bold), never a sample brand.
+    expect(isSampleText('Now open', ['brand'])).toBe(false);
+    expect(isSampleText('Now open')).toBe(true);
+    const t = templateByKey('pilot-ig-luxury');
+    const roles = resolveLook(t, { accent: ACCENT, width: 1080, height: 1350 }).roles;
+    expect(resolveFallback(t, roles, 1080, 1350, 'Now open')?.monogram?.char).toBe('N');
+  });
+
+  it('counts a fallback shape as drawn only where it reaches the photo box', () => {
+    const t = templateByKey('pilot-bb-contemporary');
+    const outside: DesignTemplate = {
+      ...t,
+      photo: {
+        ...t.photo!,
+        fallback: { layers: [{ kind: 'flat', tone: { role: 'ground' } }], shapes: [{ kind: 'rect', x: 0.1, y: 0.85, w: 0.2, h: 0.1, tone: 'secondary' }] },
+      },
+    };
+    expect(fallbackProblems(outside, 3600, 1800).join()).toMatch(/untreated flat field/);
+    expect(fallbackProblems(t, 3600, 1800)).toEqual([]);
+  });
+
+  it('keeps the editable pill on the page when its slot is flush to an edge', () => {
+    const base = templateByKey('pilot-ig-industry');
+    const flush: DesignTemplate = { ...base, slots: base.slots.map((s) => (s.role === 'cta' ? { ...s, x: 0, align: 'left' as const } : s)) };
+    const doc = documentFromTemplate(flush, sampleFor(base), { width: 1080, height: 1350, accent: ACCENT });
+    const pill = doc.pages[0].objects.find((o) => o.type === 'shape' && o.name === 'Pill')!;
+    expect(pill.x).toBeGreaterThanOrEqual(0);
+    expect(pill.x + pill.w).toBeLessThanOrEqual(1 + 1e-9);
+  });
+});
+
+describe('Task 18c-2: type (S8, S9, S10)', () => {
+  it('sets a named face from the pairing in the DOM and the document (S10)', () => {
+    const t = templateByKey('pilot-card-luxury');
+    const r = resolveLook(t, { accent: ACCENT, width: 1011, height: 638 });
+    // The luxury pairing's accent is mono; the role is set in its text sans instead.
+    expect(r.pairing.accent).toBe('mono');
+    expect(t.slots.find((s) => s.role === 'eyebrow')!.face).toBe('text');
+    const { container } = render(<TemplateSurface template={t} content={sampleFor(t)} width={1011} height={638} accent={ACCENT} />);
+    const el = [...container.querySelectorAll<HTMLElement>('div')].find((d) => d.textContent === sampleFor(t).eyebrow && d.style.fontFamily)!;
+    expect(el.style.fontFamily).toContain('Outfit');
+    const doc = documentFromTemplate(t, sampleFor(t), { width: 1011, height: 638, accent: ACCENT });
+    expect(doc.pages[0].objects.find((o) => o.type === 'text' && o.slotRole === 'eyebrow')).toMatchObject({ font: 'sans' });
+  });
+
+  it('aligns a row list in both renderers (S8)', () => {
+    const t = templateByKey('pilot-bb-contemporary');
+    const { container } = render(<TemplateSurface template={t} content={sampleFor(t)} width={3600} height={1800} accent={ACCENT} />);
+    const row = [...container.querySelectorAll<HTMLElement>('div')].find((d) => d.textContent === '@yourhandle' && d.style.display === 'flex')!;
+    expect(row.style.justifyContent).toBe('flex-end');
+    const { ctx, calls } = recorder();
+    drawTemplateFrame(ctx, t, sampleFor(t), 3600, 1800, { accent: ACCENT });
+    const slot = t.slots.find((s) => s.role === 'contact')!;
+    const words = calls.find((c) => c.op === 'fillText' && c.args[0] === '@yourhandle')!;
+    // measureText is 20 px a character here: the words end on the slot's right edge.
+    expect((words.args[1] as number) + 11 * 20).toBeCloseTo((slot.x + slot.w) * 3600, 6);
+  });
+
+  it('sets figures a zero apart on the canvas, tabular-nums in the DOM (S9)', () => {
+    const t = templateByKey('pilot-ig-industry');
+    const { container } = render(<TemplateSurface template={t} content={sampleFor(t)} width={1080} height={1350} accent={ACCENT} />);
+    const price = [...container.querySelectorAll<HTMLElement>('div')].find((d) => d.textContent?.includes('₦4,500') && d.style.display === 'flex')!;
+    expect(price.style.fontVariantNumeric).toBe('tabular-nums');
+    const ctx = { measureText: (s: string) => ({ width: s === '0' ? 10 : s === '1' ? 4 : s.length * 7 }) } as unknown as CanvasRenderingContext2D;
+    // The naira sign keeps its own width; each 1 takes a zero's.
+    expect(tabularWidth(ctx, '₦11')).toBe(7 + 20);
   });
 });

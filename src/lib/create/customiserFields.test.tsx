@@ -105,7 +105,8 @@ describe('CUSTOMISER_PLATFORM_FIELD', () => {
   );
 
   it('offers every platform on a design with a handle row, and switches the mark it draws', () => {
-    const { container } = open('pilot-card-bold');
+    // The contemporary card shows its handle on the front.
+    const { container } = open('pilot-card-contemporary');
     const select = screen.getByLabelText(CUSTOMISER_PLATFORM_FIELD) as HTMLSelectElement;
     expect([...select.options].map((o) => o.value)).toEqual(PLATFORM_MARKS.map((m) => m.key));
     const mark = () => container.querySelector('[data-export-width] svg[data-icon^="platform:"]')?.getAttribute('data-icon');

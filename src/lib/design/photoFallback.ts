@@ -21,7 +21,7 @@
  * owner's own.
  */
 import {
-  hexAlpha, photoBoxPx, unitOf,
+  hexAlpha, photoBoxPx, shapeGeometry, unitOf,
   type DesignTemplate, type FallbackLayer, type FallbackTone, type PhotoBoxPx, type ShapeSpec,
 } from '../designTemplates';
 import type { PaletteRole } from './palettes';
@@ -48,7 +48,20 @@ export const VISIBLE_ALPHA = 0.05;
 const toneStrong = (t: FallbackTone): boolean => t.role !== 'ground' && (t.alpha ?? 1) >= VISIBLE_ALPHA;
 const layerStrong = (l: FallbackLayer): boolean =>
   (l.kind === 'flat' ? [l.tone] : l.stops).some(toneStrong);
-const shapeStrong = (sh: ShapeSpec): boolean => sh.tone !== 'base' && (sh.alpha ?? 1) >= VISIBLE_ALPHA;
+/** A shape counts only where it shows: visible, not ground-toned, and over the photo box. */
+function shapeStrong(sh: ShapeSpec, box: PhotoBoxPx, w: number, h: number): boolean {
+  if (sh.tone === 'base' || (sh.alpha ?? 1) < VISIBLE_ALPHA) return false;
+  const g = shapeGeometry(sh, w, h);
+  const b = g.kind === 'polygon'
+    ? (() => {
+        const xs = g.points.map((p) => p[0]);
+        const ys = g.points.map((p) => p[1]);
+        return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+      })()
+    : g.kind === 'rect' ? { x0: g.x, y0: g.y, x1: g.x + g.w, y1: g.y + g.h }
+      : { x0: g.cx - g.r, y0: g.cy - g.r, x1: g.cx + g.r, y1: g.cy + g.r };
+  return Math.min(b.x1, box.x + box.w) > Math.max(b.x0, box.x) && Math.min(b.y1, box.y + box.h) > Math.max(b.y0, box.y);
+}
 
 export interface ResolvedFallback {
   box: PhotoBoxPx;
@@ -105,7 +118,7 @@ export function initialOf(name: string | undefined): string {
  * name earns one. The gallery's sample words ("Your brand") draw none.
  */
 export function monogramLetter(name: string | undefined): string {
-  return isSampleText(name) ? '' : initialOf(name);
+  return isSampleText(name, ['brand']) ? '' : initialOf(name);
 }
 
 /**
@@ -163,7 +176,7 @@ export function resolveFallback(
     layers: fb.layers.map((l) => resolveLayer(l, box, roles)),
     pattern,
     shapes: fb.shapes ?? [],
-    shapesStrong: (fb.shapes ?? []).some(shapeStrong),
+    shapesStrong: (fb.shapes ?? []).some((sh) => shapeStrong(sh, box, w, h)),
     keyline,
     monogram,
   };
@@ -182,7 +195,7 @@ export function fallbackLayerCss(l: ResolvedFallbackLayer): string {
  * (S1b). A directed photo-led design must carry a no-photo state, and that
  * state must draw something besides one flat field of ground.
  */
-export function fallbackProblems(tpl: DesignTemplate): string[] {
+export function fallbackProblems(tpl: DesignTemplate, w = 1000, h = 1000): string[] {
   if (!tpl.photoLed || !tpl.direction) return [];
   const fb = tpl.photo?.fallback;
   if (!fb) return ['photo-led with no designed no-photo state: it shows an empty plane when there is no photograph'];
@@ -194,7 +207,7 @@ export function fallbackProblems(tpl: DesignTemplate): string[] {
    */
   const strong = fb.layers.some(layerStrong)
     || (!!fb.pattern && fb.pattern.opacity >= VISIBLE_ALPHA)
-    || (fb.shapes ?? []).some(shapeStrong)
+    || (fb.shapes ?? []).some((sh) => shapeStrong(sh, photoBoxPx(tpl, w, h), w, h))
     || (!!fb.keyline && toneStrong(fb.keyline.tone))
     || (!!fb.monogram && toneStrong(fb.monogram.tone));
   return strong ? [] : ['the no-photo state is an untreated flat field of ground'];

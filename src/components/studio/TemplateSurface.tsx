@@ -395,6 +395,7 @@ function ListSlot({
                 fontSize: size,
                 lineHeight: 1.4,
                 color: tone,
+                fontVariantNumeric: slot.tabular ? 'tabular-nums' : undefined,
               }}
             >
               <span style={{ fontWeight: slot.weight ?? 600, whiteSpace: 'nowrap', textTransform: slot.upper ? 'uppercase' : undefined }}>
@@ -444,6 +445,9 @@ function ListSlot({
               lineHeight: 1.4,
               color: tone,
               textTransform: slot.upper ? 'uppercase' : undefined,
+              // S8: a row list honours its alignment, icon and all.
+              justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : undefined,
+              fontVariantNumeric: slot.tabular ? 'tabular-nums' : undefined,
             }}
           >
             {glyph

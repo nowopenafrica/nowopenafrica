@@ -267,6 +267,20 @@ export interface SlotSpec {
    * it is the only call to act (Task 18c, S7).
    */
   pillStyle?: 'tint' | 'solid';
+  /**
+   * Which face of the look's pairing sets this slot, overriding the rule
+   * (display for headlines and big type, accent for the eyebrow, text for the
+   * rest). Task 18c-2, S10: a mono accent reads as code on a luxury, corporate
+   * or clinic eyebrow, so those name the text face instead. Ignored without a
+   * look.
+   */
+  face?: 'display' | 'text' | 'accent';
+  /**
+   * Figures at one width (S9): font-variant-numeric tabular-nums in the DOM,
+   * and on the canvas each digit set in a cell the width of a zero, so phone
+   * numbers, prices and hours line up down a list.
+   */
+  tabular?: boolean;
 }
 
 // --- decorative geometry -----------------------------------------------------

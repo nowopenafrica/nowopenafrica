@@ -740,7 +740,12 @@ function paintListSlot(
       }
       ctx.font = `800 ${Math.round(size)}px ${family}`;
       ctx.fillStyle = accent;
-      ctx.fillText(priceText, row.x + row.w, baseline);
+      if (slot.tabular) {
+        ctx.textAlign = 'left';
+        fillTabular(ctx, priceText, row.x + row.w - tabularWidth(ctx, priceText), baseline);
+      } else {
+        ctx.fillText(priceText, row.x + row.w, baseline);
+      }
       continue;
     }
 
@@ -756,6 +761,30 @@ function paintListSlot(
      * the row's top: centred on row.y + 0.7 em, where the DOM puts it.
      */
     const glyph = rowGlyph(slot, i, raw ?? '', { platform: content.platform, sample: sampleRow(tpl, slot.role, i) });
+
+    if (align !== 'left' || slot.tabular) {
+      /*
+       * S8/S9: the marker and the words move together to where the alignment
+       * puts them, as the DOM's justified flex line does; tabular figures are
+       * set a zero's width apart. Left-aligned, proportional rows keep the
+       * original path below, call for call.
+       */
+      const indent = glyph ? iconIndent(size) : bulletIndent(slot, size);
+      ctx.font = `${weight} ${Math.round(size)}px ${family}`;
+      const measure = (t: string) => (slot.tabular ? tabularWidth(ctx, t) : ctx.measureText(t).width);
+      const [line] = wrapLines(measure, text, Math.max(0, row.w - indent), 1);
+      const total = indent + measure(line ?? '');
+      const startX = align === 'center' ? row.x + (row.w - total) / 2 : align === 'right' ? row.x + row.w - total : row.x;
+      if (glyph) paintIcon(ctx, glyph, startX, row.y + size * 0.2, size, tone);
+      else paintBullet(ctx, slot, startX, baseline, size, i, accent, family);
+      ctx.font = `${weight} ${Math.round(size)}px ${family}`;
+      ctx.fillStyle = tone;
+      ctx.textAlign = 'left';
+      if (slot.tabular) fillTabular(ctx, line ?? '', startX + indent, baseline);
+      else ctx.fillText(line ?? '', startX + indent, baseline);
+      continue;
+    }
+
     const indent = glyph
       ? paintIcon(ctx, glyph, row.x, row.y + size * 0.2, size, tone)
       : paintBullet(ctx, slot, row.x, baseline, size, i, accent, family);
@@ -766,6 +795,52 @@ function paintListSlot(
     const [line] = wrapLines((t) => ctx.measureText(t).width, text, avail, 1);
     ctx.fillText(line, row.x + indent, baseline);
   }
+}
+
+/** How far paintBullet indents a row's words, without painting. */
+function bulletIndent(slot: SlotSpec, size: number): number {
+  const style = slot.bullet ?? 'none';
+  if (style === 'none') return 0;
+  return size * (style === 'number' ? 1.7 : 0.95);
+}
+
+/*
+ * Tabular figures on a canvas (S9). Canvas 2D has no font-variant-numeric,
+ * so each digit is set centred in a cell the width of a zero: the same
+ * fixed advance tabular-nums gives in the DOM. Everything else keeps its
+ * own advance.
+ */
+const DIGIT = /[0-9]/;
+
+export function tabularWidth(ctx: Pick<CanvasRenderingContext2D, 'measureText'>, text: string): number {
+  const cell = ctx.measureText('0').width;
+  let w = 0;
+  let run = '';
+  for (const ch of text) {
+    if (DIGIT.test(ch)) {
+      if (run) { w += ctx.measureText(run).width; run = ''; }
+      w += cell;
+    } else run += ch;
+  }
+  if (run) w += ctx.measureText(run).width;
+  return w;
+}
+
+/** Left-aligned text from x with tabular figures; textAlign must be 'left'. */
+function fillTabular(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
+  const cell = ctx.measureText('0').width;
+  let cx = x;
+  let run = '';
+  const flush = () => { if (run) { ctx.fillText(run, cx, y); cx += ctx.measureText(run).width; run = ''; } };
+  for (const ch of text) {
+    if (DIGIT.test(ch)) {
+      flush();
+      const dw = ctx.measureText(ch).width;
+      ctx.fillText(ch, cx + (cell - dw) / 2, y);
+      cx += cell;
+    } else run += ch;
+  }
+  flush();
 }
 
 /** Headlines wrap to a few lines; supporting copy stays on one or two. */

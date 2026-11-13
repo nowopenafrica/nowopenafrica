@@ -454,10 +454,13 @@ export function documentFromTemplate(
       const inner = Math.min(slot.w * W, Math.max(0, ...lines));
       const pw = inner + pad * 3.2;
       const ph = n * fittedPx * lineHeightFor(slot.size) + pad * 1.4;
-      const left = slot.align === 'center' ? slot.x * W + (slot.w * W - pw) / 2
+      const rawLeft = slot.align === 'center' ? slot.x * W + (slot.w * W - pw) / 2
         : slot.align === 'right' ? (slot.x + slot.w) * W + pad * 1.6 - pw
           : slot.x * W - pad * 1.6;
-      const top = (slot.fromBottom ? 1 - slot.y : slot.y) * H - pad * 0.7;
+      const rawTop = (slot.fromBottom ? 1 - slot.y : slot.y) * H - pad * 0.7;
+      // A slot flush to the page edge must not push its pill off the page.
+      const left = Math.max(0, Math.min(W - pw, rawLeft));
+      const top = Math.max(0, Math.min(H - ph, rawTop));
       z += 1;
       objects.push({
         id: objectId('s'),

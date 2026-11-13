@@ -55,7 +55,7 @@ export function previewCriticals(tpl: DesignTemplate): CriticalFailure[] {
      * must show its designed no-photo state rather than an empty plane.
      */
     const needsFallback = tpl.photoLed && !!tpl.direction;
-    for (const p of needsFallback ? fallbackProblems(tpl) : []) out.push({ code: 'C6', detail: `no photo: ${p}` });
+    for (const p of needsFallback ? fallbackProblems(tpl, c.w, c.h) : []) out.push({ code: 'C6', detail: `no photo: ${p}` });
     for (const page of pagesOf(styled)) {
       // React logs an uncaught render error before rethrowing it; the throw is what is reported.
       console.error = () => {};

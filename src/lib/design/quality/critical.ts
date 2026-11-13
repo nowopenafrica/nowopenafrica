@@ -25,7 +25,7 @@ import type { AssetManifest } from '../assetManifestTypes';
 import type { TemplateContent } from '../../../components/studio/TemplateSurface';
 import { assetRefs, externalUrls, iconRefs } from './checks/assets';
 import { LONG_BRAND, LONG_HEADLINE, copyFor, pagesOf, placeholderProblems, slotText } from './checks/copy';
-import { billboardProblems, isBillboard, textOverlaps } from './checks/flow';
+import { billboardProblems, instagramCropProblems, isBillboard, shapeEdgeCrossings, textOverlaps } from './checks/flow';
 import { faceProblems, gapsOf } from './checks/glyphs';
 import { initialOf } from '../photoFallback';
 import { iconProblems, iconSetsAllowed, slotIconSets } from './checks/icons';
@@ -184,6 +184,16 @@ function c5(tpl: DesignTemplate, content: TemplateContent): string[] {
     }
     // S4b: words wrapped word by word must not run into each other on any page.
     for (const o of textOverlaps(tpl, copy, w, h)) out.push(`${o} with ${label}`);
+  }
+  /*
+   * S4b: words must not straddle the edge of a shape they are not set on.
+   * Looked templates only: `on` is how a look says which colour a slot
+   * sits on, and the older look-less layouts never declare it.
+   */
+  if (tpl.look) for (const c of shapeEdgeCrossings(tpl, content, w, h)) out.push(c);
+  // S13: a 4:5 post is seen through the 3:4 profile grid (Ruling AN).
+  if (subcategoryFor(tpl)?.key === 'instagram-post') {
+    for (const p of instagramCropProblems(tpl, content, w, h)) out.push(`instagram: ${p}`);
   }
   // S5: a roadside board is read at speed, so it has floors of its own.
   if (isBillboard(subcategoryFor(tpl)?.key)) {

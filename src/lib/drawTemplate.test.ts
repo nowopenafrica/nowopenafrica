@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import { drawTemplateFrame, wrapLines, gradientLine, coverRect, applyDuotone, preloadTemplatePatterns } from './drawTemplate';
-import { DESIGN_TEMPLATES, templateByKey, settleTime, fontStack, hexAlpha, type DesignTemplate } from './designTemplates';
+import { DESIGN_TEMPLATES, templateByKey, pageTemplate, settleTime, fontStack, hexAlpha, type DesignTemplate } from './designTemplates';
 import { resolveLook, type Look } from './design/look';
 import { paletteOf } from './design/palettes';
 import { patternZoneBox } from './design/patterns';
@@ -383,7 +383,8 @@ describe('applyDuotone', () => {
 });
 
 describe('row icons (Task 18b)', () => {
-  const tpl = templateByKey('pilot-card-bold');
+  // The back of the bold card: its contact row leads a phone and a handle (the front keeps one row, Ruling AO).
+  const tpl = pageTemplate(templateByKey('pilot-card-bold'), 1);
   const content = { ...CONTENT, contact: ['Your phone', '@yourhandle'] };
 
   it('indents an icon row the same whether or not the context can draw paths', () => {

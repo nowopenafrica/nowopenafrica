@@ -397,28 +397,29 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
   /*
     ── THE PILOT COLLECTION (pilotTemplates.ts) ───────────────────────────
 
-    Same rule, held harder: these are the designs the founder scores. Every
-    line is a label for what the business writes there. The clinic card and
-    the dish post name what THAT trade puts on them (a booking line, a
-    registration number, opening hours, a price per plate) because that is
-    the layout's job, not a claim about any clinic or kitchen.
+    Founder decision D1 (2026-11-09): on these, the headline, the line and
+    the call to act are FINISHED lines, generic and claim-free ("Now open",
+    "Stay a little longer", "Jollof & grilled fish"), so a design is ready to
+    use with few edits. Names, roles and contact fields stay labels. Nothing
+    names a business, a person, an award, a rating, a date or a guarantee.
+    The clinic hours and the ₦4,500 price are obvious samples (D1).
   */
 
   /* Business cards: the headline is the person, the back carries the house */
-  'pilot-card-luxury': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'What you are known for, in one line.', contact: ['Your phone', 'Your email', 'Your website'] },
+  'pilot-card-luxury': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'By appointment', contact: ['Your phone', 'Your email', 'Your website'] },
   'pilot-card-minimal': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', contact: ['Your phone', 'Your email', 'Your website'] },
   'pilot-card-corporate': {
     brand: 'Your firm',
     eyebrow: 'Your role',
     headline: 'Your name',
-    subline: 'What the firm does, and for whom.',
+    subline: 'How can we help?',
     contact: ['Your phone', 'Your email', 'Your website'],
     services: ['Your first service', 'Your second service', 'Your third service'],
   },
-  'pilot-card-editorial': { brand: 'Your studio', eyebrow: 'Your role', headline: 'Your name', subline: 'The work you are known for.', meta: 'Your website', contact: ['Your phone', 'Your email', 'Your website'] },
-  'pilot-card-bold': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'Your one-line promise', meta: 'Your website', contact: ['Your phone', '@yourhandle'] },
+  'pilot-card-editorial': { brand: 'Your studio', eyebrow: 'Your role', headline: 'Your name', subline: 'Selected work and commissions.', meta: 'Your website', contact: ['Your phone', 'Your email', 'Your website'] },
+  'pilot-card-bold': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'Come say hello', contact: ['Your phone', '@yourhandle'] },
   'pilot-card-contemporary': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', meta: '@yourhandle', contact: ['Your phone', 'Your email', 'Your website'] },
-  'pilot-card-playful': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'What you make, said warmly.', meta: '@yourhandle', contact: ['Your phone', 'Your area'] },
+  'pilot-card-playful': { brand: 'Your business', eyebrow: 'Your role', headline: 'Your name', subline: 'Pop in and say hi!', contact: ['Your phone', '@yourhandle', 'Your area'] },
   'pilot-card-industry': {
     brand: 'Your clinic',
     eyebrow: 'Your specialty',
@@ -426,33 +427,33 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
     contact: ['Your booking line', 'Your address', 'Your website'],
     cta: 'Book an appointment',
     meta: 'Your registration number',
-    services: ['Your days · Your hours', 'Your days · Your hours', 'Out of hours · Your number'],
-    subline: 'Next appointment: date and time',
+    services: ['Monday to Friday · 8am to 6pm', 'Saturday · 9am to 2pm', 'Out of hours · Your number'],
+    subline: 'Next appointment',
   },
 
   /* Instagram posts */
-  'pilot-ig-luxury': { brand: 'Your brand', eyebrow: 'New collection', headline: 'Your collection name', subline: 'One line on what makes it worth seeing.' },
-  'pilot-ig-editorial': { brand: 'Your brand', eyebrow: 'Feature', headline: 'Your feature title', subline: 'One line that makes people read on.' },
-  'pilot-ig-bold': { brand: 'Your brand', eyebrow: 'Big news', headline: 'Your big news', subline: 'The detail people need, in one line.', cta: 'Link in bio' },
-  'pilot-ig-contemporary': { brand: 'Your brand', eyebrow: 'Now booking', headline: 'Your service, in a line', subline: 'Who it is for, and when.', cta: 'Book now' },
+  'pilot-ig-luxury': { brand: 'Your brand', eyebrow: 'Now in', headline: 'The new collection', subline: 'Pieces made to be kept.' },
+  'pilot-ig-editorial': { brand: 'Your brand', eyebrow: 'Feature', headline: 'In the studio', subline: 'A morning with the people behind the work.' },
+  'pilot-ig-bold': { brand: 'Your brand', eyebrow: 'Big news', headline: 'Now open', subline: 'Come and see us this week.', cta: 'Link in bio' },
+  'pilot-ig-contemporary': { brand: 'Your brand', eyebrow: 'Now booking', headline: 'Book your next session', subline: 'Pick a time that suits you.', cta: 'Book now' },
   'pilot-ig-industry': {
     brand: 'Your restaurant',
     eyebrow: 'Special of the day',
-    headline: 'Your dish name',
+    headline: 'Jollof & grilled fish',
     price: [{ label: 'Per plate', price: '₦4,500' }],
-    subline: 'What is in it, in one line.',
+    subline: 'Smoky jollof rice, peppered fish and fried plantain.',
     cta: 'Order now',
     contact: ['Your phone', 'Your area'],
   },
-  'pilot-ig-minimal': { brand: 'Your brand', headline: 'Your one quiet line' },
+  'pilot-ig-minimal': { brand: 'Your brand', headline: 'In good light.' },
 
   /* 48-sheet billboards: a line, a name, at most one thing to do */
-  'pilot-bb-bold': { brand: 'Your brand', headline: 'Your big line', cta: 'Visit today' },
-  'pilot-bb-minimal': { brand: 'Your brand', headline: 'Your one line' },
-  'pilot-bb-luxury': { brand: 'Your hotel', eyebrow: 'Your opening line', headline: 'Your quiet promise', meta: 'Your address' },
-  'pilot-bb-contemporary': { brand: 'Your brand', headline: 'Your campaign line', contact: ['@yourhandle'] },
-  'pilot-bb-industry': { brand: 'Your company', headline: 'Your delivery promise', cta: 'Book a pickup · Your areas' },
-  'pilot-bb-editorial': { brand: 'Your brand', eyebrow: 'Coming this season', headline: 'Your season or show title' },
+  'pilot-bb-bold': { brand: 'Your brand', headline: "Come see what's new", cta: 'Visit today' },
+  'pilot-bb-minimal': { brand: 'Your brand', headline: 'Good things take time.' },
+  'pilot-bb-luxury': { brand: 'Your hotel', headline: 'Stay a little longer', meta: 'Your address' },
+  'pilot-bb-contemporary': { brand: 'Your brand', headline: 'Made for the city', contact: ['@yourhandle'] },
+  'pilot-bb-industry': { brand: 'Your company', headline: 'Door to door, across town', cta: 'Book a pickup' },
+  'pilot-bb-editorial': { brand: 'Your brand', headline: 'A season of new work' },
 };
 
 /**
@@ -487,25 +488,33 @@ export function sampleRow(template: Pick<DesignTemplate, 'key'>, role: string, i
   return typeof v === 'string' ? v : undefined;
 }
 
-let SAMPLE_TEXTS: Set<string> | null = null;
+const SAMPLE_TEXTS = new Map<string, Set<string>>();
 const normText = (s: string): string => s.normalize('NFC').trim().replace(/\s+/g, ' ').toLowerCase();
 
 /**
- * Is this one of the gallery's own sample strings (any role, any template)?
- * The no-photo monogram (Ruling AW) is the owner's initial only once the
- * owner has typed a name: "Your brand" must not become a large "Y".
+ * Is this one of the gallery's own sample strings, in these roles (every
+ * role when none are named), on any template? The no-photo monogram (Ruling
+ * AW) asks about `brand` only: it is the owner's initial once the owner has
+ * typed a name, so "Your brand" draws no "Y", while a real name that happens
+ * to match some sample headline ("Now open") still gets its initial.
  */
-export function isSampleText(text: string | undefined): boolean {
+export function isSampleText(text: string | undefined, roles?: readonly (keyof TemplateContent)[]): boolean {
   if (!text || !text.trim()) return false;
-  if (!SAMPLE_TEXTS) {
-    SAMPLE_TEXTS = new Set<string>();
+  const key = roles ? [...roles].sort().join(',') : '*';
+  let set = SAMPLE_TEXTS.get(key);
+  if (!set) {
+    const found = new Set<string>();
     const add = (v: unknown) => {
-      if (typeof v === 'string') SAMPLE_TEXTS!.add(normText(v));
+      if (typeof v === 'string') found.add(normText(v));
       else if (Array.isArray(v)) v.forEach(add);
       else if (v && typeof v === 'object') Object.values(v).forEach(add);
     };
-    add(BASE_SAMPLE);
-    add(BY_KEY);
+    for (const copy of [BASE_SAMPLE, ...Object.values(BY_KEY)]) {
+      if (!roles) add(copy);
+      else for (const r of roles) add((copy as Record<string, unknown>)[r]);
+    }
+    set = found;
+    SAMPLE_TEXTS.set(key, set);
   }
-  return SAMPLE_TEXTS.has(normText(text));
+  return set.has(normText(text));
 }

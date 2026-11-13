@@ -45,6 +45,8 @@ const base = (patch: Partial<DesignTemplate> = {}): DesignTemplate => ({
 const roomy = (): DesignTemplate => {
   const grow = (s: SlotSpec): SlotSpec => ({
     ...s, size: Math.max(s.size ?? 0.05, 0.045), ...(s.role === 'brand' ? { tracking: 0, w: 0.82 } : {}),
+    // Grown rows step further down: a footer contact list is lifted clear of the foot bar (S4b).
+    ...(s.role === 'contact' && s.fromBottom ? { y: 0.24 } : {}),
   });
   return base({
     slots: card.slots.map(grow),
