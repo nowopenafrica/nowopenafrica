@@ -221,17 +221,18 @@ function PhotoFallbackLayer({
           ))}
         </div>
       )}
-      {fb.keyline && (
+      {fb.keylines.map((k, i) => (
         <div
+          key={`k${i}`}
           data-fallback-keyline=""
-          {...strong(fb.keyline.strong)}
+          {...strong(k.strong)}
           style={{
             position: 'absolute',
-            left: fb.keyline.x - box.x, top: fb.keyline.y - box.y, width: fb.keyline.w, height: fb.keyline.h,
-            border: `${fb.keyline.width}px solid ${fb.keyline.color}`, boxSizing: 'border-box',
+            left: k.x - box.x, top: k.y - box.y, width: k.w, height: k.h,
+            border: `${k.width}px solid ${k.color}`, boxSizing: 'border-box',
           }}
         />
-      )}
+      ))}
       {fb.monogram && (
         <div
           data-fallback-monogram=""

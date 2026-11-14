@@ -13,13 +13,16 @@ import { afterEach, describe, expect, it } from 'vitest';
 import TemplateSurface from '../../components/studio/TemplateSurface';
 import { balanceLines, drawTemplateFrame, tabularWidth } from '../drawTemplate';
 import {
-  coverInBox, fitSlotSize, frontShapes, lineHeightFor, pageTemplate, photoBoxPx, photoMaskShapes, templateByKey, wrapEstimate,
+  DESIGN_TEMPLATES, coverInBox, fitSlotSize, frontShapes, lineHeightFor, listRowBoxes, pageTemplate, photoBoxPx, photoMaskShapes, templateByKey, wrapEstimate,
   type DesignTemplate, type SlotSpec,
 } from '../designTemplates';
 import { isSampleText, sampleFor } from '../create/sampleCopy';
 import { documentFromTemplate, type ShapeObject } from '../studio/designDocument';
 import { describe as describeLayout } from './composition';
-import { resolveLook } from './look';
+import { pairingFace, resolveLook } from './look';
+import { DESIGN_STYLES, applyStyle } from './styles';
+import { pairingOf } from './typefaces';
+import { detailSideTemplate } from '../create/templateDetail';
 import { fallbackProblems, initialOf, resolveFallback } from './photoFallback';
 import { PILOT_TEMPLATES } from './pilotTemplates';
 import { previewPhotoForTemplate } from './previewMedia';
@@ -126,7 +129,8 @@ describe('the photo box (S2)', () => {
     // The left panel reaches past the box edge; the bottom panel past the box foot.
     expect(mask[0]).toMatchObject({ kind: 'rect', x: 0, w: 0.442 });
     const doc = documentFromTemplate(t, sampleFor(t), { width: 1080, height: 1350, accent: ACCENT });
-    const shapes = doc.pages[0].objects.filter((o): o is ShapeObject => o.type === 'shape');
+    // Template geometry only: the solid call to act brings its own pill shape (S7).
+    const shapes = doc.pages[0].objects.filter((o): o is ShapeObject => o.type === 'shape' && o.name !== 'Pill');
     // Four panels, then the blue tile.
     expect(shapes).toHaveLength(5);
     const roles = resolveLook(t, { accent: ACCENT, width: 1080, height: 1350 }).roles;
@@ -465,7 +469,7 @@ describe('fix round 1: focal points and the fallback geometry agree across rende
     expect(mono.style.lineHeight).toBe('1');
     expect(parseFloat(mono.style.fontSize)).toBe(fb.monogram!.sizePx);
     // The keyline: the DOM border sits inside its box; the canvas strokes its centre line half a width in.
-    const k = fb.keyline!;
+    const k = fb.keylines[0];
     expect([line.style.left, line.style.top, line.style.width, line.style.height].map(parseFloat))
       .toEqual([k.x - fb.box.x, k.y - fb.box.y, k.w, k.h]);
     const stroke = calls.find((c) => c.op === 'strokeRect')!.args as number[];
@@ -545,5 +549,74 @@ describe('Task 18c-2: type (S8, S9, S10)', () => {
     const ctx = { measureText: (s: string) => ({ width: s === '0' ? 10 : s === '1' ? 4 : s.length * 7 }) } as unknown as CanvasRenderingContext2D;
     // The naira sign keeps its own width; each 1 takes a zero's.
     expect(tabularWidth(ctx, '₦11')).toBe(7 + 20);
+  });
+});
+
+describe('Task 18c-2 fix round 1', () => {
+  it('draws each detail-page side with its own shapes and the slots it was handed (C)', () => {
+    const t = templateByKey('pilot-card-industry');
+    const front = detailSideTemplate(t, 0, t.slots);
+    const back = detailSideTemplate(t, 1, t.extraPages![0].slots);
+    expect(front.slots).toBe(t.slots);
+    expect(back.slots).toBe(t.extraPages![0].slots);
+    expect(frontShapes(front).some((s) => s.kind === 'rect' && Math.abs(s.h - 0.003) < 1e-9)).toBe(false);
+    expect(frontShapes(back).filter((s) => s.kind === 'rect' && Math.abs(s.h - 0.003) < 1e-9)).toHaveLength(2);
+  });
+
+  it('styles a looked slot to the face its look draws (D)', () => {
+    let n = 0;
+    for (const t of DESIGN_TEMPLATES.filter((x) => x.look)) {
+      const pairing = pairingOf(t.look!.type);
+      for (const style of DESIGN_STYLES) {
+        for (const slot of applyStyle(t, style).slots) {
+          n += 1;
+          expect(slot.font, `${t.key} ${style.key} ${slot.role}`).toBe(pairingFace(slot, pairing));
+        }
+      }
+    }
+    expect(n).toBeGreaterThan(100);
+  });
+
+  it('places right-aligned and tabular rows alike in the DOM and on the canvas (F)', () => {
+    // Right-aligned: the DOM row spans the cell and justifies to its end; the canvas ends the words there.
+    const t = templateByKey('pilot-bb-contemporary');
+    const slot = t.slots.find((s) => s.role === 'contact')!;
+    const cell = listRowBoxes(slot, 3600, 1800, 1)[0];
+    const { container } = render(<TemplateSurface template={t} content={sampleFor(t)} width={3600} height={1800} accent={ACCENT} />);
+    const row = [...container.querySelectorAll<HTMLElement>('div')].find((d) => d.textContent === '@yourhandle' && d.style.display === 'flex')!;
+    expect([parseFloat(row.style.left), parseFloat(row.style.width)]).toEqual([cell.x, cell.w]);
+    expect(row.style.justifyContent).toBe('flex-end');
+    const { ctx, calls } = recorder();
+    drawTemplateFrame(ctx, t, sampleFor(t), 3600, 1800, { accent: ACCENT });
+    const words = calls.find((c) => c.op === 'fillText' && c.args[0] === '@yourhandle')!;
+    expect((words.args[1] as number) + '@yourhandle'.length * 20).toBeCloseTo(cell.x + cell.w, 6);
+
+    // Tabular, left-aligned: digits step a zero's width apart from where the words start.
+    const corp = templateByKey('pilot-card-corporate');
+    const cSlot = corp.slots.find((s) => s.role === 'contact')!;
+    const content = { ...sampleFor(corp), contact: ['Tel 1234', 'Your email', 'Your website'] };
+    const { container: c2 } = render(<TemplateSurface template={corp} content={content} width={1011} height={638} accent={ACCENT} />);
+    const r0 = [...c2.querySelectorAll<HTMLElement>('div')].find((d) => d.textContent === 'Tel 1234' && d.style.display === 'flex')!;
+    expect(r0.style.fontVariantNumeric).toBe('tabular-nums');
+    const box = listRowBoxes(cSlot, 1011, 638, 3)[0];
+    expect(parseFloat(r0.style.left)).toBeCloseTo(box.x, 6);
+    const rec = recorder();
+    drawTemplateFrame(rec.ctx, corp, content, 1011, 638, { accent: ACCENT });
+    const digits = rec.calls.filter((c) => c.op === 'fillText' && /^[0-9]$/.test(String(c.args[0]))).slice(0, 4).map((c) => c.args[1] as number);
+    expect(digits).toHaveLength(4);
+    // measureText is 20 px a character, so a zero's cell is 20 px.
+    expect(digits[1] - digits[0]).toBeCloseTo(20, 6);
+    expect(digits[3] - digits[2]).toBeCloseTo(20, 6);
+  });
+
+  it('gives the quiet no-photo states a designed structure (I)', () => {
+    const lux = templateByKey('pilot-ig-luxury').photo!.fallback!;
+    expect(Array.isArray(lux.keyline) && lux.keyline.length).toBe(2);
+    expect(lux.pattern?.key).toBe('diamond-weave');
+    const min = templateByKey('pilot-ig-minimal').photo!.fallback!;
+    expect(min.keyline).toBeDefined();
+    expect(min.shapes?.length).toBe(1);
+    const { container } = render(<TemplateSurface template={templateByKey('pilot-ig-luxury')} content={sampleFor(templateByKey('pilot-ig-luxury'))} width={1080} height={1350} accent={ACCENT} />);
+    expect(container.querySelectorAll('[data-fallback-keyline]')).toHaveLength(2);
   });
 });

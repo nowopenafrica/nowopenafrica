@@ -141,3 +141,36 @@ describe('Task 18c-2: the Instagram crops (S13, Ruling AN)', () => {
     expect(found).toEqual([]);
   });
 });
+
+describe('Task 18c-2 fix round 1: the edge check (Ruling AX2) and hairlines', () => {
+  const card = templateByKey('pilot-card-bold');
+  const { w, h } = canvasFor(card);
+
+  it('flags a line set on the band that runs off its foot', () => {
+    // The headline is `on: primary`; the band ends at 0.58. At 0.5 its two lines hang below the band.
+    const off: DesignTemplate = { ...card, slots: card.slots.map((s) => (s.role === 'headline' ? { ...s, y: 0.5 } : s)) };
+    expect(shapeEdgeCrossings(off, sampleFor(card), w, h).join('\n'))
+      .toMatch(/front\.headline runs across the primary it is set on/);
+    expect(shapeEdgeCrossings(card, sampleFor(card), w, h)).toEqual([]);
+  });
+
+  it('flags a rule drawn through the words, however thin', () => {
+    const struck: DesignTemplate = {
+      ...card,
+      shapes: [...(card.shapes ?? []), { kind: 'rect', x: 0.05, y: 0.2, w: 0.9, h: 0.004, tone: 'ink' }],
+    };
+    expect(shapeEdgeCrossings(struck, sampleFor(card), w, h).join('\n'))
+      .toMatch(/front\.headline runs across the edge of a ink rect \(a rule through the words\)/);
+  });
+
+  it('counts a pill by its chrome, not just its words', () => {
+    const t = templateByKey('pilot-bb-industry');
+    const r = textRects(t, sampleFor(t), 3600, 1800).find((x) => x.role === 'cta')!;
+    const slot = t.slots.find((s) => s.role === 'cta')!;
+    // The pill starts at the slot's top and is padded beyond the words.
+    expect(r.y).toBeCloseTo(slot.y * 1800, 6);
+    const brand = textRects(t, sampleFor(t), 3600, 1800).find((x) => x.role === 'brand')!;
+    // At least 0.04 of the height clear between the pill and the name (the screenshot finding).
+    expect(brand.y - (r.y + r.h)).toBeGreaterThanOrEqual(0.04 * 1800);
+  });
+});

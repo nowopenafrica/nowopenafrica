@@ -7,14 +7,14 @@ import TemplateCustomiser from '../components/create/TemplateCustomiser';
 import MockupView from '../components/create/MockupView';
 import TemplateFacts from '../components/create/TemplateFacts';
 import { PreviewCard } from '../components/create/TemplateGallery';
-import { defaultMediaScrim, pageTemplate, type DesignTemplate } from '../lib/designTemplates';
+import { defaultMediaScrim, type DesignTemplate } from '../lib/designTemplates';
 import { invalidateCatalogue, useDesignCatalogue } from '../hooks/useDesignCatalogue';
 import { useMockupScenes } from '../hooks/useMockupScenes';
 import { isListed } from '../lib/create/needs';
 import { sampleFor } from '../lib/create/sampleCopy';
 import {
   canvasOf, detailElements, mmText, pxText, relatedTemplates, templateDetailFacts, uneditableTextRoles,
-  mockupScenesFor,
+  mockupScenesFor, detailSideTemplate,
 } from '../lib/create/templateDetail';
 import { cardTitle } from '../lib/design/deliverables';
 import { previewPhotoForTemplate } from '../lib/design/previewMedia';
@@ -294,7 +294,7 @@ function DetailPreview({ template, pages }: {
   return (
     <section aria-label="Preview" className="min-w-0">
       <div className="rounded-2xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800 sm:p-5">
-        <Surface template={styled} slots={pages[side]?.slots ?? styled.slots} tone={tone}
+        <Surface template={styled} index={pages[side] ? side : 0} slots={pages[side]?.slots ?? styled.slots} tone={tone}
           testId="detail-preview" side={pages[side]?.name ?? 'Front'} />
       </div>
 
@@ -324,7 +324,7 @@ function DetailPreview({ template, pages }: {
                   className={`block w-full rounded-xl border bg-white p-2 text-left dark:bg-gray-800 ${
                     side === i ? 'border-green-600 ring-2 ring-green-500' : 'border-gray-200 dark:border-gray-700'
                   }`}>
-                  <Surface template={styled} slots={p.slots} tone={tone} side={p.name} />
+                  <Surface template={styled} index={i} slots={p.slots} tone={tone} side={p.name} />
                   <span className="mt-1 block text-xs font-semibold text-gray-700 dark:text-gray-300">{p.name}</span>
                 </button>
               </li>
@@ -337,8 +337,10 @@ function DetailPreview({ template, pages }: {
 }
 
 /** One side, rendered at a 1080 long edge and scaled to the measured width. */
-function Surface({ template, slots, tone, testId, side }: {
+function Surface({ template, index, slots, tone, testId, side }: {
   template: DesignTemplate;
+  /** Which side: 0 is the front. */
+  index: number;
   slots: DesignTemplate['slots'];
   tone: { accent: string; base: string };
   testId?: string;
@@ -374,8 +376,8 @@ function Surface({ template, slots, tone, testId, side }: {
         <div className="absolute left-0 top-0 origin-top-left"
           style={{ width: page.w, height: page.h, transform: `scale(${scale})` }}>
           <TemplateSurface
-            /* The side as pageTemplate builds it: its slots and that side's shapes (S3). */
-            template={pageTemplate(template, (template.extraPages ?? []).findIndex((p) => p.slots === slots) + 1)}
+            /* The side as pageTemplate builds it (that side's shapes, S3), with the slots this preview was handed. */
+            template={detailSideTemplate(template, index, slots)}
             content={sampleFor(template)}
             width={page.w}
             height={page.h}

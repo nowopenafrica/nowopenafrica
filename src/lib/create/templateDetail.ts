@@ -1,4 +1,4 @@
-import { isListRole, type DesignTemplate, type SlotRole, type SlotSpec } from '../designTemplates';
+import { isListRole, pageTemplate, type DesignTemplate, type SlotRole, type SlotSpec } from '../designTemplates';
 import { formatForTemplate } from '../design/deliverables';
 import { directionOf, type Direction } from '../design/directions';
 import { formatOf, type Format } from '../design/formats';
@@ -23,6 +23,15 @@ export interface DetailPage { name: string; slots: SlotSpec[] }
 
 export function detailPages(tpl: DesignTemplate): DetailPage[] {
   return [{ name: 'Front', slots: tpl.slots }, ...(tpl.extraPages ?? [])];
+}
+
+/**
+ * What the detail page draws for side `index`: that side's shapes (and no
+ * other side's) from pageTemplate, with the slot set the page was handed, so
+ * the front keeps exactly the slots it always showed and every side agrees.
+ */
+export function detailSideTemplate(tpl: DesignTemplate, index: number, slots: SlotSpec[]): DesignTemplate {
+  return { ...pageTemplate(tpl, index), slots };
 }
 
 /** The canvas the design is made on, from the one format registry. */

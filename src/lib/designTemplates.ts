@@ -351,8 +351,11 @@ export interface PhotoFallback {
    */
   monogram?: { font: FontKey; size: number; tone: FallbackTone; weight?: number; cx?: number; cy?: number };
   /** A hairline just inside the box: the mount's bevel. Inset and width in short-edge units. */
-  keyline?: { inset: number; tone: FallbackTone; width?: number };
+  keyline?: FallbackKeyline | FallbackKeyline[];
 }
+
+/** A fine rule just inside the photo box; a list of them draws a double (or triple) mount line. */
+export interface FallbackKeyline { inset: number; tone: FallbackTone; width?: number }
 
 /**
  * Where the photograph goes, in canvas fractions. The photo is drawn clipped

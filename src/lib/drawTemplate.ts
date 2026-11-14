@@ -509,8 +509,7 @@ function paintFallback(
     }
   }
   for (const shape of fb.shapes) paintShape(ctx, shape, w, h, accent, ink, base, roles);
-  if (fb.keyline && typeof ctx.strokeRect === 'function') {
-    const k = fb.keyline;
+  for (const k of typeof ctx.strokeRect === 'function' ? fb.keylines : []) {
     ctx.strokeStyle = k.color;
     ctx.lineWidth = k.width;
     // The DOM draws the border inside its box; a canvas stroke is centred on the path.

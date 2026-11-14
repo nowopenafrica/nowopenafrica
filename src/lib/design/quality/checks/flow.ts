@@ -97,6 +97,23 @@ export function pageTextRects(
     const x = box.textAlign === 'center' ? box.left + (box.width - widest) / 2
       : box.textAlign === 'right' ? box.left + box.width - widest
         : box.left;
+    if (slot.treatment === 'pill' || slot.treatment === 'panel' || slot.treatment === 'outline') {
+      /*
+       * Chrome is ink too: a pill, panel or outline paints its padding, so it
+       * is what must keep clear of its neighbours (TemplateSurface pads
+       * pad x 1.6 at the sides and pad x 0.7 above and below).
+       */
+      const pad = unitOf(w, h) * 0.014;
+      const sx = slot.treatment === 'outline' ? 1.2 : slot.treatment === 'panel' ? 1.4 : 1.6;
+      const sy = slot.treatment === 'outline' ? 0.6 : slot.treatment === 'panel' ? 1 : 0.7;
+      const pw = widest + pad * sx * 2;
+      const ph = height + pad * sy * 2;
+      const px0 = box.textAlign === 'center' ? box.left + (box.width - pw) / 2
+        : box.textAlign === 'right' ? box.left + box.width - pw
+          : box.left;
+      out.push({ where, role: slot.role, x: px0, y: slot.fromBottom ? box.top - ph : box.top, w: pw, h: ph });
+      continue;
+    }
     const y = slot.fromBottom ? box.top - height : box.top;
     // Ink, not leading: half the leading above the first line and below the last is air.
     const air = Math.max(0, (px * (lh - 1)) / 2);
@@ -219,35 +236,80 @@ export function shapeEdgeCrossings(tpl: DesignTemplate, content: TemplateContent
   for (const page of pagesOf(tpl)) {
     // The panels round a photo box are one ground: only its outline is an edge.
     const mask = photoMaskShapes(page.template);
-    const groups: ShapeSpec[][] = [
-      ...(mask.length ? [mask] : []),
-      ...frontShapes(page.template).filter((s) => s.kind !== 'ring' && (s.alpha ?? 1) >= 0.5).map((s) => [s]),
-    ];
+    const solid = frontShapes(page.template).filter((s) => s.kind !== 'ring' && (s.alpha ?? 1) >= 0.5);
     const rects = pageTextRects(tpl, page.name, page.slots, content, w, h);
     for (const r of rects) {
       const slot = page.slots.find((s) => `${page.name}.${s.role}` === r.where);
       if (!slot || r.w <= 0 || r.h <= 0) continue;
-      for (const group of groups) {
-        const shape = group[0];
-        if (SHAPE_ROLE[shape.tone] && SHAPE_ROLE[shape.tone] === (slot.on ?? 'none')) continue;
-        let n = 0;
-        let k = 0;
-        for (let iy = 0; iy < 5; iy += 1) {
-          for (let ix = 0; ix < 9; ix += 1) {
-            n += 1;
-            const px = r.x + (r.w * (ix + 0.5)) / 9;
-            const py = r.y + (r.h * (iy + 0.5)) / 5;
-            if (group.some((g) => inside(g, px, py, w, h))) k += 1;
-          }
-        }
-        if (k > 0 && k < n) {
-          out.push(`${r.where} runs across the edge of a ${shape.tone} ${shape.kind} (${k} of ${n} samples on it)`);
+      const on = slot.on;
+      /*
+       * Ruling AX2. A slot set `on` a role must sit wholly on the union of
+       * that role's shapes: half on the band and half off is a crossing. Any
+       * other shape it must clear or sit wholly inside.
+       */
+      const groups: { label: string; shapes: ShapeSpec[] }[] = [];
+      if (on) {
+        const own = [...(on === 'ground' ? mask : []), ...solid.filter((s) => SHAPE_ROLE[s.tone] === on)];
+        if (own.length) groups.push({ label: `the ${on} it is set on`, shapes: own });
+      }
+      if (mask.length && on !== 'ground') groups.push({ label: 'the edge of the photo box', shapes: mask });
+      for (const s of solid) {
+        if (on && SHAPE_ROLE[s.tone] === on) continue;
+        groups.push({ label: `the edge of a ${s.tone} ${s.kind}`, shapes: [s] });
+      }
+      for (const g of groups) {
+        const crossing = hairlineCrossing(g.shapes, r, w, h) ?? sampledCrossing(g.shapes, r, w, h);
+        if (crossing) {
+          out.push(`${r.where} runs across ${g.label} (${crossing})`);
           break;
         }
       }
     }
   }
   return out;
+}
+
+/** Bounds of a shape as drawn, in pixels. */
+function boundsOf(shape: ShapeSpec, w: number, h: number): { x0: number; y0: number; x1: number; y1: number } {
+  const g = shapeGeometry(shape, w, h);
+  if (g.kind === 'rect') return { x0: g.x, y0: g.y, x1: g.x + g.w, y1: g.y + g.h };
+  if (g.kind === 'circle' || g.kind === 'ring') return { x0: g.cx - g.r, y0: g.cy - g.r, x1: g.cx + g.r, y1: g.cy + g.r };
+  const xs = g.points.map((p) => p[0]);
+  const ys = g.points.map((p) => p[1]);
+  return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
+}
+
+/**
+ * A rule thinner than the sample grid can pass between samples, so a thin
+ * rect or stripe is tested by its bounds: touching the ink box without
+ * containing it is a rule drawn through the words.
+ */
+function hairlineCrossing(shapes: ShapeSpec[], r: TextRect, w: number, h: number): string | null {
+  if (shapes.length !== 1) return null;
+  const s = shapes[0];
+  if (s.kind !== 'rect' && s.kind !== 'stripe') return null;
+  const b = boundsOf(s, w, h);
+  const thin = s.kind === 'rect' ? Math.min(s.w * w, s.h * h) : Math.min(s.w * w, s.h * h);
+  const spacing = Math.min(r.w / 9, r.h / 5);
+  if (thin >= spacing) return null;
+  const meets = Math.min(b.x1, r.x + r.w) > Math.max(b.x0, r.x) && Math.min(b.y1, r.y + r.h) > Math.max(b.y0, r.y);
+  const holds = b.x0 <= r.x && b.y0 <= r.y && b.x1 >= r.x + r.w && b.y1 >= r.y + r.h;
+  return meets && !holds ? 'a rule through the words' : null;
+}
+
+/** Ink box sampled on a 9 x 5 grid: some samples on the shapes and some off is a crossing. */
+function sampledCrossing(shapes: ShapeSpec[], r: TextRect, w: number, h: number): string | null {
+  let n = 0;
+  let k = 0;
+  for (let iy = 0; iy < 5; iy += 1) {
+    for (let ix = 0; ix < 9; ix += 1) {
+      n += 1;
+      const px = r.x + (r.w * (ix + 0.5)) / 9;
+      const py = r.y + (r.h * (iy + 0.5)) / 5;
+      if (shapes.some((g) => inside(g, px, py, w, h))) k += 1;
+    }
+  }
+  return k > 0 && k < n ? `${k} of ${n} samples on it` : null;
 }
 
 /* ── S13: the Instagram crops (Ruling AN) ────────────────────────────── */

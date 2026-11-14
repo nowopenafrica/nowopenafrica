@@ -455,8 +455,8 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
      * of the post, and the duotone carries the plum into the picture so it
      * belongs to the frame. A short lilac hairline belongs to the type stack
      * under the window. With no photograph the window is an embossed mount:
-     * a soft plum glow, a keyline bevel and, once the owner has named the
-     * house, its initial.
+     * a soft plum glow over a fine woven ground, a double keyline (bevel and
+     * inner rule) and, once the owner has named the house, its initial.
      */
     look: { palette: 'plum-mono', type: 'luxury', duotone: ['ground', 'highlight'] },
     photo: {
@@ -466,7 +466,12 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
           { kind: 'flat', tone: { role: 'ground' } },
           { kind: 'radial', cx: 0.5, cy: 0.45, r: 0.75, stops: [{ role: 'primary', alpha: 0.24 }, { role: 'primary', alpha: 0 }] },
         ],
-        keyline: { inset: 0.015, tone: { role: 'highlight', alpha: 0.3 } },
+        // A framed plate: a fine woven ground inside a double keyline, like a mount's bevel and its inner rule.
+        pattern: { key: 'diamond-weave', role: 'highlight', opacity: 0.06, scale: 0.05 },
+        keyline: [
+          { inset: 0.018, tone: { role: 'highlight', alpha: 0.42 }, width: 0.0018 },
+          { inset: 0.034, tone: { role: 'highlight', alpha: 0.22 }, width: 0.0012 },
+        ],
         monogram: { font: 'serif', size: 0.34, tone: { role: 'primary', alpha: 0.55 } },
       },
     },
@@ -611,7 +616,7 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { role: 'eyebrow', x: 0.07, y: 0.56, w: 0.6, size: 0.026, upper: true, tracking: 0.2, tone: 'secondary', font: 'mono', motion: m('fade', 0.2) },
       { role: 'headline', x: 0.07, y: 0.6, w: 0.86, size: 0.1, weight: 700, tracking: -0.03, font: 'grotesk', maxLines: 2, balance: true, motion: m('rise', 0.35, 0.6) },
       { role: 'subline', x: 0.07, y: 0.83, w: 0.56, size: 0.03, tone: 'muted', motion: m('fade', 0.6) },
-      { role: 'cta', x: 0.66, y: 0.83, w: 0.27, size: 0.03, weight: 700, upper: true, treatment: 'pill', tone: 'accent', motion: m('pop', 0.8) },
+      { role: 'cta', x: 0.66, y: 0.83, w: 0.27, size: 0.03, weight: 700, upper: true, treatment: 'pill', pillStyle: 'solid', tone: 'accent', motion: m('pop', 0.8) },
       { role: 'brand', x: 0.07, y: 0.05, w: 0.5, size: 0.026, weight: 700, upper: true, tracking: 0.12, fromBottom: true, maxLines: 1, motion: m('fade', 1) },
     ],
   },
@@ -690,7 +695,8 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
     look: { palette: 'graphite', type: 'modern' },
     /*
      * No photograph: a studio backdrop, seamless paper under one soft light,
-     * with grain. Plainly not a picture, and not an empty plane either.
+     * with grain, held in one fine frame with a single horizon line across
+     * it. Plainly not a picture, and plainly designed.
      */
     photo: {
       x: 0, y: 0, w: 1, h: 1,
@@ -702,6 +708,9 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
           { kind: 'radial', cx: 0.3, cy: 0.25, r: 0.6, stops: [{ role: 'ink', alpha: 0.08 }, { role: 'ink', alpha: 0 }] },
         ],
         pattern: { key: 'grain', role: 'ink', opacity: 0.06, scale: 0.2 },
+        // One fine frame and one horizon: a quiet composition that is plainly drawn, not a missing picture.
+        keyline: { inset: 0.04, tone: { role: 'highlight', alpha: 0.28 }, width: 0.0012 },
+        shapes: [{ kind: 'rect', x: 0.07, y: 0.46, w: 0.86, h: 0.0012, tone: 'highlight', alpha: 0.4 }],
       },
     },
     shapes: [
@@ -922,9 +931,9 @@ export const PILOT_TEMPLATES: DesignTemplate[] = [
       { kind: 'rect', x: 0.84, y: 0.19, w: 0.08, h: 0.012, tone: 'primary' },
     ],
     slots: [
-      { role: 'headline', x: 0.5, y: 0.24, w: 0.42, size: 0.16, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', maxLines: 3, balance: true, motion: m('rise', 0.1, 0.6) },
-      { role: 'cta', x: 0.5, y: 0.66, w: 0.42, size: 0.07, weight: 700, upper: true, align: 'right', treatment: 'pill', pillStyle: 'solid', tone: 'accent', maxLines: 1, motion: m('pop', 0.6) },
-      { role: 'brand', x: 0.5, y: 0.78, w: 0.42, size: 0.08, weight: 800, upper: true, tracking: 0.02, align: 'right', face: 'text', font: 'sans', maxLines: 1, motion: m('fade', 0.8) },
+      { role: 'headline', x: 0.5, y: 0.22, w: 0.42, size: 0.16, weight: 700, tracking: -0.02, align: 'right', font: 'grotesk', maxLines: 3, balance: true, motion: m('rise', 0.1, 0.6) },
+      { role: 'cta', x: 0.5, y: 0.6, w: 0.42, size: 0.07, weight: 700, upper: true, align: 'right', treatment: 'pill', pillStyle: 'solid', tone: 'accent', maxLines: 1, motion: m('pop', 0.6) },
+      { role: 'brand', x: 0.5, y: 0.775, w: 0.42, size: 0.08, weight: 800, upper: true, tracking: 0.02, align: 'right', face: 'text', font: 'sans', maxLines: 1, motion: m('fade', 0.8) },
     ],
   },
 

@@ -22,7 +22,7 @@
  */
 import {
   hexAlpha, photoBoxPx, shapeGeometry, unitOf,
-  type DesignTemplate, type FallbackLayer, type FallbackTone, type PhotoBoxPx, type ShapeSpec,
+  type DesignTemplate, type FallbackKeyline, type FallbackLayer, type FallbackTone, type PhotoFallback, type PhotoBoxPx, type ShapeSpec,
 } from '../designTemplates';
 import type { PaletteRole } from './palettes';
 import { patternSvg } from './patterns';
@@ -72,7 +72,7 @@ export interface ResolvedFallback {
   shapes: ShapeSpec[];
   shapesStrong: boolean;
   /** Canvas pixels. */
-  keyline: { x: number; y: number; w: number; h: number; width: number; color: string; strong: boolean } | null;
+  keylines: { x: number; y: number; w: number; h: number; width: number; color: string; strong: boolean }[];
   /** Canvas pixels; the glyph's em box is centred on (cx, cy). */
   monogram: { char: string; sizePx: number; color: string; family: string; weight: number; cx: number; cy: number; strong: boolean } | null;
 }
@@ -96,6 +96,10 @@ function resolveLayer(l: FallbackLayer, box: PhotoBoxPx, roles: Record<PaletteRo
     stops: evenStops(l.stops, roles),
   };
 }
+
+/** A fallback's keylines as a list (one may be written on its own). */
+const keylinesOf = (fb: PhotoFallback): FallbackKeyline[] =>
+  !fb.keyline ? [] : Array.isArray(fb.keyline) ? fb.keyline : [fb.keyline];
 
 /**
  * The first letter or digit of a business name, in capitals, with any
@@ -146,16 +150,14 @@ export function resolveFallback(
       }
     : null;
 
-  const keyline = fb.keyline
-    ? (() => {
-        const inset = fb.keyline.inset * u;
-        const width = Math.max(1, (fb.keyline.width ?? 0.002) * u);
-        return {
-          x: box.x + inset, y: box.y + inset, w: Math.max(0, box.w - inset * 2), h: Math.max(0, box.h - inset * 2),
-          width, color: toneColour(fb.keyline.tone, roles), strong: toneStrong(fb.keyline.tone),
-        };
-      })()
-    : null;
+  const keylines = keylinesOf(fb).map((k) => {
+    const inset = k.inset * u;
+    const width = Math.max(1, (k.width ?? 0.002) * u);
+    return {
+      x: box.x + inset, y: box.y + inset, w: Math.max(0, box.w - inset * 2), h: Math.max(0, box.h - inset * 2),
+      width, color: toneColour(k.tone, roles), strong: toneStrong(k.tone),
+    };
+  });
 
   const char = fb.monogram ? monogramLetter(brand) : '';
   const monogram = fb.monogram && char
@@ -177,7 +179,7 @@ export function resolveFallback(
     pattern,
     shapes: fb.shapes ?? [],
     shapesStrong: (fb.shapes ?? []).some((sh) => shapeStrong(sh, box, w, h)),
-    keyline,
+    keylines,
     monogram,
   };
 }
@@ -208,7 +210,7 @@ export function fallbackProblems(tpl: DesignTemplate, w = 1000, h = 1000): strin
   const strong = fb.layers.some(layerStrong)
     || (!!fb.pattern && fb.pattern.opacity >= VISIBLE_ALPHA)
     || (fb.shapes ?? []).some((sh) => shapeStrong(sh, photoBoxPx(tpl, w, h), w, h))
-    || (!!fb.keyline && toneStrong(fb.keyline.tone))
+    || keylinesOf(fb).some((k) => toneStrong(k.tone))
     || (!!fb.monogram && toneStrong(fb.monogram.tone));
   return strong ? [] : ['the no-photo state is an untreated flat field of ground'];
 }
