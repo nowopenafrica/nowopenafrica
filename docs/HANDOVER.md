@@ -25,6 +25,22 @@ Detail per workstream: `docs/create-promote-status-2026-11-06.md`, specs in `doc
 | Business Updates (24-hour stories) phases 1–2 | Live (database + dashboard wiring); later phases in its own session |
 | Projects tab (project stories) | Live |
 
+**Instagram gallery auto-fetch (phase 1), 15 Nov: LIVE and committed (its files only).**
+- **Migration and ledger:** `20261118010000_instagram_owner_handle_sync.sql` applied, with its ledger row (245/245, drift clean).
+- **Deploys:** `refresh-instagram-gallery` is v13 (JWT check on) and the site was deployed 15 Nov.
+- **Owner-triggered sync:** when the owner of a claimed business sets or changes its Instagram handle in "Your business story", a trigger queues an `instagram_sync_requests` row and pokes the function. Requests run first (max 3 per run).
+- **Handle ledger rule:** a `not_business` answer blocks re-asking for 24 hours only.
+- **Owner opt-out:** `business_sync_preferences.sync_enabled = false` is respected.
+- **Bug fixed:** the refresh read its pool with `.limit(1000)` and only ever reached 88 of 360 galleried businesses. The pool is now `instagram_gallery_refresh_pool()`, paged, 361 businesses.
+- **First run (16:43 UTC):** asked 15 accounts (13 read, 2 not Business accounts) and added 86 posts to 9 businesses, with 0 duplicates. Accounts ever refreshed went from 88 to 103.
+- **Checks:** `node scripts/check-instagram-owner-sync.mjs` runs 13 checks on live and always rolls back.
+- **Phase 2, "Live on Instagram now" badge: not built.**
+  - Meta's `live_media` needs the business's own login, Advanced Access through App Review, and Business Verification.
+  - `META_APP_ID` is unset.
+  - An Instagram live can never be played on NowOpen: there is no stream and no embed.
+- **Spec:** `docs/instagram/INSTAGRAM_LIVE_AND_GALLERY_SPEC_2026-11-15.md`.
+- **Review sheet:** https://claude.ai/artifact/7rFLcr8ZZ2dWE8GoGZmx53
+
 Database: 233/233 migrations recorded and in sync (`npm run check:drift`, clean on 7 Nov).
 
 ---

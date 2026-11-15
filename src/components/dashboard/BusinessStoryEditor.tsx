@@ -8,6 +8,10 @@ import {
   type Faq, type TeamMember, type Credential,
 } from '../../lib/businessProfile';
 import { SOCIAL_PLATFORMS, socialUrl } from '../../lib/imports/profileFields';
+import {
+  INSTAGRAM_SYNC_NOTE, instagramHandleChanged, ownerSyncApplies, ownerSyncMessage,
+  type SyncRequestRow,
+} from '../../lib/instagramOwnerSync';
 import type { Business } from '../../types';
 
 /**
@@ -149,6 +153,34 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
   const [payments, setPayments] = useState<string[]>(stringList(b.payment_methods));
   const [saving, setSaving] = useState(false);
 
+  /*
+   * Instagram gallery sync (migration 20261118010000). Saving a changed handle
+   * on a claimed business queues a sync in the database; this only shows the
+   * owner how the latest one went. Before that migration is applied the read
+   * fails and nothing is shown, which is the truth: nothing would happen.
+   */
+  const igSyncApplies = ownerSyncApplies(business as unknown as { claim_status?: string | null; user_id?: string | null });
+  const savedInstagram = (() => {
+    const v = (b.social_links as Record<string, unknown> | null | undefined)?.instagram;
+    return typeof v === 'string' ? v : null;
+  })();
+  const [igSync, setIgSync] = useState<SyncRequestRow | null>(null);
+  useEffect(() => {
+    if (!igSyncApplies) return;
+    let cancelled = false;
+    supabase
+      .from('instagram_sync_requests')
+      .select('status, handle, requested_at, processed_at, posts_added, note')
+      .eq('business_id', business.id)
+      .order('requested_at', { ascending: false })
+      .limit(1)
+      .then(({ data, error }) => {
+        if (!cancelled && !error) setIgSync(((data ?? [])[0] as SyncRequestRow | undefined) ?? null);
+      });
+    return () => { cancelled = true; };
+  }, [business.id, igSyncApplies]);
+  const igSyncMessage = ownerSyncMessage(igSync);
+
   // The AI draft panel. `drafted` is what makes the review step visible: the
   // owner should be able to see that these words were suggested, not typed by
   // them, right up until they save.
@@ -272,6 +304,24 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
       return;
     }
     toast.success('Your page has been updated');
+    /*
+     * Say a sync is under way only when the database has actually queued one
+     * (the owner may have switched syncing off, or the migration may not be
+     * applied), never because the handle changed on this screen.
+     */
+    if (igSyncApplies && instagramHandleChanged(savedInstagram, socials.instagram)) {
+      const { data: queued, error: queuedError } = await supabase
+        .from('instagram_sync_requests')
+        .select('status')
+        .eq('business_id', business.id)
+        .in('status', ['pending', 'working'])
+        .limit(1);
+      // The page itself saved; if this read fails we simply make no claim
+      // about Instagram, and the status line shows the truth next time.
+      if (!queuedError && queued && queued.length > 0) {
+        toast.success('We are bringing your latest Instagram posts into your gallery.');
+      }
+    }
     onSaved?.();
     onClose();
   };
@@ -496,6 +546,25 @@ export default function BusinessStoryEditor({ business, onClose, onSaved }: Prop
                       <p className="text-[11px] text-amber-600 dark:text-amber-400 mt-0.5">
                         Not a usable handle or link — this one will be left off.
                       </p>
+                    )}
+                    {platform.key === 'instagram' && igSyncApplies && (
+                      <>
+                        <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-1">{INSTAGRAM_SYNC_NOTE}</p>
+                        {igSyncMessage && (
+                          <p
+                            role="status"
+                            className={`text-[11px] mt-1 ${
+                              igSyncMessage.tone === 'warn'
+                                ? 'text-amber-600 dark:text-amber-400'
+                                : igSyncMessage.tone === 'ok'
+                                  ? 'text-green-700 dark:text-green-400'
+                                  : 'text-blue-700 dark:text-blue-300'
+                            }`}
+                          >
+                            {igSyncMessage.text}
+                          </p>
+                        )}
+                      </>
                     )}
                   </div>
                 );
