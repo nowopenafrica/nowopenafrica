@@ -170,6 +170,34 @@
   font-style: normal;
   font-display: swap;
 }
+@font-face {
+  font-family: 'Jost';
+  src: url('/fonts/studio/jost-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Bodoni Moda';
+  src: url('/fonts/studio/bodoni-moda-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Zilla Slab';
+  src: url('/fonts/studio/zilla-slab-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Cormorant Garamond';
+  src: url('/fonts/studio/cormorant-garamond-600.woff2') format('woff2');
+  font-weight: 600;
+  font-style: normal;
+  font-display: swap;
+}
 
 /* The glyph fallback (GLYPH_FALLBACK in typefaces.ts): Source Sans 3's files
    again, named second in every Studio stack, for the characters a face lacks

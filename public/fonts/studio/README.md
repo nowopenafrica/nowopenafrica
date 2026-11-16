@@ -40,6 +40,14 @@ Glyphs a family does not have upstream are still absent. OpenType features
 kept: kern, liga, mark, mkmk, ccmp, locl, calt, clig, rlig, rvrn (where the
 family has them). Hinting is dropped.
 
+## Added 2026-11-16 (Creative Intelligence Library)
+
+Same commit, same ranges, one display weight each: `jost-600`, `bodoni-moda-600` (opsz pinned to 96), `zilla-slab-700`, `cormorant-garamond-600`.
+Build with `python -I scripts/build-studio-fonts.py <dir> --only jost,bodoni-moda,zilla-slab,cormorant-garamond`.
+None has the naira or cedi sign upstream, so all four use the glyph fallback below.
+
+Measured and not shipped: Unbounded 700 (63.4 KB, over what is left of the 600 KB budget in `typefaces.test.ts`) and Inter 500 (42.8 KB; it would fit, but it draws the letters in `UPSTREAM_GAPS`, so it belongs in a rework of the glyph fallback).
+
 ## The glyph fallback
 
 `src/index.css` declares the Source Sans 3 files a second time, as

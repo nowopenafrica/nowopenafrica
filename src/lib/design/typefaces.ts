@@ -64,6 +64,8 @@ export type TypefaceKey =
   | 'editorial' | 'soft' | 'grotesk' | 'heavy'
   /* The widest coverage we ship (whose files also serve GLYPH_FALLBACK), and a script. */
   | 'humanist' | 'script'
+  /* Added 2026-11-16 for the Creative Intelligence Library: one display weight each. */
+  | 'geometric' | 'didone' | 'slab' | 'oldstyle'
   /*
    * The house face. Already self-hosted in index.css and already used by the
    * brand-card studio — it simply was not offered in the design library, so
@@ -238,6 +240,34 @@ export const TYPEFACES: Typeface[] = [
     voice: 'Lively handwritten script. Invitations, cakes and boutiques; keep it to a few words.',
     licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/dancing-script-400.woff2' },
     source: GOOGLE_FONTS('dancingscript'), glyphFallback: true,
+  },
+  {
+    key: 'geometric', label: 'Jost', family: 'Jost',
+    stack: `Jost, ${COVER}, ${FALLBACK.sans}`, weights: [600], role: 'display',
+    voice: 'Circle-built geometric sans. Bauhaus, Deco and anything that should feel constructed.',
+    licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/jost-600.woff2' },
+    source: GOOGLE_FONTS('jost'), glyphFallback: true,
+  },
+  {
+    key: 'didone', label: 'Bodoni Moda', family: 'Bodoni Moda',
+    stack: `"Bodoni Moda", ${COVER}, ${FALLBACK.serif}`, weights: [600], role: 'display',
+    voice: 'Hairline-contrast display serif. Fashion and fragrance headlines, set large; never small.',
+    licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/bodoni-moda-600.woff2' },
+    source: GOOGLE_FONTS('bodonimoda'), glyphFallback: true,
+  },
+  {
+    key: 'slab', label: 'Zilla Slab', family: 'Zilla Slab',
+    stack: `"Zilla Slab", ${COVER}, ${FALLBACK.serif}`, weights: [700], role: 'display',
+    voice: 'Sturdy slab serif. Trades, posters and labels that should feel built to last.',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/zilla-slab-700.woff2' },
+    source: GOOGLE_FONTS('zillaslab'), glyphFallback: true,
+  },
+  {
+    key: 'oldstyle', label: 'Cormorant Garamond', family: 'Cormorant Garamond',
+    stack: `"Cormorant Garamond", ${COVER}, ${FALLBACK.serif}`, weights: [600], role: 'display',
+    voice: 'Old-style book serif with a light touch. Heritage, bridal and quiet luxury headlines.',
+    licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/cormorant-garamond-600.woff2' },
+    source: GOOGLE_FONTS('cormorantgaramond'), glyphFallback: true,
   },
   {
     key: 'coolvetica', label: 'Coolvetica', family: 'Coolvetica',

@@ -55,6 +55,19 @@ FAMILIES = [
     # holds every face, Coolvetica included.
     ('source-sans-3', 'sourcesans3', 'SourceSans3[wght].ttf', {400: {}, 600: {}, 700: {}}),
     ('dancing-script', 'dancingscript', 'DancingScript[wght].ttf', {400: {}}),
+    # Added 2026-11-16 for the Creative Intelligence Library (pairings.ts FACE_GAPS):
+    # voices the first ten could not produce. One weight each, because the
+    # 600 KB budget in typefaces.test.ts holds every face.
+    ('jost', 'jost', 'Jost[wght].ttf', {600: {}}),
+    ('bodoni-moda', 'bodonimoda', 'BodoniModa[opsz,wght].ttf', {600: {'opsz': 96}}),
+    ('zilla-slab', 'zillaslab', 'ZillaSlab-Bold.ttf', {700: None}),
+    ('cormorant-garamond', 'cormorantgaramond', 'CormorantGaramond[wght].ttf', {600: {}}),
+    # Measured 2026-11-16 and NOT shipped: Unbounded 700 is 63.4 KB, over what
+    # is left of the 600 KB budget. Inter 500 (opsz 14) is 42.8 KB and would
+    # just fit, but it draws the Hausa letters in UPSTREAM_GAPS, so adding it
+    # means reworking the glyph fallback, not just adding a file.
+    #   ('inter', 'inter', 'Inter[opsz,wght].ttf', {500: {'opsz': 14}}),
+    #   ('unbounded', 'unbounded', 'Unbounded[wght].ttf', {700: {}}),
 ]
 
 # What is kept. Glyphs a family does not have are simply absent.
@@ -77,9 +90,11 @@ UNICODES = [
 FEATURES = ['kern', 'liga', 'mark', 'mkmk', 'ccmp', 'locl', 'calt', 'clig', 'rlig', 'rvrn']
 
 
-def fetch(dest):
+def fetch(dest, only=None):
     os.makedirs(dest, exist_ok=True)
     for slug, folder, file, _ in FAMILIES:
+        if only and slug not in only:
+            continue
         for name, out in ((file, file), ('OFL.txt', f'{slug}-OFL.txt')):
             url = f'{RAW}/{folder}/{urllib.request.quote(name)}'
             print('GET', url)
@@ -87,7 +102,7 @@ def fetch(dest):
                 f.write(r.read())
 
 
-def build(src, out_dir, licence_dir):
+def build(src, out_dir, licence_dir, only=None):
     os.makedirs(out_dir, exist_ok=True)
     os.makedirs(licence_dir, exist_ok=True)
     opts = subset.Options()
@@ -104,6 +119,8 @@ def build(src, out_dir, licence_dir):
     opts.with_zopfli = False
 
     for slug, _folder, file, weights in FAMILIES:
+        if only and slug not in only:
+            continue
         for weight, pins in weights.items():
             font = TTFont(os.path.join(src, file))
             if pins is not None and 'fvar' in font:
@@ -124,11 +141,13 @@ def main():
     p.add_argument('src', help='directory holding the upstream TTFs and OFL.txt files')
     p.add_argument('--fetch', action='store_true', help='download into src instead of building')
     p.add_argument('--out', default='public/fonts/studio')
+    p.add_argument('--only', default='', help='comma-separated slugs: fetch or build just these families')
     a = p.parse_args()
+    only = set(filter(None, a.only.split(','))) or None
     if a.fetch:
-        fetch(a.src)
+        fetch(a.src, only)
     else:
-        build(a.src, a.out, os.path.join(a.out, 'licences'))
+        build(a.src, a.out, os.path.join(a.out, 'licences'), only)
 
 
 if __name__ == '__main__':
