@@ -9,10 +9,7 @@ export function packageDocs(templates: BankTemplate[], manifest: BankManifest): 
   const groups = DIVISIONS
     .map((d) => ({ ...d, items: templates.filter((t) => t.division === d.key) }))
     .filter((d) => d.items.length);
-  const avg = templates.length
-    ? (templates.reduce((sum, t) => sum + t.quality.total, 0) / templates.length).toFixed(1)
-    : '0';
-  const reviewers = [...new Set(templates.map((t) => t.quality.reviewer))];
+  const scored = templates.filter((t) => t.quality);
 
   const readme = `# ${manifest.name}
 
@@ -52,18 +49,24 @@ output is RGB with no bleed or crop marks.
 
 ${groups.map((d) => `## ${d.key.slice(0, 2)} · ${d.label} (${d.items.length})
 
-| ID | Template | Category | Style | Formats | Score |
-|---|---|---|---|---|---|
-${d.items.map((t) => `| ${t.id} | ${t.name} | ${t.category} — ${t.subcategory} | ${t.designStyle} | ${t.formats.join(', ')} | ${t.quality.total} |`).join('\n')}
+| ID | Template | Category | Style | Formats |
+|---|---|---|---|---|
+${d.items.map((t) => `| ${t.id} | ${t.name} | ${t.category} — ${t.subcategory} | ${t.designStyle} | ${t.formats.join(', ')} |`).join('\n')}
 `).join('\n')}`;
 
   const criteria = Object.entries(QUALITY_CRITERIA).map(([k, max]) => `${k} ${max}`).join(', ');
   const qa = `# Quality assurance report
 
 - Templates in this package: ${templates.length}
-- Average score: ${avg} / 100 (minimum to enter the bank: ${MIN_QUALITY_SCORE})
-- Scored by: ${reviewers.join('; ')}
+- Templates carrying a claimed score: ${scored.length}
+- Score needed to publish: ${MIN_QUALITY_SCORE} / 100, recorded by a reviewer in admin
 - Rubric: ${criteria}
+
+## Status
+
+${scored.length ? 'Scores in this package are claims by the package author. They are shown in admin as provisional and do not count towards publishing.' : 'No template in this package has been scored. Nothing here has passed design review.'}
+Every template imports as pending and stays unpublished until a reviewer records a
+score of ${MIN_QUALITY_SCORE} or more against it.
 
 ## What was checked by machine
 
@@ -72,22 +75,19 @@ A3 and a 240px thumbnail): a headline exists, no slot or list leaves the canvas,
 solid shape covers the headline, type never rounds to nothing, motion settles within
 the limit, and the template carries enough tags to be found.
 
+The gate does not measure text. It cannot tell that a long headline collides with
+the line beneath it, or that a line was cut short with an ellipsis.
+
 ## What was checked by eye
 
-Every template was rendered through the product's canvas renderer and inspected in
-its recommended style, in all built-in styles, and at story, landscape and A4 sizes.
+Every template was rendered through the product's canvas renderer in its recommended
+style and looked at by its author. That is the author reviewing their own work.
 
-## What was not done
+## Templates
 
-The scores are the author's own. They are not an independent design review, and the
-"imagery" criterion is scored on how well the layout carries a photograph the
-customer supplies, because the package ships no photography.
-
-## Scores
-
-| ID | Template | Total |
+| ID | Template | Claimed score |
 |---|---|---|
-${templates.map((t) => `| ${t.id} | ${t.name} | ${t.quality.total} |`).join('\n')}
+${templates.map((t) => `| ${t.id} | ${t.name} | ${t.quality ? `${t.quality.total} (${t.quality.reviewer})` : 'none'} |`).join('\n')}
 `;
 
   const licences = `# Licences and assets

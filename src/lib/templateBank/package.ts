@@ -46,12 +46,18 @@ export const QUALITY_CRITERIA = {
 
 export type QualityCriterion = keyof typeof QUALITY_CRITERIA;
 
-/** Below this a template is rejected at import, whatever else is right with it. */
+/**
+ * The score a reviewer must record before a template can be published.
+ *
+ * Enforced at publish, in the database, against the score a reviewer enters in
+ * admin. A score carried inside a package is the author's claim about their
+ * own work and is shown as such; it never opens the gate.
+ */
 export const MIN_QUALITY_SCORE = 80;
 
 export interface QualityScore extends Record<QualityCriterion, number> {
   total: number;
-  /** Who scored it. An author's own score is not an independent review. */
+  /** Who scored it. */
   reviewer: string;
 }
 
@@ -78,7 +84,8 @@ export interface BankTemplate {
   tags: string[];
   difficulty: 'simple' | 'standard' | 'advanced';
   licence: string;
-  quality: QualityScore;
+  /** A score claimed by the package. Provisional: only a review recorded in admin counts. */
+  quality?: QualityScore;
   /** The built-in style this layout was art-directed in. Any style still applies. */
   recommendedStyle: string;
   /** Brand colour the preview was rendered in. */
@@ -329,12 +336,8 @@ function checkTemplate(raw: unknown, entry: ManifestEntry): { template?: BankTem
     : (errors.push('previewAccent: must be a 6-digit hex colour'), '#2563eb');
   const sample = checkSample(raw.sample, errors);
 
-  const quality = checkQuality(raw.quality, errors);
-  if (quality && quality.total < MIN_QUALITY_SCORE) {
-    errors.push(`quality: scores ${quality.total}, below the minimum of ${MIN_QUALITY_SCORE}`);
-  } else if (quality && quality.total < 90) {
-    warnings.push(`Scores ${quality.total}. The library target is 90 and above.`);
-  }
+  const quality = raw.quality === undefined ? undefined : checkQuality(raw.quality, errors);
+  if (quality) warnings.push(`Carries a claimed score of ${quality.total} from "${quality.reviewer}". It is not a review of record.`);
 
   const parsed = parseTemplate(raw.definition);
   if (!parsed.ok) {
@@ -348,14 +351,13 @@ function checkTemplate(raw: unknown, entry: ManifestEntry): { template?: BankTem
   const missingIndustries = industries.filter((g) => !(definition.industries ?? []).includes(g));
   if (missingIndustries.length) warnings.push('industries differ between the metadata and the layout definition');
 
-  if (!quality) return { errors, warnings };
   return {
     errors, warnings,
     template: {
       id: entry.id, key: entry.key, version: entry.version, name, division: entry.division,
       category, subcategory, industries, designStyle, concept, description, formats, dimensions,
       aspectRatio, medium, typography, palette, imageRequirements, tags, difficulty, licence,
-      quality, recommendedStyle, previewAccent, sample, definition,
+      ...(quality ? { quality } : {}), recommendedStyle, previewAccent, sample, definition,
     },
   };
 }

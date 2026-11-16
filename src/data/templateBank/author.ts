@@ -3,23 +3,22 @@ import { typefaceOf, type TypefaceKey } from '../../lib/design/typefaces';
 import { pairingOf } from '../../lib/design/typefaces';
 import { styleOf } from '../../lib/design/styles';
 import { DESIGN_FORMATS } from '../studioPresets';
-import {
-  DIVISIONS, QUALITY_CRITERIA, type BankSample, type BankTemplate, type DivisionKey, type QualityCriterion,
-} from '../../lib/templateBank/package';
+import { DIVISIONS, type BankSample, type BankTemplate, type DivisionKey } from '../../lib/templateBank/package';
 
 /**
  * Authoring helper for the official Template Bank.
  *
  * A bank entry is written as the layout plus the decisions only a person can
- * make (concept, sample copy, score). Everything that can be derived from the
+ * make (concept, sample copy). Everything that can be derived from the
  * layout — id, typography list, dimensions, aspect ratio — is derived, so the
  * metadata cannot drift from the definition it describes.
+ *
+ * There is deliberately no score here. The bank's quality gate is a reviewer's
+ * score recorded in admin; an author scoring their own layouts is not that.
  */
 
 export const BANK_LICENCE =
   'Original layout by NowOpen Africa. Typefaces are SIL OFL 1.1, self-hosted. Contains no third-party imagery.';
-
-export const BANK_REVIEWER = 'Author self-assessment — not yet independently reviewed';
 
 export interface Draft {
   n: number;
@@ -35,8 +34,6 @@ export interface Draft {
   imagery: string;
   style: string;
   accent: string;
-  /** Rubric order: originality, art direction, typography, composition, imagery, colour, adaptability, commercial, technical. */
-  score: [number, number, number, number, number, number, number, number, number];
   sample: BankSample;
   definition: DesignTemplate;
 }
@@ -53,9 +50,6 @@ export function entry(d: Draft): BankTemplate {
   const faces: TypefaceKey[] = [pairing.display, pairing.text, pairing.accent];
   const typography = [...new Set(faces.map((k) => typefaceOf(k).family))];
 
-  const names = Object.keys(QUALITY_CRITERIA) as QualityCriterion[];
-  const parts = Object.fromEntries(names.map((name, i) => [name, d.score[i]])) as Record<QualityCriterion, number>;
-  const total = d.score.reduce((a, b) => a + b, 0);
   const g = gcd(format.w, format.h);
 
   return {
@@ -80,7 +74,6 @@ export function entry(d: Draft): BankTemplate {
     tags: d.definition.tags ?? [],
     difficulty: d.difficulty,
     licence: BANK_LICENCE,
-    quality: { ...parts, total, reviewer: BANK_REVIEWER },
     recommendedStyle: d.style,
     previewAccent: d.accent,
     sample: d.sample,

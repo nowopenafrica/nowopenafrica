@@ -10,7 +10,6 @@ export const SOCIAL = [
     concept: 'A departure board. The announcement is set like a timetable: one rule, one column, nothing centred.',
     description: 'Left-aligned announcement on a hairline grid with a pinned footer.',
     formats: ['instagram-post', 'square', 'story'], medium: 'digital', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [13, 13, 14, 14, 8, 9, 10, 4, 5],
     sample: { ...YOU, eyebrow: 'Notice 04', headline: 'New opening hours from Monday', subline: 'Weekdays 8 till 8. Saturdays 9 till 6. Closed Sundays.', cta: 'See the full week' },
     definition: {
       key: 'bank-timetable', label: 'Timetable', desc: 'Departure-board announcement on a hairline grid',
@@ -24,7 +23,7 @@ export const SOCIAL = [
       slots: [
         { role: 'brand', x: 0.08, y: 0.09, w: 0.5, size: 0.03, weight: 700, motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.6, y: 0.095, w: 0.32, size: 0.022, align: 'right', upper: true, tracking: 0.2, font: 'mono', tone: 'muted', motion: mo('fade', 0.1, 0.4) },
-        { role: 'headline', x: 0.08, y: 0.26, w: 0.8, size: 0.098, weight: 700, tracking: -0.03, motion: mo('mask-up', 0.3, 0.7) },
+        { role: 'headline', x: 0.08, y: 0.26, w: 0.8, size: 0.086, weight: 700, tracking: -0.03, motion: mo('mask-up', 0.3, 0.7) },
         { role: 'subline', x: 0.08, y: 0.62, w: 0.6, size: 0.034, tone: 'muted', motion: mo('rise', 0.8) },
         { role: 'cta', x: 0.08, y: 0.11, w: 0.45, size: 0.026, weight: 700, treatment: 'underline', fromBottom: true, motion: mo('fade', 1.1, 0.4) },
         { role: 'meta', x: 0.5, y: 0.105, w: 0.42, size: 0.02, align: 'right', font: 'mono', tone: 'muted', fromBottom: true, motion: mo('fade', 1.2, 0.4) },
@@ -37,8 +36,7 @@ export const SOCIAL = [
     concept: 'A ruler. A solid rail down the left edge measures the page, and the numbers hang off it.',
     description: 'Accent rail, a short headline and a row of proof numbers.',
     formats: ['instagram-post', 'linkedin-post', 'square'], medium: 'digital', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [13, 13, 13, 14, 8, 9, 10, 5, 5],
-    sample: { ...YOU, eyebrow: 'Five years in', headline: 'Thank you for every order', subline: 'A short line about what the milestone means to the people who made it happen.', stats: [{ value: '5', label: 'Years open' }, { value: '12k', label: 'Orders' }, { value: '4.8', label: 'Rating' }] },
+    sample: { ...YOU, eyebrow: 'Five years in', headline: 'Thank you for every order', subline: 'What the milestone means, in one line.', stats: [{ value: '5', label: 'Years open' }, { value: '12k', label: 'Orders' }, { value: '4.8', label: 'Rating' }] },
     definition: {
       key: 'bank-rail', label: 'Rail', desc: 'Solid side rail, headline and a strip of numbers',
       use: 'marketing', industries: ['Professional Services', 'Logistics & Mobility', 'Retail & Commerce'],
@@ -51,8 +49,8 @@ export const SOCIAL = [
       slots: [
         { role: 'brand', x: 0.12, y: 0.09, w: 0.5, size: 0.028, weight: 700, motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.12, y: 0.2, w: 0.6, size: 0.024, upper: true, tracking: 0.24, tone: 'accent', motion: mo('slide-right', 0.15) },
-        { role: 'headline', x: 0.12, y: 0.26, w: 0.78, size: 0.1, weight: 800, tracking: -0.03, motion: mo('slide-right', 0.3, 0.7) },
-        { role: 'subline', x: 0.12, y: 0.57, w: 0.66, size: 0.03, tone: 'muted', motion: mo('fade', 0.8) },
+        { role: 'headline', x: 0.12, y: 0.26, w: 0.78, size: 0.086, weight: 800, tracking: -0.03, motion: mo('slide-right', 0.3, 0.7) },
+        { role: 'subline', x: 0.12, y: 0.585, w: 0.66, size: 0.03, tone: 'muted', motion: mo('fade', 0.8) },
         { role: 'stats', x: 0.12, y: 0.25, w: 0.8, size: 0.04, direction: 'row', max: 3, fromBottom: true, motion: mo('rise', 1.0, 0.6) },
       ],
     },
@@ -63,7 +61,6 @@ export const SOCIAL = [
     concept: 'Sunrise. A disc lifts over the bottom edge of the frame; the news sits in the clear sky above it.',
     description: 'Centred launch post over a rising disc.',
     formats: ['instagram-post', 'story', 'square'], medium: 'digital', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [14, 14, 13, 14, 8, 9, 9, 4, 5],
     sample: { ...YOU, eyebrow: 'New this week', headline: 'The new season is here', subline: 'One line on what has arrived and why it is worth a look.', cta: 'See what is new' },
     definition: {
       key: 'bank-sunrise', label: 'Sunrise', desc: 'Centred news above a disc rising from the base',
@@ -79,9 +76,9 @@ export const SOCIAL = [
       slots: [
         { role: 'brand', x: 0.2, y: 0.08, w: 0.6, size: 0.028, weight: 700, align: 'center', motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.2, y: 0.17, w: 0.6, size: 0.022, align: 'center', upper: true, tracking: 0.28, tone: 'accent', motion: mo('fade', 0.2) },
-        { role: 'headline', x: 0.1, y: 0.23, w: 0.8, size: 0.094, weight: 800, align: 'center', tracking: -0.03, motion: mo('rise', 0.35, 0.7) },
-        { role: 'subline', x: 0.2, y: 0.45, w: 0.6, size: 0.03, align: 'center', tone: 'muted', motion: mo('fade', 0.85) },
-        { role: 'cta', x: 0.3, y: 0.555, w: 0.4, size: 0.026, weight: 700, align: 'center', treatment: 'pill', motion: mo('pop', 1.1, 0.45) },
+        { role: 'headline', x: 0.1, y: 0.22, w: 0.8, size: 0.08, weight: 800, align: 'center', tracking: -0.03, motion: mo('rise', 0.35, 0.7) },
+        { role: 'subline', x: 0.2, y: 0.49, w: 0.6, size: 0.03, align: 'center', tone: 'muted', motion: mo('fade', 0.85) },
+        { role: 'cta', x: 0.3, y: 0.6, w: 0.4, size: 0.026, weight: 700, align: 'center', treatment: 'pill', motion: mo('pop', 1.1, 0.45) },
       ],
     },
   }),
@@ -91,7 +88,6 @@ export const SOCIAL = [
     concept: 'The number is the cover. A count set as large as the frame allows, with the promise tucked under it.',
     description: 'Carousel or list-post cover built around one enormous numeral.',
     formats: ['instagram-post', 'story', 'pinterest'], medium: 'digital', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [14, 13, 14, 13, 7, 9, 9, 5, 5],
     sample: { ...YOU, eyebrow: '05', headline: 'Ways to make your stock last longer', subline: 'Save this for later.', cta: 'Swipe' },
     definition: {
       key: 'bank-big-count', label: 'Big Count', desc: 'One enormous numeral with the promise beneath it',
@@ -115,7 +111,6 @@ export const SOCIAL = [
     concept: 'Hazard tape. Two hard bands cross the frame at an angle, and the offer shouts from the gap above them.',
     description: 'Angled warning bands with the discount set huge.',
     formats: ['instagram-post', 'story', 'square'], medium: 'digital', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [13, 13, 13, 13, 7, 9, 9, 5, 5],
     sample: { ...YOU, eyebrow: 'Three days only', headline: '40% off this weekend', subline: 'Friday to Sunday, in store and online.', cta: 'Shop the sale' },
     definition: {
       key: 'bank-hazard', label: 'Hazard Tape', desc: 'Two angled bands under a huge offer',
@@ -142,7 +137,6 @@ export const SOCIAL = [
     description: 'Narrow text column beside a tall rounded panel.',
     formats: ['instagram-post', 'story', 'a4'], medium: 'both', difficulty: 'standard',
     imagery: 'None required. Works well with a warm, softly lit photograph behind it.',
-    score: [14, 14, 13, 14, 8, 9, 9, 4, 5],
     sample: { ...YOU, eyebrow: 'Made by hand', headline: 'Come in, we are open', subline: 'A line about the craft behind the door.', cta: 'Visit us' },
     definition: {
       key: 'bank-doorway', label: 'Doorway', desc: 'Text column beside a tall capsule of colour',
@@ -170,8 +164,7 @@ export const SOCIAL = [
     concept: 'A page from a book. The customer’s words are set as body text with a wide margin and a single marginal rule.',
     description: 'Long-form quote with a margin rule, attribution and rating.',
     formats: ['instagram-post', 'linkedin-post', 'story'], medium: 'digital', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [13, 13, 14, 14, 7, 9, 10, 4, 5],
-    sample: { ...YOU, eyebrow: 'What customers say', headline: 'They fixed in a day what others quoted a week for.', subline: 'Customer name, where they are from', stats: [{ value: '4.9', label: 'Average rating' }, { value: '320', label: 'Reviews' }] },
+    sample: { ...YOU, eyebrow: 'What customers say', headline: 'Fixed in a day. Others quoted a week.', subline: 'Customer name, where they are from', stats: [{ value: '4.9', label: 'Average rating' }, { value: '320', label: 'Reviews' }] },
     definition: {
       key: 'bank-margin-note', label: 'Margin Note', desc: 'A customer quote set like a book page',
       use: 'marketing', styles: ['editorial', 'elegant', 'minimal'], tags: ['testimonial', 'review', 'quote', 'customer', 'rating', 'feedback'],
@@ -182,7 +175,7 @@ export const SOCIAL = [
       ],
       slots: [
         { role: 'eyebrow', x: 0.26, y: 0.2, w: 0.6, size: 0.02, upper: true, tracking: 0.26, tone: 'accent', font: 'mono', motion: mo('fade', 0, 0.4) },
-        { role: 'headline', x: 0.26, y: 0.27, w: 0.64, size: 0.066, weight: 400, tracking: -0.01, motion: mo('blur', 0.25, 0.9) },
+        { role: 'headline', x: 0.26, y: 0.27, w: 0.68, size: 0.06, weight: 400, tracking: -0.01, motion: mo('blur', 0.25, 0.9) },
         { role: 'subline', x: 0.26, y: 0.62, w: 0.6, size: 0.026, tone: 'muted', motion: mo('fade', 0.9) },
         { role: 'stats', x: 0.26, y: 0.22, w: 0.5, size: 0.032, direction: 'row', max: 2, fromBottom: true, motion: mo('rise', 1.1) },
         { role: 'brand', x: 0.06, y: 0.07, w: 0.5, size: 0.024, weight: 700, fromBottom: true, motion: mo('fade', 1.3, 0.4) },
@@ -196,7 +189,6 @@ export const SOCIAL = [
     description: 'Short priced list under a hand-set heading, thumb-safe for stories.',
     formats: ['instagram-post', 'story', 'a4'], medium: 'both', difficulty: 'standard',
     imagery: 'Optional. A top-down food or product photograph, darkened by the scrim.',
-    score: [12, 13, 13, 13, 8, 9, 10, 5, 5],
     sample: { ...YOU, eyebrow: 'Today only', headline: 'On the board', price: [{ label: 'Your first special', price: '₦2,500' }, { label: 'Your second special', price: '₦3,800' }, { label: 'Your third special', price: '₦4,200', was: '₦5,000' }], cta: 'Order on WhatsApp' },
     definition: {
       key: 'bank-chalkboard', label: 'Chalkboard', desc: 'Three priced lines under a short heading',
@@ -211,7 +203,7 @@ export const SOCIAL = [
       slots: [
         { role: 'brand', x: 0.1, y: 0.1, w: 0.5, size: 0.026, weight: 700, motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.1, y: 0.2, w: 0.5, size: 0.022, upper: true, tracking: 0.24, tone: 'accent', motion: mo('fade', 0.15) },
-        { role: 'headline', x: 0.1, y: 0.25, w: 0.72, size: 0.11, weight: 600, tracking: -0.02, motion: mo('rise', 0.3, 0.7) },
+        { role: 'headline', x: 0.1, y: 0.25, w: 0.8, size: 0.084, weight: 600, tracking: -0.02, motion: mo('rise', 0.3, 0.7) },
         { role: 'price', x: 0.1, y: 0.475, w: 0.8, size: 0.042, weight: 600, gap: 2.3, max: 3, motion: mo('fade', 0.8, 0.6) },
         { role: 'cta', x: 0.1, y: 0.12, w: 0.52, size: 0.027, weight: 700, treatment: 'pill', tone: 'accent', fromBottom: true, motion: mo('pop', 1.3, 0.45) },
       ],
@@ -223,8 +215,7 @@ export const SOCIAL = [
     concept: 'An index card. A heading across the top edge and a short checked list, the way a useful note is actually written.',
     description: 'Headed checklist on a card with a tab.',
     formats: ['instagram-post', 'linkedin-post', 'a4'], medium: 'both', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [12, 12, 13, 14, 7, 9, 10, 5, 5],
-    sample: { ...YOU, eyebrow: 'Quick guide', headline: 'Before you book, check these', services: ['Your first point to check', 'Your second point to check', 'Your third point to check', 'And the one people forget'], cta: 'Save for later' },
+    sample: { ...YOU, eyebrow: 'Quick guide', headline: 'Check these before you book', services: ['Your first point to check', 'Your second point to check', 'Your third point to check', 'And the one people forget'], cta: 'Save for later' },
     definition: {
       key: 'bank-index-card', label: 'Index Card', desc: 'A headed checklist on a tabbed card',
       use: 'social', industries: ['Professional Services', 'Health & Wellness', 'Education & Community', 'Trades & Industry'],
@@ -238,7 +229,7 @@ export const SOCIAL = [
       slots: [
         { role: 'brand', x: 0.06, y: 0.06, w: 0.5, size: 0.026, weight: 700, motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.09, y: 0.155, w: 0.26, size: 0.019, upper: true, tracking: 0.2, font: 'mono', motion: mo('fade', 0.1, 0.4) },
-        { role: 'headline', x: 0.11, y: 0.25, w: 0.76, size: 0.074, weight: 700, tracking: -0.025, motion: mo('rise', 0.25, 0.6) },
+        { role: 'headline', x: 0.11, y: 0.25, w: 0.76, size: 0.066, weight: 700, tracking: -0.025, motion: mo('rise', 0.25, 0.6) },
         { role: 'services', x: 0.11, y: 0.51, w: 0.76, size: 0.031, weight: 600, gap: 2.1, bullet: 'check', max: 4, motion: mo('fade', 0.7, 0.7) },
         { role: 'cta', x: 0.58, y: 0.065, w: 0.36, size: 0.022, weight: 700, align: 'right', upper: true, tracking: 0.12, motion: mo('fade', 1.2, 0.4) },
       ],
@@ -251,7 +242,6 @@ export const SOCIAL = [
     description: 'A short line set small at the foot of a mostly empty frame.',
     formats: ['instagram-post', 'story', 'square'], medium: 'digital', difficulty: 'simple',
     imagery: 'Optional. A quiet, textured photograph; the empty upper area is where it shows.',
-    score: [14, 14, 14, 14, 8, 9, 9, 3, 5],
     sample: { ...YOU, eyebrow: 'No. 12', headline: 'Slow work, done properly.', subline: 'A line of context, or the name of who said it.' },
     definition: {
       key: 'bank-wall-label', label: 'Wall Label', desc: 'A small line at the foot of an empty frame',
@@ -276,8 +266,7 @@ export const SOCIAL = [
     concept: 'A shipping label. Boxed, stamped and numbered, because the message is simply: it has arrived.',
     description: 'Boxed stock or delivery update with a short list and one action.',
     formats: ['instagram-post', 'story', 'a4'], medium: 'digital', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [13, 13, 13, 13, 7, 9, 9, 5, 5],
-    sample: { ...YOU, eyebrow: 'Just landed', headline: 'New stock is in', services: ['Your first new item', 'Your second new item', 'Your third new item'], cta: 'Message to reserve', meta: 'Batch 07 · limited quantities' },
+    sample: { ...YOU, eyebrow: 'Just landed', headline: 'New stock is in', services: ['Your first new item', 'Your second new item', 'Your third new item'], cta: 'Message to reserve', meta: 'Batch 07' },
     definition: {
       key: 'bank-shipping-label', label: 'Shipping Label', desc: 'Boxed stock update with a numbered list',
       use: 'marketing', industries: ['Retail & Commerce', 'Local & Everyday Business', 'Logistics & Mobility', 'Fashion & Beauty'],
@@ -307,8 +296,7 @@ export const SOCIAL = [
     concept: 'A film title on a letterboxed frame. Black bars top and bottom, the title across the middle third.',
     description: 'Letterboxed cover with a short title and an episode tag.',
     formats: ['youtube-thumbnail', 'x-post', 'facebook-post'], medium: 'digital', difficulty: 'simple', imagery: PHOTO_LED,
-    score: [13, 14, 13, 14, 9, 9, 9, 5, 5],
-    sample: { ...YOU, eyebrow: 'Episode 12', headline: 'How we built it in 30 days', subline: 'The full story, start to finish.', cta: 'Watch now' },
+    sample: { ...YOU, eyebrow: 'Episode 12', headline: 'Built in 30 days', subline: 'The full story, start to finish.', cta: 'Watch now' },
     definition: {
       key: 'bank-letterbox', label: 'Letterbox', desc: 'Film-title cover between two black bars',
       use: 'social', industries: ['Technology & Media', 'Arts & Entertainment', 'Education & Community'],
@@ -322,8 +310,8 @@ export const SOCIAL = [
       ],
       slots: [
         { role: 'eyebrow', x: 0.12, y: 0.3, w: 0.5, size: 0.034, upper: true, tracking: 0.2, tone: 'accent', motion: mo('fade', 0, 0.4) },
-        { role: 'headline', x: 0.12, y: 0.37, w: 0.76, size: 0.13, weight: 800, upper: true, tracking: 0.005, motion: mo('mask-up', 0.2, 0.7) },
-        { role: 'subline', x: 0.12, y: 0.215, w: 0.6, size: 0.034, tone: 'muted', fromBottom: true, motion: mo('fade', 0.8) },
+        { role: 'headline', x: 0.12, y: 0.37, w: 0.76, size: 0.11, weight: 800, upper: true, tracking: 0.005, motion: mo('mask-up', 0.2, 0.7) },
+        { role: 'subline', x: 0.12, y: 0.2, w: 0.6, size: 0.034, tone: 'muted', fromBottom: true, motion: mo('fade', 0.8) },
       ],
     },
   }),
@@ -333,8 +321,7 @@ export const SOCIAL = [
     concept: 'A memo header. Subject, date and one clear sentence, with the same restraint as a good internal note.',
     description: 'Landscape update with a labelled header band and a single statement.',
     formats: ['linkedin-post', 'facebook-post', 'x-post'], medium: 'digital', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [12, 13, 14, 14, 7, 9, 10, 4, 5],
-    sample: { ...YOU, eyebrow: 'Company update', headline: 'We are opening a second branch', subline: 'Where it is, when it opens, and who it is for.', meta: 'Read the announcement', cta: 'Learn more' },
+    sample: { ...YOU, eyebrow: 'Company update', headline: 'New branch opens soon', subline: 'Where it is, when it opens, and who it is for.', meta: 'Read the announcement', cta: 'Learn more' },
     definition: {
       key: 'bank-memo', label: 'Memo', desc: 'Header band, one statement, one link',
       use: 'business', industries: ['Professional Services', 'Technology & Media', 'Trades & Industry', 'Logistics & Mobility'],
@@ -347,7 +334,7 @@ export const SOCIAL = [
       slots: [
         { role: 'brand', x: 0.07, y: 0.11, w: 0.45, size: 0.034, weight: 700, motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.5, y: 0.12, w: 0.43, size: 0.024, align: 'right', upper: true, tracking: 0.2, tone: 'accent', font: 'mono', motion: mo('fade', 0.1, 0.4) },
-        { role: 'headline', x: 0.07, y: 0.3, w: 0.84, size: 0.128, weight: 700, tracking: -0.03, motion: mo('rise', 0.25, 0.6) },
+        { role: 'headline', x: 0.07, y: 0.3, w: 0.84, size: 0.098, weight: 700, tracking: -0.03, motion: mo('rise', 0.25, 0.6) },
         { role: 'subline', x: 0.07, y: 0.17, w: 0.56, size: 0.036, tone: 'muted', fromBottom: true, motion: mo('fade', 0.8) },
         { role: 'cta', x: 0.65, y: 0.17, w: 0.28, size: 0.034, weight: 700, align: 'right', treatment: 'underline', fromBottom: true, motion: mo('fade', 1.1, 0.4) },
       ],
@@ -359,7 +346,6 @@ export const SOCIAL = [
     concept: 'A medallion. Concentric rings frame the greeting the way a struck coin frames a date.',
     description: 'Centred greeting inside concentric rings.',
     formats: ['instagram-post', 'story', 'square'], medium: 'digital', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [13, 14, 13, 14, 8, 10, 9, 4, 5],
     sample: { ...YOU, eyebrow: 'From all of us', headline: 'Season’s greetings', subline: 'A warm line to your customers, in your own words.' },
     definition: {
       key: 'bank-medallion', label: 'Medallion', desc: 'A greeting framed by concentric rings',
@@ -386,8 +372,7 @@ export const SOCIAL = [
     description: 'Photo-top listing with a spec strip in a base panel.',
     formats: ['instagram-post', 'a4', 'story'], medium: 'both', difficulty: 'standard',
     imagery: 'Required for best results: one exterior or interior photograph, shown in the top half.',
-    score: [12, 13, 13, 14, 9, 9, 9, 5, 5],
-    sample: { ...YOU, eyebrow: 'For sale', headline: 'Four-bedroom home, quiet street', subline: 'Your area · asking price on request', stats: [{ value: '4', label: 'Bedrooms' }, { value: '3', label: 'Bathrooms' }, { value: '2', label: 'Parking' }], cta: 'Book a viewing' },
+    sample: { ...YOU, eyebrow: 'For sale', headline: 'Four-bedroom family home', subline: 'Your area · asking price on request', stats: [{ value: '4', label: 'Bedrooms' }, { value: '3', label: 'Bathrooms' }, { value: '2', label: 'Parking' }], cta: 'Book a viewing' },
     definition: {
       key: 'bank-window-card', label: 'Window Card', desc: 'Photograph above, facts in a panel below',
       use: 'industry', industries: ['Professional Services', 'Home & Personal Services', 'Trades & Industry'],
@@ -400,8 +385,8 @@ export const SOCIAL = [
       slots: [
         { role: 'brand', x: 0.08, y: 0.07, w: 0.5, size: 0.026, weight: 700, motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.08, y: 0.545, w: 0.5, size: 0.02, upper: true, tracking: 0.28, tone: 'accent', motion: mo('fade', 0.2) },
-        { role: 'headline', x: 0.08, y: 0.59, w: 0.8, size: 0.058, weight: 700, tracking: -0.015, motion: mo('rise', 0.3, 0.6) },
-        { role: 'subline', x: 0.08, y: 0.735, w: 0.8, size: 0.024, tone: 'muted', motion: mo('fade', 0.7) },
+        { role: 'headline', x: 0.08, y: 0.575, w: 0.8, size: 0.054, weight: 700, tracking: -0.015, motion: mo('rise', 0.3, 0.6) },
+        { role: 'subline', x: 0.08, y: 0.745, w: 0.8, size: 0.024, tone: 'muted', motion: mo('fade', 0.7) },
         { role: 'stats', x: 0.08, y: 0.2, w: 0.5, size: 0.03, direction: 'row', max: 3, fromBottom: true, motion: mo('rise', 0.9) },
         { role: 'cta', x: 0.62, y: 0.15, w: 0.3, size: 0.024, weight: 700, align: 'right', treatment: 'underline', fromBottom: true, motion: mo('fade', 1.2, 0.4) },
       ],
@@ -413,7 +398,6 @@ export const SOCIAL = [
     concept: 'A classified advert, enlarged. The role is the headline and a corner bracket marks it like a circled listing.',
     description: 'Role-led hiring post with corner brackets and how to apply.',
     formats: ['instagram-post', 'linkedin-post', 'story'], medium: 'digital', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [13, 13, 13, 13, 7, 9, 10, 5, 5],
     sample: { ...YOU, eyebrow: 'We are hiring', headline: 'Front of house lead', subline: 'Full time · your location · start next month', services: ['Your first requirement', 'Your second requirement', 'Your third requirement'], cta: 'Send your CV' },
     definition: {
       key: 'bank-classified', label: 'Classified', desc: 'The role in corner brackets, with how to apply',

@@ -8,10 +8,9 @@ export const OUTDOOR = [
     n: 1, division: D, category: 'Landscape billboard', subcategory: 'Brand message',
     designStyle: 'Photographic advertising', style: 'nightshift', accent: '#f59e0b',
     concept: 'Seven words at sixty kilometres an hour. One line, one name, one instruction, and nothing else to read.',
-    description: 'Billboard with a single headline above a base band carrying the name and the action.',
+    description: 'Billboard carrying three things only: the headline, the name and one action.',
     formats: ['billboard', 'backdrop', 'website-banner'], medium: 'print', difficulty: 'simple', imagery: PHOTO_LED,
-    score: [12, 14, 14, 14, 9, 9, 9, 5, 5],
-    sample: { ...YOU, eyebrow: 'Open every day', headline: 'Fresh bread before the city wakes', cta: 'Next left, 200 metres' },
+    sample: { brand: YOU.brand, headline: 'Fresh bread daily', cta: 'Next left' },
     definition: {
       key: 'bank-seven-words', label: 'Seven Words', desc: 'One line, one name, one instruction',
       use: 'marketing', styles: ['cinematic', 'bold', 'high-contrast'], tags: ['billboard', 'outdoor', 'roadside', 'brand', 'awareness', 'large format'],
@@ -22,7 +21,6 @@ export const OUTDOOR = [
         { kind: 'rect', x: 0, y: 0.8, w: 1, h: 0.012, tone: 'accent' },
       ],
       slots: [
-        { role: 'eyebrow', x: 0.05, y: 0.12, w: 0.6, size: 0.034, upper: true, tracking: 0.22, tone: 'accent', motion: mo('fade', 0, 0.4) },
         { role: 'headline', x: 0.05, y: 0.22, w: 0.86, size: 0.15, weight: 800, upper: true, tracking: 0.005, motion: mo('mask-up', 0.2, 0.7) },
         { role: 'brand', x: 0.05, y: 0.125, w: 0.45, size: 0.046, weight: 800, fromBottom: true, motion: mo('fade', 0.8, 0.4) },
         { role: 'cta', x: 0.5, y: 0.12, w: 0.45, size: 0.038, weight: 700, align: 'right', upper: true, tracking: 0.08, fromBottom: true, motion: mo('slide-left', 0.9) },
@@ -33,10 +31,9 @@ export const OUTDOOR = [
     n: 2, division: D, category: 'Landscape billboard', subcategory: 'Price-led',
     designStyle: 'Swiss International', style: 'blueprint', accent: '#dc2626',
     concept: 'A price tag the size of a wall. The number does the selling; a round seal carries the single condition.',
-    description: 'Price-led board with a seal for the offer terms.',
+    description: 'Price-led board carrying the price line, the name and a one-word seal.',
     formats: ['billboard', 'backdrop', 'facebook-post'], medium: 'print', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [12, 13, 14, 14, 7, 9, 10, 5, 5],
-    sample: { ...YOU, eyebrow: 'Lunch for two', headline: 'From ₦4,500', subline: 'Weekdays, 12 till 3.', cta: 'Today' },
+    sample: { brand: YOU.brand, headline: 'Lunch from ₦4,500', cta: 'Today' },
     definition: {
       key: 'bank-wall-price', label: 'Wall Price', desc: 'The price set huge, with a seal for the terms',
       use: 'marketing', industries: ['Food & Hospitality', 'Retail & Commerce', 'Logistics & Mobility', 'Health & Wellness'],
@@ -47,9 +44,7 @@ export const OUTDOOR = [
       ],
       slots: [
         { role: 'brand', x: 0.05, y: 0.11, w: 0.4, size: 0.04, weight: 700, motion: mo('fade', 0, 0.4) },
-        { role: 'eyebrow', x: 0.05, y: 0.36, w: 0.6, size: 0.04, upper: true, tracking: 0.16, tone: 'muted', motion: mo('fade', 0.15, 0.4) },
-        { role: 'headline', x: 0.05, y: 0.44, w: 0.7, size: 0.2, weight: 700, tracking: -0.04, motion: mo('rise', 0.3, 0.6) },
-        { role: 'subline', x: 0.05, y: 0.16, w: 0.6, size: 0.04, tone: 'muted', fromBottom: true, motion: mo('fade', 0.8, 0.4) },
+        { role: 'headline', x: 0.05, y: 0.36, w: 0.66, size: 0.14, weight: 700, tracking: -0.04, motion: mo('rise', 0.3, 0.6) },
         { role: 'cta', x: 0.74, y: 0.36, w: 0.2, size: 0.05, weight: 800, align: 'center', upper: true, treatment: 'disc', tone: 'accent', motion: mo('pop', 0.9, 0.5) },
       ],
     },
@@ -60,7 +55,6 @@ export const OUTDOOR = [
     concept: 'A lobby directory. Name at eye level, what we do listed below, how to reach us at the foot.',
     description: 'Tall banner that reads top to bottom: name, promise, services, contact.',
     formats: ['rollup', 'story', 'a3'], medium: 'print', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [12, 13, 13, 14, 7, 9, 10, 5, 5],
     sample: { ...YOU, eyebrow: 'What we do', headline: 'Everything your office needs', services: ['Your first service', 'Your second service', 'Your third service', 'Your fourth service'], cta: 'Ask at the desk' },
     definition: {
       key: 'bank-lobby-directory', label: 'Lobby Directory', desc: 'Name, promise, services and contact, top to bottom',
@@ -69,14 +63,14 @@ export const OUTDOOR = [
       mood: 'minimal', scheme: 'dark', font: 'grotesk', surface: { kind: 'gradient', angle: 180, intensity: 0.7 },
       shapes: [
         { kind: 'rect', x: 0.1, y: 0.17, w: 0.8, h: 0.003, tone: 'ink', alpha: 0.5 },
-        { kind: 'rect', x: 0.1, y: 0.52, w: 0.12, h: 0.006, tone: 'ink' },
+        { kind: 'rect', x: 0.1, y: 0.56, w: 0.12, h: 0.006, tone: 'ink' },
         { kind: 'rect', x: 0, y: 0.9, w: 1, h: 0.1, tone: 'black', alpha: 0.35 },
       ],
       slots: [
         { role: 'brand', x: 0.1, y: 0.09, w: 0.8, size: 0.05, weight: 700, motion: mo('fade', 0, 0.4) },
-        { role: 'eyebrow', x: 0.1, y: 0.22, w: 0.6, size: 0.024, upper: true, tracking: 0.24, font: 'mono', tone: 'muted', motion: mo('fade', 0.15, 0.4) },
-        { role: 'headline', x: 0.1, y: 0.27, w: 0.8, size: 0.094, weight: 700, tracking: -0.03, motion: mo('rise', 0.3, 0.6) },
-        { role: 'services', x: 0.1, y: 0.56, w: 0.8, size: 0.036, weight: 600, gap: 2, bullet: 'bar', max: 4, motion: mo('fade', 0.8, 0.6) },
+        { role: 'eyebrow', x: 0.1, y: 0.205, w: 0.6, size: 0.024, upper: true, tracking: 0.24, font: 'mono', tone: 'muted', motion: mo('fade', 0.15, 0.4) },
+        { role: 'headline', x: 0.1, y: 0.25, w: 0.8, size: 0.08, weight: 700, tracking: -0.03, motion: mo('rise', 0.3, 0.6) },
+        { role: 'services', x: 0.1, y: 0.6, w: 0.8, size: 0.032, weight: 600, gap: 1.9, bullet: 'bar', max: 4, motion: mo('fade', 0.8, 0.6) },
         { role: 'contact', x: 0.1, y: 0.062, w: 0.8, size: 0.022, weight: 600, direction: 'row', max: 3, fromBottom: true, motion: mo('fade', 1.3, 0.4) },
       ],
     },
@@ -87,8 +81,7 @@ export const OUTDOOR = [
     concept: 'Beads on a string. A column of discs runs down the banner, so a street of them reads as one continuous line.',
     description: 'Vertical banner with a strand of discs beside a stacked message.',
     formats: ['rollup', 'story', 'pinterest'], medium: 'print', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [14, 14, 13, 13, 7, 9, 9, 4, 5],
-    sample: { ...YOU, eyebrow: 'This month', headline: 'The market is back', subline: 'Every Saturday, 8 till 2.', cta: 'Free entry' },
+    sample: { ...YOU, eyebrow: 'This month', headline: 'The market is back', subline: 'Saturdays at your venue.', cta: 'Free entry' },
     definition: {
       key: 'bank-bead-strand', label: 'Bead Strand', desc: 'A strand of discs down one side of a tall banner',
       use: 'event', industries: ['Arts & Entertainment', 'Education & Community', 'Food & Hospitality', 'Retail & Commerce'],
@@ -115,37 +108,11 @@ export const OUTDOOR = [
     },
   }),
   entry({
-    n: 5, division: D, category: 'Shopfront advertisement and fascia', subcategory: 'Sign board',
-    designStyle: 'Modernist', style: 'blueprint', accent: '#15803d',
-    concept: 'A painted fascia. The name fills the board edge to edge, and the trade sits under it in small capitals.',
-    description: 'Name-led sign board with the trade and contact details beneath.',
-    formats: ['street', 'billboard', 'led'], medium: 'print', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [12, 13, 14, 14, 7, 9, 10, 5, 5],
-    sample: { eyebrow: 'Est. 2015', headline: 'Your business name', subline: 'What you do, in four words', contact: ['Your phone', 'Your street address'] },
-    definition: {
-      key: 'bank-fascia', label: 'Fascia', desc: 'The name edge to edge, the trade beneath',
-      use: 'business', industries: ['Local & Everyday Business', 'Retail & Commerce', 'Food & Hospitality', 'Trades & Industry', 'Home & Personal Services'],
-      styles: ['modern', 'swiss', 'monochrome', 'bold'], tags: ['signage', 'shopfront', 'sign board', 'fascia', 'name', 'storefront'],
-      mood: 'minimal', scheme: 'light', font: 'grotesk', surface: { kind: 'solid' },
-      shapes: [
-        ...border(0.03, 0.012, 'ink'),
-        { kind: 'rect', x: 0.06, y: 0.68, w: 0.88, h: 0.006, tone: 'accent' },
-      ],
-      slots: [
-        { role: 'eyebrow', x: 0.07, y: 0.13, w: 0.4, size: 0.05, upper: true, tracking: 0.24, tone: 'muted', font: 'mono', motion: mo('fade', 0, 0.4) },
-        { role: 'headline', x: 0.07, y: 0.25, w: 0.86, size: 0.2, weight: 700, upper: true, tracking: -0.02, motion: mo('wipe', 0.2, 0.7) },
-        { role: 'subline', x: 0.07, y: 0.24, w: 0.45, size: 0.052, weight: 600, upper: true, tracking: 0.12, fromBottom: true, motion: mo('fade', 0.8, 0.4) },
-        { role: 'contact', x: 0.52, y: 0.225, w: 0.41, size: 0.042, weight: 600, align: 'right', direction: 'row', max: 2, fromBottom: true, motion: mo('fade', 0.9, 0.4) },
-      ],
-    },
-  }),
-  entry({
     n: 6, division: D, category: 'Newspaper advert', subcategory: 'Public notice',
     designStyle: 'Contemporary editorial', style: 'press', accent: '#b91c1c',
     concept: 'The boxed notice from the back pages, redrawn with care: thick and thin rules, centred type, every fact in order.',
     description: 'Boxed press advert with a headline, the facts and a contact line.',
     formats: ['half-a4', 'a4', 'square'], medium: 'print', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [12, 13, 14, 14, 7, 8, 10, 5, 5],
     sample: { ...YOU, eyebrow: 'Public notice', headline: 'We have moved to a new address', subline: 'From the first of next month you will find us at our new premises.', contact: ['Your new address', 'Your phone', 'Your email'] },
     definition: {
       key: 'bank-boxed-notice', label: 'Boxed Notice', desc: 'A press notice inside thick and thin rules',
@@ -158,7 +125,7 @@ export const OUTDOOR = [
       ],
       slots: [
         { role: 'eyebrow', x: 0.2, y: 0.15, w: 0.6, size: 0.03, align: 'center', upper: true, tracking: 0.34, font: 'mono', motion: mo('fade', 0, 0.4) },
-        { role: 'headline', x: 0.12, y: 0.34, w: 0.76, size: 0.098, weight: 400, align: 'center', tracking: -0.015, motion: mo('fade', 0.2, 0.7) },
+        { role: 'headline', x: 0.12, y: 0.34, w: 0.76, size: 0.08, weight: 400, align: 'center', tracking: -0.015, motion: mo('fade', 0.2, 0.7) },
         { role: 'subline', x: 0.2, y: 0.3, w: 0.6, size: 0.034, align: 'center', tone: 'muted', fromBottom: true, motion: mo('fade', 0.7) },
         { role: 'contact', x: 0.12, y: 0.15, w: 0.76, size: 0.026, weight: 600, align: 'center', direction: 'row', max: 3, fromBottom: true, motion: mo('fade', 1.0, 0.4) },
       ],
@@ -170,7 +137,6 @@ export const OUTDOOR = [
     concept: 'A departures ticker. Bands run along the top and bottom edges and the message holds still between them.',
     description: 'Wide screen frame with edge bands and a centred message.',
     formats: ['led', 'website-banner', 'billboard'], medium: 'digital', difficulty: 'simple', imagery: NO_PHOTO,
-    score: [12, 13, 13, 14, 7, 9, 9, 5, 5],
     sample: { ...YOU, eyebrow: 'Now showing', headline: 'Doors open at seven', subline: 'Tickets at the gate.' },
     definition: {
       key: 'bank-edge-ticker', label: 'Edge Ticker', desc: 'Bands on the top and bottom edges, message between',
@@ -186,7 +152,7 @@ export const OUTDOOR = [
       ],
       slots: [
         { role: 'eyebrow', x: 0.2, y: 0.17, w: 0.6, size: 0.04, align: 'center', upper: true, tracking: 0.3, tone: 'accent', motion: mo('fade', 0, 0.4) },
-        { role: 'headline', x: 0.06, y: 0.29, w: 0.88, size: 0.17, weight: 900, align: 'center', upper: true, tracking: -0.03, motion: mo('scale-out', 0.15, 0.6) },
+        { role: 'headline', x: 0.06, y: 0.27, w: 0.88, size: 0.125, weight: 900, align: 'center', upper: true, tracking: -0.03, motion: mo('scale-out', 0.15, 0.6) },
         { role: 'subline', x: 0.2, y: 0.25, w: 0.6, size: 0.046, align: 'center', fromBottom: true, motion: mo('fade', 0.7, 0.4) },
         { role: 'brand', x: 0.3, y: 0.165, w: 0.4, size: 0.03, weight: 700, align: 'center', upper: true, tracking: 0.2, tone: 'muted', fromBottom: true, motion: mo('fade', 0.9, 0.4) },
       ],
@@ -198,7 +164,6 @@ export const OUTDOOR = [
     concept: 'A sticker slapped on the till. A tilted block of colour interrupts the counter and says one thing.',
     description: 'Counter or shelf card with a tilted panel and a short offer.',
     formats: ['square', 'a4', 'instagram-post'], medium: 'print', difficulty: 'standard', imagery: NO_PHOTO,
-    score: [13, 13, 13, 13, 7, 9, 9, 5, 5],
     sample: { ...YOU, eyebrow: 'Ask us about', headline: 'Buy two, get one free', subline: 'On selected items this week.', cta: 'Offer ends Sunday' },
     definition: {
       key: 'bank-counter-card', label: 'Counter Card', desc: 'A tilted panel of colour and one short offer',
@@ -212,7 +177,7 @@ export const OUTDOOR = [
       ],
       slots: [
         { role: 'eyebrow', x: 0.08, y: 0.11, w: 0.6, size: 0.028, upper: true, tracking: 0.2, treatment: 'outline', motion: mo('drop', 0, 0.45) },
-        { role: 'headline', x: 0.08, y: 0.23, w: 0.84, size: 0.12, weight: 900, upper: true, tracking: -0.035, motion: mo('pop', 0.25, 0.6) },
+        { role: 'headline', x: 0.08, y: 0.22, w: 0.84, size: 0.1, weight: 900, upper: true, tracking: -0.035, motion: mo('pop', 0.25, 0.6) },
         { role: 'subline', x: 0.08, y: 0.6, w: 0.7, size: 0.032, weight: 600, motion: mo('fade', 0.8, 0.4) },
         { role: 'cta', x: 0.08, y: 0.12, w: 0.5, size: 0.026, weight: 800, upper: true, treatment: 'panel', fromBottom: true, motion: mo('rise', 1.0) },
         { role: 'brand', x: 0.55, y: 0.115, w: 0.37, size: 0.022, weight: 700, align: 'right', treatment: 'panel', fromBottom: true, motion: mo('fade', 1.2, 0.4) },

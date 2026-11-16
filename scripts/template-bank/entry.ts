@@ -4,3 +4,4 @@ export {
 } from '../../src/lib/templateBank/package';
 export { DESIGN_STYLES } from '../../src/lib/design/styles';
 export { packageDocs } from '../../src/lib/templateBank/docs';
+export { DESIGN_FORMATS } from '../../src/data/studioPresets';

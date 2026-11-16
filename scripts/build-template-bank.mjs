@@ -22,6 +22,7 @@ const ROOT = fileURLToPath(new URL('..', import.meta.url));
 const OUT = join(ROOT, 'template-bank', 'dist');
 const CACHE = join(ROOT, 'node_modules', '.cache', 'template-bank');
 const SHEETS = process.argv.includes('--sheets');
+const AUDIT_ONLY = process.argv.includes('--audit');
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -52,11 +53,20 @@ const browser = await chromium.launch();
 const page = await browser.newPage();
 await page.goto(`${origin}/robots.txt`);
 await page.evaluate(async () => {
-  const [draw, styles, faces] = await Promise.all([
+  const [draw, styles, faces, fit] = await Promise.all([
     import('/src/lib/drawTemplate.ts'),
     import('/src/lib/design/styles.ts'),
     import('/src/lib/design/typefaces.ts'),
+    import('/src/lib/templateBank/fit.ts'),
   ]);
+  const probe = document.createElement('canvas').getContext('2d');
+  const measure = (text, font, spacing) => {
+    probe.font = font;
+    probe.letterSpacing = `${spacing}px`;
+    return probe.measureText(text).width;
+  };
+  window.auditTemplate = ({ definition, sample, style, w, h }) =>
+    fit.auditFit(styles.applyStyle(definition, styles.styleOf(style)), sample, w, h, measure);
   const css = document.createElement('link');
   css.rel = 'stylesheet';
   css.href = '/src/index.css';
@@ -95,7 +105,7 @@ for (const t of BANK_V1) {
   // Previews are capped at 1600px on the long edge. A billboard master is
   // 4500px wide; shipping that as a PNG per template would be most of the ZIP.
   const k = Math.min(1, 1600 / Math.max(t.dimensions.width, t.dimensions.height));
-  const png = await render(t, t.recommendedStyle, Math.round(t.dimensions.width * k), Math.round(t.dimensions.height * k));
+  const png = AUDIT_ONLY ? Buffer.alloc(0) : await render(t, t.recommendedStyle, Math.round(t.dimensions.width * k), Math.round(t.dimensions.height * k));
   previews.set(t.key, png);
   files[`${dir}/template.json`] = strToU8(`${JSON.stringify(t, null, 2)}\n`);
   files[`${dir}/preview.png`] = new Uint8Array(png);
@@ -103,6 +113,37 @@ for (const t of BANK_V1) {
     id: t.id, key: t.key, version: t.version, division: t.division,
     source: `${dir}/template.json`, preview: `${dir}/preview.png`,
   });
+}
+
+// Fit audit: does the sample copy fit, in the recommended style, at every
+// format the template claims, and in the square the gallery shows it at?
+const fitReport = [];
+let otherStyleIssues = 0;
+for (const t of BANK_V1) {
+  const sizes = new Map([['gallery square', [1080, 1080]]]);
+  for (const key of t.formats) {
+    const f = bank.DESIGN_FORMATS.find((x) => x.key === key);
+    sizes.set(key, [f.w, f.h]);
+  }
+  for (const [name, [w, h]] of sizes) {
+    const issues = await page.evaluate((a) => window.auditTemplate(a), { definition: t.definition, sample: t.sample, style: t.recommendedStyle, w, h });
+    for (const issue of issues) fitReport.push({ key: t.key, format: name, ...issue });
+  }
+  for (const st of DESIGN_STYLES) {
+    if (st.key === t.recommendedStyle) continue;
+    const issues = await page.evaluate((a) => window.auditTemplate(a), { definition: t.definition, sample: t.sample, style: st.key, w: 1080, h: 1080 });
+    otherStyleIssues += issues.length;
+    for (const issue of issues) fitReport.push({ key: t.key, format: `gallery square, ${st.key} style`, otherStyle: true, ...issue });
+  }
+}
+writeFileSync(join(OUT, 'fit-audit.json'), `${JSON.stringify(fitReport, null, 2)}\n`);
+const fitFailures = fitReport.filter((r) => !r.otherStyle);
+if (AUDIT_ONLY) {
+  for (const r of fitReport) console.log(`${r.otherStyle ? 'other' : 'FIT  '} ${r.key} @ ${r.format}: ${r.detail}`);
+  console.log(`${fitFailures.length} in the recommended style, ${otherStyleIssues} in other styles`);
+  await browser.close();
+  await server.close();
+  process.exit(fitReport.length ? 1 : 0);
 }
 
 const docs = bank.packageDocs(BANK_V1, manifest);
@@ -142,7 +183,7 @@ if (SHEETS) {
   const list = only ? BANK_V1.filter((t) => only.includes(t.key)) : BANK_V1;
   for (let i = 0; i < list.length; i += 12) {
     await sheet(`recommended-${String(i / 12 + 1).padStart(2, '0')}`,
-      list.slice(i, i + 12).map((t) => ({ png: previews.get(t.key), label: `${t.id} ${t.name} · ${t.recommendedStyle} · ${t.quality.total}` })), 4);
+      list.slice(i, i + 12).map((t) => ({ png: previews.get(t.key), label: `${t.id} ${t.name} · ${t.recommendedStyle}` })), 4);
   }
   if (process.argv.includes('--styles')) {
     for (let i = 0; i < list.length; i += 4) {
@@ -182,9 +223,9 @@ const catalogue = `<html><head><style>
 </style></head><body>
   <h1>${esc(BANK_V1_NAME)}</h1>
   <p style="font-size:13px">Version ${esc(BANK_V1_VERSION)} · ${BANK_V1.length} templates · visual catalogue</p>
-  <p class="muted" style="max-width:120mm">Every preview is rendered by the NowOpen Create canvas renderer from the template's own definition, in its recommended style and a sample brand colour. Copy is placeholder. Scores are the author's self-assessment against the 100-point rubric.</p>
+  <p class="muted" style="max-width:120mm">Every preview is rendered by the NowOpen Create canvas renderer from the template's own definition, in its recommended style and a sample brand colour. Copy is placeholder. No template here has been scored or passed design review.</p>
   ${byDivision.map((d) => `<h2>${esc(d.key.slice(0, 2))} · ${esc(d.label)} <span class="muted">(${d.items.length})</span></h2><div class="grid">
-    ${d.items.map((t) => `<div class="card"><div class="img"><img src="${dataUrl(previews.get(t.key))}"></div><b>${esc(t.name)}</b><span class="muted">${esc(t.id)} · ${esc(t.category)} · ${esc(t.designStyle)} · ${t.quality.total}/100</span></div>`).join('')}
+    ${d.items.map((t) => `<div class="card"><div class="img"><img src="${dataUrl(previews.get(t.key))}"></div><b>${esc(t.name)}</b><span class="muted">${esc(t.id)} · ${esc(t.category)} · ${esc(t.designStyle)}</span></div>`).join('')}
   </div>`).join('')}
 </body></html>`;
 const pdfPage = await browser.newPage();
@@ -197,5 +238,7 @@ await server.close();
 console.log(`${zipName}: ${BANK_V1.length} templates, ${(zip.length / 1024 / 1024).toFixed(1)} MB`);
 console.log(`import check: ok=${report.ok} new=${report.counts.new} rejected=${report.counts.rejected}`);
 for (const t of rejected) console.log(`  REJECTED ${t.key}: ${t.errors.join('; ')}`);
-for (const t of report.templates) for (const w of t.warnings) if (!w.startsWith('Scores')) console.log(`  warn ${t.key}: ${w}`);
-if (!report.ok || rejected.length) process.exitCode = 1;
+for (const t of report.templates) for (const w of t.warnings) console.log(`  warn ${t.key}: ${w}`);
+console.log(`fit audit: ${fitFailures.length} issue(s) in the recommended style; ${otherStyleIssues} in other styles (see fit-audit.json)`);
+for (const r of fitFailures) console.log(`  FIT ${r.key} @ ${r.format}: ${r.detail}`);
+if (!report.ok || rejected.length || fitFailures.length) process.exitCode = 1;
