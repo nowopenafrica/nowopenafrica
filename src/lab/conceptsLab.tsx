@@ -23,7 +23,8 @@ import { ARCHETYPES, archetypeOf, movementOf } from '../lib/create/intel';
 import { PALETTES } from '../lib/design/palettes';
 import { formatOf } from '../lib/design/formats';
 import { paletteOf } from '../lib/design/palettes';
-import { ensureTypefacesReady } from '../lib/design/typefaces';
+import { TYPEFACES, ensureTypefacesReady } from '../lib/design/typefaces';
+import { faceUse } from '../lib/create/intel';
 
 const params = new URLSearchParams(location.search);
 const assets = params.get('assets');
@@ -36,11 +37,14 @@ const typeKeys = params.get('only')?.split(',');
 const shot = params.get('shot');
 /* ?panel=<request>: Create's own brief and concept panels for that request, as a customer would see them. Read only. */
 const panel = params.get('panel');
+/* ?faces=1: a specimen of every face, with the job each is for. ?faces=core or =extended shows one tier. */
+const faces = params.get('faces');
 const hidden = (key: string) => (shot && shot !== key ? { display: 'none' } : {});
 
 function Lab() {
   const [ready, setReady] = useState(false);
-  useEffect(() => { void ensureTypefacesReady().then(() => setReady(true)); }, []);
+  /* The specimen names every face, so it asks for every face; the other views warm the core set and let the rest arrive when drawn. */
+  useEffect(() => { void ensureTypefacesReady(faces ? TYPEFACES.map((f) => f.key) : undefined).then(() => setReady(true)); }, []);
 
   return (
     <main data-ready={ready || undefined} data-shot={shot || undefined} style={{ padding: shot ? 0 : 24, background: '#e9ecf1', minHeight: '100vh', fontFamily: 'Inter, system-ui, sans-serif', color: '#0f1729' }}>
@@ -57,8 +61,9 @@ function Lab() {
           </div>
         </AuthProvider></BrowserRouter>
       )}
-      {types && !panel && <Types />}
-      {!types && !panel && BENCHMARK.filter((b) => (!only || b.key === only) && (!shot || shot.startsWith(b.key))).map((b) => {
+      {faces && <Faces />}
+      {types && !panel && !faces && <Types />}
+      {!types && !panel && !faces && BENCHMARK.filter((b) => (!only || b.key === only) && (!shot || shot.startsWith(b.key))).map((b) => {
         const brief = readBrief(b.request);
         const images = b.photos.map((p) => (assets && p ? `${assets}/${p}` : undefined));
         const concepts = conceptsFor(brief, { copy: b.copy, images });
@@ -90,6 +95,31 @@ function Lab() {
         );
       })}
     </main>
+  );
+}
+
+const SAMPLE: Record<string, string> = { classical: 'ADEBAYO & DAUGHTERS', condensed: 'Opens Saturday', script: 'With love', handwritten: 'Fresh today', retro: 'Sweet days' };
+
+function Faces() {
+  const list = TYPEFACES.filter((f) => f.key !== 'coolvetica' && (faces === '1' || (f.tier ?? 'core') === faces));
+  return (
+    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(330px, 1fr))', gap: 14, maxWidth: 1420 }}>
+      {list.map((f) => {
+        const u = faceUse(f.key);
+        const weight = f.weights[f.weights.length - 1];
+        const tags = [u.smallest === 'small' ? 'small print' : u.smallest === 'text' ? 'text and up' : 'headlines only', u.capitals === 'only' ? 'capitals only' : u.capitals === 'never' ? 'never capitals' : null,
+          u.paragraphs ? 'paragraphs' : null, u.distance ? 'road' : null, u.figures ? 'figures' : null, u.maxWords ? `${u.maxWords} words` : null].filter(Boolean);
+        return (
+          <div key={f.key} data-face={f.key} style={{ background: '#fff', borderRadius: 6, padding: '14px 16px', boxShadow: '0 1px 3px rgba(0,0,0,.15)' }}>
+            <div style={{ fontSize: 11, color: '#566076', display: 'flex', justifyContent: 'space-between' }}><span><b style={{ color: '#0f1729' }}>{f.label}</b> · {f.key}</span><span>{f.tier === 'extended' ? 'when used' : 'always'}</span></div>
+            <div style={{ fontFamily: f.stack, fontWeight: weight, fontSize: 38, lineHeight: 1.08, margin: '10px 0 6px', color: '#0f1729' }}>{SAMPLE[f.key] ?? 'Pull up a chair.'}</div>
+            <div style={{ fontFamily: f.stack, fontWeight: f.weights[0], fontSize: 15, lineHeight: 1.35, color: '#0f1729' }}>A kitchen that cooks the way it would for family. 0123456789</div>
+            <div style={{ fontFamily: f.stack, fontWeight: f.weights[0], fontSize: 15, lineHeight: 1.35, color: '#0f1729' }}>₦ ₵ · Ẹ ọ ṣ · Ɓ ɗ Ƙ ƙ Ƴ ƴ · Ɛ ɔ Ɖ Ʋ Ƒ</div>
+            <div style={{ fontSize: 11, color: '#566076', marginTop: 8 }}>{tags.join(' · ')}</div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
 
