@@ -168,8 +168,12 @@ export function distinctnessProblems(concepts: Concept[]): string[] {
   return problems;
 }
 
+/** Is this piece read from a road? A billboard brief, or any billboard format asked for by name. */
+export const isRoadside = (brief: CreativeBrief, formatKey?: string): boolean =>
+  /^(billboard|board-)/.test(formatKey ?? brief.format?.value ?? '') || !!brief.deliverable?.value.startsWith('billboard');
+
 /** The editable document for a concept, at the brief's format or one given. */
 export function documentFor(concept: Concept, brief: CreativeBrief, formatKey?: string): DesignDocument {
   const format = formatOf(formatKey ?? brief.format?.value ?? 'instagram-portrait') ?? { w: 1080, h: 1350 };
-  return compose(concept.archetype, concept.input, format, `${movementOf(concept.movement)?.name ?? 'Concept'} concept`);
+  return compose(concept.archetype, concept.input, format, `${movementOf(concept.movement)?.name ?? 'Concept'} concept`, { distance: isRoadside(brief, formatKey) });
 }

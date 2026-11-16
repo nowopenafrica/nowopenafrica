@@ -21,6 +21,7 @@ import { conceptsFor, distinctnessProblems, documentFor } from '../lib/create/co
 import { IMPLEMENTED, compose } from '../lib/create/compose/archetypes';
 import { ARCHETYPES, archetypeOf, movementOf } from '../lib/create/intel';
 import { PALETTES } from '../lib/design/palettes';
+import { formatOf } from '../lib/design/formats';
 import { paletteOf } from '../lib/design/palettes';
 import { ensureTypefacesReady } from '../lib/design/typefaces';
 
@@ -95,7 +96,9 @@ function Lab() {
 const SIZES: Record<string, { w: number; h: number }> = { portrait: { w: 1080, h: 1350 }, square: { w: 1080, h: 1080 }, tall: { w: 1080, h: 1920 }, landscape: { w: 1754, h: 1240 }, wide: { w: 4500, h: 1500 } };
 
 function Types() {
-  const format = SIZES[types ?? 'portrait'] ?? SIZES.portrait;
+  /* A real format key (business-card, billboard) is composed to that format's own rules; a shape name is a bare canvas. */
+  const format = formatOf(types ?? '') ?? SIZES[types ?? 'portrait'] ?? SIZES.portrait;
+  const distance = /^(billboard|board-)/.test(types ?? '');
   const wide = format.w / format.h > 1.2;
   const b = BENCHMARK[4];
   const photos = ['pexels-17952748.jpeg', 'pexels-28635266.jpeg', 'pexels-18789516.jpeg', 'pexels-38127716.jpeg'];
@@ -104,7 +107,7 @@ function Types() {
       {ARCHETYPES.filter((a) => IMPLEMENTED.includes(a.key) && (!typeKeys || typeKeys.includes(a.key))).map((a, k) => {
         const palette = PALETTES[(k * 5) % PALETTES.length];
         const copy = { brand: 'Your brand', headline: 'Now open.', ...b.copy[k % 3], details: ['Opening: Your opening date', 'Where: Your address', 'Book: Your booking line'] };
-        const doc = compose(a.key, { copy, colours: palette.colours, fonts: { display: 'grotesk', text: 'humanist', accent: 'mono' }, image: assets ? `${assets}/${photos[k % photos.length]}` : 'missing' }, format);
+        const doc = compose(a.key, { copy, colours: palette.colours, fonts: { display: 'grotesk', text: 'humanist', accent: 'mono' }, image: assets ? `${assets}/${photos[k % photos.length]}` : 'missing' }, format, a.name, { distance });
         return (
           <figure key={a.key} style={{ margin: 0, width: wide ? 760 : 420, ...hidden(`type-${a.key}`) }}>
             <div data-concept={`type-${a.key}`} style={{ boxShadow: '0 1px 4px rgba(0,0,0,.25)' }}>

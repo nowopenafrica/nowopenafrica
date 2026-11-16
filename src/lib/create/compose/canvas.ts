@@ -145,6 +145,17 @@ export interface TextOpts extends Omit<TextStyle, 'size'> {
   role?: string;
 }
 
+/** What the format demands of a layout, worked out once in `compose`. All optional: a bare canvas has no rules. */
+export interface CanvasRules {
+  /** Outer margin as a fraction of the short edge, when the format's safe area needs more than the usual 7%. */
+  marginOfShortEdge?: number;
+  minSize?: number;
+  minBrand?: number;
+  distance?: boolean;
+  /** The format's safe area, as fractions of the width and of the height. No word may enter it. */
+  safe?: { x: number; y: number };
+}
+
 export class Canvas {
   readonly cls: AspectClass;
   /** Width over height. */
@@ -154,13 +165,28 @@ export class Canvas {
   readonly my: number;
   /** A page pattern, drawn over the background and under every object. */
   pattern?: NonNullable<DesignDocument['pages'][number]['pattern']>;
+  /** Names of the lines left out because they would not fit whole. */
+  readonly omitted: string[] = [];
   private objects: DesignObject[] = [];
   private z = 0;
 
-  constructor(readonly width: number, readonly height: number, marginOfShortEdge = 0.07) {
+  /** The smallest any text may be set, as a fraction of the width. From the format: six points in print, the roadside floor on a board. */
+  readonly minSize: number;
+  /** The same, for the business name, which a board holds to a higher floor. */
+  readonly minBrand: number;
+  /** Read at speed from a road: few words, all of them large. */
+  readonly distance: boolean;
+  private readonly safe: { x: number; y: number };
+
+  constructor(readonly width: number, readonly height: number, rules: CanvasRules = {}) {
     this.cls = aspectClass(width, height);
     this.ar = width / height;
-    const px = Math.min(width, height) * marginOfShortEdge;
+    this.distance = !!rules.distance;
+    this.safe = rules.safe ?? { x: 0, y: 0 };
+    /* 2% over each floor, so rounding in a browser cannot land a line under it. */
+    this.minSize = (rules.minSize ?? 0) * 1.02;
+    this.minBrand = Math.max(this.minSize, (rules.minBrand ?? 0) * 1.02);
+    const px = Math.min(width, height) * Math.max(0.07, rules.marginOfShortEdge ?? 0);
     this.mx = px / width;
     this.my = px / height;
   }
@@ -216,14 +242,16 @@ export class Canvas {
    * breaks, so the browser sets the same lines the layout was planned around.
    */
   /** The space a text block would take, without drawing it. For panels sized to their content. */
-  measure(o: Omit<TextOpts, 'colour' | 'name' | 'x' | 'y'>): { h: number; size: number; lines: string[] } {
+  measure(o: Omit<TextOpts, 'colour' | 'name' | 'x' | 'y'>): { h: number; size: number; lines: string[]; cut: boolean } {
     const style = { font: o.font, weight: o.weight, tracking: o.tracking, upper: o.upper, lineHeight: o.lineHeight };
     /* 3% slack: kerning and sub-pixel rounding differ a little between browsers. */
     const box = o.w * 0.97;
     const lh = o.lineHeight ?? 1.1;
     const under = Math.max(0.18, 1.34 - lh);
-    const floor = o.min ?? o.size * 0.6;
-    let fitted = fit(o.text, box, style, o.size, floor, o.maxLines ?? 3);
+    /* The format's floor outranks the layout's wishes: a label asked for at 4 pt on a card is set at 6. */
+    const least = o.role === 'brand' ? this.minBrand : this.minSize;
+    const floor = Math.max(o.min ?? o.size * 0.6, least);
+    let fitted = fit(o.text, box, style, Math.max(o.size, least), floor, o.maxLines ?? 3);
     /* A height to respect as well as a width: shrink again until the block is short enough. */
     while (o.maxH !== undefined && fitted.size > floor && this.rise(fitted.size) * (lh * Math.min(fitted.lines.length, o.maxLines ?? 3) + under) > o.maxH) {
       fitted = fit(o.text, box, style, Math.max(floor, fitted.size * 0.96), floor, o.maxLines ?? 3);
@@ -244,13 +272,35 @@ export class Canvas {
      * A line box shorter than the face's own height lets descenders hang
      * below it, so tightly leaded type needs more room under its last line.
      */
-    return { size, lines: kept, h: this.rise(size) * lh * kept.length + this.rise(size) * under };
+    return { size, lines: kept, cut, h: this.rise(size) * lh * kept.length + this.rise(size) * under };
   }
 
-  text(o: TextOpts): Placed {
-    const { size, lines, h } = this.measure(o);
+  text(asked: TextOpts): Placed {
+    /*
+     * A press trims. Whatever a layout asked for, the words are kept out of
+     * the safe area: the box is narrowed before it is measured, so the lines
+     * are planned for the room they really have, and nudged in if it is still
+     * too high or too low.
+     */
+    const x0 = Math.max(asked.x, this.safe.x);
+    const o = { ...asked, x: x0, w: Math.max(0.05, Math.min(asked.x + asked.w, 1 - this.safe.x) - x0) };
+    const { size, lines, h, cut } = this.measure(o);
+    if (cut && o.role !== 'headline') {
+      /*
+       * Half a sentence is worse than none. A name takes a second line; any
+       * other line that will not fit whole is left out and listed in
+       * `omitted`, so the customer can be told what the format had no room
+       * for. Only the headline is ever shortened, and that is reported.
+       */
+      if (o.role === 'brand' && (o.maxLines ?? 3) < 3) return this.text({ ...asked, maxLines: (o.maxLines ?? 1) + 1 });
+      /* A name is never left off. One too long for three lines is drawn shortened, and the checks report it. */
+      if (o.role !== 'brand') {
+        this.omitted.push(o.name);
+        return { x: o.x, y: o.y, w: o.w, h: 0, size: 0, lines: 0 };
+      }
+    }
     const lh = o.lineHeight ?? 1.1;
-    const y = o.anchor === 'bottom' ? o.y - h : o.y;
+    const y = Math.max(this.safe.y, Math.min(o.anchor === 'bottom' ? o.y - h : o.y, 1 - this.safe.y - h));
     const t: TextObject = {
       ...this.base(o.name, o.x, y, o.w, h), type: 'text', text: lines.join('\n'), font: o.font, size,
       weight: nearestWeight(o.font, o.weight ?? 600), tracking: o.tracking, lineHeight: lh, align: o.align ?? 'left',

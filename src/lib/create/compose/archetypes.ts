@@ -13,7 +13,10 @@
 //   - a block that flows down the page is told where it must stop (`limit`),
 //     and takes fewer lines, or is left out, rather than run into what follows.
 
+import type { Format } from '../../design/formats';
 import type { PatternKey } from '../../design/look';
+import { BILLBOARD_MIN_BRAND, BILLBOARD_MIN_TEXT } from '../../design/quality/checks/flow';
+import { minTextPx } from '../../design/quality/checks/geometry';
 import { readableInk } from '../../design/palettes';
 import { patternSvg } from '../../design/patterns';
 import { contrastRatio, relativeLuminance, shade, tint } from '../../design/styles';
@@ -52,8 +55,14 @@ const NONE: Placed = { x: 0, y: 0, w: 0, h: 0, size: 0, lines: 0 };
 /* ── shared scale ─────────────────────────────────────────────────────────── */
 
 const H = (c: Canvas) => c.by({ tall: 0.15, portrait: 0.125, square: 0.11, landscape: 0.075, wide: 0.058 });
-const B = (c: Canvas) => c.by({ tall: 0.043, portrait: 0.034, square: 0.031, landscape: 0.0215, wide: 0.0175 });
-const L = (c: Canvas) => B(c) * 0.74;
+/*
+ * Body and label sizes never go under the format's floor, and every gap in
+ * a layout is counted in these sizes. So on a business card or a billboard
+ * the spacing opens up with the type, instead of large type sitting in
+ * gaps measured for small type.
+ */
+const B = (c: Canvas) => Math.max(c.minSize, c.by({ tall: 0.043, portrait: 0.034, square: 0.031, landscape: 0.0215, wide: 0.0175 }));
+const L = (c: Canvas) => Math.max(c.minSize, B(c) * 0.74);
 const LINES = (c: Canvas) => c.by({ tall: 5, portrait: 4, square: 4, landscape: 3, wide: 2 });
 const stacked = (c: Canvas) => c.cls === 'tall' || c.cls === 'portrait' || c.cls === 'square';
 /** One line of body copy, as a fraction of the page height. */
@@ -126,6 +135,17 @@ function brand(c: Canvas, i: ComposeInput, x: number, y: number, w: number, colo
   return c.text({ text: i.copy.brand, x, y, w, ...brandStyle(c, i), colour, maxLines: 1, min: B(c) * 0.6, name: 'Brand', role: 'brand', ...opts });
 }
 
+/** How the closing row will be set in this width: side by side, or the action above the name. */
+function footerPlan(c: Canvas, i: ComposeInput, width: number): { bw: number; cw: number; stacked: boolean; extra: number } {
+  const bs = brandStyle(c, i);
+  const ls = labelStyle(c, i);
+  const bw = lineWidth(i.copy.brand, { ...bs, size: Math.max(bs.size, c.minBrand) });
+  const cw = i.copy.cta ? lineWidth(i.copy.cta, { ...ls, size: Math.max(ls.size, c.minSize) }) : 0;
+  const stacked = !!i.copy.cta && (bw + cw) * 1.08 + c.mx * 0.6 > width;
+  /* The height a second row adds, for a panel that has to be sized before its footer is drawn. */
+  return { bw, cw, stacked, extra: stacked ? c.rise(Math.max(ls.size, c.minSize)) * 1.75 : 0 };
+}
+
 /**
  * The closing row: brand on the left, call to action on the right, with a
  * gutter between so neither can reach the other. Returns the row's top.
@@ -133,7 +153,15 @@ function brand(c: Canvas, i: ComposeInput, x: number, y: number, w: number, colo
 function footer(c: Canvas, i: ComposeInput, x0: number, x1: number, bottom: number, brandColour: string, ctaColour: string): number {
   const gutter = c.mx * 0.6;
   if (!i.copy.cta) return brand(c, i, x0, bottom, x1 - x0, brandColour, { anchor: 'bottom' }).y - row(c) * 0.6;
-  const [lw, rw] = shareRow(x1 - x0, gutter, lineWidth(i.copy.brand, brandStyle(c, i)), lineWidth(i.copy.cta, labelStyle(c, i)));
+  const ls = labelStyle(c, i);
+  const { bw, cw, stacked: twoRows } = footerPlan(c, i, x1 - x0);
+  if (twoRows) {
+    /* Not room for both on one line at a readable size: the action sits above the name, and neither is cut. */
+    const b = brand(c, i, x0, bottom, x1 - x0, brandColour, { anchor: 'bottom' });
+    const a = label(c, i, i.copy.cta, x0, b.y - c.rise(Math.max(ls.size, c.minSize)) * 0.35, x1 - x0, ctaColour, { anchor: 'bottom', name: 'Call to action' });
+    return a.y - row(c) * 0.6;
+  }
+  const [lw, rw] = shareRow(x1 - x0, gutter, bw, cw);
   const b = brand(c, i, x0, bottom, lw, brandColour, { anchor: 'bottom' });
   label(c, i, i.copy.cta, x1 - rw, bottom, rw, ctaColour, { align: 'right', anchor: 'bottom', name: 'Call to action' });
   return b.y - row(c) * 0.6;
@@ -345,6 +373,8 @@ function button(c: Canvas, i: ComposeInput, text: string, x: number, bottom: num
   const style = { ...labelStyle(c, i), tracking: 0.12, size: L(c) * 1.1 };
   const padX = c.short(0.04);
   const m = c.measure({ text, w: 0.6, ...style, maxLines: 1, min: style.size * 0.7 });
+  /* No room for the words means no button: an empty pill is a defect. */
+  if (m.cut) { c.omitted.push('Call to action'); return bottom; }
   const w = Math.min(0.62, lineWidth(text, { ...style, size: m.size }) * 1.05 + padX * 2);
   const h = m.h + c.rise(style.size) * 1.0;
   c.rect('Button', x, bottom - h, w, h, fill, { radius: 0.5 });
@@ -489,7 +519,7 @@ const imageBleed: Draw = (c, i) => {
   const head = c.measure(hOpts);
   const supLines = c.cls === 'wide' ? 2 : 3;
   const sup = i.copy.support ? c.measure({ text: i.copy.support, w: tw, size: B(c), font: i.fonts.text, weight: 400, lineHeight: 1.38, maxLines: supLines, min: B(c) * 0.8 }) : null;
-  const footH = row(c) * 2.9;
+  const footH = row(c) * 2.9 + footerPlan(c, i, tw).extra;
   const ph = Math.min(1 - 2 * c.my, padY * 2 + eyebrowH + head.h + (sup ? sup.h + row(c) * 0.7 : 0) + footH);
   const px = c.mx;
   const py = 1 - c.my - ph;
@@ -497,7 +527,7 @@ const imageBleed: Draw = (c, i) => {
   const limit = footer(c, i, px + pad, px + pad + tw, py + ph - padY, ink, accent);
   let y = py + padY;
   if (i.copy.eyebrow) { label(c, i, i.copy.eyebrow, px + pad, y, tw, accent, { name: 'Eyebrow' }); y += eyebrowH; }
-  const hl = headline(c, i, px + pad, y, tw, ink, { size: hSize, maxLines: 3, lineHeight: 1.04 });
+  const hl = headline(c, i, px + pad, y, tw, ink, { size: hSize, maxLines: 3, lineHeight: 1.04, maxH: limit - y });
   y = hl.y + hl.h + row(c) * 0.7;
   if (i.copy.support) body(c, i, i.copy.support, px + pad, y, tw, ink, { maxLines: supLines, limit });
   return ground;
@@ -615,7 +645,7 @@ const patternField: Draw = (c, i) => {
   const hSize = H(c) * c.by({ tall: 0.74, portrait: 0.74, square: 0.74, landscape: 0.86, wide: 0.9 });
   const head = c.measure({ text: i.copy.headline, w: tw, size: hSize, font: i.fonts.display, weight: 700, lineHeight: 1.04, maxLines: 3, min: hSize * 0.45, upper: i.upperHeadline, tracking: i.upperHeadline ? 0 : -0.015 });
   const sup = i.copy.support ? c.measure({ text: i.copy.support, w: tw * 0.9, size: B(c), font: i.fonts.text, weight: 400, lineHeight: 1.38, maxLines: 3, min: B(c) * 0.8 }) : null;
-  const want = padY * 2 + (i.copy.eyebrow ? c.rise(L(c)) * 2.5 : 0) + head.h + (sup ? sup.h + row(c) * 0.7 : 0) + row(c) * 3.4;
+  const want = padY * 2 + (i.copy.eyebrow ? c.rise(L(c)) * 2.5 : 0) + head.h + (sup ? sup.h + row(c) * 0.7 : 0) + row(c) * 3.4 + footerPlan(c, i, tw).extra;
   const ph = stacked(c) ? Math.min(1 - 2.4 * c.my, want) : 1 - 2 * c.my;
   const px = stacked(c) ? (1 - pw) / 2 : c.mx;
   const py = stacked(c) ? (1 - ph) / 2 : c.my;
@@ -851,10 +881,67 @@ const GENERATORS: Partial<Record<ArchetypeKey, Draw>> = {
 /** Archetypes a concept may use today. */
 export const IMPLEMENTED = Object.keys(GENERATORS) as ArchetypeKey[];
 
-export function compose(archetype: ArchetypeKey, input: ComposeInput, format: { w: number; h: number }, title = 'Concept'): DesignDocument {
+export interface ComposeOptions {
+  /** A piece read at speed from a road (a billboard). Few words, all of them large. */
+  distance?: boolean;
+}
+
+/** The format as `compose` needs it: a size, and the physical facts when it is a real object. */
+export type ComposeFormat = { w: number; h: number } & Partial<Pick<Format, 'mm' | 'safeMm' | 'targetDpi' | 'medium' | 'key' | 'label' | 'bleedMm'>>;
+
+/**
+ * What this format demands, as fractions the canvas can use. These are the
+ * house rules the quality gate checks (conceptChecks.ts); composing to them
+ * is how a concept passes the gate by construction instead of by luck.
+ */
+function rulesFor(format: ComposeFormat, distance: boolean) {
+  if (distance) {
+    /* S5: every line at least 0.07 of the board's height, the name 0.08. Sizes are fractions of the width. */
+    return { distance, minSize: (BILLBOARD_MIN_TEXT * format.h) / format.w, minBrand: (BILLBOARD_MIN_BRAND * format.h) / format.w };
+  }
+  const physical = format.mm ? (format as Format) : null;
+  const minSize = minTextPx(physical) / format.w;
+  /* Words stay inside the safe area, with a millimetre to spare. */
+  const marginOfShortEdge = physical && physical.safeMm > 0 ? (physical.safeMm + 1) / Math.min(physical.mm!.w, physical.mm!.h) : 0;
+  const safe = physical && physical.safeMm > 0 ? { x: (physical.safeMm + 0.3) / physical.mm!.w, y: (physical.safeMm + 0.3) / physical.mm!.h } : undefined;
+  return { distance, minSize, marginOfShortEdge, safe };
+}
+
+/**
+ * A colour small type can be read on. Some palette colours are mid-tones on
+ * which neither white nor near-black reaches 4.5:1; they are fine for a
+ * headline and wrong for a phone number. A field that carries words is
+ * deepened, or lightened, only as far as its own ink needs.
+ */
+export function carries(fill: string): string {
+  const ink = readableInk(fill);
+  const move = relativeLuminance(ink) > 0.5 ? shade : tint;
+  for (let k = 0; k <= 12; k += 1) {
+    const tried = k ? move(fill, k * 0.04) : fill;
+    if (contrastRatio(readableInk(tried), tried) >= 4.5) return tried;
+  }
+  return fill;
+}
+
+/** The document, and the names of any lines the format had no room for. */
+export function composeWithReport(archetype: ArchetypeKey, input: ComposeInput, format: ComposeFormat, title = 'Concept', opts: ComposeOptions = {}): { doc: DesignDocument; omitted: string[] } {
   const draw = GENERATORS[archetype];
   if (!draw) throw new Error(`Archetype "${archetype}" has no generator yet.`);
-  const canvas = new Canvas(format.w, format.h);
-  const background = draw(canvas, input);
-  return canvas.document(title, background);
+  const canvas = new Canvas(format.w, format.h, rulesFor(format, !!opts.distance));
+  /*
+   * A driver reads about seven words. A board carries the headline, the name
+   * and one line to act on, and nothing else: the label, the supporting line
+   * and the list of facts belong on something a person can stand in front of.
+   */
+  const { colours } = input;
+  const fields = { ...colours, primary: carries(colours.primary), secondary: carries(colours.secondary), highlight: carries(colours.highlight) };
+  const told: ComposeInput = opts.distance
+    ? { ...input, colours: fields, copy: { brand: input.copy.brand, headline: input.copy.headline, cta: input.copy.cta } }
+    : { ...input, colours: fields };
+  const background = draw(canvas, told);
+  return { doc: canvas.document(title, background), omitted: [...new Set(canvas.omitted)] };
+}
+
+export function compose(archetype: ArchetypeKey, input: ComposeInput, format: ComposeFormat, title = 'Concept', opts: ComposeOptions = {}): DesignDocument {
+  return composeWithReport(archetype, input, format, title, opts).doc;
 }
