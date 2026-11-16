@@ -182,11 +182,12 @@ export default function CreateMarketplace() {
   };
 
   /** Opening (or re-asking for) a need from the tiles, Popular now or the request box. */
-  const open = (need: NeedSlug | '', deliverable = '') => {
+  const open = (need: NeedSlug | '', deliverable = '', stay = false) => {
     if (need) {
       const active = document.activeElement;
       opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
-      reveal.current = 'focus';
+      /* A typed request shows its brief first; the designs open below it without pulling the page away. */
+      reveal.current = stay ? null : 'focus';
     }
     const settled = settle(need, deliverable, listed);
     apply(need, deliverable);
@@ -273,7 +274,7 @@ export default function CreateMarketplace() {
   return (
     <div className="space-y-8 sm:space-y-10">
       <IntentComposer
-        onCategory={(s) => (s.need ? open(s.need, s.deliverable) : open(''))}
+        onCategory={(s) => (s.need ? open(s.need, s.deliverable, s.stay) : open(''))}
         offer={tiles.map((t) => t.slug)}
       >
         <NeedTiles needs={tiles} active={focus.need} onPick={(need) => open(need)} />
