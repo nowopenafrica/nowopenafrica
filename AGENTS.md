@@ -49,6 +49,24 @@ checked.
 - **Admin Creator OS**: the 20 `ADMIN_SECTIONS` in `src/lib/adminCreator.ts` must all stay `live`. New admin modules embed `LIVE_MODULES`; embedded Studio tools route through the `open(id)` callback.
 - Tests: Vitest + jsdom + Testing Library; lib engines get unit tests, pages get smoke tests in `src/test/`. Keep the full suite green after every change.
 
+## Creative Intelligence Library (NowOpen Create)
+
+Read `docs/creative-intelligence/README.md` before changing anything in Create
+that affects how a design looks or is chosen: templates, looks, the brief and
+concept engines, the quality rubric.
+
+- The typed registry is `src/lib/create/intel/` (movements, industries,
+  archetypes, pairings, photography, request taxonomy, trends).
+- Six of the documents are generated from it. After editing the registry run
+  `npm run intel:docs`; `intel.test.ts` fails when they differ.
+- Principles only: never describe, trace or imitate a specific existing design,
+  and never lift assets from a brand, studio, Canva or Freepik.
+- Trends are `proposed` until the founder approves them, and each has a
+  review-by date that fails the tests once it passes.
+- Coolvetica belongs to NowOpen's own interface. Customer designs do not use it.
+- A score from the builder or a model is not a review. Only a person's score,
+  from rendered screenshots, is recorded in the quality ledger.
+
 ## Quality gates in CI
 
 `.github/workflows/ci.yml` runs `npm run verify` then `npm run build` on every

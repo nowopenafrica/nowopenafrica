@@ -21,6 +21,7 @@
     "check:templates": "node scripts/audit-templates.mjs --check",
     "audit:templates": "node scripts/audit-templates.mjs",
     "audit:quality": "vite-node scripts/audit-quality.ts",
+    "intel:docs": "vite-node scripts/intel-docs.ts",
     "check:api-imports": "node scripts/check-api-imports.mjs",
     "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
     "assets:manifest": "node scripts/assets/manifest.mjs",
