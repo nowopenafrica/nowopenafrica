@@ -50,7 +50,7 @@ Mid-century Swiss and German schools: objective communication on a mathematical 
 - **Colour:** Black, white and one signal colour used on 10% of the surface or less.
 - **Imagery:** none, framed, full-bleed
 - **Compositions:** Modular grid; Typographic poster; Editorial split
-- **Pairings we ship:** swiss, modern
+- **Pairings we ship:** swiss, modern, system
 - **Palette families:** mono, cool, bold (sample: Paper & Ink)
 
 **Use when**
@@ -84,7 +84,7 @@ Mid-century Swiss and German schools: objective communication on a mathematical 
 - **Colour:** Red, yellow and blue with black and off-white. Flat, no gradients.
 - **Imagery:** none, illustration, cut-out
 - **Compositions:** Diagonal energy; Modular grid; Typographic poster
-- **Pairings we ship:** bauhaus, modern, statement
+- **Pairings we ship:** bauhaus, modern, statement, city
 - **Palette families:** bold, mono (sample: Sun & Ink)
 
 **Use when**
@@ -118,7 +118,7 @@ Fashion, fragrance and property: value shown by what is left out.
 - **Colour:** Two neutrals and one metal or deep tone. No saturated colour except a product.
 - **Imagery:** framed, cut-out, full-bleed, none
 - **Compositions:** Centred emblem; Mounted frame; Product hero
-- **Pairings we ship:** vogue, couture, luxury
+- **Pairings we ship:** vogue, couture, luxury, atelier, monument
 - **Palette families:** mono, earth (sample: Baobab)
 
 **Use when**
@@ -152,7 +152,7 @@ A web-born reaction to polish: raw structure, hard edges, visible joints.
 - **Colour:** Black outlines over one or two loud flats; white as a colour.
 - **Imagery:** none, cut-out, duotone
 - **Compositions:** Monumental type; Band and field; Layered collage
-- **Pairings we ship:** impact, workshop, statement, street
+- **Pairings we ship:** impact, workshop, statement, street, broadcast, works
 - **Palette families:** bold, mono (sample: Electric Lagos)
 
 **Use when**
@@ -186,7 +186,7 @@ Magazine art direction: the picture and the headline argue, and the page is the 
 - **Colour:** Drawn from the photograph, plus black and paper.
 - **Imagery:** full-bleed, framed, cut-out
 - **Compositions:** Editorial split; Image to the edges; Mounted frame
-- **Pairings we ship:** gallery, vogue, editorial, couture
+- **Pairings we ship:** gallery, vogue, editorial, couture, atelier, masthead
 - **Palette families:** mono, earth, warm (sample: Terracotta Clay)
 
 **Use when**
@@ -220,7 +220,7 @@ More is more, under control: layered pattern, colour and type with one clear pat
 - **Colour:** Four to six saturated colours from one family logic, anchored by black or white.
 - **Imagery:** collage, cut-out, pattern, illustration
 - **Compositions:** Layered collage; Pattern field; Monumental type
-- **Pairings we ship:** impact, street, statement
+- **Pairings we ship:** impact, street, statement, masthead, playroom
 - **Palette families:** bold, warm (sample: Carnival)
 
 **Use when**
@@ -254,7 +254,7 @@ Current African visual culture: fashion photography, textile logic and city ener
 - **Colour:** Saturated but ordered: two strong colours and a neutral, taken from the cloth or scene.
 - **Imagery:** full-bleed, framed, pattern, cut-out
 - **Compositions:** Image to the edges; Framed portrait; Pattern field
-- **Pairings we ship:** modern, couture, statement
+- **Pairings we ship:** modern, couture, statement, studio, neighbourhood
 - **Palette families:** warm, bold, earth (sample: Kente Field)
 
 **Use when**
@@ -288,7 +288,7 @@ Post-independence design and architecture: international modernism rebuilt with 
 - **Colour:** Laterite, indigo, ochre, concrete grey; one bright accent.
 - **Imagery:** pattern, framed, illustration
 - **Compositions:** Pattern field; Modular grid; Band and field
-- **Pairings we ship:** swiss, heirloom, gallery, modern
+- **Pairings we ship:** swiss, heirloom, gallery, modern, city, studio
 - **Palette families:** earth, warm, cool (sample: Adire & Clay)
 
 **Use when**
@@ -322,7 +322,7 @@ Yesterday's idea of tomorrow: space-age optimism, technical diagrams, chrome and
 - **Colour:** Dark ground with one hot accent, or faded print tones.
 - **Imagery:** illustration, render, cut-out, duotone
 - **Compositions:** Typographic poster; Rendered stage; Diagonal energy
-- **Pairings we ship:** street, modern, poster
+- **Pairings we ship:** street, modern, poster, signal
 - **Palette families:** cool, bold, mono (sample: Midnight Silk)
 
 **Use when**
@@ -356,7 +356,7 @@ Identity systems for institutions: consistency, clarity and trust across every a
 - **Colour:** One brand colour, one support, neutrals. Colour means something each time.
 - **Imagery:** framed, none, illustration
 - **Compositions:** Band and field; Modular grid; Information ledger
-- **Pairings we ship:** swiss, ledger, modern
+- **Pairings we ship:** swiss, ledger, modern, system, city
 - **Palette families:** cool, mono (sample: Harbour Blue)
 
 **Use when**
@@ -390,7 +390,7 @@ The sketchbook and the photocopier: hand-made marks, tape, stencil and misregist
 - **Colour:** Paper tones, black, and one or two spot colours as if printed.
 - **Imagery:** collage, duotone, cut-out, illustration
 - **Compositions:** Layered collage; Typographic poster; Monumental type
-- **Pairings we ship:** street, editorial, poster
+- **Pairings we ship:** street, editorial, poster, studio
 - **Palette families:** mono, warm, earth (sample: Red Earth)
 
 **Use when**
@@ -424,7 +424,7 @@ Rendered objects and materials: impossible products, lit like a studio.
 - **Colour:** Set by material and light; one dominant hue.
 - **Imagery:** render
 - **Compositions:** Rendered stage; Product hero; Monumental type
-- **Pairings we ship:** modern, statement
+- **Pairings we ship:** modern, statement, signal
 - **Palette families:** warm, cool, mono (sample: Cola Nut)
 
 **Use when**
@@ -458,7 +458,7 @@ Rendered objects and materials: impossible products, lit like a studio.
 - **Colour:** Black, cream and a metal; or deep jewel tones with gold line.
 - **Imagery:** illustration, none, framed
 - **Compositions:** Centred emblem; Pattern field; Mounted frame
-- **Pairings we ship:** deco, luxury, couture
+- **Pairings we ship:** deco, luxury, couture, monument
 - **Palette families:** earth, mono, cool (sample: Forest & Brass)
 
 **Use when**
@@ -492,7 +492,7 @@ Ma, the active interval: asymmetry, restraint and natural material.
 - **Colour:** Paper, ink and one muted natural colour.
 - **Imagery:** framed, cut-out, none
 - **Compositions:** Mounted frame; Product hero; Centred emblem
-- **Pairings we ship:** gallery, couture
+- **Pairings we ship:** gallery, couture, atelier
 - **Palette families:** mono, earth, pastel (sample: Moss & Stone)
 
 **Use when**
@@ -526,7 +526,7 @@ Late-90s rave and 60s poster art meet: liquid forms, chrome, warped type.
 - **Colour:** Acid brights, gradients and iridescence against black or white.
 - **Imagery:** illustration, render, collage
 - **Compositions:** Typographic poster; Rendered stage; Layered collage
-- **Pairings we ship:** street, impact
+- **Pairings we ship:** street, impact, signal, artline
 - **Palette families:** bold, pastel (sample: Carnival)
 
 **Use when**
@@ -560,7 +560,7 @@ Wellness and food culture: soft form, natural material and honest daylight.
 - **Colour:** Clay, sage, oat, olive; one fruit or flower accent.
 - **Imagery:** full-bleed, framed, cut-out, illustration
 - **Compositions:** Image to the edges; Product hero; Mounted frame
-- **Pairings we ship:** warmth, craft, gallery
+- **Pairings we ship:** warmth, craft, gallery, neighbourhood
 - **Palette families:** earth, pastel, warm (sample: Blush & Sage)
 
 **Use when**
@@ -594,7 +594,7 @@ Type designed to move, and stills that look as if they are about to.
 - **Colour:** Two colours, high contrast.
 - **Imagery:** none, duotone
 - **Compositions:** Monumental type; Typographic poster; Serial tiles
-- **Pairings we ship:** impact, statement, poster
+- **Pairings we ship:** impact, statement, poster, broadcast, works
 - **Palette families:** bold, mono (sample: Cobalt Pop)
 
 **Use when**
@@ -628,7 +628,7 @@ Type designed to move, and stills that look as if they are about to.
 - **Colour:** Pastels with one or two primaries and black.
 - **Imagery:** illustration, pattern, cut-out
 - **Compositions:** Pattern field; Layered collage; Band and field
-- **Pairings we ship:** bauhaus, modern, warmth
+- **Pairings we ship:** bauhaus, modern, warmth, playroom
 - **Palette families:** pastel, bold (sample: Lilac & Mint)
 
 **Use when**
@@ -662,7 +662,7 @@ Type designed to move, and stills that look as if they are about to.
 - **Colour:** Red, black and paper; occasionally one more.
 - **Imagery:** duotone, cut-out, collage
 - **Compositions:** Diagonal energy; Layered collage; Monumental type
-- **Pairings we ship:** poster, workshop, street, impact
+- **Pairings we ship:** poster, workshop, street, impact, works, broadcast
 - **Palette families:** bold, mono (sample: Poppy Field)
 
 **Use when**
@@ -696,7 +696,7 @@ Makers' marks, engraving and letterpress: trust built from age and skill.
 - **Colour:** One or two inks on warm paper.
 - **Imagery:** illustration, none, framed
 - **Compositions:** Centred emblem; Information ledger; Pattern field
-- **Pairings we ship:** heirloom, craft, workshop, luxury
+- **Pairings we ship:** heirloom, craft, workshop, luxury, monument
 - **Palette families:** earth, mono, warm (sample: Harmattan Sand)
 
 **Use when**
@@ -730,7 +730,7 @@ Timetables, maps and reports: making facts quick to find and hard to misread.
 - **Colour:** Neutral base; one or two colours with fixed meanings.
 - **Imagery:** none, illustration
 - **Compositions:** Information ledger; Modular grid; Serial tiles
-- **Pairings we ship:** ledger, swiss
+- **Pairings we ship:** ledger, swiss, system
 - **Palette families:** mono, cool (sample: Glacier)
 
 **Use when**
@@ -764,7 +764,7 @@ Black-and-white reportage and fashion: light, grain and a single line of type.
 - **Colour:** Black, white, greys; at most one spot colour.
 - **Imagery:** full-bleed, framed
 - **Compositions:** Image to the edges; Mounted frame; Editorial split
-- **Pairings we ship:** vogue, couture, gallery, swiss
+- **Pairings we ship:** vogue, couture, gallery, swiss, artline, atelier
 - **Palette families:** mono (sample: Graphite)
 
 **Use when**
@@ -798,7 +798,7 @@ Screen-native light: glows, soft meshes and glass for products that live in soft
 - **Colour:** A two or three stop gradient from palette roles only; never rainbow.
 - **Imagery:** render, none, illustration
 - **Compositions:** Typographic poster; Rendered stage; Product hero
-- **Pairings we ship:** modern, swiss
+- **Pairings we ship:** modern, swiss, signal, artline
 - **Palette families:** cool, bold (sample: Deep Sea)
 
 **Use when**
@@ -832,7 +832,7 @@ Cut and paste since Dada: unrelated pictures joined to make a new meaning.
 - **Colour:** Paper tones with two or three flat colours.
 - **Imagery:** collage, cut-out, duotone
 - **Compositions:** Layered collage; Framed portrait; Typographic poster
-- **Pairings we ship:** editorial, street, gallery
+- **Pairings we ship:** editorial, street, gallery, masthead, studio
 - **Palette families:** warm, earth, mono (sample: Saffron Market)
 
 **Use when**
@@ -866,7 +866,7 @@ The word as a building: letters at architectural scale, cropped by the frame.
 - **Colour:** Two colours.
 - **Imagery:** none, cut-out
 - **Compositions:** Monumental type; Typographic poster; Band and field
-- **Pairings we ship:** statement, impact, poster
+- **Pairings we ship:** statement, impact, poster, broadcast, works
 - **Palette families:** bold, mono, warm (sample: Royal Orange)
 
 **Use when**

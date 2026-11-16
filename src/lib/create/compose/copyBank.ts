@@ -47,7 +47,7 @@ export const BY_GOAL: Record<Objective, [BankLine, BankLine, BankLine]> = {
   event: [
     line('You are invited', 'Be in the room.', 'Join us for a gathering worth making time for.', 'Register'),
     line('Save the date', 'Come and be part of it.', 'Good company and a programme worth your time.', 'Get your place'),
-    line('Join us', 'It will not be the same without you.', 'The details are below. Bring someone along.', 'Join us'),
+    line('Join us', 'Not the same without you.', 'The details are below. Bring someone along.', 'Join us'),
   ],
   identity: [
     line('Who we are', 'Made with intent.', 'A name, a look and a way of doing things that belong together.', 'Meet us'),

@@ -35,6 +35,31 @@ export const INTEL_PAIRINGS: TypePairing[] = [
     suits: 'Slab headlines with weight: trades, rallies, labels, raw posters.' },
   { key: 'heirloom', label: 'Heirloom', display: 'oldstyle', text: 'humanist', accent: 'script',
     suits: 'Old-style serif for provenance: makers, tailoring, bridal, institutions.' },
+  /* Added 2026-11-16 with the second batch of faces. Each names the job it is for; typeUse.ts holds the rules. */
+  { key: 'system', label: 'System', display: 'neutral', text: 'neutral', accent: 'technical',
+    suits: 'One neutral family in two weights with a mono for figures: notices, schedules, technology, institutions.' },
+  { key: 'broadcast', label: 'Broadcast', display: 'impact', text: 'neutral', accent: 'narrow',
+    suits: 'A heavy condensed headline over plain text: sales, sport, rallies and anything read from across a street.' },
+  { key: 'atelier', label: 'Atelier', display: 'elegant', text: 'reading', accent: 'neutral',
+    suits: 'A light display serif over a text serif: beauty, fashion, hospitality and quiet luxury.' },
+  { key: 'monument', label: 'Monument', display: 'classical', text: 'reading', accent: 'neutral',
+    suits: 'Inscriptional capitals for a name or title: law, ceremony, heritage, hotels. Short lines only.' },
+  { key: 'neighbourhood', label: 'Neighbourhood', display: 'friendly', text: 'friendly', accent: 'neutral',
+    suits: 'One round, familiar family: local shops, schools, clinics and community notices.' },
+  { key: 'signal', label: 'Signal', display: 'wide', text: 'neutral', accent: 'technical',
+    suits: 'A wide display face for a few words, with mono labels: launches, music, technology, retro-future.' },
+  { key: 'masthead', label: 'Masthead', display: 'fatface', text: 'reading', accent: 'narrow',
+    suits: 'A very heavy serif headline like a magazine cover: food, fashion, culture.' },
+  { key: 'works', label: 'Works', display: 'industrial', text: 'neutral', accent: 'technical',
+    suits: 'Tall industrial capitals and large numbers: logistics, trades, fitness, sport.' },
+  { key: 'studio', label: 'Studio', display: 'expressive', text: 'neutral', accent: 'technical',
+    suits: 'A grotesque with visible character: studios, culture and brands that should not look like software.' },
+  { key: 'artline', label: 'Artline', display: 'artistic', text: 'neutral', accent: 'neutral',
+    suits: 'An unusual wide sans for short lines: galleries, festivals, fashion.' },
+  { key: 'playroom', label: 'Playroom', display: 'rounded', text: 'friendly', accent: 'neutral',
+    suits: 'Rounded and kind: children, food, care, parties.' },
+  { key: 'city', label: 'City', display: 'urban', text: 'neutral', accent: 'narrow',
+    suits: 'A confident wide sans: property, retail, fitness and events.' },
 ];
 
 export const ALL_PAIRINGS: TypePairing[] = [...TYPE_PAIRINGS, ...INTEL_PAIRINGS];
@@ -56,14 +81,10 @@ export interface FaceGap {
 }
 
 /*
- * Checked 2026-11-16. Four of the six original gaps are closed (Jost, Bodoni
- * Moda, Zilla Slab, Cormorant Garamond; see typefaces.ts). These two remain.
+ * Checked 2026-11-16. All six original gaps are closed: Jost, Bodoni Moda,
+ * Zilla Slab and Cormorant Garamond in the first batch; Inter (`neutral`) and
+ * Unbounded (`wide`) in the second, once the weight budget was changed to hold
+ * only the faces a page loads eagerly and Noto Sans became the glyph fallback.
+ * The list stays so the next missing voice has somewhere to be recorded.
  */
-export const FACE_GAPS: FaceGap[] = [
-  { voice: 'Neutral neo-grotesque for text and display', movements: ['swiss-international', 'corporate-precision', 'information-design'],
-    candidate: 'Inter', licence: 'SIL OFL 1.1 (verified in the upstream OFL.txt)', status: 'proposed',
-    finding: 'One weight is 42.8 KB and would fit the 600 KB font budget with under 5 KB to spare. It was held back because it draws the Hausa letters no shipped face has: a test requires that gap list to shrink when a covering face arrives, which means making Inter the glyph fallback in place of Source Sans 3. That is its own piece of work, and it would close the Hausa gap.' },
-  { voice: 'Wide, extended display sans', movements: ['retro-futurism', 'gradient-futurism', 'cgi-3d'],
-    candidate: 'Unbounded', licence: 'SIL OFL 1.1 (verified in the upstream OFL.txt)', status: 'proposed',
-    finding: 'One weight is 63.4 KB, more than the 47 KB left in the 600 KB font budget.' },
-];
+export const FACE_GAPS: FaceGap[] = [];

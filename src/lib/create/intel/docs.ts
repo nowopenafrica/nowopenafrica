@@ -5,6 +5,7 @@
 // The hand-written documents (README, fundamentals, print-production) are not
 // generated and are not listed here.
 
+import { TYPE_REFERENCES, TYPE_RULES, TYPE_USE_CASES, faceUse } from './typeUse';
 import { TYPEFACES, typefaceOf } from '../../design/typefaces';
 import { paletteOf } from '../../design/palettes';
 import { ARCHETYPES, archetypeOf } from './archetypes';
@@ -72,6 +73,23 @@ export function renderTrends(): string {
 
 export function renderTypography(): string {
   const out: string[] = [HEAD('Typography', 'pairings.ts')];
+  out.push('## Rules that always hold\n');
+  for (const r of TYPE_RULES) out.push(`- ${r}`);
+  out.push('\n## What each kind of piece asks of its type\n');
+  out.push('| Piece | How it is read | Headline | Text | Avoid |\n|---|---|---|---|---|');
+  for (const u of TYPE_USE_CASES) out.push(`| ${u.name} | ${u.reading} | ${u.headline} | ${u.text} | ${u.avoid} |`);
+  out.push('\n## What each face is for\n');
+  out.push('"Smallest" is the smallest job the face may be given: small print, running text, or headlines only. "Road" means it holds up on a billboard.\n');
+  out.push('| Face (`key`) | Smallest | Capitals | Paragraphs | Road | Figures | Most words | Loaded | When to reach for it |\n|---|---|---|---|---|---|---|---|---|');
+  for (const f of TYPEFACES) {
+    const u = faceUse(f.key);
+    out.push(`| ${f.label} (\`${f.key}\`) | ${u.smallest} | ${u.capitals} | ${u.paragraphs ? 'yes' : 'no'} | ${u.distance ? 'yes' : 'no'} | ${u.figures ? 'yes' : 'no'} | ${u.maxWords ?? 'any'} | ${f.tier === 'extended' ? 'when used' : 'always'} | ${f.voice} |`);
+  }
+  out.push('\n## Where these rules were checked\n');
+  out.push('Principles only; no design, layout or asset is copied from any of these (Ruling AJ). Checked 2026-11-16.\n');
+  for (const r of TYPE_REFERENCES) out.push(`- **${r.where}:** ${r.found}`);
+  out.push('');
+
   out.push('Customer designs use only faces we self-host with a recorded licence. NowOpen Create\'s own interface uses Coolvetica; customer designs do not inherit it.\n');
   out.push('## Faces we ship\n');
   out.push('| Key | Face | Role | Weights | Licence |\n|---|---|---|---|---|');

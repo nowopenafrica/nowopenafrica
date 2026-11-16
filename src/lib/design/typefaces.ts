@@ -67,6 +67,13 @@ export type TypefaceKey =
   /* Added 2026-11-16 for the Creative Intelligence Library: one display weight each. */
   | 'geometric' | 'didone' | 'slab' | 'oldstyle'
   /*
+   * Added 2026-11-16 (second batch) on the founder's instruction to stock the
+   * library with the strongest open-source faces. All SIL OFL 1.1 and tier
+   * 'extended': fetched only when a design uses one. `universal` is Noto
+   * Sans, the glyph fallback, and is the exception: it is core.
+   */
+  | 'neutral' | 'wide' | 'impact' | 'narrow' | 'elegant' | 'classical' | 'reading' | 'friendly' | 'urban' | 'rounded' | 'handwritten' | 'retro' | 'technical' | 'expressive' | 'fatface' | 'industrial' | 'artistic' | 'universal'
+  /*
    * The house face. Already self-hosted in index.css and already used by the
    * brand-card studio — it simply was not offered in the design library, so
    * the one typeface that makes a design look like NowOpen was the one
@@ -96,6 +103,13 @@ export interface Typeface {
    *  bold, which on a display face looks like a mistake. */
   weights: number[];
   role: TypeRole;
+  /**
+   * 'core' faces are warmed by every gallery page (ensureTypefacesReady with
+   * no keys) and are held to the weight budget. 'extended' faces cost nothing
+   * until a design names one: the browser fetches the file when it draws
+   * text in it, and an export awaits it. Absent means 'core'.
+   */
+  tier?: 'core' | 'extended';
   /** One line on when to reach for it. Shown in the picker. */
   voice: string;
   /*
@@ -147,7 +161,7 @@ export interface Typeface {
 export const GLYPH_FALLBACK = {
   family: 'NowOpen Glyph Fallback',
   /** The face whose files serve it. */
-  source: 'humanist' as TypefaceKey,
+  source: 'universal' as TypefaceKey,
   unicodeRange: ['U+0100-024F', 'U+0250-02FF', 'U+0300-036F', 'U+1E00-1EFF', 'U+20A0-20CF'],
   /*
    * A string inside the range. document.fonts.load() defaults to a space,
@@ -229,10 +243,10 @@ export const TYPEFACES: Typeface[] = [
   },
   {
     key: 'humanist', label: 'Source Sans 3', family: 'Source Sans 3',
-    stack: `"Source Sans 3", ${FALLBACK.sans}`, weights: [400, 600, 700], role: 'text',
+    stack: `"Source Sans 3", ${COVER}, ${FALLBACK.sans}`, weights: [400, 600, 700], role: 'text',
     voice: 'Open humanist sans. Long reading and small print; the widest African-letter coverage we ship.',
     licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/source-sans-3-400.woff2', 600: '/fonts/studio/source-sans-3-600.woff2', 700: '/fonts/studio/source-sans-3-700.woff2' },
-    source: GOOGLE_FONTS('sourcesans3'),
+    source: GOOGLE_FONTS('sourcesans3'), glyphFallback: true,
   },
   {
     key: 'script', label: 'Dancing Script', family: 'Dancing Script',
@@ -268,6 +282,132 @@ export const TYPEFACES: Typeface[] = [
     voice: 'Old-style book serif with a light touch. Heritage, bridal and quiet luxury headlines.',
     licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/cormorant-garamond-600.woff2' },
     source: GOOGLE_FONTS('cormorantgaramond'), glyphFallback: true,
+  },
+  {
+    key: 'neutral', label: 'Inter', family: 'Inter',
+    stack: `Inter, ${COVER}, ${FALLBACK.sans}`, weights: [400, 700], role: 'text',
+    voice: 'Neutral neo-grotesque with a tall x-height. Interfaces, tables, small print and any long text that must simply be read.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/inter-400.woff2', 700: '/fonts/studio/inter-700.woff2' },
+    source: GOOGLE_FONTS('inter'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'wide', label: 'Unbounded', family: 'Unbounded',
+    stack: `Unbounded, ${COVER}, ${FALLBACK.sans}`, weights: [700], role: 'display',
+    voice: 'Wide, rounded display sans. Tech launches, music and retro-future headlines of a few words.',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/unbounded-700.woff2' },
+    source: GOOGLE_FONTS('unbounded'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'impact', label: 'Anton', family: 'Anton',
+    stack: `Anton, ${COVER}, ${FALLBACK.condensed}`, weights: [400], role: 'display',
+    voice: 'Heavy condensed sans with a lower case. Sales, sport and headlines that must be read from far away.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/anton-400.woff2' },
+    source: GOOGLE_FONTS('anton'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'narrow', label: 'Oswald', family: 'Oswald',
+    stack: `Oswald, ${COVER}, ${FALLBACK.condensed}`, weights: [600], role: 'display',
+    voice: 'Narrow gothic. Fits a long headline, a date or a price into a tight width without shouting.',
+    licence: 'SIL OFL 1.1', files: { 600: '/fonts/studio/oswald-600.woff2' },
+    source: GOOGLE_FONTS('oswald'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'elegant', label: 'Instrument Serif', family: 'Instrument Serif',
+    stack: `"Instrument Serif", ${COVER}, ${FALLBACK.serif}`, weights: [400], role: 'display',
+    voice: 'Light, condensed display serif. Editorial and beauty headlines; set large, never small.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/instrument-serif-400.woff2' },
+    source: GOOGLE_FONTS('instrumentserif'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'classical', label: 'Cinzel', family: 'Cinzel',
+    stack: `Cinzel, ${COVER}, ${FALLBACK.serif}`, weights: [700], role: 'display',
+    voice: 'Roman inscriptional capitals. It has no lower case: names, titles and monograms for luxury, law and ceremony.',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/cinzel-700.woff2' },
+    source: GOOGLE_FONTS('cinzel'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'reading', label: 'Lora', family: 'Lora',
+    stack: `Lora, ${COVER}, ${FALLBACK.serif}`, weights: [400, 600], role: 'text',
+    voice: 'Text serif with a calligraphic touch. Menus, stories and any paragraph that should feel written, not typed.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/lora-400.woff2', 600: '/fonts/studio/lora-600.woff2' },
+    source: GOOGLE_FONTS('lora'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'friendly', label: 'Poppins', family: 'Poppins',
+    stack: `Poppins, ${COVER}, ${FALLBACK.sans}`, weights: [500, 700], role: 'text',
+    voice: 'Round geometric sans, familiar and approachable. Small businesses, schools, health and community notices.',
+    licence: 'SIL OFL 1.1', files: { 500: '/fonts/studio/poppins-500.woff2', 700: '/fonts/studio/poppins-700.woff2' },
+    source: GOOGLE_FONTS('poppins'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'urban', label: 'Montserrat', family: 'Montserrat',
+    stack: `Montserrat, ${COVER}, ${FALLBACK.sans}`, weights: [700], role: 'display',
+    voice: 'Wide urban sans. Confident headlines for property, fitness, retail and events.',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/montserrat-700.woff2' },
+    source: GOOGLE_FONTS('montserrat'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'rounded', label: 'Nunito', family: 'Nunito',
+    stack: `Nunito, ${COVER}, ${FALLBACK.sans}`, weights: [800], role: 'display',
+    voice: 'Rounded sans. Children, food, care and anything that should feel safe and kind.',
+    licence: 'SIL OFL 1.1', files: { 800: '/fonts/studio/nunito-800.woff2' },
+    source: GOOGLE_FONTS('nunito'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'handwritten', label: 'Caveat', family: 'Caveat',
+    stack: `Caveat, ${COVER}, ${FALLBACK.sans}`, weights: [700], role: 'accent',
+    voice: 'Quick handwriting. A note, a price tag or one aside; a few words at most.',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/caveat-700.woff2' },
+    source: GOOGLE_FONTS('caveat'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'retro', label: 'Pacifico', family: 'Pacifico',
+    stack: `Pacifico, ${COVER}, ${FALLBACK.sans}`, weights: [400], role: 'accent',
+    voice: 'Bold brush script. Cafes, beach, ice cream and nostalgia; one or two words, never capitals.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/pacifico-400.woff2' },
+    source: GOOGLE_FONTS('pacifico'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'technical', label: 'JetBrains Mono', family: 'JetBrains Mono',
+    stack: `"JetBrains Mono", ${COVER}, ${FALLBACK.mono}`, weights: [500], role: 'accent',
+    voice: 'Clear monospace with a real lower case. Codes, references, prices in columns and small technical labels.',
+    licence: 'SIL OFL 1.1', files: { 500: '/fonts/studio/jetbrains-mono-500.woff2' },
+    source: GOOGLE_FONTS('jetbrainsmono'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'expressive', label: 'Bricolage Grotesque', family: 'Bricolage Grotesque',
+    stack: `"Bricolage Grotesque", ${COVER}, ${FALLBACK.sans}`, weights: [700], role: 'display',
+    voice: 'Grotesque with visible character. Studios, culture and brands that should not look like software.',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/bricolage-grotesque-700.woff2' },
+    source: GOOGLE_FONTS('bricolagegrotesque'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'fatface', label: 'Abril Fatface', family: 'Abril Fatface',
+    stack: `"Abril Fatface", ${COVER}, ${FALLBACK.serif}`, weights: [400], role: 'display',
+    voice: 'Very heavy high-contrast serif. Food, fashion and magazine-cover headlines of a few words.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/abril-fatface-400.woff2' },
+    source: GOOGLE_FONTS('abrilfatface'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'industrial', label: 'Big Shoulders', family: 'Big Shoulders',
+    stack: `"Big Shoulders", ${COVER}, ${FALLBACK.condensed}`, weights: [800], role: 'display',
+    voice: 'Tall industrial condensed sans. Sport, logistics, trades and numbers set very large.',
+    licence: 'SIL OFL 1.1', files: { 800: '/fonts/studio/big-shoulders-800.woff2' },
+    source: GOOGLE_FONTS('bigshoulders'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'artistic', label: 'Syne', family: 'Syne',
+    stack: `Syne, ${COVER}, ${FALLBACK.sans}`, weights: [700], role: 'display',
+    voice: 'Unusual wide sans from the art world. Galleries, festivals and fashion; short lines only.',
+    licence: 'SIL OFL 1.1', files: { 700: '/fonts/studio/syne-700.woff2' },
+    source: GOOGLE_FONTS('syne'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'universal', label: 'Noto Sans', family: 'Noto Sans',
+    stack: `"Noto Sans", ${FALLBACK.sans}`, weights: [400, 700], role: 'text',
+    voice: 'Plain sans that draws every supported African letter. It is the face every other face borrows missing letters from.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/noto-sans-400.woff2', 700: '/fonts/studio/noto-sans-700.woff2' },
+    source: GOOGLE_FONTS('notosans'), tier: 'core',
   },
   {
     key: 'coolvetica', label: 'Coolvetica', family: 'Coolvetica',
@@ -375,7 +515,8 @@ export const pairingOf = (key: string): TypePairing =>
 export async function ensureTypefacesReady(keys?: TypefaceKey[]): Promise<void> {
   if (typeof document === 'undefined' || !document.fonts?.load) return;
 
-  const faces = keys?.length ? keys.map((k) => typefaceOf(k)) : TYPEFACES;
+  /* No keys means the core set. An extended face is named by whoever draws with it, or simply fetched when drawn. */
+  const faces = keys?.length ? keys.map((k) => typefaceOf(k)) : TYPEFACES.filter((f) => f.tier !== 'extended');
   /*
    * The glyph fallback draws every ₦ a canvas frame sets, so it has to be
    * ready too, with text inside its range (see GLYPH_FALLBACK.sample).

@@ -162,20 +162,19 @@ export const SUPPORTED_CHARS: Record<string, string> = {
 };
 
 /**
- * Supported characters that NO family we are approved to ship can draw.
+ * Supported characters that NO family we ship can draw. Empty since
+ * 2026-11-16.
  *
- * Read from the upstream files at google/fonts 86aced9 (2026-11-07): Hausa
- * Ƙ ƙ Ƴ ƴ and the Ewe capitals Ɖ Ʋ Ƒ are absent from all ten, including
- * Source Sans 3, the widest. Listed rather than hidden: fontCoverage.test.ts
- * checks that each one really is missing everywhere, so the day a face that
- * has them is added, this list has to shrink. Closing it needs one more OFL
- * family with full African Latin, which is a founder decision.
- *
- * Ruling L (2026-11-07): closed only by approving a covering OFL face (Noto
- * Sans / SIL Andika / Charis / Gentium). Until then C3 checks a template's own
- * copy, plus SUPPORTED_CHARS minus these.
+ * It used to hold the Hausa letters Ƙ ƙ Ƴ ƴ and the Ewe capitals Ɖ Ʋ Ƒ, absent
+ * from all ten original families, Source Sans 3 included. Ruling L
+ * (2026-11-07) said the list could be closed only by approving a covering OFL
+ * face, and named Noto Sans. The founder's instruction to stock the library
+ * with the strongest open-source faces did that: Noto Sans is now the glyph
+ * fallback (GLYPH_FALLBACK in typefaces.ts), so every face borrows these
+ * letters from it. The constant and its test stay: the day a supported
+ * character has no drawer again, this is where it is written down.
  */
-export const UPSTREAM_GAPS = 'ƘƙƳƴƉƲƑ';
+export const UPSTREAM_GAPS = '';
 
 /** Characters that never need a glyph: line breaks and tabs. */
 const IGNORED = new Set([0x09, 0x0a, 0x0d]);

@@ -16,7 +16,7 @@ import type { PatternKey } from '../../design/look';
 import { PALETTES, paletteOf, type Palette, type PaletteFamily } from '../../design/palettes';
 import type { DesignDocument } from '../../studio/designDocument';
 import type { CreativeBrief, Tier } from '../brief';
-import { ALL_PAIRINGS, archetypeOf, movementOf, type ArchetypeKey, type Movement } from '../intel';
+import { ALL_PAIRINGS, archetypeOf, movementOf, pairingProblems, type ArchetypeKey, type Movement, type TypeContext } from '../intel';
 import { IMPLEMENTED, compose, type ComposeInput, type ConceptCopy } from './archetypes';
 import { bankLine } from './copyBank';
 
@@ -114,6 +114,9 @@ export function conceptsFor(brief: CreativeBrief, opts: ConceptOptions = {}, cou
 
   const seed = seedOf(brief.industry?.value ?? brief.family?.value ?? '');
   const factsFirst = brief.objective?.value === 'event';
+  const roadside = isRoadside(brief);
+  /* A format whose text sits near six points: a business card, a compliment slip. */
+  const smallPrint = /^(business-card|compliment-slip)/.test(brief.format?.value ?? '');
 
   for (const key of brief.movements.value) {
     if (out.length === count) break;
@@ -123,15 +126,28 @@ export function conceptsFor(brief: CreativeBrief, opts: ConceptOptions = {}, cou
     const image = opts.images?.[n];
     const archetype = archetypeFor(movement, archetypes, !!image, seed >>> 11, factsFirst);
     if (!archetype) continue;
-    /* The movement's first pairing that no earlier concept took: three concepts, three voices. */
-    /* Past the movement's own list, any voice no earlier concept took is better than a repeat. */
-    const pairingKey = turned(movement.pairings, seed >>> 5).find((k) => !pairings.has(k))
-      ?? ALL_PAIRINGS.find((p) => !pairings.has(p.key))?.key ?? movement.pairings[0];
-    const pairing = ALL_PAIRINGS.find((p) => p.key === pairingKey) ?? ALL_PAIRINGS[0];
-    const palette = paletteFor(movement, palettes, seed, brief.tier?.value);
     const given = opts.copy?.[n] ?? {};
     /* The customer's words first, then words given for this concept, then the bank's plain line. */
     const bank = bankLine(brief, n);
+    /* The movement's first pairing that no earlier concept took: three concepts, three voices. */
+    /*
+     * The type has to suit the piece, not only the movement (intel/typeUse.ts).
+     * A hairline serif is not set on a billboard, a display face is not asked
+     * for a twelve-word headline, and a business card gets text faces that
+     * survive six points. The movement's own voices are tried first; past
+     * them, any voice no earlier concept took that suits is better than a
+     * repeat, and a repeat that suits is better than a voice that does not.
+     */
+    const words = (given.headline ?? brief.headline?.value ?? bank.headline).split(/\s+/).filter(Boolean).length;
+    const ctx: TypeContext = { distance: roadside, smallPrint, headlineWords: words, capitals: CAPS.has(movement.key) };
+    const suits = (k: string) => { const p = ALL_PAIRINGS.find((x) => x.key === k); return !!p && pairingProblems(p, ctx).length === 0; };
+    const own = turned(movement.pairings, seed >>> 5);
+    const pairingKey = own.find((k) => !pairings.has(k) && suits(k))
+      ?? ALL_PAIRINGS.find((p) => !pairings.has(p.key) && suits(p.key))?.key
+      ?? own.find((k) => suits(k))
+      ?? own.find((k) => !pairings.has(k)) ?? movement.pairings[0];
+    const pairing = ALL_PAIRINGS.find((p) => p.key === pairingKey) ?? ALL_PAIRINGS[0];
+    const palette = paletteFor(movement, palettes, seed, brief.tier?.value);
     const copy: ConceptCopy = {
       brand: given.brand ?? opts.businessName ?? 'Your brand',
       eyebrow: given.eyebrow ?? bank.eyebrow,

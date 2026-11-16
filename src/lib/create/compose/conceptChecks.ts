@@ -21,10 +21,11 @@ import { BILLBOARD_MAX_WORDS, BILLBOARD_MIN_BRAND, BILLBOARD_MIN_TEXT } from '..
 import { minTextPx } from '../../design/quality/checks/geometry';
 import { contrastRatio } from '../../design/styles';
 import { GLYPH_FALLBACK, nearestWeight, typefaceOf } from '../../design/typefaces';
+import { faceUse } from '../intel';
 import type { DesignDocument, DesignObject, TextObject } from '../../studio/designDocument';
 import { METRIC_CHARS, METRIC_WIDTHS } from './fontMetrics';
 
-export type CheckCode = 'C3' | 'C4' | 'C5' | 'C12';
+export type CheckCode = 'C3' | 'C4' | 'C5' | 'C12' | 'TYPE';
 
 export interface Finding {
   code: CheckCode;
@@ -150,6 +151,27 @@ export function checkConcept(doc: DesignDocument, opts: CheckOptions): Finding[]
     const counted = ts.filter((t) => t.slotRole !== 'brand' && t.name !== 'Call to action').reduce((n, t) => n + words(t.text), 0);
     if (counted > BILLBOARD_MAX_WORDS) out.push({ code: 'C5', where: 'Page', detail: `${counted} words besides the name and one action line, more than ${BILLBOARD_MAX_WORDS}` });
   }
+
+  /*
+   * TYPE: each face used for the job it was drawn for (intel/typeUse.ts).
+   * Not one of the thirteen criticals, and held to the same standard: a
+   * script in capitals or a hairline serif at caption size is a defect a
+   * reviewer circles before anything else.
+   */
+  const shortEdge = Math.min(page.width, page.height);
+  for (const t of ts) {
+    const face = typefaceOf(t.font);
+    const u = faceUse(face.key);
+    if (t.upper && u.capitals === 'never') out.push({ code: 'TYPE', where: t.name, detail: `${face.label} is a script and is set in capitals` });
+    if (u.smallest === 'display' && (t.size * page.width) / shortEdge < 0.03 - 1e-9) {
+      out.push({ code: 'TYPE', where: t.name, detail: `${face.label} is a display face set at ${(((t.size * page.width) / shortEdge) * 100).toFixed(1)}% of the short edge, below the 3% it needs` });
+    }
+    if (t.slotRole === 'headline' && u.maxWords && words(t.text) > u.maxWords) {
+      out.push({ code: 'TYPE', where: t.name, detail: `${face.label} should carry at most ${u.maxWords} words; this headline has ${words(t.text)}` });
+    }
+  }
+  const families = new Set(ts.map((t) => typefaceOf(t.font).family));
+  if (families.size > 3) out.push({ code: 'TYPE', where: 'Page', detail: `${families.size} type families on one piece (${[...families].join(', ')}); three is the most a pairing uses` });
 
   /* C12: nothing a press will trim. Words stay inside the format's safe margin. */
   if (f?.mm && f.safeMm > 0) {

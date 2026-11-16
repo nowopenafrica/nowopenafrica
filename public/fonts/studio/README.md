@@ -46,16 +46,65 @@ Same commit, same ranges, one display weight each: `jost-600`, `bodoni-moda-600`
 Build with `python -I scripts/build-studio-fonts.py <dir> --only jost,bodoni-moda,zilla-slab,cormorant-garamond`.
 None has the naira or cedi sign upstream, so all four use the glyph fallback below.
 
-Measured and not shipped: Unbounded 700 (63.4 KB, over what is left of the 600 KB budget in `typefaces.test.ts`) and Inter 500 (42.8 KB; it would fit, but it draws the letters in `UPSTREAM_GAPS`, so it belongs in a rework of the glyph fallback).
+Unbounded and Inter were measured then and held back; both shipped in the second batch below.
+
+## Added 2026-11-16, second batch (extended faces)
+
+On the founder's instruction to stock the library with the strongest
+open-source faces. Same commit, same subset ranges. Every family's `OFL.txt`
+was read and is SIL Open Font License 1.1.
+
+| Face | Key | Upstream file | Weights built |
+|---|---|---|---|
+| Inter | `neutral` | `inter/Inter[opsz,wght].ttf` | 400, 700 (opsz 14) |
+| Unbounded | `wide` | `unbounded/Unbounded[wght].ttf` | 700 |
+| Anton | `impact` | `anton/Anton-Regular.ttf` | 400 |
+| Oswald | `narrow` | `oswald/Oswald[wght].ttf` | 600 |
+| Instrument Serif | `elegant` | `instrumentserif/InstrumentSerif-Regular.ttf` | 400 |
+| Cinzel | `classical` | `cinzel/Cinzel[wght].ttf` | 700 |
+| Lora | `reading` | `lora/Lora[wght].ttf` | 400, 600 |
+| Poppins | `friendly` | `poppins/Poppins-Medium.ttf`, `Poppins-Bold.ttf` | 500, 700 |
+| Montserrat | `urban` | `montserrat/Montserrat[wght].ttf` | 700 |
+| Nunito | `rounded` | `nunito/Nunito[wght].ttf` | 800 |
+| Caveat | `handwritten` | `caveat/Caveat[wght].ttf` | 700 |
+| Pacifico | `retro` | `pacifico/Pacifico-Regular.ttf` | 400 |
+| JetBrains Mono | `technical` | `jetbrainsmono/JetBrainsMono[wght].ttf` | 500 |
+| Bricolage Grotesque | `expressive` | `bricolagegrotesque/BricolageGrotesque[opsz,wdth,wght].ttf` | 700 (opsz 96, wdth 100) |
+| Abril Fatface | `fatface` | `abrilfatface/AbrilFatface-Regular.ttf` | 400 |
+| Big Shoulders | `industrial` | `bigshoulders/BigShoulders[opsz,wght].ttf` | 800 (opsz 72) |
+| Syne | `artistic` | `syne/Syne[wght].ttf` | 700 |
+| Noto Sans | `universal` | `notosans/NotoSans[wdth,wght].ttf` | 400, 700 (wdth 100) |
+
+Cinzel and Caveat have no 600 instance upstream, so 700 is built.
+
+**Loading.** These are tier `extended` in `typefaces.ts`: declared in
+`src/index.css`, fetched by the browser only when a design draws text in one.
+`ensureTypefacesReady()` with no keys warms the `core` faces only. The weight
+budget in `typefaces.test.ts` therefore holds the core set (660 KB), with a
+70 KB ceiling on each extended file and 1,400 KB on the whole library. Noto
+Sans is the exception: it is core, because it is the glyph fallback.
+
+**When to use each face** is written down in
+`src/lib/create/intel/typeUse.ts` and generated into
+`docs/creative-intelligence/typography.md`.
+
+After adding or rebuilding any face, run `python -I scripts/build-font-metrics.py`:
+the composition engine measures text from the widths in these files.
 
 ## The glyph fallback
 
-`src/index.css` declares the Source Sans 3 files a second time, as
+`src/index.css` declares the Noto Sans files a second time, as
 `"NowOpen Glyph Fallback"`, with `unicode-range: U+0100-024F, U+0250-02FF,
 U+0300-036F, U+1E00-1EFF, U+20A0-20CF`. Every Studio stack names it second, so a
 face's missing ₦, ẹ or ɛ comes from it, while Basic Latin and Latin-1 never do:
 if a face fails to load, its Latin falls to the web-safe face of the same
 shape. See `GLYPH_FALLBACK` in `src/lib/design/typefaces.ts`.
+
+It was Source Sans 3 until 2026-11-16. Source Sans 3 has no Hausa Ƙ ƙ Ƴ ƴ and
+no Ewe Ɖ Ʋ Ƒ, and neither did any other face then shipped, so those seven
+supported letters could not be drawn at all (`UPSTREAM_GAPS`). Noto Sans has
+all of them, and that list is now empty. Text that needed the fallback before
+(₦, ẹ, ọ and the like) is now drawn in Noto Sans, not Source Sans 3.
 
 `src/lib/design/fontCoverage.test.ts` reads these files and checks them against
 the supported languages and currencies.

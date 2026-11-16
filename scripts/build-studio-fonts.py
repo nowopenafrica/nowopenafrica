@@ -62,12 +62,33 @@ FAMILIES = [
     ('bodoni-moda', 'bodonimoda', 'BodoniModa[opsz,wght].ttf', {600: {'opsz': 96}}),
     ('zilla-slab', 'zillaslab', 'ZillaSlab-Bold.ttf', {700: None}),
     ('cormorant-garamond', 'cormorantgaramond', 'CormorantGaramond[wght].ttf', {600: {}}),
-    # Measured 2026-11-16 and NOT shipped: Unbounded 700 is 63.4 KB, over what
-    # is left of the 600 KB budget. Inter 500 (opsz 14) is 42.8 KB and would
-    # just fit, but it draws the Hausa letters in UPSTREAM_GAPS, so adding it
-    # means reworking the glyph fallback, not just adding a file.
-    #   ('inter', 'inter', 'Inter[opsz,wght].ttf', {500: {'opsz': 14}}),
-    #   ('unbounded', 'unbounded', 'Unbounded[wght].ttf', {700: {}}),
+    # Added 2026-11-16 (second batch), on the founder's instruction to stock the
+    # library with the strongest open-source faces. The 600 KB budget now holds
+    # only the faces a page loads eagerly (tier 'core' in typefaces.ts); these
+    # are tier 'extended' and are fetched only when a design uses one.
+    #
+    # A family whose weights are separate static files gives a dict instead of
+    # one file name.
+    ('inter', 'inter', 'Inter[opsz,wght].ttf', {400: {'opsz': 14}, 700: {'opsz': 14}}),
+    ('unbounded', 'unbounded', 'Unbounded[wght].ttf', {700: {}}),
+    ('anton', 'anton', 'Anton-Regular.ttf', {400: None}),
+    ('oswald', 'oswald', 'Oswald[wght].ttf', {600: {}}),
+    ('instrument-serif', 'instrumentserif', 'InstrumentSerif-Regular.ttf', {400: None}),
+    ('cinzel', 'cinzel', 'Cinzel[wght].ttf', {700: {}}),
+    ('lora', 'lora', 'Lora[wght].ttf', {400: {}, 600: {}}),
+    ('poppins', 'poppins', {500: 'Poppins-Medium.ttf', 700: 'Poppins-Bold.ttf'}, {500: None, 700: None}),
+    ('montserrat', 'montserrat', 'Montserrat[wght].ttf', {700: {}}),
+    ('nunito', 'nunito', 'Nunito[wght].ttf', {800: {}}),
+    ('caveat', 'caveat', 'Caveat[wght].ttf', {700: {}}),
+    ('pacifico', 'pacifico', 'Pacifico-Regular.ttf', {400: None}),
+    ('jetbrains-mono', 'jetbrainsmono', 'JetBrainsMono[wght].ttf', {500: {}}),
+    ('bricolage-grotesque', 'bricolagegrotesque', 'BricolageGrotesque[opsz,wdth,wght].ttf', {700: {'opsz': 96, 'wdth': 100}}),
+    ('abril-fatface', 'abrilfatface', 'AbrilFatface-Regular.ttf', {400: None}),
+    ('big-shoulders', 'bigshoulders', 'BigShoulders[opsz,wght].ttf', {800: {'opsz': 72}}),
+    ('syne', 'syne', 'Syne[wght].ttf', {700: {}}),
+    # The glyph fallback (Ruling L closed 2026-11-16): the one family here that
+    # draws every supported African letter, Hausa hooked letters included.
+    ('noto-sans', 'notosans', 'NotoSans[wdth,wght].ttf', {400: {'wdth': 100}, 700: {'wdth': 100}}),
 ]
 
 # What is kept. Glyphs a family does not have are simply absent.
@@ -95,7 +116,8 @@ def fetch(dest, only=None):
     for slug, folder, file, _ in FAMILIES:
         if only and slug not in only:
             continue
-        for name, out in ((file, file), ('OFL.txt', f'{slug}-OFL.txt')):
+        names = sorted(set(file.values())) if isinstance(file, dict) else [file]
+        for name, out in (*((n, n) for n in names), ('OFL.txt', f'{slug}-OFL.txt')):
             url = f'{RAW}/{folder}/{urllib.request.quote(name)}'
             print('GET', url)
             with urllib.request.urlopen(url) as r, open(os.path.join(dest, out), 'wb') as f:
@@ -122,7 +144,7 @@ def build(src, out_dir, licence_dir, only=None):
         if only and slug not in only:
             continue
         for weight, pins in weights.items():
-            font = TTFont(os.path.join(src, file))
+            font = TTFont(os.path.join(src, file[weight] if isinstance(file, dict) else file))
             if pins is not None and 'fvar' in font:
                 axes = {'wght': weight, **pins}
                 font = instancer.instantiateVariableFont(font, axes, updateFontNames=True)

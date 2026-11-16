@@ -22,7 +22,7 @@ import { patternSvg } from '../../design/patterns';
 import { contrastRatio, relativeLuminance, shade, tint } from '../../design/styles';
 import type { FontKey } from '../../design/typefaces';
 import type { DesignDocument } from '../../studio/designDocument';
-import type { ArchetypeKey } from '../intel';
+import { setsLabels, type ArchetypeKey } from '../intel';
 import { Canvas, lineWidth, type Placed } from './canvas';
 
 export interface ConceptCopy {
@@ -84,8 +84,12 @@ export function legible(colour: string, ground: string): string {
   return readableInk(ground);
 }
 
-/** The face for small tracked capitals. A script is never set that way. */
-const labelFont = (i: ComposeInput): FontKey => (i.fonts.accent === 'script' ? i.fonts.text : i.fonts.accent);
+/**
+ * The face for small tracked capitals. A script is never set that way, and
+ * neither is a display face: the pairing's accent is used when it can set
+ * labels (intel/typeUse.ts), then its text face, then the plain humanist.
+ */
+const labelFont = (i: ComposeInput): FontKey => (setsLabels(i.fonts.accent) ? i.fonts.accent : setsLabels(i.fonts.text) ? i.fonts.text : 'humanist');
 const labelStyle = (c: Canvas, i: ComposeInput) => ({ font: labelFont(i), weight: 700, tracking: 0.14, upper: true, size: L(c) });
 const brandStyle = (c: Canvas, i: ComposeInput) => ({ font: i.fonts.text, weight: 700, tracking: 0.12, upper: true, size: B(c) * 0.95 });
 

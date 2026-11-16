@@ -5,6 +5,7 @@ export * from './types';
 export { ARCHETYPES, archetypeOf } from './archetypes';
 export { ALL_PAIRINGS, FACE_GAPS, INTEL_PAIRINGS, intelPairingOf } from './pairings';
 export { MOVEMENTS, movementOf } from './movements';
+export { FACE_USE, TYPE_REFERENCES, TYPE_RULES, TYPE_USE_CASES, faceUse, pairingProblems, setsLabels, type FaceUse, type TypeContext } from './typeUse';
 export { INDUSTRIES, industryOf } from './industries';
 export { TRENDS, activeTrends, overdueTrends } from './trends';
 export { IMAGERY_RULES, PHOTOGRAPHY, photographyOf } from './photography';

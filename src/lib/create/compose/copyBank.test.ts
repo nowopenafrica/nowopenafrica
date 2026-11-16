@@ -22,6 +22,11 @@ describe('the copy bank', () => {
     expect(problems).toEqual([]);
   });
 
+  it('keeps every headline to seven words, because any of them may end up on a billboard', () => {
+    const heads = [...Object.values(BY_GOAL).flat().map((l) => l.headline), ...Object.values(BY_TRADE).flat().map((l) => l[0])];
+    for (const h of heads) expect(h.split(/\s+/).length, h).toBeLessThanOrEqual(7);
+  });
+
   it('names only trades the library knows, and leaves the regulated health trades to the plain lines', () => {
     const keys = new Set(INDUSTRIES.map((i) => i.key));
     for (const trade of Object.keys(BY_TRADE)) expect(keys.has(trade), trade).toBe(true);
