@@ -54,7 +54,8 @@ const NONE: Placed = { x: 0, y: 0, w: 0, h: 0, size: 0, lines: 0 };
 
 /* ── shared scale ─────────────────────────────────────────────────────────── */
 
-const H = (c: Canvas) => c.by({ tall: 0.15, portrait: 0.125, square: 0.11, landscape: 0.075, wide: 0.058 });
+/* On a board the headline is most of what a driver gets: a third larger than on a page of the same shape. */
+const H = (c: Canvas) => c.by({ tall: 0.15, portrait: 0.125, square: 0.11, landscape: 0.075, wide: 0.058 }) * (c.distance ? 1.35 : 1);
 /*
  * Body and label sizes never go under the format's floor, and every gap in
  * a layout is counted in these sizes. So on a business card or a billboard
@@ -208,9 +209,11 @@ function facts(c: Canvas, i: ComposeInput, details: string[], x: number, bottom:
   parts.slice(0, rows * cols).forEach(([name, value], k) => {
     const cx = x + (k % cols) * (cw + gutter);
     let cy = y0 + Math.floor(k / cols) * cell;
-    if (labelled && name) label(c, i, name, cx, cy, cw, accent, { name: `Detail ${k + 1} label` });
+    const top = cy;
     if (labelled) cy += c.rise(L(c)) * 1.9;
-    body(c, i, value, cx, cy, cw, ink, { name: `Detail ${k + 1}`, maxLines: 1, scale: 0.96, weight: 600 });
+    const placed = body(c, i, value, cx, cy, cw, ink, { name: `Detail ${k + 1}`, maxLines: 1, scale: 0.96, weight: 600 });
+    /* A label with nothing under it says nothing: it goes when its value had no room. */
+    if (placed.h && labelled && name) label(c, i, name, cx, top, cw, accent, { name: `Detail ${k + 1} label` });
   });
   return y0 - row(c) * 0.9;
 }
@@ -226,13 +229,14 @@ const typographicPoster: Draw = (c, i) => {
   if (i.copy.eyebrow) y = label(c, i, i.copy.eyebrow, c.mx, y, w, accent, { name: 'Eyebrow' }).y + c.rise(L(c)) * 2.6;
   const details = (i.copy.details ?? []).slice(0, 4);
   /* The headline leaves room for every fact and two lines of support: it shrinks before a venue is dropped. */
-  const need = factsHeight(c, details, stacked(c) ? 2 : 4) + row(c) * (2.4 + (i.copy.support ? 3.4 : 0));
+  const factCols = stacked(c) ? 2 : c.cls === 'wide' ? 4 : 3;
+  const need = factsHeight(c, details, factCols) + row(c) * (2.4 + (i.copy.support ? 3.4 : 0));
   const hl = headline(c, i, c.mx, y, w, ink, { size: H(c) * 1.18, maxH: Math.max(c.rise(H(c)) * 1.3, foot - y - need) });
   y = hl.y + hl.h + row(c) * 0.7;
   c.rule('Accent rule', c.mx, y, c.short(0.13), primary, 0.007);
   y += row(c) * 1.2;
   /* The facts stand on the footer; the supporting line takes what is left between. */
-  const limit = facts(c, i, details, c.mx, foot - row(c) * 0.5, 1 - 2 * c.mx, ink, accent, stacked(c) ? 2 : 4, y + (i.copy.support ? row(c) * 3 : 0));
+  const limit = facts(c, i, details, c.mx, foot - row(c) * 0.5, 1 - 2 * c.mx, ink, accent, factCols, y + (i.copy.support ? row(c) * 3 : 0));
   if (i.copy.support) body(c, i, i.copy.support, c.mx, y, Math.min(w, c.by({ tall: 0.86, portrait: 0.74, square: 0.7, landscape: 0.5, wide: 0.4 })), ink, { scale: 1.12, limit });
   return ground;
 };
@@ -297,7 +301,8 @@ const modularGrid: Draw = (c, i) => {
   const details = (i.copy.details ?? []).slice(0, 4);
   /* On a stacked page the headline leaves room for every fact: a date is not optional. */
   const need = stacked(c) ? row(c) * (2.4 + (i.copy.support ? 3.6 : 0) + details.length * 1.9) : 0;
-  const hl = headline(c, i, c.mx, y, hw, ink, { maxH: stacked(c) ? Math.max(c.rise(H(c)) * 1.2, limit - y - need) : undefined });
+  /* On a wide page the headline still has to stop above the button: a two-line headline on a board ran under it. */
+  const hl = headline(c, i, c.mx, y, hw, ink, { maxH: Math.max(c.rise(H(c)) * 1.1, limit - y - (stacked(c) ? need : row(c) * 3.2)) });
   y = hl.y + hl.h + row(c) * 0.8;
   c.rect('Signal bar', c.mx, y, span, row(c) * 0.42, primary);
   y += row(c) * 1.6;
@@ -456,8 +461,18 @@ const informationLedger: Draw = (c, i) => {
     const [name, value] = cut > 0 ? [r.slice(0, cut).trim(), r.slice(cut + 1).trim()] : [r, ''];
     const gutter = rw * 0.04;
     ry += air / 2;
-    const left = body(c, i, name, rx, ry, value ? rw * 0.4 - gutter : rw, ink, { name: `Row ${k + 1}`, maxLines: 1, weight: 600, scale: 1 + Math.min(0.25, air / (row(c) * 6)) });
-    if (value) c.text({ text: value, x: rx + rw * 0.4, y: ry, w: rw * 0.6, size: B(c), font: labelFont(i), weight: 700, lineHeight: 1.38, colour: accent, align: 'right', maxLines: 1, min: B(c) * 0.62, name: `Row ${k + 1} value` });
+    const valueStyle = { text: value, w: rw * 0.6, size: B(c), font: labelFont(i), weight: 700, lineHeight: 1.38, maxLines: 1, min: B(c) * 0.62 };
+    /*
+     * A row is whole or it is not there. When the value will not fit beside
+     * its name (a card at six points), the row is set as one plain line; a
+     * name with an empty space where its value should be reads as a mistake.
+     */
+    const beside = !value || !c.measure(valueStyle).cut;
+    const left = beside
+      ? body(c, i, name, rx, ry, value ? rw * 0.4 - gutter : rw, ink, { name: `Row ${k + 1}`, maxLines: 1, weight: 600, scale: 1 + Math.min(0.25, air / (row(c) * 6)) })
+      : body(c, i, `${name}: ${value}`, rx, ry, rw, ink, { name: `Row ${k + 1}`, maxLines: 1, weight: 600 });
+    if (!left.h) { ry -= air / 2; return; }
+    if (value && beside) c.text({ ...valueStyle, x: rx + rw * 0.4, y: ry, colour: accent, align: 'right', name: `Row ${k + 1} value` });
     ry += left.h + row(c) * 0.35 + air / 2;
     c.rule(`Row rule ${k + 1}`, rx, ry, rw, ink, 0.0012).opacity = 0.28;
     ry += row(c) * 0.6;
@@ -663,7 +678,7 @@ const serialTiles: Draw = (c, i) => {
   const gy = c.rise(gx);
   const pad = c.short(0.04);
   const padY = c.rise(pad);
-  type Cell = { kind: 'fact'; top: string; text: string } | { kind: 'close' } | { kind: 'motif' };
+  type Cell = { kind: 'fact'; top: string; text: string } | { kind: 'close' } | { kind: 'motif' } | { kind: 'name' } | { kind: 'act' };
   /* Three facts outrank the supporting line: a tile each for the date, the city and the venue. */
   const support = (i.copy.details ?? []).length < 3 ? i.copy.support : undefined;
   const facts: Cell[] = (i.copy.details ?? []).slice(0, support ? 2 : 3).map((d, k) => {
@@ -673,6 +688,13 @@ const serialTiles: Draw = (c, i) => {
   const cells: Cell[] = [...(support ? [{ kind: 'fact', top: '', text: support } as Cell] : []), ...facts];
   while (cells.length < 3) cells.push({ kind: 'motif' });
   cells.push({ kind: 'close' });
+  /*
+   * On a board the type is too large to share a quarter tile, and the
+   * action line was being left out. Two full-width tiles instead: the name,
+   * and the line to act on.
+   */
+  const cols = c.distance ? 1 : 2;
+  if (c.distance) cells.splice(0, cells.length, { kind: 'name' }, ...(i.copy.cta ? [{ kind: 'act' } as Cell] : [{ kind: 'motif' } as Cell]));
   const fills = [secondary, highlight, ink, primary];
 
   /* The lead tile, then four that repeat its system: same padding, label on top, words on the floor. */
@@ -682,7 +704,7 @@ const serialTiles: Draw = (c, i) => {
   const area = stacked(c)
     ? { x: ox, y: lead.y + lead.h + gy, w: 1 - 2 * ox, h: 1 - oy - (lead.y + lead.h + gy) }
     : { x: lead.x + lead.w + gx, y: oy, w: 1 - ox - (lead.x + lead.w + gx), h: 1 - 2 * oy };
-  const cw = (area.w - gx) / 2;
+  const cw = (area.w - gx * (cols - 1)) / cols;
   const ch = (area.h - gy) / 2;
 
   const onLead = readableInk(primary);
@@ -692,22 +714,30 @@ const serialTiles: Draw = (c, i) => {
   headline(c, i, lead.x + pad, lead.y + lead.h - padY * 0.8, lead.w - 2 * pad, onLead, { size: H(c) * (stacked(c) ? 0.95 : 1.05), maxLines: stacked(c) ? 3 : 4, anchor: 'bottom', maxH: lead.y + lead.h - padY * 0.8 - top });
 
   cells.forEach((cell, k) => {
-    const x = area.x + (k % 2) * (cw + gx);
-    const y = area.y + Math.floor(k / 2) * (ch + gy);
-    const fill = fills[k];
+    const x = area.x + (k % cols) * (cw + gx);
+    const y = area.y + Math.floor(k / cols) * (ch + gy);
+    const fill = fills[c.distance ? k + 2 : k];
     const on = readableInk(fill);
     c.rect(`Tile ${k + 1}`, x, y, cw, ch, fill);
     const tw = cw - 2 * pad;
+    const mark = () => c.ellipse(`Tile ${k + 1} mark`, x + cw / 2, y + ch / 2, Math.min(cw, ch / c.ar) * 0.46, ground);
     if (cell.kind === 'motif') {
-      c.ellipse(`Tile ${k + 1} mark`, x + cw / 2, y + ch / 2, Math.min(cw, ch / c.ar) * 0.46, ground);
+      mark();
+    } else if (cell.kind === 'name') {
+      brand(c, i, x + pad, y + ch / 2 - c.rise(Math.max(B(c) * 0.95, c.minBrand)) * 0.7, tw, on);
+    } else if (cell.kind === 'act') {
+      label(c, i, i.copy.cta as string, x + pad, y + ch / 2 - c.rise(L(c)) * 0.7, tw, on, { name: 'Call to action' });
     } else if (cell.kind === 'close') {
       brand(c, i, x + pad, y + padY, tw, on);
       if (i.copy.cta) label(c, i, i.copy.cta, x + pad, y + ch - padY, tw, on, { anchor: 'bottom', name: 'Call to action' });
     } else {
-      const head = cell.top ? label(c, i, cell.top, x + pad, y + padY, tw, on, { name: `Detail ${k + 1} label` }) : NONE;
-      const room = ch - 2 * padY - (head.h ? head.h + row(c) * 0.4 : 0);
+      const headH = cell.top ? c.rise(L(c)) * 1.3 + row(c) * 0.4 : 0;
+      const room = ch - 2 * padY - headH;
       const lines = Math.max(1, Math.min(4, Math.floor((room - row(c) * 0.2) / (row(c) * 1.38))));
-      body(c, i, cell.text, x + pad, y + ch - padY, tw, on, { anchor: 'bottom', name: cell.top ? `Detail ${k + 1}` : undefined, maxLines: lines, weight: cell.top ? 600 : 400 });
+      const placed = body(c, i, cell.text, x + pad, y + ch - padY, tw, on, { anchor: 'bottom', name: cell.top ? `Detail ${k + 1}` : undefined, maxLines: lines, weight: cell.top ? 600 : 400 });
+      /* The words did not fit this tile: it becomes a plain mark, not a label over nothing. */
+      if (!placed.h) mark();
+      else if (cell.top) label(c, i, cell.top, x + pad, y + padY, tw, on, { name: `Detail ${k + 1} label` });
     }
   });
   return ground;
@@ -812,15 +842,17 @@ const collageLayered: Draw = (c, i) => {
     pile(c.mx * 1.8, c.my * 1.6, pw, ph);
     const x = c.mx * 1.8 + pw - c.mx * 0.9;
     const bw = 1 - x - c.mx;
-    const limit = footer(c, i, x + c.mx * 1.6, 1 - c.mx, 1 - c.my, ink, accent);
+    /* The disc reaches 14% past the picture. Words on the ground start beyond it; only the headline's own paper overlaps the pile. */
+    const tx = c.mx * 1.8 + pw * 1.15 + c.mx * 0.5;
+    const limit = footer(c, i, tx, 1 - c.mx, 1 - c.my, ink, accent);
     let y = c.my * 1.4;
-    if (i.copy.eyebrow) y = label(c, i, i.copy.eyebrow, x + c.mx * 1.6, y, bw - c.mx * 1.6, accent, { name: 'Eyebrow' }).y + c.rise(L(c)) * 2.6;
+    if (i.copy.eyebrow) y = label(c, i, i.copy.eyebrow, tx, y, 1 - tx - c.mx, accent, { name: 'Eyebrow' }).y + c.rise(L(c)) * 2.6;
     const maxH = limit - y - (i.copy.support ? row(c) * 4.6 : row(c)) - padY * 2;
     const head = c.measure({ text: i.copy.headline, w: bw - 2 * pad, size: hSize, font: i.fonts.display, weight: 700, lineHeight: 1.02, maxLines: 3, min: hSize * 0.45, upper: i.upperHeadline, tracking: i.upperHeadline ? 0 : -0.015, maxH });
     const bh = head.h + padY * 2;
     c.rect('Headline paper', x, y, bw, bh, primary);
     headline(c, i, x + pad, y + padY, bw - 2 * pad, onPrimary, { size: hSize, maxLines: 3, maxH });
-    if (i.copy.support) body(c, i, i.copy.support, x + c.mx * 1.6, y + bh + row(c) * 0.9, (bw - c.mx * 1.6) * 0.9, ink, { maxLines: 3, limit });
+    if (i.copy.support) body(c, i, i.copy.support, tx, y + bh + row(c) * 0.9, (1 - tx - c.mx) * 0.95, ink, { maxLines: 3, limit });
   }
   return ground;
 };

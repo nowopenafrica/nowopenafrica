@@ -50,8 +50,14 @@ describe('the critical gates, on concepts', () => {
 
   it('keeps words apart on a board and on a card too, not only on a poster', () => {
     const overlap = (a: DesignObject, b: DesignObject) => a.x < b.x + b.w - 1e-6 && b.x < a.x + a.w - 1e-6 && a.y < b.y + b.h - 1e-6 && b.y < a.y + a.h - 1e-6;
-    for (const a of IMPLEMENTED) for (const key of ['billboard', 'board-48-sheet', 'business-card', 'business-card-portrait']) {
-      const ts = texts(compose(a, input(PALETTES[0].colours), formatOf(key) as Format, 'x', { distance: roadside(key) }).pages[0].objects);
+    /* A one-line headline hid a board whose button sat on a two-line one: both lengths are tried. */
+    for (const a of IMPLEMENTED) for (const key of ['billboard', 'board-48-sheet', 'business-card', 'business-card-portrait']) for (const headline of [copy.headline, 'Lagos has a new address.', 'Tomorrow has a guest list, and you are on it']) {
+      const page = compose(a, input(PALETTES[0].colours, { copy: { ...copy, headline } }), formatOf(key) as Format, 'x', { distance: roadside(key) }).pages[0];
+      const ts = texts(page.objects);
+      /* Nor may a headline run under a button, or a button under it. */
+      const buttons = page.objects.filter((o) => o.name === 'Button');
+      const head = ts.find((t) => t.slotRole === 'headline') as TextObject;
+      for (const b of buttons) expect(overlap(head, b), `${a} on ${key}: the button sits on "${headline}"`).toBe(false);
       for (let i = 0; i < ts.length; i += 1) for (let j = i + 1; j < ts.length; j += 1) {
         expect(overlap(ts[i], ts[j]), `${a} on ${key}: "${ts[i].name}" overlaps "${ts[j].name}"`).toBe(false);
       }
