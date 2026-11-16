@@ -170,6 +170,7 @@ export const BANNER_FORMATS: StudioFormat[] = [
   { key: 'linkedin-cover', label: 'LinkedIn Cover', w: 1584, h: 396 },
   { key: 'youtube-banner', label: 'YouTube Banner', w: 2560, h: 1440 },
   { key: 'email-header', label: 'Email Header', w: 600, h: 200 },
+  { key: 'business-card', label: 'Business Card', w: 1004, h: 650 },
 ];
 
 // --- Promotions (Promotion Builder) -----------------------------------------
@@ -219,4 +220,5 @@ export const DESIGN_FORMATS: StudioFormat[] = [
   { key: 'linkedin-cover', label: 'LinkedIn Cover', w: 1584, h: 396 },
   { key: 'youtube-banner', label: 'YouTube Banner', w: 2560, h: 1440 },
   { key: 'email-header', label: 'Email Header', w: 600, h: 200 },
+  { key: 'business-card', label: 'Business Card', w: 1004, h: 650 },
 ];

@@ -1,5 +1,5 @@
 import { BUSINESS_CATEGORY_GROUPS } from '../../data/categories';
-import { DESIGN_TEMPLATES, type DesignTemplate } from '../designTemplates';
+import { allTemplates, type DesignTemplate } from '../designTemplates';
 import { DESIGN_STYLES } from './styles';
 import { STYLE_TAGS, TEMPLATE_USES, type StyleTag, type TemplateUse } from './tags';
 
@@ -81,7 +81,7 @@ const haystack = (tpl: DesignTemplate): string => normalise([
 export function findTemplates(
   query: string,
   filters: TemplateFilters = {},
-  from: DesignTemplate[] = DESIGN_TEMPLATES,
+  from: DesignTemplate[] = allTemplates(),
 ): DesignTemplate[] {
   const words = normalise(query).split(' ').filter((w) => w.length > 2 && !NOISE.has(w));
 
@@ -119,7 +119,7 @@ export function findTemplates(
 export function templateCounts<K extends string>(
   key: 'use' | 'industry' | 'style',
   values: readonly K[],
-  from: DesignTemplate[] = DESIGN_TEMPLATES,
+  from: DesignTemplate[] = allTemplates(),
 ): Record<K, number> {
   const out = {} as Record<K, number>;
   for (const value of values) {
@@ -129,7 +129,7 @@ export function templateCounts<K extends string>(
 }
 
 /** Every style tag actually used by at least one template. */
-export const usedStyleTags = (from: DesignTemplate[] = DESIGN_TEMPLATES): StyleTag[] =>
+export const usedStyleTags = (from: DesignTemplate[] = allTemplates()): StyleTag[] =>
   STYLE_TAGS.filter((tag) => from.some((t) => (t.styles ?? []).includes(tag)));
 
 /**
@@ -138,7 +138,7 @@ export const usedStyleTags = (from: DesignTemplate[] = DESIGN_TEMPLATES): StyleT
  * Layouts times styles. Stated as a function rather than a number so it cannot
  * drift from the truth, and so nothing anywhere claims a count we do not have.
  */
-export const libraryDepth = (from: DesignTemplate[] = DESIGN_TEMPLATES): number =>
+export const libraryDepth = (from: DesignTemplate[] = allTemplates()): number =>
   from.length * DESIGN_STYLES.length;
 
 /**
@@ -174,7 +174,7 @@ export function industryGroupFor(category: string | null | undefined): string | 
  * catalogue order. No shuffle: a gallery that reorders on every render is a
  * gallery nobody can point a colleague at.
  */
-export function diversify(from: DesignTemplate[] = DESIGN_TEMPLATES): DesignTemplate[] {
+export function diversify(from: DesignTemplate[] = allTemplates()): DesignTemplate[] {
   const buckets = new Map<string, DesignTemplate[]>();
   for (const tpl of from) {
     const key = `${tpl.scheme}:${tpl.mood}`;

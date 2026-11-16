@@ -1763,8 +1763,40 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
 ];
 
 
+// --- published templates -----------------------------------------------------
+//
+// Templates approved in the admin Template Bank live in the database, not in
+// this file. They are registered here at runtime so every consumer that asks
+// for the library by key or by search sees one catalogue. A built-in key always
+// wins: a published template cannot silently replace a layout that existing
+// saved designs already point at.
+
+let published: DesignTemplate[] = [];
+let combined: DesignTemplate[] = DESIGN_TEMPLATES;
+const libraryListeners = new Set<() => void>();
+
+export function registerTemplates(list: DesignTemplate[]): void {
+  const builtIn = new Set(DESIGN_TEMPLATES.map((t) => t.key));
+  const seen = new Set<string>();
+  published = list.filter((t) => {
+    if (builtIn.has(t.key) || seen.has(t.key)) return false;
+    seen.add(t.key);
+    return true;
+  });
+  combined = published.length ? [...DESIGN_TEMPLATES, ...published] : DESIGN_TEMPLATES;
+  libraryListeners.forEach((fn) => fn());
+}
+
+/** Built-in layouts followed by published ones. Stable between registrations. */
+export const allTemplates = (): DesignTemplate[] => combined;
+
+export function onTemplatesChange(fn: () => void): () => void {
+  libraryListeners.add(fn);
+  return () => { libraryListeners.delete(fn); };
+}
+
 export const templateByKey = (key: string): DesignTemplate =>
-  DESIGN_TEMPLATES.find(t => t.key === key) ?? DESIGN_TEMPLATES[0];
+  combined.find(t => t.key === key) ?? DESIGN_TEMPLATES[0];
 
 export const slotOf = (tpl: DesignTemplate, role: SlotRole): SlotSpec | undefined =>
   tpl.slots.find(s => s.role === role);
