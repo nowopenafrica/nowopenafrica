@@ -14,6 +14,8 @@ interface ImportMetaEnv {
    * until the OpenCode engine is deployed and its secrets are set.
    */
   readonly VITE_AI_ENGINE?: 'builtin' | 'opencode';
+  /** '1' shows Create's three concepts in a production build. Off until the quality gate passes them. */
+  readonly VITE_CREATE_CONCEPTS?: string;
 }
 
 interface ImportMeta {

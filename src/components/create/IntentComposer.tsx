@@ -9,6 +9,17 @@ import {
 import { NEEDS, needFromLegacy, type NeedSlug } from '../../lib/create/needs';
 import { parseQuery, searchCatalogue } from '../../lib/create/searchRank';
 import { SUBCATEGORIES } from '../../lib/create/catalogueTaxonomy';
+import { answerBrief, readBrief, type BriefQuestion, type CreativeBrief } from '../../lib/create/brief';
+import BriefPanel from './BriefPanel';
+import ConceptPanel from './ConceptPanel';
+
+/*
+ * The three concepts are shown in development, and in a build only when it
+ * is asked for (VITE_CREATE_CONCEPTS=1). The founder's quality gate has not
+ * passed them yet, so merging this branch must not put them in front of
+ * customers by accident. This is a build switch, not a permission.
+ */
+const CONCEPTS_ON = import.meta.env.DEV || import.meta.env.VITE_CREATE_CONCEPTS === '1';
 
 /**
  * The request bar: "What do you need?" and the need tiles under it.
@@ -37,7 +48,7 @@ import { SUBCATEGORIES } from '../../lib/create/catalogueTaxonomy';
  * row of them, two of which led to "cannot do yet", was clutter.
  */
 
-type Signal = { need: NeedSlug | ''; deliverable: string; n: number };
+type Signal = { need: NeedSlug | ''; deliverable: string; n: number; stay?: boolean };
 
 /** The nearest need to point at when the words resolved to nothing exact. */
 function nearestNeed(intent: CreateIntent, offer: NeedSlug[]): NeedSlug | null {
@@ -60,15 +71,23 @@ export default function IntentComposer({
   const [miss, setMiss] = useState<{ message: string; nearest: NeedSlug | null } | null>(null);
   /* Counted so two identical readings in a row are still two events. */
   const asked = useRef(0);
+  /*
+   * The brief read from the last request, shown back so a misreading can be
+   * seen and corrected. Held here only: nothing is saved.
+   */
+  const [brief, setBrief] = useState<CreativeBrief | null>(null);
+  const [businessName, setBusinessName] = useState('');
 
-  const emit = (need: NeedSlug | '', deliverable: string) => {
+  const emit = (need: NeedSlug | '', deliverable: string, stay = false) => {
     asked.current += 1;
-    onCategory?.({ need, deliverable, n: asked.current });
+    onCategory?.({ need, deliverable, n: asked.current, stay });
   };
 
   const understand = (value: string) => {
     const trimmed = value.trim();
     if (!trimmed) return;
+    const read = readBrief(trimmed, { businessName: businessName || undefined });
+    setBrief(read);
     /*
      * A product the lexicon knows but the catalogue lacks (a pitch deck) is
      * said plainly, the miss is recorded, and the nearest real product in the
@@ -88,8 +107,17 @@ export default function IntentComposer({
     const need = needForIntent(intent);
     if (need) {
       setMiss(null);
-      /* The exact thing, when the words named one - see intent.ts. */
-      emit(need, deliverableForIntent(intent) ?? '');
+      /*
+       * The brief decides which thing inside the need opens. It knows that
+       * "a fashion label" is a business and an identity is a set, where the
+       * older reader opened Product label for both.
+       */
+      const inNeed = (slug: string) => !!NEEDS.find((n) => n.slug === need)?.deliverables.some((d) => d.slug === slug);
+      const fromBrief = read.deliverable?.value;
+      const thing = fromBrief && inNeed(fromBrief) ? fromBrief
+        : read.scope.value === 'system' ? ''
+        : deliverableForIntent(intent) ?? '';
+      emit(need, thing, true);
       return;
     }
     const route = routeFor(intent);
@@ -104,6 +132,18 @@ export default function IntentComposer({
   };
 
   const nearest = miss?.nearest ? NEEDS.find((n) => n.slug === miss.nearest) : undefined;
+
+  const answer = (field: BriefQuestion['field'], value: string) => {
+    if (!brief) return;
+    const name = field === 'business' ? value.trim() : businessName;
+    if (field === 'business') setBusinessName(name);
+    setBrief(answerBrief(brief, field, value, { businessName: name || undefined }));
+    /* Naming the thing opens its designs, exactly as typing it would have. */
+    if (field === 'deliverable') {
+      const need = NEEDS.find((n) => n.deliverables.some((d) => d.slug === value));
+      if (need) { setMiss(null); emit(need.slug, value, true); }
+    }
+  };
 
   return (
     <section
@@ -121,7 +161,7 @@ export default function IntentComposer({
         * it expects to find here, and this question IS what the page is
         * for — a test enforces that the two keep saying the same thing.
         */}
-      <h1 id="create-intent" className="mt-2 text-[1.6rem] font-bold leading-[1.15] tracking-tight text-gray-900 dark:text-white sm:text-[2.25rem]">
+      <h1 id="create-intent" className="font-coolvetica mt-2 text-[1.6rem] font-bold leading-[1.15] tracking-tight text-gray-900 dark:text-white sm:text-[2.25rem]">
         What do you need?
       </h1>
       <p className="mt-2 max-w-xl text-sm text-gray-600 dark:text-gray-400">
@@ -193,6 +233,9 @@ export default function IntentComposer({
             </Link>
           </div>
         )}
+
+        {brief && <BriefPanel brief={brief} businessName={businessName || undefined} onAnswer={answer} />}
+        {brief && CONCEPTS_ON && <ConceptPanel brief={brief} businessName={businessName || undefined} />}
       </div>
 
       {children && <div className="mt-6">{children}</div>}
