@@ -52,6 +52,13 @@ export function entry(d: Draft): BankTemplate {
 
   const g = gcd(format.w, format.h);
 
+  // Shared placeholder identity is spread into every draft; keep only the copy
+  // this layout has a slot for, so the package never ships words nothing draws.
+  const roles = new Set<string>(d.definition.slots.map((slot) => slot.role));
+  const sample = Object.fromEntries(
+    Object.entries(d.sample).filter(([field]) => roles.has(field)),
+  ) as BankSample;
+
   return {
     id: `NOTB-${division.code}-${String(d.n).padStart(3, '0')}`,
     key: d.definition.key,
@@ -76,7 +83,7 @@ export function entry(d: Draft): BankTemplate {
     licence: BANK_LICENCE,
     recommendedStyle: d.style,
     previewAccent: d.accent,
-    sample: d.sample,
+    sample,
     definition: d.definition,
   };
 }

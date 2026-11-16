@@ -10,6 +10,7 @@ import PageEditor from '../components/admin/PageEditor';
 import ActivationPanel from '../components/admin/ActivationPanel';
 import ProfileRequests from '../components/admin/ProfileRequests';
 import CreateOrders from '../components/admin/CreateOrders';
+import TemplateBank from '../components/admin/TemplateBank';
 import ClaimReachConsole from '../components/admin/ClaimReachConsole';
 import AdminBusinessEditor from '../components/admin/AdminBusinessEditor';
 import {
@@ -735,6 +736,8 @@ export default function AdminDashboard() {
     // Third: the acquisition queue. People are waiting in it.
     { id: 'profile-requests', label: 'Acquisition', icon: Send, count: 0 },
     { id: 'create-orders', label: 'Create Orders', icon: ShoppingBag, count: 0 },
+    // Design templates awaiting review. Admin-only: every table behind it is.
+    { id: 'template-bank', label: 'Template Bank', icon: Film, count: 0 },
     // Outreach, and only ever as a plan: the console cannot send.
     { id: 'claimreach', label: 'ClaimReach', icon: Radio, count: 0 },
     { id: 'users', label: 'Users', icon: Users, count: users.length },
@@ -1449,6 +1452,7 @@ export default function AdminDashboard() {
               {activeTab === 'activation' && <ActivationPanel />}
               {activeTab === 'profile-requests' && <ProfileRequests />}
               {activeTab === 'create-orders' && <CreateOrders />}
+              {activeTab === 'template-bank' && <TemplateBank />}
               {activeTab === 'claimreach' && <ClaimReachConsole />}
               {activeTab === 'pages' && <PageEditor />}
               {activeTab === 'switches' && <FeatureFlagPanel />}

@@ -39,7 +39,7 @@ export type AdminTabId =
   | 'requests' | 'adverts' | 'media' | 'bookings' | 'payments' | 'waitlist'
   | 'registrations' | 'applications' | 'enquiries' | 'audit' | 'hero-videos'
   | 'review-queue' | 'imports' | 'switches' | 'pages' | 'activation'
-  | 'profile-requests' | 'create-orders' | 'claimreach';
+  | 'profile-requests' | 'create-orders' | 'claimreach' | 'template-bank';
 
 /**
  * What an editor may open.

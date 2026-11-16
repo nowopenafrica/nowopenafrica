@@ -102,9 +102,9 @@ const previews = new Map();
 
 for (const t of BANK_V1) {
   const dir = `${t.division}/${t.key}`;
-  // Previews are capped at 1600px on the long edge. A billboard master is
+  // Previews are capped at 1080px on the long edge. A billboard master is
   // 4500px wide; shipping that as a PNG per template would be most of the ZIP.
-  const k = Math.min(1, 1600 / Math.max(t.dimensions.width, t.dimensions.height));
+  const k = Math.min(1, 1080 / Math.max(t.dimensions.width, t.dimensions.height));
   const png = AUDIT_ONLY ? Buffer.alloc(0) : await render(t, t.recommendedStyle, Math.round(t.dimensions.width * k), Math.round(t.dimensions.height * k));
   previews.set(t.key, png);
   files[`${dir}/template.json`] = strToU8(`${JSON.stringify(t, null, 2)}\n`);

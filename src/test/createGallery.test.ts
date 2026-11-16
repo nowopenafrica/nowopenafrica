@@ -34,7 +34,9 @@ describe('the work is public, not behind the sign-in', () => {
     // Not screenshots and not a marketing mock-up: a gallery of
     // prettier-than-real previews is a promise the product then breaks.
     expect(gallery).toContain('TemplateSurface');
-    expect(gallery).toContain('DESIGN_TEMPLATES');
+    // The library is the built-in catalogue plus published Template Bank
+    // layouts, read through one hook rather than imported as a constant.
+    expect(gallery).toContain('useTemplateLibrary');
     expect(gallery).toContain('applyStyle');
   });
 
@@ -46,7 +48,7 @@ describe('the work is public, not behind the sign-in', () => {
   });
 
   it('claims a library size it can prove', () => {
-    expect(gallery).toContain('libraryDepth()');
+    expect(gallery).toContain('libraryDepth(library)');
     // No written count anywhere — 312 must never be a literal in the copy.
     expect(gallery).not.toMatch(/\b(\d{3,})\s+designs/);
   });

@@ -20,7 +20,10 @@
     "check:placements": "node scripts/check-placement-sql.mjs",
     "check:api-imports": "node scripts/check-api-imports.mjs",
     "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
-    "check:drift": "node scripts/check-schema-drift.mjs"
+    "check:drift": "node scripts/check-schema-drift.mjs",
+    "bank:build": "node scripts/build-template-bank.mjs",
+    "bank:audit": "node scripts/build-template-bank.mjs --audit",
+    "bank:test-migration": "bash scripts/template-bank/test-migration.sh"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.57.4",

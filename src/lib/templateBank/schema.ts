@@ -354,3 +354,10 @@ export function gateTemplate(tpl: DesignTemplate): string[] {
   }
   return [...new Set(issues)];
 }
+
+/** Parse and gate a stored definition. Null when it is not safe to render. */
+export function usableDefinition(raw: unknown): DesignTemplate | null {
+  const parsed = parseTemplate(raw);
+  if (!parsed.ok) return null;
+  return gateTemplate(parsed.template).length ? null : parsed.template;
+}

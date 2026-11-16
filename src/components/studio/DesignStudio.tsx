@@ -24,7 +24,8 @@ import InspirationUpload from './InspirationUpload';
 import GeneratePanel from './GeneratePanel';
 import { track } from '../../lib/telemetry';
 import TemplateSurface from './TemplateSurface';
-import { DESIGN_TEMPLATES, templateByKey, templateListRoles, defaultMediaScrim, type SlotRole } from '../../lib/designTemplates';
+import { templateByKey, templateListRoles, defaultMediaScrim, type SlotRole } from '../../lib/designTemplates';
+import { useTemplateLibrary } from '../../hooks/useTemplateLibrary';
 import { DESIGN_STYLES, applyStyle, styleColours, styleOf } from '../../lib/design/styles';
 import {
   TEMPLATE_USES, findTemplates, industryGroupFor, type TemplateUse,
@@ -510,12 +511,13 @@ export default function DesignStudio({
   );
   const modernTpl = styled;
 
+  const library = useTemplateLibrary();
   const foundTemplates = useMemo(
     () => findTemplates(tplQuery, {
       use: tplUse || undefined,
       industry: tplIndustry || undefined,
-    }),
-    [tplQuery, tplUse, tplIndustry],
+    }, library),
+    [tplQuery, tplUse, tplIndustry, library],
   );
 
   /*
@@ -532,9 +534,9 @@ export default function DesignStudio({
    */
   const hiddenByIndustry = useMemo(
     () => (tplIndustry
-      ? findTemplates(tplQuery, { use: tplUse || undefined }).length - foundTemplates.length
+      ? findTemplates(tplQuery, { use: tplUse || undefined }, library).length - foundTemplates.length
       : 0),
-    [tplQuery, tplUse, tplIndustry, foundTemplates.length],
+    [tplQuery, tplUse, tplIndustry, foundTemplates.length, library],
   );
 
   // Live Business Canvas — resolves {{tokens}} against the live profile.
@@ -1753,7 +1755,7 @@ export default function DesignStudio({
               </label>
             )}
             <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-2">
-              {foundTemplates.length} of {DESIGN_TEMPLATES.length} layouts
+              {foundTemplates.length} of {library.length} layouts
               {hiddenByIndustry > 0 && (
                 <>
                   {' · '}

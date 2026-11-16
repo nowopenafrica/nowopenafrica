@@ -4,13 +4,15 @@ import { ArrowRight, Search, Shuffle } from 'lucide-react';
 
 import TemplateSurface, { type TemplateContent } from '../studio/TemplateSurface';
 import TemplateCustomiser from './TemplateCustomiser';
-import { DESIGN_TEMPLATES, type DesignTemplate } from '../../lib/designTemplates';
+import type { DesignTemplate } from '../../lib/designTemplates';
 import { DESIGN_STYLES, applyStyle, styleColours, styleOf } from '../../lib/design/styles';
 import {
   TEMPLATE_USES, diversify, findTemplates, libraryDepth, type TemplateUse,
 } from '../../lib/design/taxonomy';
 import { ensureTypefacesReady } from '../../lib/design/typefaces';
 import { track } from '../../lib/telemetry';
+import { useTemplateLibrary } from '../../hooks/useTemplateLibrary';
+import { sampleFor } from '../../lib/templateBank/store';
 
 /**
  * The design library, on the PUBLIC Create page.
@@ -106,6 +108,8 @@ export default function TemplateGallery() {
    * is the same thing as broken.
    */
   const [editing, setEditing] = useState<DesignTemplate | null>(null);
+  // Built-in layouts at first paint; published Template Bank layouts join when they load.
+  const library = useTemplateLibrary();
 
   // The previews are set in Playfair Display, Bebas Neue and the rest. Without
   // this the first paint is Georgia and Arial Narrow, and the gallery whose
@@ -113,7 +117,7 @@ export default function TemplateGallery() {
   useEffect(() => { void ensureTypefacesReady(); }, []);
 
   const results = useMemo(() => {
-    const found = findTemplates(query, { use: use || undefined });
+    const found = findTemplates(query, { use: use || undefined }, library);
     /*
      * Browsing gets variety; searching gets relevance.
      *
@@ -123,7 +127,7 @@ export default function TemplateGallery() {
      * IS the answer and must not be shuffled for looks.
      */
     return query.trim() ? found : diversify(found);
-  }, [query, use]);
+  }, [query, use, library]);
 
   // Reset the window whenever the list changes, or "Show more" would reveal
   // rows from a previous search.
@@ -138,10 +142,10 @@ export default function TemplateGallery() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h3 className="text-lg font-bold text-gray-900 dark:text-white">
-            {libraryDepth().toLocaleString('en-NG')} designs, made from your brand
+            {libraryDepth(library).toLocaleString('en-NG')} designs, made from your brand
           </h3>
           <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
-            {DESIGN_TEMPLATES.length} layouts × {DESIGN_STYLES.length} styles. These are the real
+            {library.length} layouts × {DESIGN_STYLES.length} styles. These are the real
             templates, rendered here exactly as Studio makes them.
           </p>
         </div>
@@ -355,6 +359,15 @@ function PreviewCard({
 
   const styled = useMemo(() => applyStyle(template, styleOf(styleKey)), [template, styleKey]);
   /*
+   * A published template brings the copy it was art-directed with. Using the
+   * generic sample on a menu or a fixture layout fills slots it was never
+   * meant to carry and makes a finished design look broken.
+   */
+  const content = useMemo<TemplateContent>(() => {
+    const own = sampleFor(template.key);
+    return own ? { logoUrl: null, qrUrl: null, ...own } : SAMPLE;
+  }, [template.key]);
+  /*
    * Per card, not once for the section.
    *
    * Under a 'keep' style each layout renders in its OWN scheme — Quiet Luxe is
@@ -381,7 +394,7 @@ function PreviewCard({
           >
             <TemplateSurface
               template={styled}
-              content={SAMPLE}
+              content={content}
               width={DESIGN}
               height={DESIGN}
               accent={tone.accent}
