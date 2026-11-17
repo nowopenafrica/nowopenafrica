@@ -1,6 +1,33 @@
 import { unzipSync, strFromU8 } from 'fflate';
 
-import type { TemplateRow } from './templateCatalogue';
+import { uploadedDeliverable, type TemplateRow } from './templateCatalogue';
+import type { DesignTemplate } from '../designTemplates';
+import { MANIFEST } from '../design/assetManifest';
+import { registerUploadedDeliverable } from '../design/deliverables';
+import { coreCriticals, type CriticalFailure } from '../design/quality/criticalCore';
+
+export type UploadCheck =
+  | { ok: true; list: CriticalFailure[] }
+  | { ok: false; reason: string };
+
+/**
+ * The browser-safe house criticals on one upload, as it stands on screen.
+ *
+ * The checks read the canvas and the product from the deliverable registry,
+ * which the catalogue fills for PUBLISHED rows only. A draft or a row in
+ * review would otherwise be measured as an unfiled square: contrast, fit and
+ * safe margins all on the wrong page. So this one is registered first, from
+ * the values on screen, the way templateByKeyAnywhere does for a deep link.
+ */
+export function checkUpload(
+  template: DesignTemplate,
+  row: { category: string; label?: string | null; format?: string | null },
+  siblings: DesignTemplate[],
+): UploadCheck {
+  registerUploadedDeliverable(template.key, uploadedDeliverable(template, row));
+  try { return { ok: true, list: coreCriticals(template, siblings, MANIFEST) }; }
+  catch (e) { return { ok: false, reason: e instanceof Error ? e.message : String(e) }; }
+}
 
 /**
  * Reviewing an uploaded template before it reaches the public gallery.

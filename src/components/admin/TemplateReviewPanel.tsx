@@ -6,13 +6,12 @@ import TemplateSurface from '../studio/TemplateSurface';
 import { supabase } from '../../lib/supabase';
 import type { DesignTemplate } from '../../lib/designTemplates';
 import { sampleFor } from '../../lib/create/sampleCopy';
-import { MANIFEST } from '../../lib/design/assetManifest';
-import { coreCriticals } from '../../lib/design/quality/criticalCore';
-import { registerUploadedDeliverable, type DeliverableCategory } from '../../lib/design/deliverables';
+import { cleanClassification } from '../../lib/create/templateUpload';
 import {
-  PUBLISH_SCORE, RUBRIC, rubricProblems, rubricTotal,
+  checkUpload, PUBLISH_SCORE, RUBRIC, rubricProblems, rubricTotal,
   type ReviewDecision, type RubricLines,
 } from '../../lib/create/templateReview';
+import TemplateDetailsFields, { type TemplateDetails } from './TemplateDetailsFields';
 import type { TemplateRow } from '../../lib/create/templateCatalogue';
 
 /**
@@ -48,29 +47,45 @@ export default function TemplateReviewPanel({
   const [c10, setC10] = useState((row.review_criticals ?? []).includes('C10'));
   const [notes, setNotes] = useState(row.review_notes ?? '');
   const [saving, setSaving] = useState(false);
+  /*
+   * Product, direction and demo copy, editable here because the 71 rows
+   * listed before the gate never had them. Saved separately and before the
+   * review: they change the stored layout, so the findings a review records
+   * must be the findings of what is stored.
+   */
+  const stored = useMemo<TemplateDetails>(
+    () => cleanClassification(template), [template],
+  );
+  const [details, setDetails] = useState<TemplateDetails>(stored);
+  const [savingDetails, setSavingDetails] = useState(false);
+  const live = useMemo(() => ({ ...template, ...details }), [template, details]);
+  const dirty = JSON.stringify(cleanClassification(details)) !== JSON.stringify(stored);
 
-  const findings = useMemo(() => {
-    /*
-     * The checks read the canvas from the deliverable registry, which the
-     * catalogue fills for PUBLISHED rows only. A row awaiting review would
-     * otherwise be measured on the default square: contrast, fit and safe
-     * margins all on the wrong page. Register this one row first, the way
-     * templateByKeyAnywhere does for a deep link.
-     */
-    registerUploadedDeliverable(template.key, {
-      category: row.category as DeliverableCategory,
-      name: row.label || template.label,
-      ...(row.format ? { format: row.format } : {}),
-    });
-    try { return { ok: true as const, list: coreCriticals(template, siblings, MANIFEST) }; }
-    catch (e) { return { ok: false as const, reason: e instanceof Error ? e.message : String(e) }; }
-  }, [template, siblings, row.category, row.label, row.format]);
+  const findings = useMemo(
+    () => checkUpload(live, row, siblings),
+    [live, row, siblings],
+  );
 
   const automaticCodes = findings.ok ? [...new Set(findings.list.map((f) => f.code))] : [];
   const criticals = [...automaticCodes, ...(c10 ? ['C10'] : [])];
   const total = rubricTotal(lines);
   const problems = rubricProblems(lines);
-  const canSave = problems.length === 0 && decision !== '' && findings.ok && !saving;
+  const canSave = problems.length === 0 && decision !== '' && findings.ok && !saving && !dirty;
+
+  const saveDetails = async () => {
+    if (!dirty || savingDetails) return;
+    setSavingDetails(true);
+    const doc: Record<string, unknown> = { ...(row.document as Record<string, unknown>) };
+    delete doc.subcategory; delete doc.direction; delete doc.sample;
+    const { error } = await supabase
+      .from('design_templates')
+      .update({ document: { ...doc, ...cleanClassification(details) }, updated_at: new Date().toISOString() })
+      .eq('id', row.id);
+    setSavingDetails(false);
+    if (error) { toast.error(`The details were not saved: ${error.message}`); return; }
+    toast.success('Details saved. Score it now: any earlier review no longer covers this layout.');
+    onSaved();
+  };
 
   const save = async () => {
     if (!canSave) return;
@@ -105,13 +120,33 @@ export default function TemplateReviewPanel({
         <div className="shrink-0">
           <div className="overflow-hidden rounded-lg border border-gray-200 bg-gray-50 dark:border-gray-700" style={{ width: W, height: W }}>
             <div style={{ transform: `scale(${W / 1080})`, transformOrigin: 'top left' }}>
-              <TemplateSurface template={template} content={sampleFor(template)} width={1080} height={1080} accent="#4f46e5" />
+              <TemplateSurface template={live} content={sampleFor(live)} width={1080} height={1080} accent="#4f46e5" />
             </div>
           </div>
           <p className="mt-1 text-[10px] text-gray-500">Drawn with the demo copy, as the gallery card is.</p>
         </div>
 
         <div className="min-w-[240px] flex-1 space-y-3">
+          <fieldset className="space-y-2">
+            <legend className="text-xs font-bold text-gray-900 dark:text-white">Details</legend>
+            <TemplateDetailsFields template={live} idPrefix={`review-${row.id}`} onChange={setDetails} />
+            {dirty && (
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => void saveDetails()}
+                  disabled={savingDetails}
+                  className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-purple-600 px-3 text-xs font-bold text-white disabled:opacity-50"
+                >
+                  {savingDetails && <Loader2 size={13} className="animate-spin" />} Save details
+                </button>
+                <span className="text-[10px] text-gray-500">
+                  Save these before scoring: they change the stored layout{row.status === 'published' ? ', and the live gallery card' : ''}.
+                </span>
+              </div>
+            )}
+          </fieldset>
+
           <fieldset>
             <legend className="text-xs font-bold text-gray-900 dark:text-white">Rubric</legend>
             <ul className="mt-1.5 space-y-1">

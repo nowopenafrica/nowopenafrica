@@ -28,9 +28,11 @@
 --
 -- ## Stale reviews
 --
--- `review_hash` is md5 of the document at review time. The gate compares it
--- with the document now, so editing a reviewed layout makes it unpublishable
--- until it is reviewed again.
+-- `review_hash` is md5 of the canvas (`format`) and the document at review
+-- time (design_template_review_hash). The gate compares it with both now, so
+-- editing a reviewed layout, its product, direction or demo copy (all in the
+-- document), or moving it to another canvas makes it unpublishable until it
+-- is reviewed again.
 --
 -- ## The 71 already live
 --
@@ -77,6 +79,16 @@ UPDATE public.design_templates
  WHERE status = 'published' AND review_lines IS NULL AND NOT legacy_listing;
 
 ALTER TABLE public.design_templates DROP CONSTRAINT IF EXISTS design_templates_publish_gate;
+
+-- What a review covers: the canvas and the whole document.
+CREATE OR REPLACE FUNCTION public.design_template_review_hash(fmt text, doc jsonb)
+RETURNS text
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT md5(coalesce(fmt, '') || '|' || doc::text);
+$$;
+
 ALTER TABLE public.design_templates
   ADD CONSTRAINT design_templates_publish_gate CHECK (
     status <> 'published'
@@ -86,7 +98,7 @@ ALTER TABLE public.design_templates
       AND review_score >= 85
       AND cardinality(review_criticals) = 0
       AND reviewed_by IS NOT NULL
-      AND review_hash = md5(document::text)
+      AND review_hash = public.design_template_review_hash(format, document)
     )
   );
 
@@ -186,7 +198,7 @@ BEGIN
   END LOOP;
 
   NEW.review_score := total;
-  NEW.review_hash  := md5(NEW.document::text);
+  NEW.review_hash  := public.design_template_review_hash(NEW.format, NEW.document);
   NEW.reviewed_by  := auth.uid();
   NEW.reviewed_at  := now();
   RETURN NEW;

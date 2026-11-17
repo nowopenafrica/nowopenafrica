@@ -47,18 +47,34 @@ Run in the browser against those 71 (read-only, 2026-11-17), the house criticals
 find on **every one**: C2 (no subcategory, no direction), C5 (contrast or fit), and
 C9 (the gallery shows the fallback "Your headline here"). Two also fail C12.
 
-## What this means for new uploads
+## Product, direction and demo copy
 
-Under the rule as written, **no upload can pass today**, because the importer never
-collects what C2 and C9 need:
+C2 and C9 failed on every upload because the importer never asked for what they
+need. It does now, on the import card and in the review panel:
 
-- **Subcategory and direction (C2).** Code templates get these from the catalogue
-  taxonomy; uploads have no field for either.
-- **Demo copy (C9).** Code templates carry purpose-written sample copy; uploads fall
-  back to "Your headline here", which is what their gallery cards show.
+- **Product** (a `catalogueTaxonomy` subcategory) and **direction**
+  (`design/directions.ts`) clear C2. Pick a canvas the product is made on, or C4
+  says so.
+- **Demo copy**, one field per text role the layout draws, plus list rows. It is
+  what the gallery card shows (`sampleFor` reads `DesignTemplate.sample`), so it
+  clears C9. Same rule as `sampleCopy.ts`: name what goes there, never a business.
 
-The next piece of work is adding those three to the import card. Until then the gate
-holds new uploads back, which is the rule working, not a fault.
+All three live in the stored `document`, not in columns, so the public catalogue
+read is unchanged and the review hash covers them. The hash now also covers the
+`format` column (`design_template_review_hash`): changing the canvas, product,
+direction or demo copy of a reviewed template stales its review. The import card
+runs the same browser-safe criticals as the review panel, so whoever imports sees the
+findings before filing.
+
+For the 71 rows already live, the review panel's Details section edits these and
+saves them to the document (Save details) before scoring; Save review stays off while
+details are unsaved, so the findings recorded are those of what is stored. On a
+published row that changes the live gallery card.
+
+Checked in the browser (read-only, 2026-11-17) on an upload copied from
+`pilot-ig-bold`: with the three filled in, C2 and C9 clear; C5 remains (its palette
+was dropped at the door for contrast) and C13 (it is a near-copy of the original),
+both real findings.
 
 ## Tests
 
@@ -67,10 +83,10 @@ holds new uploads back, which is the rule working, not a fault.
 - `src/components/admin/TemplateReviewPanel.test.tsx`: the panel saves only a
   complete review and never sends a score.
 - The migration was run on Postgres (PGlite) on top of the two existing
-  `design_templates` migrations: 26 checks, all passing (legacy marking, re-run,
+  `design_templates` migrations: 28 checks, all passing (legacy marking, re-run,
   admin-only review, line validation, computed score, 84 refused, 85 published,
-  criticals and "revise" refused, stale document refused, legacy cleared on
-  unpublish). That harness is not in the repo; PGlite is not a project dependency.
+  criticals and "revise" refused, stale document, canvas or demo copy refused,
+  legacy cleared on unpublish). That harness is not in the repo; PGlite is not a project dependency.
 
 ## Not done
 

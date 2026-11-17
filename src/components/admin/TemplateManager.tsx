@@ -8,14 +8,16 @@ import TemplateSurface from '../studio/TemplateSurface';
 import ConfirmDialog from '../ConfirmDialog';
 import AssetReview from './AssetReview';
 import TemplateReviewPanel from './TemplateReviewPanel';
-import { gateFor, readTemplateZip, PUBLISH_SCORE, type ZipFile } from '../../lib/create/templateReview';
+import { checkUpload, gateFor, readTemplateZip, PUBLISH_SCORE, type ZipFile } from '../../lib/create/templateReview';
 import { supabase } from '../../lib/supabase';
 import { DESIGN_TEMPLATES } from '../../lib/designTemplates';
 import { DESIGN_FORMATS } from '../../data/studioPresets';
 import { DELIVERABLE_CATEGORIES } from '../../lib/design/deliverables';
 import { DESIGN_STYLES } from '../../lib/design/styles';
 import { sampleFor } from '../../lib/create/sampleCopy';
-import { templateToUploadJson, EDITABILITY_LABEL } from '../../lib/create/templateUpload';
+import { templateToUploadJson, withCleanClassification, EDITABILITY_LABEL } from '../../lib/create/templateUpload';
+import TemplateDetailsFields from './TemplateDetailsFields';
+import type { DesignTemplate } from '../../lib/designTemplates';
 import { ingestFiles, type Ingested, type TemplateDraft } from '../../lib/create/ingestTemplates';
 import { measureArtboard } from '../../lib/create/measureArtboard';
 import {
@@ -189,7 +191,8 @@ function TemplatesTab() {
       styles: draft.styles,
       industries: draft.industries,
       tags: draft.tags,
-      document: draft.template,
+      /* Tidied as the validator reads it, so the stored document is what a review hashes. */
+      document: withCleanClassification(draft.template),
       editability: draft.editability,
       source_format: draft.sourceFormat,
       format: draft.format || null,
@@ -389,6 +392,7 @@ function TemplatesTab() {
                 key={draft.template.key}
                 fileName={fileName}
                 draft={draft}
+                siblings={listed}
                 onChange={(next) => setDrafts((d) => d.map((row, j) => (j === i ? { ...row, draft: next } : row)))}
                 onRemove={() => setDrafts((d) => d.filter((_, j) => j !== i))}
               />
@@ -532,14 +536,24 @@ async function currentStaffId(): Promise<{ id: string } | { why: string }> {
  * headline that landed off the page.
  */
 function DraftCard({
-  fileName, draft, onChange, onRemove,
+  fileName, draft, siblings, onChange, onRemove,
 }: {
   fileName: string;
   draft: TemplateDraft;
+  /** The listed catalogue, for C13. */
+  siblings: DesignTemplate[];
   onChange: (d: TemplateDraft) => void;
   onRemove: () => void;
 }) {
   const set = (patch: Partial<TemplateDraft>) => onChange({ ...draft, ...patch });
+  /*
+   * The same browser-safe criticals the review panel runs, on the card as it
+   * stands, so whoever imports sees what a reviewer will see before filing.
+   */
+  const check = useMemo(
+    () => checkUpload(draft.template, { category: draft.category, label: draft.template.label, format: draft.format }, siblings),
+    [draft.template, draft.category, draft.format, siblings],
+  );
   const field = 'w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-[11px] dark:border-gray-600 dark:bg-gray-800 dark:text-white';
   const W = 220;
 
@@ -606,6 +620,17 @@ function DraftCard({
         })}
       </div>
 
+      <div className="mt-2">
+        <TemplateDetailsFields
+          template={draft.template}
+          idPrefix={`draft-${draft.template.key}`}
+          compact
+          onChange={(details) => onChange({ ...draft, template: { ...draft.template, ...details } })}
+        />
+      </div>
+
+      <CheckSummary check={check} />
+
       {draft.notes.length > 0 && (
         /* Corrections and losses, said out loud rather than absorbed. */
         <ul className="mt-2 space-y-1">
@@ -615,6 +640,29 @@ function DraftCard({
         </ul>
       )}
     </div>
+  );
+}
+
+/** The card's line on the house criticals: clear, or the first few findings. */
+function CheckSummary({ check }: { check: ReturnType<typeof checkUpload> }) {
+  if (!check.ok) {
+    return <p className="mt-2 text-[10px] text-red-700 dark:text-red-300">The house checks could not run: {check.reason}</p>;
+  }
+  if (!check.list.length) {
+    return <p className="mt-2 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">House checks clear (all but C3, C6, C8, C10).</p>;
+  }
+  return (
+    <ul className="mt-2 space-y-0.5 rounded-lg bg-red-50 p-2 dark:bg-red-950/30">
+      <li className="text-[10px] font-bold text-red-800 dark:text-red-200">
+        {check.list.length} finding{check.list.length > 1 ? 's' : ''}: a reviewer cannot pass it until these are fixed
+      </li>
+      {check.list.slice(0, 4).map((f, i) => (
+        <li key={`${f.code}-${i}`} className="text-[10px] leading-snug text-red-800 dark:text-red-200">
+          <span className="font-bold">{f.code}</span> {f.detail}
+        </li>
+      ))}
+      {check.list.length > 4 && <li className="text-[10px] text-red-700 dark:text-red-300">…and {check.list.length - 4} more</li>}
+    </ul>
   );
 }
 

@@ -462,8 +462,18 @@ const BY_KEY: Record<string, Partial<TemplateContent>> = {
  * Falls back field by field, so a template with no entry renders exactly what
  * it rendered before this existed.
  */
-export function sampleFor(template: Pick<DesignTemplate, 'key'>): TemplateContent {
-  return { ...BASE_SAMPLE, ...(BY_KEY[template.key] ?? {}) };
+export function sampleFor(template: Pick<DesignTemplate, 'key'> & Pick<Partial<DesignTemplate>, 'sample'>): TemplateContent {
+  /*
+   * An uploaded template brings its own (DesignTemplate.sample), set on the
+   * import card. Empty strings are left out so a cleared field falls back
+   * rather than drawing nothing.
+   */
+  const own = template.sample
+    ? Object.fromEntries(Object.entries(template.sample)
+      .map(([k, v]) => [k, Array.isArray(v) ? v.filter((s) => s.trim()) : v] as const)
+      .filter(([, v]) => (Array.isArray(v) ? v.length > 0 : !!v?.trim())))
+    : {};
+  return { ...BASE_SAMPLE, ...(BY_KEY[template.key] ?? {}), ...own };
 }
 
 /** How many templates carry purpose-shaped copy. For the test, and for honesty. */
@@ -477,10 +487,11 @@ const SAMPLE_CACHE = new Map<string, TemplateContent>();
  * the template has no such row. design/icons.ts trusts a template's per-row
  * icon hint only while the row still reads exactly this (Ruling AL).
  */
-export function sampleRow(template: Pick<DesignTemplate, 'key'>, role: string, index: number): string | undefined {
+export function sampleRow(template: Pick<DesignTemplate, 'key'> & Pick<Partial<DesignTemplate>, 'sample'>, role: string, index: number): string | undefined {
   // BY_KEY never changes, so one merged copy per template serves every row of every render.
-  let s = SAMPLE_CACHE.get(template.key);
-  if (!s) { s = sampleFor(template); SAMPLE_CACHE.set(template.key, s); }
+  // An upload's own copy can be edited on screen, so it is never cached.
+  let s = template.sample ? undefined : SAMPLE_CACHE.get(template.key);
+  if (!s) { s = sampleFor(template); if (!template.sample) SAMPLE_CACHE.set(template.key, s); }
   if (role === 'contact') return s.contact?.[index];
   if (role === 'services') return s.services?.[index];
   if (index !== 0) return undefined;

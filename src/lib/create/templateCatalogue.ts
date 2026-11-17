@@ -162,6 +162,8 @@ export function entryFromRow(
     label: row.label || result.template.label,
     desc: row.description ?? result.template.desc,
     ...(row.tags.length ? { tags: row.tags } : {}),
+    /* The column is the reviewer's; the "industry" direction needs at least one. */
+    ...(row.industries.length ? { industries: row.industries } : {}),
   };
 
   return {
@@ -260,9 +262,26 @@ export function deliverablesFor(
       /* The uploader's own title. There is no second, friendlier name. */
       name: row.label || entry.template.label,
       ...(row.format ? { format: row.format } : {}),
+      /* Carried in the document, so a review's hash covers it. */
+      ...(entry.template.subcategory ? { subcategory: entry.template.subcategory } : {}),
     };
   }
   return out;
+}
+
+/**
+ * One upload's classification, from its parts, for the screens that check a
+ * row or a draft before the catalogue has registered it.
+ */
+export function uploadedDeliverable(
+  template: DesignTemplate, row: { category: string; label?: string | null; format?: string | null },
+): Deliverable {
+  return {
+    category: row.category as DeliverableCategory,
+    name: row.label || template.label,
+    ...(row.format ? { format: row.format } : {}),
+    ...(template.subcategory ? { subcategory: template.subcategory } : {}),
+  };
 }
 
 /** Null arrays out of Postgres are never iterated. */

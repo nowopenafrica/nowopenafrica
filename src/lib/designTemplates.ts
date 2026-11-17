@@ -386,6 +386,14 @@ export interface SurfaceSpec {
   frame?: number;
 }
 
+/** The single-line demo copy roles, then the list roles, an upload may carry. */
+export const SAMPLE_TEXT_ROLES = ['brand', 'eyebrow', 'headline', 'subline', 'meta', 'cta'] as const;
+export const SAMPLE_LIST_ROLES = ['services', 'contact'] as const;
+
+/** An upload's own demo copy: labels for what goes where, never a business. */
+export type SampleCopy = Partial<Record<(typeof SAMPLE_TEXT_ROLES)[number], string>>
+  & Partial<Record<(typeof SAMPLE_LIST_ROLES)[number], string[]>>;
+
 export interface DesignTemplate {
   key: string;
   label: string;
@@ -412,6 +420,18 @@ export interface DesignTemplate {
   industries?: string[];
   /** Named art direction (design/directions.ts). Absent until a template is classified. */
   direction?: DirectionKey;
+  /**
+   * UPLOADED templates only: the product it is (a catalogueTaxonomy
+   * subcategory key). Code templates take theirs from design/deliverables.ts,
+   * which always wins; an upload has no entry there, so it carries its own.
+   */
+  subcategory?: string;
+  /**
+   * UPLOADED templates only: the demo copy its gallery card shows. Code
+   * templates keep theirs in create/sampleCopy.ts; an upload without this
+   * falls back to "Your headline here", which the house checks refuse (C9).
+   */
+  sample?: SampleCopy;
   /**
    * Key of the icon set this template draws from, when it uses one. A design
    * that uses Lucide icons beside platform marks declares 'lucide': the marks

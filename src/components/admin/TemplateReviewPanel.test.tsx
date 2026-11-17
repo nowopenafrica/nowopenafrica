@@ -51,6 +51,33 @@ describe('TemplateReviewPanel', () => {
     expect(patch).not.toHaveProperty('reviewed_by');
   });
 
+  it('saves product, direction and demo copy into the document first, and holds the review until then', async () => {
+    update.mockClear();
+    const onSaved = vi.fn();
+    const doc = { ...template, key: 'upload-y' } as Record<string, unknown>;
+    delete doc.direction;
+    const upload = { ...template, key: 'upload-y', direction: undefined };
+    render(<TemplateReviewPanel row={{ ...row, key: 'upload-y', document: doc }} template={upload} siblings={DESIGN_TEMPLATES} onSaved={onSaved} onClose={() => {}} />);
+
+    for (const r of RUBRIC) fireEvent.change(screen.getByLabelText(r.label), { target: { value: String(r.max) } });
+    fireEvent.click(screen.getByLabelText('Approve'));
+    expect(screen.getByRole('button', { name: /Save review/ })).toBeEnabled();
+
+    fireEvent.change(screen.getByLabelText('Product'), { target: { value: 'instagram-post' } });
+    fireEvent.change(screen.getByLabelText('Direction'), { target: { value: 'bold' } });
+    fireEvent.change(screen.getByLabelText('Demo Headline'), { target: { value: '  Now open  ' } });
+    // The findings a review records must be those of what is stored.
+    expect(screen.getByRole('button', { name: /Save review/ })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /Save details/ }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalled());
+    const patch = update.mock.calls[0][0] as { document: Record<string, unknown> };
+    expect(patch.document.subcategory).toBe('instagram-post');
+    expect(patch.document.direction).toBe('bold');
+    expect(patch.document.sample).toEqual({ headline: 'Now open' });
+    expect(patch).not.toHaveProperty('review_lines');
+  });
+
   it('refuses a line over its maximum', () => {
     render(<TemplateReviewPanel row={row} template={template} siblings={DESIGN_TEMPLATES} onSaved={() => {}} onClose={() => {}} />);
     for (const r of RUBRIC) fireEvent.change(screen.getByLabelText(r.label), { target: { value: String(r.max) } });

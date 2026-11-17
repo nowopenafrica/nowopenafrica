@@ -1,14 +1,18 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 import { strToU8, zipSync } from 'fflate';
 
 import {
-  PUBLISH_SCORE, RUBRIC, gateFor, readTemplateZip, rubricProblems, rubricTotal,
+  PUBLISH_SCORE, RUBRIC, checkUpload, gateFor, readTemplateZip, rubricProblems, rubricTotal,
   type RubricLines,
 } from './templateReview';
-import type { TemplateRow } from './templateCatalogue';
-import { DESIGN_TEMPLATES } from '../designTemplates';
+import { deliverablesFor, entryFromRow, type TemplateRow } from './templateCatalogue';
+import { SAMPLE_MAX_CHARS, readTemplateUpload, templateToUploadJson, withCleanClassification } from './templateUpload';
+import { BASE_SAMPLE, sampleFor } from './sampleCopy';
+import { subcategoryFor } from './catalogueTaxonomy';
+import { clearUploadedDeliverables, registerUploadedDeliverables } from '../design/deliverables';
+import { DESIGN_TEMPLATES, type DesignTemplate } from '../designTemplates';
 import { MANIFEST } from '../design/assetManifest';
 import { automatedCriticals } from '../design/quality/critical';
 import { coreCriticals } from '../design/quality/criticalCore';
@@ -95,6 +99,66 @@ describe('readTemplateZip', () => {
 
   it('refuses something that is not a ZIP', () => {
     expect(() => readTemplateZip(strToU8('not a zip'), 'x.zip')).toThrow();
+  });
+});
+
+describe('an upload\'s product, direction and demo copy', () => {
+  const base = DESIGN_TEMPLATES.find((t) => t.key === 'pilot-ig-bold') ?? DESIGN_TEMPLATES[0];
+  const upload = (extra: Record<string, unknown>) => {
+    const read = readTemplateUpload({ ...JSON.parse(templateToUploadJson(base, 'social')), key: 'upload-x', ...extra });
+    if (!read.ok) throw new Error(read.reason);
+    return read;
+  };
+  const codes = (tpl: DesignTemplate, format: string | null) =>
+    checkUpload(tpl, { category: 'social', format }, DESIGN_TEMPLATES);
+
+  afterEach(() => clearUploadedDeliverables());
+
+  it('fails C2 and C9 without them, which is why every live upload failed', () => {
+    const check = codes(upload({}).template, 'instagram-portrait');
+    expect(check.ok && check.list.map((f) => f.code)).toEqual(expect.arrayContaining(['C2', 'C9']));
+  });
+
+  it('clears C2 and C9 with them', () => {
+    const read = upload({
+      subcategory: 'instagram-post',
+      direction: 'bold',
+      sample: { brand: 'Your brand', eyebrow: 'Big news', headline: 'Now open', subline: 'Come and see us this week.', cta: 'Link in bio' },
+    });
+    expect(read.template.subcategory).toBe('instagram-post');
+    expect(read.template.direction).toBe('bold');
+    const check = codes(read.template, 'instagram-portrait');
+    expect(check.ok).toBe(true);
+    const found = check.ok ? check.list.map((f) => f.code) : [];
+    expect(found).not.toContain('C2');
+    expect(found).not.toContain('C9');
+  });
+
+  it('drops an unknown product or direction with a note, and caps the copy', () => {
+    const read = upload({ subcategory: 'spaceship', direction: 'vaporwave', sample: { headline: 'x'.repeat(500), services: ['a', '', 'b', 7] } });
+    expect(read.template.subcategory).toBeUndefined();
+    expect(read.template.direction).toBeUndefined();
+    expect(read.notes.join(' ')).toMatch(/spaceship.*vaporwave/s);
+    expect(read.template.sample?.headline).toHaveLength(SAMPLE_MAX_CHARS);
+    expect(read.template.sample?.services).toEqual(['a', 'b']);
+  });
+
+  it('is what the gallery card shows, with blank fields falling back', () => {
+    const copy = sampleFor({ key: 'upload-x', sample: { headline: 'Your opening date', subline: '', services: ['First', ' '] } });
+    expect(copy.headline).toBe('Your opening date');
+    expect(copy.subline).toBe(BASE_SAMPLE.subline);
+    expect(copy.services).toEqual(['First']);
+  });
+
+  it('survives the trip through a stored row, and files the row under its product', () => {
+    const tpl = upload({ subcategory: 'instagram-post', direction: 'industry' }).template;
+    const stored = row({ key: 'upload-x', document: withCleanClassification(tpl), industries: ['Food & Hospitality'], status: 'published' });
+    const read = entryFromRow(stored, new Set(DESIGN_TEMPLATES.map((t) => t.key)));
+    expect(read.ok).toBe(true);
+    if (!read.ok) return;
+    expect(read.entry.template.industries).toEqual(['Food & Hospitality']);
+    registerUploadedDeliverables(deliverablesFor([read.entry], [stored]));
+    expect(subcategoryFor(read.entry.template)?.key).toBe('instagram-post');
   });
 });
 
