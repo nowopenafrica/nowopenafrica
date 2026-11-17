@@ -88,10 +88,21 @@ both real findings.
   criticals and "revise" refused, stale document, canvas or demo copy refused,
   legacy cleared on unpublish). That harness is not in the repo; PGlite is not a project dependency.
 
-## Not done
+## Applied to production (2026-11-17)
 
-- The migration is **not applied** to any database. The screen detects that and
-  says so; nothing can be scored or published until it is.
+Applied on the founder's word with `supabase db query --linked -f` and recorded in
+`supabase_migrations.schema_migrations`; `npm run check:drift` reports no drift and
+the ledger matching disk. Before and after: 71 rows, all published; after, all 71
+`legacy_listing`. Exercised live inside a block that always rolls back: unpublishing
+clears legacy, republishing without a review is refused, a non-admin review is
+refused, and legacy cannot be granted back. The 71 were unchanged afterwards.
+
+**The deployed site still runs the old Template Manager.** Its "Publish all" and
+one-click Publish now hit the gate and fail with a database error; nothing is lost,
+but nothing new can be published from production until this branch is deployed.
+The public gallery is unaffected (it reads the same columns as before).
+
+## Not done
 - C3 (glyphs), C6 (preview) and C8 (export) do not run in the panel; it says so.
 - Review notes and the reviewer's id are readable by anyone once a template is
   published (the table's public policy returns whole rows). The panel says so.
