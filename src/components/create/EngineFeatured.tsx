@@ -80,7 +80,7 @@ function EngineBrowse() {
         ))}
       </div>
       <div className="mt-6">
-        <EngineGallery key={group.slug} deliverables={group.items} />
+        <EngineGallery key={group.slug} deliverables={group.items} dense />
       </div>
     </section>
   );

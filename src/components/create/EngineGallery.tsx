@@ -15,6 +15,9 @@ import { paletteOf } from '../../lib/design/palettes';
 
 const FIRST = 8;
 const MORE = 16;
+/* Browse by category shows a denser grid (6-7 a row on a wide screen): two rows first, then a third. */
+const DENSE_FIRST = 14;
+const DENSE_MORE = 21;
 
 /**
  * Designs for one item, composed by the engine (lib/create/compose/gallery.ts).
@@ -28,18 +31,25 @@ const MORE = 16;
  * Editing saves the design as the customer's own project and opens the
  * Studio editor there, the same path the concepts under a brief use.
  */
-export default function EngineGallery({ deliverables }: { deliverables: string[] }) {
+function gridCols(wide: boolean, dense: boolean): string {
+  if (dense) return wide ? 'grid-cols-2 lg:grid-cols-3 xl:grid-cols-4' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-7';
+  return wide ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
+}
+
+export default function EngineGallery({ deliverables, dense = false }: { deliverables: string[]; dense?: boolean }) {
+  const first = dense ? DENSE_FIRST : FIRST;
+  const most = dense ? DENSE_MORE : MORE;
   const items = useMemo(() => deliverables.filter(galleryCovers), [deliverables]);
   const [item, setItem] = useState(items[0] ?? '');
   const [trade, setTrade] = useState('');
-  const [count, setCount] = useState(FIRST);
+  const [count, setCount] = useState(first);
   const user = useOptionalAuth()?.user ?? null;
   const navigate = useNavigate();
   const [opening, setOpening] = useState<string | null>(null);
 
   const active = items.includes(item) ? item : items[0] ?? '';
   const sub = SUBCATEGORIES.find((s) => s.key === active);
-  const designs = useMemo(() => (active ? galleryFor(active, { trade: trade || undefined, count: MORE, photos: PHOTO_BASE || undefined }) : []), [active, trade]);
+  const designs = useMemo(() => (active ? galleryFor(active, { trade: trade || undefined, count: most, photos: PHOTO_BASE || undefined }) : []), [active, trade, most]);
   if (!active || !sub || designs.length === 0) return null;
 
   const format = formatOf(sub.formats[0]);
@@ -73,7 +83,7 @@ export default function EngineGallery({ deliverables }: { deliverables: string[]
             id="engine-gallery-trade"
             data-testid="engine-gallery-trade"
             value={trade}
-            onChange={(e) => { setTrade(e.target.value); setCount(FIRST); }}
+            onChange={(e) => { setTrade(e.target.value); setCount(first); }}
             className="min-h-[44px] min-w-0 max-w-[15rem] rounded-xl border border-gray-300 bg-white px-3 text-[14px] font-normal text-gray-900 dark:border-gray-600 dark:bg-gray-900 dark:text-white"
           >
             <option value="">Any business</option>
@@ -92,7 +102,7 @@ export default function EngineGallery({ deliverables }: { deliverables: string[]
                 key={k}
                 type="button"
                 aria-pressed={on}
-                onClick={() => { setItem(k); setCount(FIRST); }}
+                onClick={() => { setItem(k); setCount(first); }}
                 className={`min-h-[40px] rounded-full border px-4 text-[13px] font-semibold ${on ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900' : 'border-gray-300 text-gray-700 hover:border-gray-500 dark:border-gray-600 dark:text-gray-300'}`}
               >
                 {name}
@@ -102,7 +112,7 @@ export default function EngineGallery({ deliverables }: { deliverables: string[]
         </div>
       )}
 
-      <ul className={`mt-5 grid gap-5 ${wide ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4'}`}>
+      <ul data-dense={dense || undefined} className={`mt-5 grid ${dense ? 'gap-4' : 'gap-5'} ${gridCols(wide, dense)}`}>
         {shown.map((d) => (
           <li key={d.id} data-testid="engine-design" className="flex min-w-0 flex-col">
             <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-700">

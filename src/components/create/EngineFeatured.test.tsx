@@ -55,9 +55,15 @@ describe('EngineFeatured: the Create page default view, drawn by the engine', ()
     const browse = screen.getByTestId('engine-browse');
     /* It opens on a category the featured rows do not already show. */
     expect(within(browse).getByRole('button', { pressed: true }).textContent).toBe('Brand & packaging');
-    expect(within(browse).getAllByTestId('engine-design')).toHaveLength(8);
+    /* A denser grid: six or seven a row on a wide screen, two rows of seven first. */
+    expect(within(browse).getAllByTestId('engine-design')).toHaveLength(14);
+    expect(within(browse).getByRole('list').className).toMatch(/lg:grid-cols-6 xl:grid-cols-7/);
     fireEvent.click(within(browse).getByRole('button', { name: 'Menus & price lists' }));
     expect(within(browse).getByRole('heading', { level: 3 }).textContent).toBe('Designed for menu');
-    expect(within(browse).getAllByTestId('engine-design')).toHaveLength(8);
+    expect(within(browse).getAllByTestId('engine-design')).toHaveLength(14);
+    fireEvent.click(within(browse).getByRole('button', { name: /^Show \d+ more$/ }));
+    const all = within(browse).getAllByTestId('engine-design').length;
+    expect(all).toBeGreaterThan(14);
+    expect(all).toBeLessThanOrEqual(21);
   });
 });
