@@ -308,3 +308,15 @@ export function useAuth() {
   }
   return context;
 }
+
+/**
+ * The signed-in state, or null when there is no AuthProvider above.
+ *
+ * For a panel that is an addition to a page rather than the page itself
+ * (Create's concept panel, 2026-11-17): it must never be the reason the page
+ * fails to render. Without a provider it behaves as signed out. Everything
+ * else should keep using useAuth, which fails loudly on a wiring mistake.
+ */
+export function useOptionalAuth(): AuthContextType | null {
+  return useContext(AuthContext) ?? null;
+}

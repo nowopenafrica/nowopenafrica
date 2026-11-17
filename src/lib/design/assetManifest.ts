@@ -33,10 +33,31 @@ export function assetById(id: string, manifest: AssetManifest = MANIFEST): Manif
  */
 export function assetUrl(id: string, manifest: AssetManifest = MANIFEST): string | null {
   const asset = assetById(id, manifest);
+  return asset ? publicUrl(asset.path) : null;
+}
+
+function publicUrl(path: string): string | null {
   const base = String(import.meta.env.VITE_SUPABASE_URL ?? '').replace(/\/+$/, '');
-  if (!asset || !base) return null;
-  const path = asset.path.split('/').map(encodeURIComponent).join('/');
-  return `${base}/storage/v1/object/public/${DESIGN_ASSETS_BUCKET}/${path}`;
+  if (!base) return null;
+  return `${base}/storage/v1/object/public/${DESIGN_ASSETS_BUCKET}/${path.split('/').map(encodeURIComponent).join('/')}`;
+}
+
+/**
+ * The web-size copy's public URL (at most 1200 px, scripts/assets/webcopy.mjs),
+ * for drawing an asset small: a gallery card. Falls back to the original when
+ * the asset has no copy. Anything opened for editing or print goes back to
+ * the original through fullSizeUrl.
+ */
+export function assetWebUrl(id: string, manifest: AssetManifest = MANIFEST): string | null {
+  const asset = assetById(id, manifest);
+  if (!asset) return null;
+  return publicUrl(asset.web || asset.path);
+}
+
+/** A web copy's URL becomes its original's; any other URL is returned as it is. */
+export function fullSizeUrl(url: string, manifest: AssetManifest = MANIFEST): string {
+  const asset = manifest.assets.find((a) => a.web && publicUrl(a.web) === url);
+  return (asset && publicUrl(asset.path)) || url;
 }
 
 /** Every `asset:<id>` a template holds, once each, in the order first found. */

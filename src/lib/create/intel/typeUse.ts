@@ -20,7 +20,7 @@
 // face, which is the rule added last below.
 // The full list is in docs/creative-intelligence/typography.md.
 
-import type { TypefaceKey } from '../../design/typefaces';
+import { typefaceOf, type TypefaceKey } from '../../design/typefaces';
 
 /** How small a face may be set and still do its job. */
 export type Smallest =
@@ -202,3 +202,6 @@ export const TYPE_REFERENCES: { where: string; found: string }[] = [
   { where: 'Muzli, "Best free Google Fonts for 2026"',
     found: 'Named Inter, Lora, Oswald, Anton, Montserrat, Bebas Neue, Zilla Slab, Pacifico, Dancing Script and JetBrains Mono among its picks, all now in the library, with the advice to use scripts in short bursts and to load only the weights used.' },
 ];
+
+/** A face's name as a customer reads it: "Bodoni Moda", not "didone". */
+export const typefaceLabel = (key: TypefaceKey): string => typefaceOf(key).label;

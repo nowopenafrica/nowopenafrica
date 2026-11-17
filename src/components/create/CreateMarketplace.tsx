@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
   ArrowRight, Clapperboard, Megaphone, PackageSearch, Store,
@@ -18,6 +18,7 @@ import ProductCarousel from './ProductCarousel';
 import TemplateCustomiser from './TemplateCustomiser';
 import CollectionStrip from './CollectionStrip';
 import CategoryBrowse from './CategoryBrowse';
+import { CONCEPTS_ON } from '../../lib/create/flags';
 import { shownSubcategories } from '../../lib/create/catalogueTaxonomy';
 import { DESIGN_STYLES } from '../../lib/design/styles';
 import type { DesignTemplate } from '../../lib/designTemplates';
@@ -59,6 +60,9 @@ import {
  * requested and not bought. See lib/create/catalogue.ts — the honesty is in the
  * data, and this component only renders what the data admits.
  */
+
+/* The engine's designs for the default view; fetched only when the engine is on. */
+const EngineFeatured = lazy(() => import('./EngineFeatured'));
 
 type Focus = {
   need: NeedSlug | '';
@@ -280,7 +284,13 @@ export default function CreateMarketplace() {
         <NeedTiles needs={tiles} active={focus.need} onPick={(need) => open(need)} />
       </IntentComposer>
 
-      <ProductCarousel listed={listed} onOpen={setEditing} />
+      {CONCEPTS_ON ? (
+        <Suspense fallback={null}>
+          <EngineFeatured part="strip" onPick={(need, item) => open(need, item)} />
+        </Suspense>
+      ) : (
+        <ProductCarousel listed={listed} onOpen={setEditing} />
+      )}
 
       {popular.length > 0 && (
         <section data-create-section="popular" aria-label="Popular now">
@@ -312,9 +322,19 @@ export default function CreateMarketplace() {
 
       {/* Spec §10: featured collections, then browse by category. Below the
           need view, so opening a need still lands right under its tile. */}
-      <CollectionStrip listed={listed} loading={loading} onEdit={setEditing} />
+      {CONCEPTS_ON ? (
+        <Suspense fallback={null}>
+          <EngineFeatured part="rows" onPick={(need, item) => open(need, item)} />
+        </Suspense>
+      ) : (
+        <CollectionStrip listed={listed} loading={loading} onEdit={setEditing} />
+      )}
 
-      {browsable && (
+      {CONCEPTS_ON ? (
+        <Suspense fallback={null}>
+          <EngineFeatured part="browse" onPick={(need, item) => open(need, item)} />
+        </Suspense>
+      ) : browsable && (
         <CategoryBrowse listed={listed} loading={loading} error={incomplete ?? null} onEdit={setEditing} />
       )}
 

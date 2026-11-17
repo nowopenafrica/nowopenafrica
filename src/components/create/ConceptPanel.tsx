@@ -4,7 +4,7 @@ import { ArrowRight, Loader2 } from 'lucide-react';
 import toast from 'react-hot-toast';
 
 import DesignSurface from '../studio/DesignSurface';
-import { useAuth } from '../../contexts/AuthContext';
+import { useOptionalAuth } from '../../contexts/AuthContext';
 import type { CreativeBrief } from '../../lib/create/brief';
 import { conceptsFor, documentFor } from '../../lib/create/compose/concepts';
 import { saveConceptAsProject } from '../../lib/create/compose/openConcept';
@@ -37,7 +37,8 @@ import { typefaceOf } from '../../lib/design/typefaces';
  * there. That is the only thing on this panel that writes anything.
  */
 export default function ConceptPanel({ brief, businessName }: { brief: CreativeBrief; businessName?: string }) {
-  const { user } = useAuth();
+  /* Optional: this panel must never be the reason the Create page fails to render. Without a provider it shows the signed-out path. */
+  const user = useOptionalAuth()?.user ?? null;
   const navigate = useNavigate();
   const [opening, setOpening] = useState<number | null>(null);
 

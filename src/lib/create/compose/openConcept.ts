@@ -12,10 +12,12 @@
 
 import { supabase } from '../../supabase';
 import { readDocument, type DesignDocument } from '../../studio/designDocument';
+import { fullSizeUrl } from '../../design/assetManifest';
 
 export type OpenResult = { ok: true; path: string } | { ok: false; reason: string };
 
 export async function saveConceptAsProject(doc: DesignDocument, userId: string): Promise<OpenResult> {
+  doc = withOriginals(doc);
   /* The editor refuses a document it cannot read. Find that out here, before a row exists. */
   const read = readDocument(JSON.parse(JSON.stringify(doc)));
   if (!read.ok) return { ok: false, reason: read.reason };
@@ -25,4 +27,22 @@ export async function saveConceptAsProject(doc: DesignDocument, userId: string):
     .select('id').single();
   if (error || !data) return { ok: false, reason: error?.message ?? 'The design could not be saved.' };
   return { ok: true, path: `/media/studio/${(data as { id: string }).id}` };
+}
+
+/**
+ * Galleries draw library photographs from their web-size copies. The customer's
+ * own project gets the originals, so what they edit, export and print is full
+ * resolution. A copy, never the gallery's document itself.
+ */
+export function withOriginals(doc: DesignDocument): DesignDocument {
+  return {
+    ...doc,
+    pages: doc.pages.map((p) => ({
+      ...p,
+      backgroundMedia: p.backgroundMedia?.assetId
+        ? { ...p.backgroundMedia, assetId: fullSizeUrl(p.backgroundMedia.assetId) }
+        : p.backgroundMedia,
+      objects: p.objects.map((o) => (o.type === 'image' ? { ...o, assetId: fullSizeUrl(o.assetId) } : o)),
+    })),
+  };
 }

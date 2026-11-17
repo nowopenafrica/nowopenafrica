@@ -1,8 +1,13 @@
-import { useMemo } from 'react';
+import { Suspense, lazy, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight, Printer, X } from 'lucide-react';
 
 import TemplateGallery from './TemplateGallery';
+import { CONCEPTS_ON } from '../../lib/create/flags';
+import { hasEngineGallery } from '../../lib/create/engineItems';
+
+/* Loaded only when shown: with the switch off, the engine's code is never downloaded. */
+const EngineGallery = lazy(() => import('./EngineGallery'));
 import { CATALOGUE, type CatalogueItem } from '../../lib/create/catalogue';
 import { deliverableSlugFor, listedIn, type Need, type NeedSlug } from '../../lib/create/needs';
 import type { DesignTemplate } from '../../lib/designTemplates';
@@ -80,6 +85,15 @@ export default function NeedView({
   );
 
   const printItem = printItemFor(need, deliverable);
+
+  /*
+   * The engine's designs lead, for the items it can make (a chosen one, or
+   * every one in the need). The older templates follow under their own
+   * heading until the quality gate decides which of them stay.
+   */
+  const engineItems = CONCEPTS_ON
+    ? (deliverable ? [deliverable] : need.deliverables.map((d) => d.slug)).filter(hasEngineGallery)
+    : [];
 
   /* "packaging", "deck cover" - but a name like "YouTube thumbnail" keeps its capitals. */
   const missingRaw = missing ? need.deliverables.find((d) => d.slug === missing)?.name : undefined;
@@ -159,7 +173,13 @@ export default function NeedView({
       )}
 
       <div className="mt-6">
-        {inNeed.length === 0 ? (
+        {engineItems.length > 0 && (
+          <Suspense fallback={null}><EngineGallery key={engineItems.join(',')} deliverables={engineItems} /></Suspense>
+        )}
+        {engineItems.length > 0 && inNeed.length > 0 && (
+          <h3 className="mb-3 font-coolvetica text-[1.1rem] text-gray-900 dark:text-white">More templates</h3>
+        )}
+        {inNeed.length === 0 && engineItems.length > 0 ? null : inNeed.length === 0 ? (
           /*
            * Reached only by a request or an old link — a tile is never shown
            * for an empty need. Said plainly, with the lane below as the way on.

@@ -25,6 +25,7 @@
     "check:api-imports": "node scripts/check-api-imports.mjs",
     "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
     "assets:manifest": "node scripts/assets/manifest.mjs",
+    "assets:web-copies": "node scripts/assets/web-copies.mjs",
     "check:drift": "node scripts/check-schema-drift.mjs",
     "check:noc": "node scripts/check-noc.mjs",
     "check:noc:concurrency": "node scripts/check-noc-concurrency.mjs",

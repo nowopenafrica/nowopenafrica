@@ -1,4 +1,4 @@
-import { useRef, useState, type ReactNode } from 'react';
+import { Suspense, lazy, useRef, useState, type ReactNode } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { ArrowRight, ArrowUp, Paperclip, Palette } from 'lucide-react';
 
@@ -11,15 +11,11 @@ import { parseQuery, searchCatalogue } from '../../lib/create/searchRank';
 import { SUBCATEGORIES } from '../../lib/create/catalogueTaxonomy';
 import { answerBrief, readBrief, type BriefQuestion, type CreativeBrief } from '../../lib/create/brief';
 import BriefPanel from './BriefPanel';
-import ConceptPanel from './ConceptPanel';
 
-/*
- * The three concepts are shown in development, and in a build only when it
- * is asked for (VITE_CREATE_CONCEPTS=1). The founder's quality gate has not
- * passed them yet, so merging this branch must not put them in front of
- * customers by accident. This is a build switch, not a permission.
- */
-const CONCEPTS_ON = import.meta.env.DEV || import.meta.env.VITE_CREATE_CONCEPTS === '1';
+/* Loaded only when shown: with the switch off, the engine's code is never downloaded. */
+const ConceptPanel = lazy(() => import('./ConceptPanel'));
+
+import { CONCEPTS_ON } from '../../lib/create/flags';
 
 /**
  * The request bar: "What do you need?" and the need tiles under it.
@@ -235,7 +231,9 @@ export default function IntentComposer({
         )}
 
         {brief && <BriefPanel brief={brief} businessName={businessName || undefined} onAnswer={answer} />}
-        {brief && CONCEPTS_ON && <ConceptPanel brief={brief} businessName={businessName || undefined} />}
+        {brief && CONCEPTS_ON && (
+          <Suspense fallback={null}><ConceptPanel brief={brief} businessName={businessName || undefined} /></Suspense>
+        )}
       </div>
 
       {children && <div className="mt-6">{children}</div>}

@@ -116,6 +116,19 @@ describe('the engine applies the rules', () => {
     }
   });
 
+  it('leads three concepts with three different headline faces, for every trade and piece', () => {
+    /* Found on the real Create page, 2026-11-17: a Lagos billboard led two concepts with Space Grotesk. */
+    const repeats: string[] = [];
+    for (const trade of TRADES) for (const piece of ['Poster', 'Instagram post', 'Business card', 'Billboard', 'A5 flyer']) for (const level of ['', 'luxury ']) {
+      const concepts = conceptsFor(readBrief(`${piece} for a ${level}${trade}`));
+      const faces = concepts.map((c) => c.input.fonts.display);
+      if (new Set(faces).size !== faces.length) repeats.push(`${piece} / ${level}${trade}: ${faces.join(', ')}`);
+    }
+    expect(repeats).toEqual([]);
+    const lagos = conceptsFor(readBrief('Billboard for high-end Lagos real estate')).map((c) => c.input.fonts.display);
+    expect(new Set(lagos).size).toBe(3);
+  });
+
   it('never sets small capitals in a script or a display-only face, whatever the pairing says', () => {
     const format = formatOf('instagram-portrait') as Format;
     const copy = { brand: 'Your brand', eyebrow: 'Opening', headline: 'Pull up a chair.', support: 'Come hungry.', cta: 'Book a table', details: ['Where: Your address'] };
