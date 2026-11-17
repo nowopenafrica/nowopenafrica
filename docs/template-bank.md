@@ -84,7 +84,11 @@ small and space is left unused. These layouts do not recompose per format.
 
 - The migration has not been applied to any Supabase project.
 - Print, brand identity, packaging and motion divisions have no templates.
-- `apply_all_migrations.sql` has not been regenerated to include the new migration.
+- `scripts/sql/apply_all_migrations.sql` does not include this migration. That file was
+  last updated on 3 September and already lacks the later migrations, so apply
+  `supabase/migrations/20261116000000_template_bank.sql` directly.
+- The Studio deep link to a published template was not tested in a browser: Studio
+  is behind sign-in and the end-to-end harness has no session.
 
 ## Open questions
 
