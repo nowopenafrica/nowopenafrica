@@ -7,6 +7,7 @@ import { checkConcept, describeFindings } from './conceptChecks';
 import { GALLERY_KITS, GENERAL_HEADS, galleryCovers, galleryFor, photosFor, showsFacts } from './gallery';
 import { PHOTO_BASE, PILOT_PHOTOS } from './photoSet';
 import { refuseLine } from './ideas';
+import { MANIFEST } from '../../design/assetManifest';
 import { ENGINE_ITEMS } from '../engineItems';
 
 const ITEMS = Object.keys(GALLERY_KITS);
@@ -102,12 +103,34 @@ describe('the category gallery', () => {
     expect(performance.now() - t).toBeLessThan(4000);
   });
 
-  describe('with the pilot photographs (development, until the photo intake clears them)', () => {
+  describe('with the pilot photographs', () => {
     const photos = 'http://127.0.0.1:5197';
+    /* A library with nothing approved: the state before the photo intake cleared them. */
+    const NONE = { assets: [] };
 
-    it('is type-led unless a photo folder is given, and tests never get one', () => {
+    it('is type-led when nothing is approved and no photo folder is given, and tests never get one', () => {
       expect(PHOTO_BASE).toBe('');
-      for (const item of ITEMS) expect(galleryFor(item, { count: 8 }).some((d) => d.photo), item).toBe(false);
+      for (const item of ITEMS) expect(galleryFor(item, { count: 8, manifest: NONE }).some((d) => d.photo), item).toBe(false);
+    });
+
+    it('draws every pilot photograph from its approved copy in the committed library, editable', () => {
+      const approved = new Set(MANIFEST.assets.filter((a) => a.kind === 'photo').map((a) => a.sourceId));
+      for (const p of PILOT_PHOTOS) expect(approved.has(p.file.match(/(\d+)\./)![1]), p.file).toBe(true);
+      const failures: string[] = [];
+      for (const item of ITEMS) {
+        const sub = SUBCATEGORIES.find((s) => s.key === item)!;
+        const format = formatOf(sub.formats[0]) as Format;
+        const distance = /^(billboard|board-)/.test(sub.formats[0]);
+        const led = galleryFor(item, { count: 8 }).filter((d) => d.photo);
+        if (led.length < 1) failures.push(`${item}: no photo-led design`);
+        for (const d of led) {
+          if (d.preview) failures.push(`${item}: an approved photo was marked as a preview`);
+          const img = (d.doc.pages[0].objects as { type: string; assetId?: string }[]).find((o) => o.type === 'image');
+          if (!/\/storage\/v1\/object\/public\/design-assets\//.test(img?.assetId ?? '')) failures.push(`${item}: not the public copy`);
+          for (const line of describeFindings(checkConcept(d.doc, { format, distance }))) failures.push(`${item}/${d.archetype}: ${line}`);
+        }
+      }
+      expect(failures.slice(0, 10)).toEqual([]);
     });
 
     it('mixes photo-led designs into every item, each still passing every check and carrying its facts', () => {
@@ -116,7 +139,7 @@ describe('the category gallery', () => {
         const sub = SUBCATEGORIES.find((s) => s.key === item)!;
         const format = formatOf(sub.formats[0]) as Format;
         const distance = /^(billboard|board-)/.test(sub.formats[0]);
-        const g = galleryFor(item, { trade, count: 8, photos });
+        const g = galleryFor(item, { trade, count: 8, photos, manifest: NONE });
         const led = g.filter((d) => d.photo);
         if (g.length < 8) failures.push(`${item}/${trade ?? 'any'}: only ${g.length}`);
         if (led.length < (item === 'business-card' ? 1 : 2)) failures.push(`${item}/${trade ?? 'any'}: ${led.length} photo-led`);

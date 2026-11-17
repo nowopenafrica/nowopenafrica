@@ -15,6 +15,11 @@ vi.mock('react-router-dom', async (orig) => ({ ...(await orig<typeof import('rea
 vi.mock('react-hot-toast', () => ({ default: { error: vi.fn() } }));
 const photo = vi.hoisted(() => ({ base: '' }));
 vi.mock('../../lib/create/compose/photoSet', async (orig) => ({ ...(await orig<typeof import('../../lib/create/compose/photoSet')>()), get PHOTO_BASE() { return photo.base; } }));
+const lib = vi.hoisted(() => ({ empty: false }));
+vi.mock('../../lib/design/assetManifest', async (orig) => {
+  const real = await orig<typeof import('../../lib/design/assetManifest')>();
+  return { ...real, get MANIFEST() { return lib.empty ? { assets: [] } : real.MANIFEST; } };
+});
 vi.mock('../../lib/supabase', () => ({
   supabase: { from: () => ({ insert: (row: unknown) => { state.insert(row); return { select: () => ({ single: async () => ({ data: { id: 'proj-7' }, error: null }) }) }; } }) },
 }));
@@ -22,7 +27,7 @@ vi.mock('../../lib/supabase', () => ({
 const show = (deliverables: string[]) => render(<MemoryRouter><EngineGallery deliverables={deliverables} /></MemoryRouter>);
 const words = (el: HTMLElement) => (el.textContent ?? '').replace(/\s+/g, ' ');
 
-beforeEach(() => { photo.base = ''; state.user = null; state.navigate.mockReset(); state.insert.mockReset(); });
+beforeEach(() => { photo.base = ''; lib.empty = false; state.user = null; state.navigate.mockReset(); state.insert.mockReset(); });
 
 describe('EngineGallery', () => {
   it('shows eight designs for the first item it can make, each naming its type', () => {
@@ -72,7 +77,17 @@ describe('EngineGallery', () => {
     expect(row.document.pages[0].width / row.document.pages[0].height).toBeCloseTo(1011 / 638, 2);
   });
 
-  it('shows photo-led designs as previews with their credit, and never lets one be saved', () => {
+  it('shows designs on approved photographs as the customer’s to edit, with no preview label', () => {
+    state.user = { id: 'user-3' };
+    show(['flyer']);
+    const cards = screen.getAllByTestId('engine-design');
+    expect(cards.some((c) => c.querySelector('img[src*="/storage/v1/object/public/design-assets/"]'))).toBe(true);
+    expect(screen.queryByTestId('engine-design-photo')).toBeNull();
+    for (const c of cards) expect(within(c).getByRole('button', { name: 'Edit' })).toBeTruthy();
+  });
+
+  it('shows unapproved photo-led designs as previews with their credit, and never lets one be saved', () => {
+    lib.empty = true;
     photo.base = 'http://127.0.0.1:5197';
     state.user = { id: 'user-3' };
     show(['flyer']);
