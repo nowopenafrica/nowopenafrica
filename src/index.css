@@ -341,6 +341,34 @@
   font-display: swap;
 }
 @font-face {
+  font-family: 'Quicksand';
+  src: url('/fonts/studio/quicksand-500.woff2') format('woff2');
+  font-weight: 500;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'Quicksand';
+  src: url('/fonts/studio/quicksand-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/studio/dm-sans-400.woff2') format('woff2');
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: 'DM Sans';
+  src: url('/fonts/studio/dm-sans-700.woff2') format('woff2');
+  font-weight: 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
   font-family: 'Noto Sans';
   src: url('/fonts/studio/noto-sans-400.woff2') format('woff2');
   font-weight: 400;

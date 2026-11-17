@@ -148,6 +148,47 @@ export const BY_TRADE: Record<string, [TradeLine, TradeLine, TradeLine]> = {
     ['Built for the way you work.', 'Simple to start and easy to keep using.', 'Try it'],
     ['Make the hard part easy.', 'Software that respects your time.', 'Get started'],
   ],
+  /* Added 2026-11-17: the eight trades that were still speaking in the goal's generic lines. */
+  'law-finance-consulting': [
+    ['Clear advice, plainly given.', 'Bring us the problem. We will explain your options in words you can use.', 'Book a consultation'],
+    ['Know where you stand.', 'Careful work on the matters that keep you up at night.', 'Talk to us'],
+    ['Good counsel, before you sign.', 'Ask early. It is easier than asking late.', 'Get in touch'],
+  ],
+  'fintech-payments': [
+    ['Money that moves when you do.', 'Send, receive and keep track, without the queue.', 'Get started'],
+    ['Pay. Done.', 'Fewer steps between you and a finished payment.', 'Try it'],
+    ['Your money, in plain view.', 'See what came in and what went out, at a glance.', 'Open an account'],
+  ],
+  'music-nightlife': [
+    ['Doors open. Volume up.', 'A night built around the music. Come early, stay late.', 'Get tickets'],
+    ['This is how it sounds.', 'Good sound, good people, and room to move.', 'Get tickets'],
+    ['See you on the floor.', 'Bring your people. We will bring the rest.', 'Reserve a table'],
+  ],
+  'logistics-delivery': [
+    ['From here to there, handled.', 'Tell us what is moving and where. We will take it from there.', 'Get a quote'],
+    ['On its way.', 'Careful hands and clear updates, from pickup to door.', 'Book a pickup'],
+    ['Move it with us.', 'Parcels, pallets and everything between.', 'Request a quote'],
+  ],
+  'construction-trades': [
+    ['Built properly.', 'Careful work, explained before it starts.', 'Get a quote'],
+    ['Measure twice.', 'We plan the job before we pick up a tool.', 'Request a quote'],
+    ['Good work lasts.', 'Tell us what you need built or fixed.', 'Call us'],
+  ],
+  'agriculture-produce': [
+    ['From the farm.', 'Good produce, handled gently, sold fairly.', 'Order now'],
+    ['Picked with care.', 'Ask us what is ready this week.', 'See the produce'],
+    ['Good food starts here.', 'Grown, gathered and brought to you by people who know the land.', 'Get in touch'],
+  ],
+  'automotive': [
+    ['Back on the road.', 'Tell us what it is doing. We will find out why.', 'Book a service'],
+    ['Drive it properly.', 'Sales and servicing from people who know the cars.', 'Visit us'],
+    ['Find your next car.', 'Come and look. Sit in it. Take your time.', 'Book a drive'],
+  ],
+  'ngo-community': [
+    ['Better, together.', 'Neighbours doing what a person cannot do alone.', 'Get involved'],
+    ['Lend a hand.', 'There is a place for whatever you can give.', 'Join us'],
+    ['This is our community.', 'Come and see the work, and meet the people doing it.', 'Learn more'],
+  ],
 };
 
 /**

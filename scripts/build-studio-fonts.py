@@ -86,6 +86,9 @@ FAMILIES = [
     ('abril-fatface', 'abrilfatface', 'AbrilFatface-Regular.ttf', {400: None}),
     ('big-shoulders', 'bigshoulders', 'BigShoulders[opsz,wght].ttf', {800: {'opsz': 72}}),
     ('syne', 'syne', 'Syne[wght].ttf', {700: {}}),
+    # Added 2026-11-17: the two open faces Pinterest's brand boards name that the library lacked.
+    ('quicksand', 'quicksand', 'Quicksand[wght].ttf', {500: {}, 700: {}}),
+    ('dm-sans', 'dmsans', 'DMSans[opsz,wght].ttf', {400: {'opsz': 14}, 700: {'opsz': 14}}),
     # The glyph fallback (Ruling L closed 2026-11-16): the one family here that
     # draws every supported African letter, Hausa hooked letters included.
     ('noto-sans', 'notosans', 'NotoSans[wdth,wght].ttf', {400: {'wdth': 100}, 700: {'wdth': 100}}),

@@ -84,6 +84,9 @@ export const FACE_USE: Record<TypefaceKey, FaceUse> = {
   industrial: job('display', 'either', false, true, true),
   artistic: job('display', 'either', false, true, false, 5),
   universal: job('small', 'either', true, true, true),
+  /* Added 2026-11-17. */
+  gentle: job('text', 'either', true, false, true),
+  clean: job('small', 'either', true, true, true),
 };
 
 export const faceUse = (key: TypefaceKey): FaceUse => FACE_USE[key] ?? FACE_USE.sans;

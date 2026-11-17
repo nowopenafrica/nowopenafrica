@@ -47,6 +47,35 @@ export interface ConceptOptions {
 /** Movements that set their headlines in capitals. */
 const CAPS = new Set(['neo-brutalism', 'kinetic-typography', 'typographic-monumentalism', 'constructivism', 'art-deco', 'retro-futurism']);
 
+/**
+ * A fact the customer has not given yet, worded as theirs to give.
+ *
+ * The brief lists what a piece for this trade must carry ("Name and area",
+ * "Opening date or hours"). Printed as written, those read like the labels
+ * of an empty form left on the design. "Your name and area" reads as what
+ * it is: a place waiting for the customer's own detail. A line that already
+ * addresses the reader ("How to book or order") is left alone.
+ */
+export function asPlaceholder(fact: string): string {
+  /*
+   * The profiles' facts carry notes for the customer ("if held", "where
+   * required", "named correctly", "in plain words"). Those are advice about
+   * the fact, not words for the design: they belong in the brief panel, where
+   * they are already shown, and are dropped here.
+   */
+  const t = fact.trim()
+    .replace(/\s+(if|where|when)\s+.+$/i, '')
+    .replace(/\s+on\s+\w+\s+pieces$/i, '')
+    .replace(/\s+(named correctly|in plain words|in one line)$/i, '')
+    .trim();
+  if (!t || /^(your|how|what|where|when|who|why)\b/i.test(t) || t.includes(':')) return t;
+  /* An instruction to the designer, not a fact the customer gives. */
+  if (/^call to action$/i.test(t)) return 'How to reach you';
+  /* "The signature item" becomes "Your signature item", not "Your the signature item". */
+  const bare = t.replace(/^(the|a|an)\s+/i, '').replace(/\s+and\s+the\s+/i, ' and ');
+  return `Your ${bare.charAt(0).toLowerCase()}${bare.slice(1)}`;
+}
+
 /*
  * The repeat a movement reaches for when its composition is a pattern field.
  * All are the pattern library's own constructions; none copies a cloth.
@@ -154,7 +183,7 @@ export function conceptsFor(brief: CreativeBrief, opts: ConceptOptions = {}, cou
       headline: given.headline ?? brief.headline?.value ?? bank.headline,
       support: given.support ?? bank.support,
       cta: given.cta ?? bank.cta,
-      details: given.details ?? brief.mustCarry.slice(0, 4),
+      details: given.details ?? brief.mustCarry.slice(0, 4).map(asPlaceholder),
     };
     groups.add(movement.group); archetypes.add(archetype); palettes.add(palette.key); pairings.add(pairing.key);
     out.push({

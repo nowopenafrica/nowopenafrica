@@ -73,6 +73,8 @@ export type TypefaceKey =
    * Sans, the glyph fallback, and is the exception: it is core.
    */
   | 'neutral' | 'wide' | 'impact' | 'narrow' | 'elegant' | 'classical' | 'reading' | 'friendly' | 'urban' | 'rounded' | 'handwritten' | 'retro' | 'technical' | 'expressive' | 'fatface' | 'industrial' | 'artistic' | 'universal'
+  /* Added 2026-11-17: named on Pinterest's brand boards, missing here. Extended tier. */
+  | 'gentle' | 'clean'
   /*
    * The house face. Already self-hosted in index.css and already used by the
    * brand-card studio — it simply was not offered in the design library, so
@@ -408,6 +410,20 @@ export const TYPEFACES: Typeface[] = [
     voice: 'Plain sans that draws every supported African letter. It is the face every other face borrows missing letters from.',
     licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/noto-sans-400.woff2', 700: '/fonts/studio/noto-sans-700.woff2' },
     source: GOOGLE_FONTS('notosans'), tier: 'core',
+  },
+  {
+    key: 'gentle', label: 'Quicksand', family: 'Quicksand',
+    stack: `Quicksand, ${COVER}, ${FALLBACK.sans}`, weights: [500, 700], role: 'text',
+    voice: 'Light, rounded geometric sans. Wellness, beauty, children and soft-spoken brands; best as a sub-heading and short text.',
+    licence: 'SIL OFL 1.1', files: { 500: '/fonts/studio/quicksand-500.woff2', 700: '/fonts/studio/quicksand-700.woff2' },
+    source: GOOGLE_FONTS('quicksand'), tier: 'extended', glyphFallback: true,
+  },
+  {
+    key: 'clean', label: 'DM Sans', family: 'DM Sans',
+    stack: `"DM Sans", ${COVER}, ${FALLBACK.sans}`, weights: [400, 700], role: 'text',
+    voice: 'Compact low-contrast sans. A quiet partner under a display serif, and clear at small sizes.',
+    licence: 'SIL OFL 1.1', files: { 400: '/fonts/studio/dm-sans-400.woff2', 700: '/fonts/studio/dm-sans-700.woff2' },
+    source: GOOGLE_FONTS('dmsans'), tier: 'extended', glyphFallback: true,
   },
   {
     key: 'coolvetica', label: 'Coolvetica', family: 'Coolvetica',

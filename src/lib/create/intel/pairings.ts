@@ -60,6 +60,11 @@ export const INTEL_PAIRINGS: TypePairing[] = [
     suits: 'Rounded and kind: children, food, care, parties.' },
   { key: 'city', label: 'City', display: 'urban', text: 'neutral', accent: 'narrow',
     suits: 'A confident wide sans: property, retail, fitness and events.' },
+  /* Added 2026-11-17. Both follow three-level systems seen on Pinterest's brand boards: a display heading over one quiet family in two weights. */
+  { key: 'marquee', label: 'Marquee', display: 'condensed', text: 'gentle', accent: 'gentle',
+    suits: 'Tall condensed capitals softened by a rounded sans: cafes, wellness, family businesses, friendly events.' },
+  { key: 'salon', label: 'Salon', display: 'elegant', text: 'clean', accent: 'clean',
+    suits: 'A light display serif over a compact sans: beauty, skincare, boutiques, considered services.' },
 ];
 
 export const ALL_PAIRINGS: TypePairing[] = [...TYPE_PAIRINGS, ...INTEL_PAIRINGS];

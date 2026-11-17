@@ -118,7 +118,7 @@ Fashion, fragrance and property: value shown by what is left out.
 - **Colour:** Two neutrals and one metal or deep tone. No saturated colour except a product.
 - **Imagery:** framed, cut-out, full-bleed, none
 - **Compositions:** Centred emblem; Mounted frame; Product hero
-- **Pairings we ship:** vogue, couture, luxury, atelier, monument
+- **Pairings we ship:** vogue, couture, luxury, atelier, monument, salon
 - **Palette families:** mono, earth (sample: Baobab)
 
 **Use when**
@@ -186,7 +186,7 @@ Magazine art direction: the picture and the headline argue, and the page is the 
 - **Colour:** Drawn from the photograph, plus black and paper.
 - **Imagery:** full-bleed, framed, cut-out
 - **Compositions:** Editorial split; Image to the edges; Mounted frame
-- **Pairings we ship:** gallery, vogue, editorial, couture, atelier, masthead
+- **Pairings we ship:** gallery, vogue, editorial, couture, atelier, masthead, salon
 - **Palette families:** mono, earth, warm (sample: Terracotta Clay)
 
 **Use when**
@@ -254,7 +254,7 @@ Current African visual culture: fashion photography, textile logic and city ener
 - **Colour:** Saturated but ordered: two strong colours and a neutral, taken from the cloth or scene.
 - **Imagery:** full-bleed, framed, pattern, cut-out
 - **Compositions:** Image to the edges; Framed portrait; Pattern field
-- **Pairings we ship:** modern, couture, statement, studio, neighbourhood
+- **Pairings we ship:** modern, couture, statement, studio, neighbourhood, marquee
 - **Palette families:** warm, bold, earth (sample: Kente Field)
 
 **Use when**
@@ -492,7 +492,7 @@ Ma, the active interval: asymmetry, restraint and natural material.
 - **Colour:** Paper, ink and one muted natural colour.
 - **Imagery:** framed, cut-out, none
 - **Compositions:** Mounted frame; Product hero; Centred emblem
-- **Pairings we ship:** gallery, couture, atelier
+- **Pairings we ship:** gallery, couture, atelier, salon
 - **Palette families:** mono, earth, pastel (sample: Moss & Stone)
 
 **Use when**
@@ -560,7 +560,7 @@ Wellness and food culture: soft form, natural material and honest daylight.
 - **Colour:** Clay, sage, oat, olive; one fruit or flower accent.
 - **Imagery:** full-bleed, framed, cut-out, illustration
 - **Compositions:** Image to the edges; Product hero; Mounted frame
-- **Pairings we ship:** warmth, craft, gallery, neighbourhood
+- **Pairings we ship:** warmth, craft, gallery, neighbourhood, salon
 - **Palette families:** earth, pastel, warm (sample: Blush & Sage)
 
 **Use when**
@@ -628,7 +628,7 @@ Type designed to move, and stills that look as if they are about to.
 - **Colour:** Pastels with one or two primaries and black.
 - **Imagery:** illustration, pattern, cut-out
 - **Compositions:** Pattern field; Layered collage; Band and field
-- **Pairings we ship:** bauhaus, modern, warmth, playroom
+- **Pairings we ship:** bauhaus, modern, warmth, playroom, marquee
 - **Palette families:** pastel, bold (sample: Lilac & Mint)
 
 **Use when**
@@ -696,7 +696,7 @@ Makers' marks, engraving and letterpress: trust built from age and skill.
 - **Colour:** One or two inks on warm paper.
 - **Imagery:** illustration, none, framed
 - **Compositions:** Centred emblem; Information ledger; Pattern field
-- **Pairings we ship:** heirloom, craft, workshop, luxury, monument
+- **Pairings we ship:** heirloom, craft, workshop, luxury, monument, marquee
 - **Palette families:** earth, mono, warm (sample: Harmattan Sand)
 
 **Use when**

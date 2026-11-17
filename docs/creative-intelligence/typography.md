@@ -67,6 +67,8 @@
 | Big Shoulders (`industrial`) | display | either | no | yes | yes | any | when used | Tall industrial condensed sans. Sport, logistics, trades and numbers set very large. |
 | Syne (`artistic`) | display | either | no | yes | no | 5 | when used | Unusual wide sans from the art world. Galleries, festivals and fashion; short lines only. |
 | Noto Sans (`universal`) | small | either | yes | yes | yes | any | always | Plain sans that draws every supported African letter. It is the face every other face borrows missing letters from. |
+| Quicksand (`gentle`) | text | either | yes | no | yes | any | when used | Light, rounded geometric sans. Wellness, beauty, children and soft-spoken brands; best as a sub-heading and short text. |
+| DM Sans (`clean`) | small | either | yes | yes | yes | any | when used | Compact low-contrast sans. A quiet partner under a display serif, and clear at small sizes. |
 | Coolvetica (`coolvetica`) | display | either | no | yes | no | any | always | Tight, rounded and confident. The NowOpen house face — good for a short, loud line. |
 
 ## Where these rules were checked
@@ -117,6 +119,8 @@ Customer designs use only faces we self-host with a recorded licence. NowOpen Cr
 | industrial | Big Shoulders | display | 800 | SIL OFL 1.1 |
 | artistic | Syne | display | 700 | SIL OFL 1.1 |
 | universal | Noto Sans | text | 400, 700 | SIL OFL 1.1 |
+| gentle | Quicksand | text | 500, 700 | SIL OFL 1.1 |
+| clean | DM Sans | text | 400, 700 | SIL OFL 1.1 |
 | coolvetica | Coolvetica | display | 300, 400, 700 | Free for commercial use |
 
 ## Pairings
@@ -155,6 +159,8 @@ A pairing is the decision already made: which face carries the headline, which t
 | Artline (`artline`) | Syne | Inter | Inter | An unusual wide sans for short lines: galleries, festivals, fashion. | Y2K and Psychedelic, Monochrome Photographic, Gradient Futurism |
 | Playroom (`playroom`) | Nunito | Poppins | Inter | Rounded and kind: children, food, care, parties. | Contemporary Maximalism, Memphis |
 | City (`city`) | Montserrat | Inter | Oswald | A confident wide sans: property, retail, fitness and events. | Bauhaus, African Modernism, Corporate Precision |
+| Marquee (`marquee`) | Bebas Neue | Quicksand | Quicksand | Tall condensed capitals softened by a rounded sans: cafes, wellness, family businesses, friendly events. | Afro-Contemporary, Memphis, Heritage Craft |
+| Salon (`salon`) | Instrument Serif | DM Sans | DM Sans | A light display serif over a compact sans: beauty, skincare, boutiques, considered services. | Luxury Minimalism, Editorial, Japanese Minimalism, Organic Natural |
 
 ## Rules
 
