@@ -12,6 +12,8 @@ import { PHOTO_BASE } from '../../lib/create/compose/photoSet';
 import { INDUSTRIES } from '../../lib/create/intel';
 import { formatOf } from '../../lib/design/formats';
 import { paletteOf } from '../../lib/design/palettes';
+import { matchesTier, TIERS, useTemplateTiers, type TierFilter } from '../../lib/create/tiers';
+import { TierBadge, TierFilterBar, TierNote, TierPriceLine } from './TierControls';
 
 const FIRST = 8;
 const MORE = 16;
@@ -36,10 +38,28 @@ function gridCols(wide: boolean, dense: boolean): string {
   return wide ? 'grid-cols-1 sm:grid-cols-2' : 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-4';
 }
 
-export default function EngineGallery({ deliverables, dense = false }: { deliverables: string[]; dense?: boolean }) {
+export default function EngineGallery({ deliverables, dense = false, tier: tierFromParent }: {
+  deliverables: string[];
+  dense?: boolean;
+  /** Set by a parent that shows its own tier filter (Browse by category); otherwise the gallery shows one. */
+  tier?: TierFilter;
+}) {
   const first = dense ? DENSE_FIRST : FIRST;
   const most = dense ? DENSE_MORE : MORE;
-  const items = useMemo(() => deliverables.filter(galleryCovers), [deliverables]);
+  const tiers = useTemplateTiers();
+  const [ownTier, setOwnTier] = useState<TierFilter>('all');
+  const tier = tierFromParent ?? ownTier;
+  const covered = useMemo(() => deliverables.filter(galleryCovers), [deliverables]);
+  /* With no tier table (still loading, or the read failed) nothing is filtered out. */
+  const items = useMemo(
+    () => (tiers ? covered.filter((k) => matchesTier(tier, tiers.byItem.get(k))) : covered),
+    [covered, tiers, tier],
+  );
+  const counts = useMemo(() => {
+    const c: Partial<Record<TierFilter, number>> = { all: covered.length };
+    if (tiers) for (const t of TIERS) c[t] = covered.filter((k) => tiers.byItem.get(k)?.tier === t).length;
+    return c;
+  }, [covered, tiers]);
   const [item, setItem] = useState(items[0] ?? '');
   const [trade, setTrade] = useState('');
   const [count, setCount] = useState(first);
@@ -50,6 +70,18 @@ export default function EngineGallery({ deliverables, dense = false }: { deliver
   const active = items.includes(item) ? item : items[0] ?? '';
   const sub = SUBCATEGORIES.find((s) => s.key === active);
   const designs = useMemo(() => (active ? galleryFor(active, { trade: trade || undefined, count: most, photos: PHOTO_BASE || undefined }) : []), [active, trade, most]);
+  const activeTier = tiers?.byItem.get(active);
+  const showsPaid = !!tiers && covered.some((k) => { const t = tiers.byItem.get(k)?.tier; return t === 'premium' || t === 'signature'; });
+
+  /* The gallery's own filter can narrow to nothing only if a parent passed a tier; say so rather than vanish. */
+  if (covered.length > 0 && items.length === 0 && tierFromParent === undefined) {
+    return (
+      <section data-testid="engine-gallery" className="mb-8">
+        <TierFilterBar id="engine-gallery-tier" value={tier} onChange={(t) => { setOwnTier(t); setCount(first); }} counts={counts} />
+        <p className="mt-3 text-[13px] text-gray-600 dark:text-gray-400">Nothing here in that tier.</p>
+      </section>
+    );
+  }
   if (!active || !sub || designs.length === 0) return null;
 
   const format = formatOf(sub.formats[0]);
@@ -70,9 +102,12 @@ export default function EngineGallery({ deliverables, dense = false }: { deliver
     <section data-testid="engine-gallery" aria-labelledby="engine-gallery-heading" className="mb-8">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div className="min-w-0">
-          <h3 id="engine-gallery-heading" className="font-coolvetica text-[1.25rem] leading-tight text-gray-900 dark:text-white">
-            Designed for {sub.name.toLowerCase()}
-          </h3>
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 id="engine-gallery-heading" className="font-coolvetica text-[1.25rem] leading-tight text-gray-900 dark:text-white">
+              Designed for {sub.name.toLowerCase()}
+            </h3>
+            <TierBadge info={activeTier} table={tiers} />
+          </div>
           <p className="mt-1 max-w-[60ch] text-[13px] text-gray-600 dark:text-gray-400">
             Each one is drawn at the real {format?.label ?? 'size'} and checked for contrast, type size and print margins. The words are placeholders for yours.
           </p>
@@ -92,34 +127,52 @@ export default function EngineGallery({ deliverables, dense = false }: { deliver
         </label>
       </div>
 
+      {tierFromParent === undefined && (
+        <div className="mt-4">
+          <TierFilterBar id="engine-gallery-tier" value={tier} onChange={(t) => { setOwnTier(t); setCount(first); }} counts={counts} />
+        </div>
+      )}
+
       {items.length > 1 && (
         <div className="mt-4 flex flex-wrap gap-2" role="group" aria-label="Item">
           {items.map((k) => {
             const name = SUBCATEGORIES.find((s) => s.key === k)?.name ?? k;
             const on = k === active;
+            const info = tiers?.byItem.get(k);
             return (
               <button
                 key={k}
                 type="button"
                 aria-pressed={on}
+                aria-label={name}
                 onClick={() => { setItem(k); setCount(first); }}
-                className={`min-h-[40px] rounded-full border px-4 text-[13px] font-semibold ${on ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900' : 'border-gray-300 text-gray-700 hover:border-gray-500 dark:border-gray-600 dark:text-gray-300'}`}
+                className={`inline-flex min-h-[40px] items-center gap-1.5 rounded-full border px-4 text-[13px] font-semibold ${on ? 'border-gray-900 bg-gray-900 text-white dark:border-white dark:bg-white dark:text-gray-900' : 'border-gray-300 text-gray-700 hover:border-gray-500 dark:border-gray-600 dark:text-gray-300'}`}
               >
                 {name}
+                {info && info.tier !== 'free' && (
+                  <span data-testid="item-tier" className={`text-[11px] font-medium ${on ? 'opacity-80' : 'text-amber-800 dark:text-amber-300'}`}>
+                    {info.noc} NOC
+                  </span>
+                )}
               </button>
             );
           })}
         </div>
       )}
 
+      {/* Under Browse by category the parent shows the note once, above its own filter. */}
+      {showsPaid && tierFromParent === undefined && <div className="mt-3"><TierNote /></div>}
+
       <ul data-dense={dense || undefined} className={`mt-5 grid ${dense ? 'gap-4' : 'gap-5'} ${gridCols(wide, dense)}`}>
         {shown.map((d) => (
           <li key={d.id} data-testid="engine-design" className="flex min-w-0 flex-col">
-            <div className="overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-700">
+            <div className="relative overflow-hidden rounded-xl border border-gray-200 shadow-sm dark:border-gray-700">
               <DesignSurface page={d.doc.pages[0]} accent={paletteOf(d.palette)?.colours.primary ?? '#15803d'} />
+              <TierBadge info={activeTier} table={tiers} className="absolute left-2 top-2 max-w-[calc(100%-1rem)] shadow-sm" />
             </div>
             <p className="mt-2 text-[13px] font-semibold text-gray-900 dark:text-white">{d.movement}</p>
             <p className="text-[12px] text-gray-600 dark:text-gray-400">{d.type}</p>
+            <TierPriceLine info={activeTier} table={tiers} />
             {d.photo && d.preview && (
               <p data-testid="engine-design-photo" className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
                 Preview: {d.photo.credit}. Usable once the photo is cleared for customers.
