@@ -47,6 +47,15 @@ describe('ConceptPanel', () => {
     for (const line of ['Pull up a chair.', 'The table is set.', 'Stay for another course.']) expect(words(panel)).toContain(line);
   });
 
+  it('names the type of each concept, so the choice between them is an informed one', () => {
+    show('Instagram post for a contemporary restaurant opening');
+    const lines = [1, 2, 3].map((n) => screen.getByTestId(`concept-${n}-type`).textContent ?? '');
+    for (const line of lines) expect(line).toMatch(/^(Headline in .+, text in .+|Type: .+ throughout)$/);
+    /* Three concepts, three voices: no two name the same headline face. */
+    const heads = lines.map((l) => l.replace(/^Headline in |^Type: /, '').replace(/, text in .*| throughout$/, ''));
+    expect(new Set(heads).size).toBe(3);
+  });
+
   it('says the words are placeholders, and uses the business name when it has one', () => {
     show('Flyer for my barber shop', 'Iron Chair');
     const panel = screen.getByTestId('concept-panel');

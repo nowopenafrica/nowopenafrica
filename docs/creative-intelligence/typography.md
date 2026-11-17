@@ -14,6 +14,7 @@
 - From a road: heavy or condensed, seven words, no hairlines.
 - A face with no lower case is for names and titles, never sentences.
 - Every character the customer types must have a glyph. The fallback face draws what the chosen face cannot.
+- The type is a named system: one face for the headline, one for the text, one for the labels. A customer is told which is which.
 
 ## What each kind of piece asks of its type
 
@@ -74,7 +75,7 @@ Principles only; no design, layout or asset is copied from any of these (Ruling 
 
 - **Behance, most-appreciated brand identity projects of the week (behance.net, search "brand identity typography"):** The related tags were "variable grotesque type", "bold light grotesk", "sans serif typeface", "black white contrast", "logo design fonts" and "kinetic motion designer". Identity work is leading with one grotesque family used at two contrasting weights. Answered here by Inter in two weights (`system`) and Bricolage Grotesque (`studio`).
 - **Awwwards, the Typography collection (awwwards.com/websites/typography):** Its font filter is dominated by grotesques, condensed display faces (Anton, Bebas, Barlow, Druk), editorial serifs (Cormorant, Bodoni Moda, Canela, Editorial New) and monospace. The page states that consistency is key in the use of typography. Anton, Bebas Neue, Cormorant Garamond and Bodoni Moda are in the library; the commercial faces are not imitated.
-- **Pinterest (search "branding typography ui"):** Not read. The page shows no content without signing in, so nothing here is drawn from it.
+- **Pinterest, search "branding typography" (read 2026-11-17, signed in as the founder; one results page):** Pinterest suggests narrowing the search by trade (luxury, fashion, beauty, food, coffee, skincare, tech, streetwear, perfume) and by "guidelines", "system" and "layout": people look for type by the business it is for, and expect it presented as a system. The brand boards shown name three levels outright, for example a heading face, a sub-heading face and a body face. Two treatments recur: heavy or condensed sans headlines for impact, and high-contrast serifs for luxury and beauty. Many boards use one saturated colour on black or white. Open faces named on the boards include Inter, Montserrat, Playfair Display, Bebas Neue and Bodoni, all in the library; Quicksand and DM Sans are named and are not. A second search timed out and was not read.
 - **Type forecasts for 2026 (Creative Bloq, Muzli, Design and Paper, type.today):** Agreed points: editorial and "curvy" serifs returning; monospace moving into branding; variable fonts now ordinary; expressive display type; and restraint, with two families at most. Disagreed or unusable here: distorted and kinetic lettering, which a static layout engine cannot honestly produce. These are opinion pieces, not measurements.
 - **Muzli, "Best free Google Fonts for 2026":** Named Inter, Lora, Oswald, Anton, Montserrat, Bebas Neue, Zilla Slab, Pacifico, Dancing Script and JetBrains Mono among its picks, all now in the library, with the advice to use scripts in short bursts and to load only the weights used.
 

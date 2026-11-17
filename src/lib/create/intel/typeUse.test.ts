@@ -158,6 +158,9 @@ describe('the written guidance', () => {
   it('says where the rules were checked, and says so when a source could not be read', () => {
     const where = TYPE_REFERENCES.map((r) => r.where).join(' ');
     for (const source of ['Behance', 'Awwwards', 'Pinterest']) expect(where).toContain(source);
-    expect(TYPE_REFERENCES.find((r) => r.where.startsWith('Pinterest'))!.found).toMatch(/^Not read\./);
+    /* Every source says how much of it was read: Pinterest was one results page, and a second search that timed out is admitted. */
+    const pinterest = TYPE_REFERENCES.find((r) => r.where.startsWith('Pinterest'))!;
+    expect(pinterest.where).toMatch(/one results page/);
+    expect(pinterest.found).toMatch(/timed out and was not read/);
   });
 });

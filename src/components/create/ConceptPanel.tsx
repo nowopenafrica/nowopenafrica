@@ -10,6 +10,7 @@ import { conceptsFor, documentFor } from '../../lib/create/compose/concepts';
 import { saveConceptAsProject } from '../../lib/create/compose/openConcept';
 import { archetypeOf, movementOf } from '../../lib/create/intel';
 import { paletteOf } from '../../lib/design/palettes';
+import { typefaceOf } from '../../lib/design/typefaces';
 
 /**
  * Three concepts for the brief above, each a real, editable design.
@@ -88,6 +89,16 @@ export default function ConceptPanel({ brief, businessName }: { brief: CreativeB
                 {composition.name} · {paletteOf(c.palette)?.name}
               </p>
               <p className="mt-1.5 text-[13px] leading-snug text-gray-700 dark:text-gray-300">{composition.idea}</p>
+              {/*
+                * The type, named. A brand board says which face is the headline and
+                * which is the text; a customer choosing between three concepts is
+                * choosing type as much as layout, and should be told what it is.
+                */}
+              <p data-testid={`concept-${c.n}-type`} className="mt-1.5 text-[13px] text-gray-600 dark:text-gray-400">
+                {typefaceOf(c.input.fonts.display).label === typefaceOf(c.input.fonts.text).label
+                  ? <>Type: <span className="font-semibold text-gray-900 dark:text-white">{typefaceOf(c.input.fonts.display).label}</span> throughout</>
+                  : <>Headline in <span className="font-semibold text-gray-900 dark:text-white">{typefaceOf(c.input.fonts.display).label}</span>, text in <span className="font-semibold text-gray-900 dark:text-white">{typefaceOf(c.input.fonts.text).label}</span></>}
+              </p>
               <div className="mt-3">
                 {user ? (
                   <button

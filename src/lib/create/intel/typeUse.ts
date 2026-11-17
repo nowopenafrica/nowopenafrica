@@ -15,7 +15,9 @@
 // Awwwards typography collection filters by grotesques, condensed display
 // faces, editorial serifs and monospace; and the 2026 type forecasts agree on
 // editorial serifs returning, monospace moving into branding, and restraint
-// (two families at most). Pinterest could not be read without signing in.
+// (two families at most). Pinterest was read on 2026-11-17, signed in as the
+// founder: its brand boards name a heading face, a sub-heading face and a body
+// face, which is the rule added last below.
 // The full list is in docs/creative-intelligence/typography.md.
 
 import type { TypefaceKey } from '../../design/typefaces';
@@ -181,6 +183,7 @@ export const TYPE_RULES: string[] = [
   'From a road: heavy or condensed, seven words, no hairlines.',
   'A face with no lower case is for names and titles, never sentences.',
   'Every character the customer types must have a glyph. The fallback face draws what the chosen face cannot.',
+  'The type is a named system: one face for the headline, one for the text, one for the labels. A customer is told which is which.',
 ];
 
 /** Where the rules above were checked against current practice. Principles only (Ruling AJ). */
@@ -189,8 +192,8 @@ export const TYPE_REFERENCES: { where: string; found: string }[] = [
     found: 'The related tags were "variable grotesque type", "bold light grotesk", "sans serif typeface", "black white contrast", "logo design fonts" and "kinetic motion designer". Identity work is leading with one grotesque family used at two contrasting weights. Answered here by Inter in two weights (`system`) and Bricolage Grotesque (`studio`).' },
   { where: 'Awwwards, the Typography collection (awwwards.com/websites/typography)',
     found: 'Its font filter is dominated by grotesques, condensed display faces (Anton, Bebas, Barlow, Druk), editorial serifs (Cormorant, Bodoni Moda, Canela, Editorial New) and monospace. The page states that consistency is key in the use of typography. Anton, Bebas Neue, Cormorant Garamond and Bodoni Moda are in the library; the commercial faces are not imitated.' },
-  { where: 'Pinterest (search "branding typography ui")',
-    found: 'Not read. The page shows no content without signing in, so nothing here is drawn from it.' },
+  { where: 'Pinterest, search "branding typography" (read 2026-11-17, signed in as the founder; one results page)',
+    found: 'Pinterest suggests narrowing the search by trade (luxury, fashion, beauty, food, coffee, skincare, tech, streetwear, perfume) and by "guidelines", "system" and "layout": people look for type by the business it is for, and expect it presented as a system. The brand boards shown name three levels outright, for example a heading face, a sub-heading face and a body face. Two treatments recur: heavy or condensed sans headlines for impact, and high-contrast serifs for luxury and beauty. Many boards use one saturated colour on black or white. Open faces named on the boards include Inter, Montserrat, Playfair Display, Bebas Neue and Bodoni, all in the library; Quicksand and DM Sans are named and are not. A second search timed out and was not read.' },
   { where: 'Type forecasts for 2026 (Creative Bloq, Muzli, Design and Paper, type.today)',
     found: 'Agreed points: editorial and "curvy" serifs returning; monospace moving into branding; variable fonts now ordinary; expressive display type; and restraint, with two families at most. Disagreed or unusable here: distorted and kinetic lettering, which a static layout engine cannot honestly produce. These are opinion pieces, not measurements.' },
   { where: 'Muzli, "Best free Google Fonts for 2026"',
