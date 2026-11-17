@@ -2,13 +2,15 @@ import { useId, useMemo, useRef } from 'react';
 import {
   type DesignTemplate, type ShapeSpec, type SlotRole, type SlotSpec, type SurfaceLayer,
   slotBox, typePx, fitSlotSize, motionAt, settleTime, surfaceLayers, hexAlpha, unitOf, fontStack,
-  isListRole, listRowBoxes, shapeColor, shapeGeometry,
+  isListRole, listRowBoxes, shapeColor, shapeGeometry, frontShapes, photoBoxPx, focalCss,
   type PriceRow,
 } from '../../lib/designTemplates';
-import { resolveLook, gradientCss, duotoneMatrix, type Look, type ResolvedLook } from '../../lib/design/look';
+import { fallbackLayerCss, resolveFallback, type ResolvedFallback } from '../../lib/design/photoFallback';
+import { resolveLook, gradientCss, duotoneMatrix, pairingFace, type Look, type ResolvedLook } from '../../lib/design/look';
 import { patternZoneBox } from '../../lib/design/patterns';
+import { ICON_EM, ICON_GAP_EM, rowGlyph, type Glyph } from '../../lib/design/icons';
+import { sampleRow } from '../../lib/create/sampleCopy';
 import type { Palette, PaletteRole } from '../../lib/design/palettes';
-import type { FontKey } from '../../lib/design/typefaces';
 
 // Renders a DesignTemplate. One component for stills and for motion frames.
 //
@@ -41,6 +43,11 @@ export interface TemplateContent {
   logoUrl?: string | null;
   /** data: URL — a remote QR would taint the export canvas. */
   qrUrl?: string | null;
+  /**
+   * Which platform's mark a handle row shows (platformMarks.ts). Absent keeps
+   * the template's own default.
+   */
+  platform?: string;
 }
 
 export interface TemplateSurfaceProps {
@@ -164,6 +171,87 @@ function Shape({
   );
 }
 
+/**
+ * The designed no-photo state (design/photoFallback.ts), inside the photo box.
+ *
+ * One clipped box; the fill layers, the pattern, the geometry, the keyline
+ * and the initial inside it, in that order, which is the order drawTemplate
+ * paints them in. Pattern and shapes are laid out in canvas coordinates and
+ * shifted by the box corner, so they land where the canvas puts them.
+ */
+function PhotoFallbackLayer({
+  fb, width, height, accent, ink, base, roles,
+}: {
+  fb: ResolvedFallback; width: number; height: number; accent: string; ink: string; base: string;
+  roles: Record<PaletteRole, string>;
+}) {
+  const { box } = fb;
+  /* What counts as drawn (S1b): the preview gate looks for at least one of these. */
+  const strong = (on: boolean) => (on ? { 'data-fallback-strong': '' } : {});
+  const canvasSized: React.CSSProperties = { position: 'absolute', left: -box.x, top: -box.y, width, height };
+  return (
+    <div
+      data-photo-fallback=""
+      aria-hidden="true"
+      style={{
+        position: 'absolute', left: box.x, top: box.y, width: box.w, height: box.h,
+        overflow: 'hidden', borderRadius: box.radius || undefined, pointerEvents: 'none',
+      }}
+    >
+      {fb.layers.map((l, i) => (
+        <div key={i} data-fallback-layer={l.kind} {...strong(l.strong)} style={{ position: 'absolute', inset: 0, background: fallbackLayerCss(l) }} />
+      ))}
+      {fb.pattern && (
+        <div
+          data-fallback-pattern=""
+          {...strong(fb.pattern.strong)}
+          style={{
+            ...canvasSized,
+            backgroundImage: `url("data:image/svg+xml;utf8,${encodeURIComponent(fb.pattern.svg)}")`,
+            backgroundSize: `${width}px ${height}px`,
+            backgroundRepeat: 'no-repeat',
+            opacity: fb.pattern.opacity,
+          }}
+        />
+      )}
+      {fb.shapes.length > 0 && (
+        <div data-fallback-shapes="" {...strong(fb.shapesStrong)} style={canvasSized}>
+          {fb.shapes.map((shape, i) => (
+            <Shape key={i} shape={shape} width={width} height={height} accent={accent} ink={ink} base={base} roles={roles} />
+          ))}
+        </div>
+      )}
+      {fb.keylines.map((k, i) => (
+        <div
+          key={`k${i}`}
+          data-fallback-keyline=""
+          {...strong(k.strong)}
+          style={{
+            position: 'absolute',
+            left: k.x - box.x, top: k.y - box.y, width: k.w, height: k.h,
+            border: `${k.width}px solid ${k.color}`, boxSizing: 'border-box',
+          }}
+        />
+      ))}
+      {fb.monogram && (
+        <div
+          data-fallback-monogram=""
+          {...strong(fb.monogram.strong)}
+          style={{
+            position: 'absolute',
+            left: fb.monogram.cx - box.x, top: fb.monogram.cy - box.y,
+            transform: 'translate(-50%, -50%)',
+            fontFamily: fb.monogram.family, fontWeight: fb.monogram.weight, fontSize: fb.monogram.sizePx,
+            lineHeight: 1, color: fb.monogram.color, whiteSpace: 'nowrap',
+          }}
+        >
+          {fb.monogram.char}
+        </div>
+      )}
+    </div>
+  );
+}
+
 /** Edit in place without a modal. Commits on blur so a stray keypress is cheap. */
 function EditableSlot({
   value, onCommit, style,
@@ -217,6 +305,35 @@ function Bullet({ slot, size, index, accent }: { slot: SlotSpec; size: number; i
     default:
       return null;
   }
+}
+
+/**
+ * A row's leading icon (design/icons.ts), as inline SVG.
+ *
+ * The same path data drawTemplate hands to Path2D, in the same square box (1
+ * em of the row's type), in the row's own text colour through currentColor:
+ * one colour, never stretched (the viewBox is square and so is the box).
+ */
+function IconGlyph({ glyph, size, color }: { glyph: Glyph; size: number; color: string }) {
+  const px = size * ICON_EM;
+  const stroke = glyph.paint === 'stroke';
+  return (
+    <svg
+      width={px}
+      height={px}
+      viewBox={glyph.viewBox}
+      aria-hidden="true"
+      data-icon={`${glyph.set}:${glyph.name}`}
+      fill={stroke ? 'none' : 'currentColor'}
+      stroke={stroke ? 'currentColor' : 'none'}
+      strokeWidth={stroke ? glyph.strokeWidth : undefined}
+      strokeLinecap={stroke ? 'round' : undefined}
+      strokeLinejoin={stroke ? 'round' : undefined}
+      style={{ color, flexShrink: 0, display: 'block' }}
+    >
+      {glyph.paths.map((d, i) => <path key={i} d={d} />)}
+    </svg>
+  );
 }
 
 /**
@@ -279,6 +396,7 @@ function ListSlot({
                 fontSize: size,
                 lineHeight: 1.4,
                 color: tone,
+                fontVariantNumeric: slot.tabular ? 'tabular-nums' : undefined,
               }}
             >
               <span style={{ fontWeight: slot.weight ?? 600, whiteSpace: 'nowrap', textTransform: slot.upper ? 'uppercase' : undefined }}>
@@ -313,6 +431,8 @@ function ListSlot({
 
         const text = String((all as (string | unknown)[])[i] ?? '');
         if (!text) return null;
+        // A row's icon takes the bullet's place, in the words' colour.
+        const glyph = rowGlyph(slot, i, text, { platform: content.platform, sample: sampleRow(template, slot.role, i) });
         return (
           <div
             key={i}
@@ -326,9 +446,14 @@ function ListSlot({
               lineHeight: 1.4,
               color: tone,
               textTransform: slot.upper ? 'uppercase' : undefined,
+              // S8: a row list honours its alignment, icon and all.
+              justifyContent: align === 'center' ? 'center' : align === 'right' ? 'flex-end' : undefined,
+              fontVariantNumeric: slot.tabular ? 'tabular-nums' : undefined,
             }}
           >
-            <Bullet slot={slot} size={size} index={i} accent={accent} />
+            {glyph
+              ? <IconGlyph glyph={glyph} size={size} color={tone} />
+              : <Bullet slot={slot} size={size} index={i} accent={accent} />}
             <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{text}</span>
           </div>
         );
@@ -376,6 +501,33 @@ export default function TemplateSurface({
   const duotone = mediaUrl ? resolved.duotone : null;
   const mediaFilter = duotone ? `url(#${filterId})` : undefined;
 
+  /*
+   * The photo box (S2): with one, the photograph is drawn clipped to it and
+   * positioned by its focal point; without one it fills the canvas as it
+   * always has. With no photograph, a photo-led design draws its designed
+   * no-photo state there instead (S1).
+   */
+  const photoBox = template.photo ? photoBoxPx(template, width, height) : null;
+  const fallback = !mediaUrl
+    ? resolveFallback(template, roles, width, height, content.brand)
+    : null;
+  const mediaStyle: React.CSSProperties = photoBox
+    ? { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: focalCss(template.photo?.focal), opacity: mediaOpacity / 100, filter: mediaFilter }
+    : { position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: mediaOpacity / 100, filter: mediaFilter };
+  const inPhotoBox = (node: React.ReactNode) => (photoBox
+    ? (
+      <div
+        data-photo-box=""
+        style={{
+          position: 'absolute', left: photoBox.x, top: photoBox.y, width: photoBox.w, height: photoBox.h,
+          overflow: 'hidden', borderRadius: photoBox.radius || undefined,
+        }}
+      >
+        {node}
+      </div>
+    )
+    : node);
+
   /** The ink that reads on whatever this slot sits on. */
   const inkOf = (slot: SlotSpec): string => inkOn[slot.on ?? 'ground'];
 
@@ -384,14 +536,8 @@ export default function TemplateSurface({
    * otherwise the template and its style keep owning type, as before.
    * Display-size slots take the display face, the eyebrow the accent face.
    */
-  const lookFamily = (slot: SlotSpec): string | undefined => {
-    if (!hasLook) return undefined;
-    const p = resolved.pairing;
-    const key: FontKey = slot.role === 'headline' || (slot.size ?? 0) >= 0.06
-      ? p.display
-      : slot.role === 'eyebrow' ? p.accent : p.text;
-    return fontStack(key);
-  };
+  const lookFamily = (slot: SlotSpec): string | undefined =>
+    hasLook ? fontStack(pairingFace(slot, resolved.pairing)) : undefined;
 
   const textFor = (role: SlotRole): string => {
     switch (role) {
@@ -416,6 +562,12 @@ export default function TemplateSurface({
     const role = toneRole(slot.tone);
     if (!role) return primary;
     return hasLook ? inkOn[role] : surfaceBase;
+  };
+
+  /** Words on a solid pill: the ink measured for the pill role (S7). */
+  const solidPillText = (slot: SlotSpec): string => {
+    const role = toneRole(slot.tone);
+    return role ? inkOn[role] : surfaceBase;
   };
 
   /*
@@ -452,6 +604,17 @@ export default function TemplateSurface({
     const slotInk = inkOf(slot);
     switch (slot.treatment) {
       case 'pill':
+        // Solid (S7): the tone at full strength, words in the ink that reads on it.
+        if (slot.pillStyle === 'solid') {
+          const fill = role ? roles[role] : slotInk;
+          return {
+            display: 'inline-block',
+            padding: `${pad * 0.7}px ${pad * 1.6}px`,
+            borderRadius: 999,
+            background: fill,
+            border: `1px solid ${fill}`,
+          };
+        }
         return {
           display: 'inline-block',
           padding: `${pad * 0.7}px ${pad * 1.6}px`,
@@ -510,15 +673,15 @@ export default function TemplateSurface({
         </svg>
       )}
       {/* Media sits beneath the surface layers so the tint keeps text readable. */}
-      {mediaUrl && mediaKind === 'image' && (
+      {mediaUrl && mediaKind === 'image' && inPhotoBox(
         <img
           src={mediaUrl}
           alt=""
           crossOrigin="anonymous"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: mediaOpacity / 100, filter: mediaFilter }}
-        />
+          style={mediaStyle}
+        />,
       )}
-      {mediaUrl && mediaKind === 'video' && (
+      {mediaUrl && mediaKind === 'video' && inPhotoBox(
         <video
           src={mediaUrl}
           muted
@@ -526,8 +689,8 @@ export default function TemplateSurface({
           autoPlay
           loop
           crossOrigin="anonymous"
-          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover', opacity: mediaOpacity / 100, filter: mediaFilter }}
-        />
+          style={mediaStyle}
+        />,
       )}
 
       {layers.map((bg, i) => (
@@ -560,7 +723,15 @@ export default function TemplateSurface({
       {/* Geometry over the surface, under the type — same order as the canvas
           painter, so a wedge never lands on top of a headline in one renderer
           and behind it in the other. */}
-      {(template.shapes ?? []).map((shape, i) => (
+      {/* No photograph: the designed no-photo state, over the ground and its
+          pattern, under the shapes (the canvas painter's order). */}
+      {fallback && (
+        <PhotoFallbackLayer fb={fallback} width={width} height={height} accent={primary} ink={roles.ink} base={surfaceBase} roles={roles} />
+      )}
+
+      {/* A template as written is its front: back-only shapes (S3) are drawn
+          on the side pageTemplate() builds. */}
+      {frontShapes(template).map((shape, i) => (
         <Shape key={i} shape={shape} width={width} height={height} accent={primary} ink={roles.ink} base={surfaceBase} roles={roles} />
       ))}
 
@@ -629,6 +800,8 @@ export default function TemplateSurface({
         const value = textFor(slot.role);
         if (!value && slot.role !== 'brand') return null;
 
+        const solidPill = slot.treatment === 'pill' && slot.pillStyle === 'solid';
+        const plainFlow = !slot.treatment || slot.treatment === 'plain';
         const typeStyle: React.CSSProperties = {
           /*
            * Fitted, not fixed. A slot carries one size and one y, so a headline
@@ -645,9 +818,14 @@ export default function TemplateSurface({
           textTransform: slot.upper ? 'uppercase' : undefined,
           // On a filled disc the slot tone IS the disc, so the words take the
           // colour that reads on it or they disappear into their own badge.
-          color: slot.treatment === 'disc' ? discText(slot) : toneColor(slot),
+          color: slot.treatment === 'disc' ? discText(slot) : solidPill ? solidPillText(slot) : toneColor(slot),
           ...treatmentStyle(slot),
           ...headlineFill(slot),
+          // S4: balanced lines, and a hard line limit the fitter has already sized for.
+          ...(slot.balance ? ({ textWrap: 'balance' } as React.CSSProperties) : {}),
+          ...(slot.maxLines && plainFlow
+            ? { display: '-webkit-box', WebkitBoxOrient: 'vertical', WebkitLineClamp: slot.maxLines, overflow: 'hidden' }
+            : {}),
         };
 
         // The brand slot pairs a logo with the name.
@@ -664,6 +842,38 @@ export default function TemplateSurface({
                 />
               )}
               <span style={{ ...typeStyle, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{value}</span>
+            </div>
+          );
+        }
+
+        /*
+         * A one-line slot led by an icon (a handle beside its platform's mark).
+         * The words and the icon share one flex line inside the slot's own
+         * treatment, so a pill wraps both; the words cut off with an ellipsis
+         * rather than wrap, as the canvas painter's one-line fit does.
+         */
+        const glyph = rowGlyph(slot, 0, value, { platform: content.platform, sample: sampleRow(template, slot.role, 0) });
+        if (glyph) {
+          const iconSize = typeStyle.fontSize as number;
+          const words: React.CSSProperties = { minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' };
+          return (
+            <div key={slot.role} style={common}>
+              <div
+                style={{
+                  ...typeStyle,
+                  display: typeStyle.display === 'inline-block' ? 'inline-flex' : 'flex',
+                  alignItems: 'center',
+                  gap: iconSize * ICON_GAP_EM,
+                  justifyContent: box.textAlign === 'center' ? 'center' : box.textAlign === 'right' ? 'flex-end' : 'flex-start',
+                  maxWidth: '100%',
+                  boxSizing: 'border-box',
+                }}
+              >
+                <IconGlyph glyph={glyph} size={iconSize} color={typeStyle.color as string} />
+                {onEditText && TEXT_ROLES.includes(slot.role)
+                  ? <EditableSlot value={value} onCommit={(v) => onEditText(slot.role, v)} style={words} />
+                  : <span style={words}>{value}</span>}
+              </div>
             </div>
           );
         }

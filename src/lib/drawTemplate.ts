@@ -18,12 +18,15 @@
 import {
   type DesignTemplate, type SlotSpec, type SurfaceLayer, type ShapeSpec,
   slotBox, fitSlotSize, motionAt, settleTime, surfaceSpecLayers, hexAlpha, unitOf, fontStack,
-  cameraAt,
-  isListRole, listRowBoxes, shapeColor, shapeGeometry,
-  type PriceRow,
+  cameraAt, lineHeightFor,
+  isListRole, listRowBoxes, shapeColor, shapeGeometry, frontShapes, photoBoxPx, coverInBox,
+  type PriceRow, type PhotoBoxPx,
 } from './designTemplates';
-import { resolveLook, type Look, type GradientSpec } from './design/look';
+import { resolveFallback, type ResolvedFallback, type ResolvedFallbackLayer } from './design/photoFallback';
+import { resolveLook, pairingFace, type Look, type GradientSpec } from './design/look';
 import { patternZoneBox } from './design/patterns';
+import { ICON_EM, iconIndent, rowGlyph, type Glyph } from './design/icons';
+import { sampleRow } from './create/sampleCopy';
 import type { Palette, PaletteRole } from './design/palettes';
 
 export interface TemplatePaintContent {
@@ -41,6 +44,8 @@ export interface TemplatePaintContent {
   contact?: string[];
   /** Rows for a 'price' slot: what it is, what it costs, optionally what it was. */
   price?: PriceRow[];
+  /** Which platform's mark a handle row shows (platformMarks.ts). Absent keeps the template's default. */
+  platform?: string;
   /** Already-loaded images. Loading is the caller's job — painting must be sync. */
   logo?: CanvasImageSource | null;
   qr?: CanvasImageSource | null;
@@ -191,19 +196,25 @@ function scratchCanvas(w: number, h: number) {
   }
 }
 
-/** Media through the two-colour map. False means the caller should draw it plain. */
+/**
+ * Media through the two-colour map, covering `box` (the whole canvas when
+ * absent) from its focal point. False means the caller should draw it plain.
+ */
 function drawDuotoneCover(
   ctx: CanvasRenderingContext2D, media: CanvasImageSource, w: number, h: number, duo: [string, string],
+  box?: PhotoBoxPx, focal?: [number, number],
 ): boolean {
-  const s = scratchCanvas(Math.max(1, Math.round(w)), Math.max(1, Math.round(h)));
+  const bw = box ? box.w : w;
+  const bh = box ? box.h : h;
+  const s = scratchCanvas(Math.max(1, Math.round(bw)), Math.max(1, Math.round(bh)));
   if (!s) return false;
   try {
     s.ctx.clearRect(0, 0, s.canvas.width, s.canvas.height);
-    drawCover(s.ctx, media, s.canvas.width, s.canvas.height);
+    drawCoverIn(s.ctx, media, { x: 0, y: 0, w: s.canvas.width, h: s.canvas.height }, focal);
     const img = s.ctx.getImageData(0, 0, s.canvas.width, s.canvas.height);
     applyDuotone(img.data, duo[0], duo[1]);
     s.ctx.putImageData(img, 0, 0);
-    ctx.drawImage(s.canvas, 0, 0, w, h);
+    ctx.drawImage(s.canvas, box ? box.x : 0, box ? box.y : 0, bw, bh);
     return true;
   } catch {
     // A tainted source throws from getImageData. Plain media beats no media.
@@ -269,8 +280,10 @@ export async function preloadTemplatePatterns(
     const resolved = resolveLook(tpl, {
       override: opts.look, brandPalette: opts.brandPalette, accent: opts.accent, base: opts.base, width: w, height: h,
     });
-    if (!resolved.pattern) return;
-    const { loaded } = requestPattern(resolved.pattern.svg);
+    const fb = resolveFallback(tpl, resolved.roles, w, h);
+    const svgs = [resolved.pattern?.svg, fb?.pattern?.svg].filter((x): x is string => !!x);
+    if (svgs.length === 0) return;
+    const loaded = Promise.all(svgs.map((svg) => requestPattern(svg).loaded)).then(() => undefined);
     await Promise.race([loaded, new Promise<void>((r) => setTimeout(r, timeoutMs))]);
   } catch {
     /* a missing pattern is a missing texture, not a failed export */
@@ -442,6 +455,138 @@ function paintShape(
   ctx.restore();
 }
 
+/** One no-photo fill layer over the box, as TemplateSurface's CSS background paints it. */
+function paintFallbackLayer(ctx: CanvasRenderingContext2D, l: ResolvedFallbackLayer, box: PhotoBoxPx) {
+  if (l.kind === 'flat') {
+    ctx.fillStyle = l.color;
+    ctx.fillRect(box.x, box.y, box.w, box.h);
+    return;
+  }
+  if (typeof ctx.createLinearGradient !== 'function') return;
+  let g: CanvasGradient;
+  if (l.kind === 'linear') {
+    const line = gradientLine(l.angle, box.w, box.h);
+    g = ctx.createLinearGradient(box.x + line.x0, box.y + line.y0, box.x + line.x1, box.y + line.y1);
+  } else {
+    g = ctx.createRadialGradient(box.x + l.cx, box.y + l.cy, 0, box.x + l.cx, box.y + l.cy, l.r);
+  }
+  for (const st of l.stops) g.addColorStop(Math.max(0, Math.min(1, st.at)), st.color);
+  ctx.fillStyle = g;
+  ctx.fillRect(box.x, box.y, box.w, box.h);
+}
+
+/**
+ * The designed no-photo state (design/photoFallback.ts), clipped to the photo
+ * box: fill layers, pattern, geometry, keyline, initial, in TemplateSurface's
+ * order. A context that cannot clip still paints the fill, which is the part
+ * that stops the plane being empty.
+ */
+function paintFallback(
+  ctx: CanvasRenderingContext2D,
+  fb: ResolvedFallback,
+  w: number,
+  h: number,
+  accent: string,
+  ink: string,
+  base: string,
+  roles: Record<PaletteRole, string>,
+) {
+  const { box } = fb;
+  ctx.save();
+  if (typeof ctx.clip === 'function' && typeof ctx.beginPath === 'function') {
+    if (box.radius > 0 && canPathHere(ctx)) roundRect(ctx, box.x, box.y, box.w, box.h, box.radius);
+    else { ctx.beginPath(); ctx.rect(box.x, box.y, box.w, box.h); }
+    ctx.clip();
+  }
+  for (const l of fb.layers) paintFallbackLayer(ctx, l, box);
+  if (fb.pattern) {
+    const bitmap = requestPattern(fb.pattern.svg).image;
+    if (bitmap) {
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, Math.min(1, fb.pattern.opacity));
+      try { ctx.drawImage(bitmap, box.x, box.y, box.w, box.h, box.x, box.y, box.w, box.h); } catch { /* texture lost, not the frame */ }
+      ctx.restore();
+    }
+  }
+  for (const shape of fb.shapes) paintShape(ctx, shape, w, h, accent, ink, base, roles);
+  for (const k of typeof ctx.strokeRect === 'function' ? fb.keylines : []) {
+    ctx.strokeStyle = k.color;
+    ctx.lineWidth = k.width;
+    // The DOM draws the border inside its box; a canvas stroke is centred on the path.
+    ctx.strokeRect(k.x + k.width / 2, k.y + k.width / 2, Math.max(0, k.w - k.width), Math.max(0, k.h - k.width));
+  }
+  if (fb.monogram) {
+    const m = fb.monogram;
+    ctx.font = `${m.weight} ${m.sizePx}px ${m.family}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = m.color;
+    ctx.fillText(m.char, m.cx, m.cy);
+  }
+  ctx.restore();
+}
+
+/**
+ * Lines that keep a wrap's line count but even out its widths (S4: what CSS
+ * text-wrap: balance does). The narrowest width that still gives the same
+ * number of lines, found by halving, then wrapped at that width. Cheap: a
+ * dozen wraps of a headline.
+ */
+export function balanceLines(
+  measure: (s: string) => number,
+  text: string,
+  maxWidth: number,
+  maxLines: number,
+): string[] {
+  const first = wrapLines(measure, text, maxWidth, maxLines);
+  if (first.length < 2 || first[first.length - 1].endsWith('…')) return first;
+  let lo = maxWidth / first.length;
+  let hi = maxWidth;
+  for (let i = 0; i < 12; i++) {
+    const mid = (lo + hi) / 2;
+    const at = wrapLines(measure, text, mid, maxLines);
+    if (at.length === first.length && !at[at.length - 1].endsWith('…')) hi = mid; else lo = mid;
+  }
+  return wrapLines(measure, text, hi, maxLines);
+}
+
+/**
+ * A row's leading icon, from the same path data TemplateSurface draws as SVG.
+ *
+ * Square box of `size` at (x, top), so it is scaled uniformly and never
+ * stretched; one colour, the row's words' colour. A context without Path2D
+ * (jsdom, old browsers) loses the icon, not the frame, and the words keep
+ * their place either way. Returns how far to indent the words.
+ */
+function paintIcon(
+  ctx: CanvasRenderingContext2D,
+  glyph: Glyph,
+  x: number,
+  top: number,
+  size: number,
+  color: string,
+): number {
+  const px = size * ICON_EM;
+  const P = (globalThis as { Path2D?: typeof Path2D }).Path2D;
+  if (typeof P === 'function' && typeof ctx.scale === 'function') {
+    ctx.save();
+    ctx.translate(x, top);
+    ctx.scale(px / glyph.grid, px / glyph.grid);
+    if (glyph.paint === 'stroke') {
+      ctx.strokeStyle = color;
+      ctx.lineWidth = glyph.strokeWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (const d of glyph.paths) ctx.stroke(new P(d));
+    } else {
+      ctx.fillStyle = color;
+      for (const d of glyph.paths) ctx.fill(new P(d));
+    }
+    ctx.restore();
+  }
+  return iconIndent(size);
+}
+
 /** The marker before a list row. Returns how far to indent the text. */
 function paintBullet(
   ctx: CanvasRenderingContext2D,
@@ -512,6 +657,8 @@ function paintListSlot(
   family: string,
   /** The row text colour, resolved from the slot's tone (role tones read the palette). */
   tone: string,
+  /** The template, for its own sample rows: a row icon's hint holds only on them. */
+  tpl: Pick<DesignTemplate, 'key'>,
 ) {
   const count = listCount(content, slot);
   if (count === 0) return;
@@ -592,7 +739,12 @@ function paintListSlot(
       }
       ctx.font = `800 ${Math.round(size)}px ${family}`;
       ctx.fillStyle = accent;
-      ctx.fillText(priceText, row.x + row.w, baseline);
+      if (slot.tabular) {
+        ctx.textAlign = 'left';
+        fillTabular(ctx, priceText, row.x + row.w - tabularWidth(ctx, priceText), baseline);
+      } else {
+        ctx.fillText(priceText, row.x + row.w, baseline);
+      }
       continue;
     }
 
@@ -602,7 +754,39 @@ function paintListSlot(
 
     const baseline = row.y + size;
     ctx.textAlign = 'left';
-    const indent = paintBullet(ctx, slot, row.x, baseline, size, i, accent, family);
+    /*
+     * An icon takes the bullet's place. The DOM row is a 1.4 line-height flex
+     * line with the icon centred in it, so the icon's box starts 0.2 em below
+     * the row's top: centred on row.y + 0.7 em, where the DOM puts it.
+     */
+    const glyph = rowGlyph(slot, i, raw ?? '', { platform: content.platform, sample: sampleRow(tpl, slot.role, i) });
+
+    if (align !== 'left' || slot.tabular) {
+      /*
+       * S8/S9: the marker and the words move together to where the alignment
+       * puts them, as the DOM's justified flex line does; tabular figures are
+       * set a zero's width apart. Left-aligned, proportional rows keep the
+       * original path below, call for call.
+       */
+      const indent = glyph ? iconIndent(size) : bulletIndent(slot, size);
+      ctx.font = `${weight} ${Math.round(size)}px ${family}`;
+      const measure = (t: string) => (slot.tabular ? tabularWidth(ctx, t) : ctx.measureText(t).width);
+      const [line] = wrapLines(measure, text, Math.max(0, row.w - indent), 1);
+      const total = indent + measure(line ?? '');
+      const startX = align === 'center' ? row.x + (row.w - total) / 2 : align === 'right' ? row.x + row.w - total : row.x;
+      if (glyph) paintIcon(ctx, glyph, startX, row.y + size * 0.2, size, tone);
+      else paintBullet(ctx, slot, startX, baseline, size, i, accent, family);
+      ctx.font = `${weight} ${Math.round(size)}px ${family}`;
+      ctx.fillStyle = tone;
+      ctx.textAlign = 'left';
+      if (slot.tabular) fillTabular(ctx, line ?? '', startX + indent, baseline);
+      else ctx.fillText(line ?? '', startX + indent, baseline);
+      continue;
+    }
+
+    const indent = glyph
+      ? paintIcon(ctx, glyph, row.x, row.y + size * 0.2, size, tone)
+      : paintBullet(ctx, slot, row.x, baseline, size, i, accent, family);
 
     ctx.font = `${weight} ${Math.round(size)}px ${family}`;
     ctx.fillStyle = tone;
@@ -610,6 +794,52 @@ function paintListSlot(
     const [line] = wrapLines((t) => ctx.measureText(t).width, text, avail, 1);
     ctx.fillText(line, row.x + indent, baseline);
   }
+}
+
+/** How far paintBullet indents a row's words, without painting. */
+function bulletIndent(slot: SlotSpec, size: number): number {
+  const style = slot.bullet ?? 'none';
+  if (style === 'none') return 0;
+  return size * (style === 'number' ? 1.7 : 0.95);
+}
+
+/*
+ * Tabular figures on a canvas (S9). Canvas 2D has no font-variant-numeric,
+ * so each digit is set centred in a cell the width of a zero: the same
+ * fixed advance tabular-nums gives in the DOM. Everything else keeps its
+ * own advance.
+ */
+const DIGIT = /[0-9]/;
+
+export function tabularWidth(ctx: Pick<CanvasRenderingContext2D, 'measureText'>, text: string): number {
+  const cell = ctx.measureText('0').width;
+  let w = 0;
+  let run = '';
+  for (const ch of text) {
+    if (DIGIT.test(ch)) {
+      if (run) { w += ctx.measureText(run).width; run = ''; }
+      w += cell;
+    } else run += ch;
+  }
+  if (run) w += ctx.measureText(run).width;
+  return w;
+}
+
+/** Left-aligned text from x with tabular figures; textAlign must be 'left'. */
+function fillTabular(ctx: CanvasRenderingContext2D, text: string, x: number, y: number): void {
+  const cell = ctx.measureText('0').width;
+  let cx = x;
+  let run = '';
+  const flush = () => { if (run) { ctx.fillText(run, cx, y); cx += ctx.measureText(run).width; run = ''; } };
+  for (const ch of text) {
+    if (DIGIT.test(ch)) {
+      flush();
+      const dw = ctx.measureText(ch).width;
+      ctx.fillText(ch, cx + (cell - dw) / 2, y);
+      cx += cell;
+    } else run += ch;
+  }
+  flush();
 }
 
 /** Headlines wrap to a few lines; supporting copy stays on one or two. */
@@ -654,14 +884,8 @@ export function drawTemplateFrame(
   const inkOf = (slot: SlotSpec): string => inkOn[slot.on ?? 'ground'];
 
   /** Type comes from the look's pairing only when the template has a look. */
-  const lookFamily = (slot: SlotSpec): string | undefined => {
-    if (!hasLook) return undefined;
-    const p = resolved.pairing;
-    return fontStack(
-      slot.role === 'headline' || (slot.size ?? 0) >= 0.06 ? p.display
-        : slot.role === 'eyebrow' ? p.accent : p.text,
-    );
-  };
+  const lookFamily = (slot: SlotSpec): string | undefined =>
+    hasLook ? fontStack(pairingFace(slot, resolved.pairing)) : undefined;
 
   ctx.save();
   ctx.clearRect(0, 0, w, h);
@@ -688,18 +912,31 @@ export function drawTemplateFrame(
   ctx.fillRect(0, 0, w, h);
 
   // Media first, so the surface tint sits over it and keeps text readable.
+  // With a photo box (S2) it is clipped to the box and placed by its focal
+  // point; without one it covers the canvas, as it always has.
+  const photoBox = tpl.photo ? photoBoxPx(tpl, w, h) : undefined;
+  const focal = tpl.photo?.focal;
   if (content.media) {
     const alpha = (opts.mediaOpacity ?? 1);
+    // Saved only for a photo box, so a layout without one paints the same calls as before.
+    if (photoBox) ctx.save();
     ctx.globalAlpha = Math.max(0, Math.min(1, alpha));
     try {
+      if (photoBox && typeof ctx.clip === 'function' && typeof ctx.beginPath === 'function') {
+        if (photoBox.radius > 0 && canPathHere(ctx)) roundRect(ctx, photoBox.x, photoBox.y, photoBox.w, photoBox.h, photoBox.radius);
+        else { ctx.beginPath(); ctx.rect(photoBox.x, photoBox.y, photoBox.w, photoBox.h); }
+        ctx.clip();
+      }
       // Duotone maps the photo's luma onto the look's two roles; a context
       // that cannot do the offscreen pass draws it plain.
-      if (!(resolved.duotone && drawDuotoneCover(ctx, content.media, w, h, resolved.duotone))) {
-        drawCover(ctx, content.media, w, h);
+      if (!(resolved.duotone && drawDuotoneCover(ctx, content.media, w, h, resolved.duotone, photoBox, focal))) {
+        if (photoBox) drawCoverIn(ctx, content.media, photoBox, focal);
+        else drawCover(ctx, content.media, w, h);
       }
     } catch {
       // A tainted or not-yet-decoded source must not abort the whole frame.
     }
+    if (photoBox) ctx.restore();
     ctx.globalAlpha = 1;
   }
 
@@ -737,9 +974,16 @@ export function drawTemplateFrame(
     }
   }
 
+  // No photograph: the designed no-photo state (S1), over the ground and its
+  // pattern, under the shapes, exactly where TemplateSurface draws it.
+  const fallback = content.media ? null : resolveFallback(tpl, roles, w, h, content.brand);
+  if (fallback) paintFallback(ctx, fallback, w, h, accent, roles.ink, base, roles);
+
   // Geometry over the surface, under the type. A wedge that covered the
   // headline would make the template unusable, and shapes are decoration.
-  for (const shape of tpl.shapes ?? []) {
+  // A template as written is its front, so back-only shapes (S3) wait for
+  // the side pageTemplate() builds.
+  for (const shape of frontShapes(tpl)) {
     paintShape(ctx, shape, w, h, accent, roles.ink, base, roles);
   }
 
@@ -776,7 +1020,7 @@ export function drawTemplateFrame(
       paintListSlot(
         ctx, slot, content, w, h,
         hasLook ? roles[toneRole(slot.tone) ?? 'primary'] : accent,
-        slotInk, family, slotTone(slot, roles, slotInk),
+        slotInk, family, slotTone(slot, roles, slotInk), tpl,
       );
       ctx.restore();
       continue;
@@ -826,9 +1070,20 @@ export function drawTemplateFrame(
 
     const tone = slotTone(slot, roles, slotInk);
     const role = toneRole(slot.tone);
-    const lines = wrapLines((s) => ctx.measureText(s).width, shown, box.width, maxLinesFor(slot.role));
+    /*
+     * A one-line slot led by an icon (TemplateSurface's flex line): the words
+     * get one line in what the icon leaves, and the icon and words are placed
+     * together by the slot's alignment.
+     */
+    const glyph = rowGlyph(slot, 0, value, { platform: content.platform, sample: sampleRow(tpl, slot.role, 0) });
+    const indent = glyph ? iconIndent(size) : 0;
+    const lineLimit = glyph ? 1 : (slot.maxLines ?? maxLinesFor(slot.role));
+    const measure = (s: string) => ctx.measureText(s).width;
+    const lines = slot.balance && !glyph
+      ? balanceLines(measure, shown, Math.max(0, box.width - indent), lineLimit)
+      : wrapLines(measure, shown, Math.max(0, box.width - indent), lineLimit);
     const lineHeight = size * ((slot.size ?? 0.05) > 0.07 ? 1.06 : 1.28);
-    const widest = lines.reduce((mx, l) => Math.max(mx, ctx.measureText(l).width), 0);
+    const widest = lines.reduce((mx, l) => Math.max(mx, ctx.measureText(l).width), 0) + indent;
     const pad = u * 0.014;
 
     const anchorX = box.textAlign === 'center' ? box.width / 2 : box.textAlign === 'right' ? box.width : 0;
@@ -849,7 +1104,9 @@ export function drawTemplateFrame(
       } else {
         ctx.fillStyle = slot.treatment === 'panel'
           ? hexAlpha(base, 0.55)
-          : hexAlpha(role ? roles[role] : slotInk, 0.18);
+          : slot.pillStyle === 'solid'
+            ? (role ? roles[role] : slotInk)
+            : hexAlpha(role ? roles[role] : slotInk, 0.18);
         ctx.fill();
       }
     }
@@ -877,7 +1134,10 @@ export function drawTemplateFrame(
     // that reads on it: today's rule (the surface) without a look, the ink
     // measured for that role with one — TemplateSurface's discText.
     const discText = !role ? accent : hasLook ? inkOn[role] : base;
-    ctx.fillStyle = slot.treatment === 'disc' ? discText : tone;
+    // A solid pill (S7) is the tone at full strength: the words take the ink measured for it.
+    const solidPill = slot.treatment === 'pill' && slot.pillStyle === 'solid';
+    const wordsColour = slot.treatment === 'disc' ? discText : solidPill ? (role ? inkOn[role] : base) : tone;
+    ctx.fillStyle = wordsColour;
 
     /*
      * Gradient headline. The DOM has to gate this on background-clip support;
@@ -896,7 +1156,23 @@ export function drawTemplateFrame(
       g.addColorStop(1, roles.secondary);
       ctx.fillStyle = g;
     }
-    lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
+    if (glyph) {
+      /*
+       * Icon then words, left to right from wherever the alignment starts the
+       * pair. The DOM sets this line in a box lineHeightFor() tall and centres
+       * both in it, so the 1 em icon and the words' em box start half the
+       * leading down; both are drawn there, so the export matches the preview
+       * and the icon stays level with its words.
+       */
+      const startX = box.textAlign === 'center' ? anchorX - widest / 2 : box.textAlign === 'right' ? anchorX - widest : 0;
+      const lead = (lineHeightFor(slot.size) * size - size * ICON_EM) / 2;
+      // The icon takes its words' colour, which on a solid pill is the pill's ink.
+      paintIcon(ctx, glyph, startX, lead, size, wordsColour);
+      ctx.textAlign = 'left';
+      ctx.fillText(lines[0] ?? '', startX + indent, lead);
+    } else {
+      lines.forEach((line, i) => ctx.fillText(line, anchorX, i * lineHeight));
+    }
 
     if (slot.treatment === 'underline') {
       const y = lines.length * lineHeight + pad * 0.4;
@@ -940,5 +1216,17 @@ function drawCover(ctx: CanvasRenderingContext2D, src: CanvasImageSource, w: num
   const sw = anySrc.videoWidth || anySrc.width || 0;
   const sh = anySrc.videoHeight || anySrc.height || 0;
   const r = coverRect(Number(sw), Number(sh), w, h);
+  ctx.drawImage(src, r.x, r.y, r.w, r.h);
+}
+
+/** object-fit: cover into a box, positioned by a focal point (CSS object-position). */
+function drawCoverIn(
+  ctx: CanvasRenderingContext2D, src: CanvasImageSource,
+  box: { x: number; y: number; w: number; h: number }, focal?: [number, number],
+) {
+  const anySrc = src as unknown as { videoWidth?: number; videoHeight?: number; width?: number; height?: number };
+  const sw = anySrc.videoWidth || anySrc.width || 0;
+  const sh = anySrc.videoHeight || anySrc.height || 0;
+  const r = coverInBox(Number(sw), Number(sh), box, focal);
   ctx.drawImage(src, r.x, r.y, r.w, r.h);
 }

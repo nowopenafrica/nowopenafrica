@@ -183,9 +183,13 @@ import type { FontKey } from './design/typefaces';
 import type { StyleTag, TemplateUse } from './design/tags';
 // Type-only on purpose: look.ts imports VALUES from this file, so a value import
 // back would be a cycle (the same reason catalogueTemplates.ts avoids one).
-import type { Look, GradientSpec } from './design/look';
+import type { Look, GradientSpec, PatternKey } from './design/look';
 import type { PaletteRole } from './design/palettes';
+import type { DirectionKey } from './design/directions';
+import type { PreviewSubject } from './design/previewMedia';
+import type { SlotIcon } from './design/icons';
 import { CATALOGUE_TEMPLATES } from './design/catalogueTemplates';
+import { PILOT_TEMPLATES } from './design/pilotTemplates';
 
 export interface SlotMotion {
   in: MotionIn;
@@ -223,6 +227,13 @@ export interface SlotSpec {
   /** Overrides the template font for this slot — a mono eyebrow over a serif headline. */
   font?: FontKey;
   motion?: SlotMotion;
+  /**
+   * A leading icon per row, by row index: a contact or services row, or row
+   * 0 of a one-line text slot (eyebrow, meta, cta). null leaves a row bare.
+   * Lucide icons or a platform mark; the rules for drawing one, and the
+   * geometry both renderers draw, are in design/icons.ts.
+   */
+  icons?: (SlotIcon | null)[];
 
   // --- list slots only -------------------------------------------------------
   /** Gap between rows, as a multiple of the row's type size. */
@@ -233,6 +244,43 @@ export interface SlotSpec {
   direction?: 'row' | 'column';
   /** Cap on rows drawn, so long content cannot overrun the layout. */
   max?: number;
+
+  // --- text flow (Task 18c, S4) ---------------------------------------------
+  /**
+   * The most lines this slot may set. The fitter shrinks the type until the
+   * words, wrapped word by word, take no more than this; the canvas wraps to
+   * it and the DOM clamps to it. Absent keeps the role's default.
+   */
+  maxLines?: number;
+  /**
+   * A height box, as a fraction of the canvas height, that the fitted words
+   * must stay inside. The fitter treats it as the room below the slot, so a
+   * headline cannot grow down into whatever sits under it.
+   */
+  h?: number;
+  /** Balance the lines of a wrapped slot (CSS text-wrap: balance; the canvas does the same). */
+  balance?: boolean;
+  /**
+   * Pill treatment only. 'solid' fills the pill with the slot's tone at full
+   * strength and sets the words in the ink that reads on it; 'tint' (the
+   * default) is the translucent pill, which reads as a disabled button where
+   * it is the only call to act (Task 18c, S7).
+   */
+  pillStyle?: 'tint' | 'solid';
+  /**
+   * Which face of the look's pairing sets this slot, overriding the rule
+   * (display for headlines and big type, accent for the eyebrow, text for the
+   * rest). Task 18c-2, S10: a mono accent reads as code on a luxury, corporate
+   * or clinic eyebrow, so those name the text face instead. Ignored without a
+   * look.
+   */
+  face?: 'display' | 'text' | 'accent';
+  /**
+   * Figures at one width (S9): font-variant-numeric tabular-nums in the DOM,
+   * and on the canvas each digit set in a cell the width of a zero, so phone
+   * numbers, prices and hours line up down a list.
+   */
+  tabular?: boolean;
 }
 
 // --- decorative geometry -----------------------------------------------------
@@ -248,7 +296,14 @@ export interface SlotSpec {
 
 export type ShapeTone = 'accent' | 'ink' | 'base' | 'white' | 'black' | 'primary' | 'secondary' | 'highlight';
 
-export type ShapeSpec =
+/**
+ * Which side of a two-sided design a shape belongs to (Task 18c, S3). Absent
+ * paints on every side, which is what every shape did before. A template as
+ * written is its front; pageTemplate() builds the further sides.
+ */
+export interface ShapeSide { side?: 'front' | 'back' }
+
+export type ShapeSpec = ShapeSide & (
   /** Right-angled triangle filling one corner. The diagonal-cut look. */
   | { kind: 'wedge'; corner: 'tl' | 'tr' | 'bl' | 'br'; w: number; h: number; tone: ShapeTone; alpha?: number }
   /** Band, panel or footer bar. `skew` shears the vertical edges for an angled block. */
@@ -257,7 +312,67 @@ export type ShapeSpec =
   /** Outline circle — a photo frame or a decorative orbit. */
   | { kind: 'ring'; cx: number; cy: number; r: number; tone: ShapeTone; alpha?: number; thickness?: number }
   /** Rotated bar, for accent slashes that cross the layout. */
-  | { kind: 'stripe'; x: number; y: number; w: number; h: number; angle: number; tone: ShapeTone; alpha?: number };
+  | { kind: 'stripe'; x: number; y: number; w: number; h: number; angle: number; tone: ShapeTone; alpha?: number }
+);
+
+/* ── the photo box (Task 18c, S2) and its no-photo state (S1) ──────────── */
+
+/** A palette role, optionally held back. */
+export interface FallbackTone { role: PaletteRole; alpha?: number }
+
+/**
+ * One layer of the no-photo fill, painted inside the photo box. Coordinates
+ * are fractions of the BOX: a radial centre at (0.5, 0.5) is the box centre,
+ * and its radius is a fraction of the box's longer side.
+ */
+export type FallbackLayer =
+  | { kind: 'flat'; tone: FallbackTone }
+  | { kind: 'linear'; angle: number; stops: FallbackTone[] }
+  | { kind: 'radial'; cx: number; cy: number; r: number; stops: FallbackTone[] };
+
+/**
+ * What a photo-led design draws where its photograph would be, when there is
+ * none (Ruling AH makes a subject miss a null photo). Drawn only then, and
+ * never counted as image share: the descriptor keeps describing the photo the
+ * design is built for. Everything is clipped to the photo box.
+ */
+export interface PhotoFallback {
+  /** Bottom first. The first should be opaque. */
+  layers: FallbackLayer[];
+  /** A library pattern clipped to the box (opacity applied by the renderer). */
+  pattern?: { key: PatternKey; role: PaletteRole; opacity: number; scale: number };
+  /** Flat geometry, in canvas fractions like any shape, clipped to the box. */
+  shapes?: ShapeSpec[];
+  /**
+   * The business name's first letter, set large (Ruling AP: it is the
+   * owner's own data, not an invented mark). Drawn only when there is a
+   * name. `size` is in short-edge units; the centre is in canvas fractions
+   * and defaults to the box centre.
+   */
+  monogram?: { font: FontKey; size: number; tone: FallbackTone; weight?: number; cx?: number; cy?: number };
+  /** A hairline just inside the box: the mount's bevel. Inset and width in short-edge units. */
+  keyline?: FallbackKeyline | FallbackKeyline[];
+}
+
+/** A fine rule just inside the photo box; a list of them draws a double (or triple) mount line. */
+export interface FallbackKeyline { inset: number; tone: FallbackTone; width?: number }
+
+/**
+ * Where the photograph goes, in canvas fractions. The photo is drawn clipped
+ * to this box with object-fit cover, positioned by `focal` (CSS
+ * object-position, 0..1 each way; centred when absent). Absent means the
+ * whole canvas, which is how every layout without one has always drawn it.
+ */
+export interface PhotoSpec {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+  focal?: [number, number];
+  /** Corner radius, in short-edge units. */
+  radius?: number;
+  fallback?: PhotoFallback;
+}
 
 export interface SurfaceSpec {
   kind: 'gradient' | 'solid' | 'spotlight' | 'wash' | 'frame';
@@ -270,6 +385,14 @@ export interface SurfaceSpec {
   /** Inset border as a fraction of the short edge. */
   frame?: number;
 }
+
+/** The single-line demo copy roles, then the list roles, an upload may carry. */
+export const SAMPLE_TEXT_ROLES = ['brand', 'eyebrow', 'headline', 'subline', 'meta', 'cta'] as const;
+export const SAMPLE_LIST_ROLES = ['services', 'contact'] as const;
+
+/** An upload's own demo copy: labels for what goes where, never a business. */
+export type SampleCopy = Partial<Record<(typeof SAMPLE_TEXT_ROLES)[number], string>>
+  & Partial<Record<(typeof SAMPLE_LIST_ROLES)[number], string[]>>;
 
 export interface DesignTemplate {
   key: string;
@@ -295,6 +418,26 @@ export interface DesignTemplate {
    * nothing.
    */
   industries?: string[];
+  /** Named art direction (design/directions.ts). Absent until a template is classified. */
+  direction?: DirectionKey;
+  /**
+   * UPLOADED templates only: the product it is (a catalogueTaxonomy
+   * subcategory key). Code templates take theirs from design/deliverables.ts,
+   * which always wins; an upload has no entry there, so it carries its own.
+   */
+  subcategory?: string;
+  /**
+   * UPLOADED templates only: the demo copy its gallery card shows. Code
+   * templates keep theirs in create/sampleCopy.ts; an upload without this
+   * falls back to "Your headline here", which the house checks refuse (C9).
+   */
+  sample?: SampleCopy;
+  /**
+   * Key of the icon set this template draws from, when it uses one. A design
+   * that uses Lucide icons beside platform marks declares 'lucide': the marks
+   * are not a style of icon, so they may pair with it (C13).
+   */
+  iconSet?: string;
   styles?: StyleTag[];
   /** Free words somebody might type. Not displayed; searched. */
   tags?: string[];
@@ -320,6 +463,19 @@ export interface DesignTemplate {
    * making that mistake 47 times. See design/previewMedia.ts.
    */
   photoLed?: boolean;
+  /**
+   * What the gallery's preview photograph should show, for a photo-led
+   * layout. Absent keeps the key-hashed pick (previewPhotoFor), so no
+   * existing template's preview changes. A dish post asking for `food`
+   * stops previewing over a laptop.
+   */
+  photoSubject?: PreviewSubject;
+  /**
+   * The photo box (Task 18c, S2): where the photograph is drawn, its focal
+   * point, and what is drawn there when there is no photograph (S1). Absent
+   * keeps the full-bleed photograph every existing layout has.
+   */
+  photo?: PhotoSpec;
   /**
    * Further sides or pages, after the first.
    *
@@ -375,6 +531,14 @@ const ADVANCE: Record<string, number> = {
   sans: 0.53,       // Outfit
   mono: 0.60,       // Space Mono — monospaced, so this one is exact
   condensed: 0.38,  // Bebas Neue — tall and narrow
+  /*
+   * Measured 2026-11-07 with fontTools: mean advance / unitsPerEm over a–z,
+   * which is what the eight above track most closely (A–Z runs 0.05–0.2
+   * wider). Before these existed the three fell through to 0.53.
+   */
+  humanist: 0.49,   // Source Sans 3 (600)
+  script: 0.39,     // Dancing Script — narrow lowercase, wide capitals (A–Z 0.60)
+  coolvetica: 0.47, // Coolvetica Regular
 };
 
 /**
@@ -471,6 +635,56 @@ export const lineHeightFor = (size: number | undefined): number =>
   (size ?? 0.05) > 0.07 ? 1.03 : 1.25;
 
 /**
+ * Capital letters set wider than the lowercase the ADVANCE table measures
+ * (fontTools: A-Z runs 0.05-0.2 em wider), so a word-wrapped estimate of a
+ * caps slot adds this much per character.
+ */
+const CAPS_EXTRA = 0.06;
+/**
+ * Faces whose capitals run far wider than their lowercase. Archivo Black's
+ * A-Z average about 0.75 em against 0.62 for a-z: seen on the 48-sheet,
+ * where "COME SEE WHAT'S NEW" set on four lines where the estimate said three.
+ */
+const CAPS_EXTRA_BY_FACE: Record<string, number> = { heavy: 0.13 };
+
+/**
+ * How text wraps in a slot at a size, WORD BY WORD (Task 18c, S4).
+ *
+ * estimateLines divides the characters evenly over the lines, which is right
+ * on average and wrong exactly where it matters: "YOUR CAMPAIGN LINE" is 18
+ * characters, so at nine a line it "takes two", but no line can hold
+ * "YOUR CAMPAIGN", and the renderers set it on three. That third line is what
+ * ran the bb-contemporary headline into its own handle. This breaks on words
+ * the way both renderers do, with the same per-face advance, and returns each
+ * line's estimated width in pixels.
+ */
+export function wrapEstimate(
+  text: string | undefined,
+  slot: Pick<SlotSpec, 'w' | 'font' | 'tracking' | 'upper'>,
+  sizePx: number,
+  w: number,
+): number[] {
+  const body = (text ?? '').trim();
+  if (!body || sizePx <= 0) return [];
+  const maxW = Math.max(1, Math.min(1, slot.w) * w);
+  const caps = slot.upper ? (CAPS_EXTRA_BY_FACE[slot.font ?? 'sans'] ?? CAPS_EXTRA) : 0;
+  const per = ((ADVANCE[slot.font ?? 'sans'] ?? 0.53) + caps + (slot.tracking ?? 0)) * sizePx;
+  const out: number[] = [];
+  for (const para of body.split(String.fromCharCode(10))) {
+    const words = para.trim().split(/\s+/).filter(Boolean);
+    let line = 0;
+    for (const word of words) {
+      const ww = word.length * per;
+      if (line === 0) { line = ww; continue; }
+      if (line + per + ww <= maxW) line += per + ww;
+      else { out.push(line); line = ww; }
+    }
+    out.push(line);
+  }
+  return out;
+}
+
+/**
  * Fit a slot's type to the room the LAYOUT actually leaves it.
  *
  * WHY maxLines CANNOT BE A CONSTANT — the second attempt at this bug.
@@ -546,9 +760,13 @@ export function fitSlotSize(
 
   // Down to the frame when nothing sits underneath, less a small margin.
   const bottom = below ?? 0.94;
-  const roomPx = Math.max(0, (bottom - mine) * h);
+  // A declared height box (S4) is room the slot may not grow past either.
+  const roomPx = Math.max(0, Math.min((bottom - mine) * h, slot.h ? slot.h * h : Infinity));
   const lineHeight = lineHeightFor(slot.size);
-  const lineBudget = Math.max(1, Math.floor(roomPx / (size * lineHeight)));
+  const lineBudget = Math.min(
+    slot.maxLines ?? Infinity,
+    Math.max(1, Math.floor(roomPx / (size * lineHeight))),
+  );
 
   const fitted = fittedTypePx(text, slot, w, h, lineBudget);
 
@@ -602,6 +820,20 @@ export function fitSlotSize(
   if (roomPx > 0 && text) {
     while (px > MIN_TYPE_PX
       && estimateLines(text, slot, px, w) * px * lineHeight * gapFactor > roomPx) {
+      px -= 1;
+    }
+  }
+
+  /*
+   * A slot that declares its flow (maxLines or a height box) is also fitted
+   * word by word, which is how it will actually wrap. Opt-in, so the layouts
+   * written before this keep exactly the sizes they were reviewed at.
+   */
+  if (text && (slot.maxLines || slot.h)) {
+    const limit = slot.maxLines ?? Infinity;
+    while (px > MIN_TYPE_PX) {
+      const lines = wrapEstimate(text, slot, px, w).length;
+      if (lines <= limit && (roomPx <= 0 || lines * px * lineHeight <= roomPx)) break;
       px -= 1;
     }
   }
@@ -1066,6 +1298,105 @@ export function shapeGeometry(shape: ShapeSpec, w: number, h: number): ShapeGeom
       return { kind: 'rect', x: 0, y: 0, w: 0, h: 0, radius: 0 };
   }
 }
+
+// --- sides and the photo box (Task 18c, S2/S3) -------------------------------
+
+/** The shapes a template as written paints: it is its own front, so back-only shapes are left out. */
+export const frontShapes = (tpl: Pick<DesignTemplate, 'shapes'>): ShapeSpec[] =>
+  (tpl.shapes ?? []).filter((s) => s.side !== 'back');
+
+/**
+ * Side or page `index` as a template both renderers can draw: that page's
+ * slots, and the shapes for that side (every shared shape plus the back's
+ * own, none of the front's). Index 0, or a page that does not exist, is the
+ * template itself. Every caller that renders a side goes through this.
+ */
+export function pageTemplate(tpl: DesignTemplate, index: number): DesignTemplate {
+  const page = index > 0 ? tpl.extraPages?.[index - 1] : undefined;
+  if (!page) return tpl;
+  return {
+    ...tpl,
+    slots: page.slots,
+    // Cleared to "every side", so a renderer drawing this as given paints it.
+    shapes: (tpl.shapes ?? []).filter((s) => s.side !== 'front').map((s) => ({ ...s, side: undefined })),
+  };
+}
+
+export interface PhotoBoxPx { x: number; y: number; w: number; h: number; radius: number }
+
+/** The photo box in pixels; the whole canvas when the template has none. */
+export function photoBoxPx(tpl: Pick<DesignTemplate, 'photo'>, w: number, h: number): PhotoBoxPx {
+  const p = tpl.photo;
+  if (!p) return { x: 0, y: 0, w, h, radius: 0 };
+  const cl = (v: number) => Math.max(0, Math.min(1, v));
+  const x0 = cl(p.x);
+  const y0 = cl(p.y);
+  const x1 = cl(p.x + p.w);
+  const y1 = cl(p.y + p.h);
+  return { x: x0 * w, y: y0 * h, w: (x1 - x0) * w, h: (y1 - y0) * h, radius: (p.radius ?? 0) * unitOf(w, h) };
+}
+
+/** Does the photo fill the canvas (no box, or a box that is the whole canvas)? */
+export const photoIsFullBleed = (tpl: Pick<DesignTemplate, 'photo'>): boolean => {
+  const p = tpl.photo;
+  return !p || (p.x <= 0 && p.y <= 0 && p.x + p.w >= 1 && p.y + p.h >= 1);
+};
+
+/**
+ * The ground around a photo box, as the four opaque `base` panels a window
+ * used to be built from: full-height strips left and right, and the top and
+ * bottom between them. For readers that only know shapes: the editable
+ * document, whose photograph is a full-page background, and the composition
+ * descriptor, which still asks "does a solid panel hold the headline". With
+ * `overlap`, neighbouring panels overlap by that much so no seam can open
+ * between them at any scale (the ig-contemporary seams at x 0.447 and 0.93).
+ */
+export function photoMaskShapes(tpl: Pick<DesignTemplate, 'photo'>, overlap = 0): ShapeSpec[] {
+  if (photoIsFullBleed(tpl)) return [];
+  const p = tpl.photo!;
+  const x0 = Math.max(0, p.x);
+  const y0 = Math.max(0, p.y);
+  const x1 = Math.min(1, p.x + p.w);
+  const y1 = Math.min(1, p.y + p.h);
+  const o = overlap;
+  const out: ShapeSpec[] = [];
+  const add = (x: number, y: number, w: number, h: number) => {
+    if (w > 1e-9 && h > 1e-9) out.push({ kind: 'rect', x, y, w, h, tone: 'base' });
+  };
+  if (x0 > 0) add(0, 0, x0 + o, 1);
+  if (x1 < 1) add(x1 - o, 0, 1 - x1 + o, 1);
+  if (y0 > 0) add(x0, 0, x1 - x0, y0 + o);
+  if (y1 < 1) add(x0, y1 - o, x1 - x0, 1 - y1 + o);
+  return out;
+}
+
+/**
+ * object-fit: cover inside a box, with object-position from the focal point.
+ * CSS places the overflow so the point `focal` of the image lines up with
+ * the same point of the box: offset = (box - drawn) x focal. Centred when
+ * absent, which is coverRect's behaviour.
+ */
+export function coverInBox(
+  sw: number, sh: number,
+  box: { x: number; y: number; w: number; h: number },
+  focal: [number, number] = [0.5, 0.5],
+): { x: number; y: number; w: number; h: number } {
+  if (!sw || !sh) return { x: box.x, y: box.y, w: box.w, h: box.h };
+  const scale = Math.max(box.w / sw, box.h / sh);
+  const dw = sw * scale;
+  const dh = sh * scale;
+  const fx = Math.max(0, Math.min(1, focal[0]));
+  const fy = Math.max(0, Math.min(1, focal[1]));
+  return { x: box.x + (box.w - dw) * fx, y: box.y + (box.h - dh) * fy, w: dw, h: dh };
+}
+
+/** The CSS object-position for a focal point. */
+export const focalCss = (focal: [number, number] | undefined): string => {
+  if (!focal) return '50% 50%';
+  // Clamped as coverInBox clamps it, so the DOM and the canvas crop alike.
+  const c = (v: number) => Math.round(Math.max(0, Math.min(1, v)) * 1000) / 10;
+  return `${c(focal[0])}% ${c(focal[1])}%`;
+};
 
 // --- list slots --------------------------------------------------------------
 
@@ -2877,6 +3208,10 @@ export const DESIGN_TEMPLATES: DesignTemplate[] = [
   // Branding, campaign, social, banner and print layouts from the Template
   // Catalogue canvas. Their own file because there are 38 of them.
   ...CATALOGUE_TEMPLATES,
+
+  // The pilot collection (Task 18): eight directed business cards, six
+  // Instagram portrait posts and six 48-sheet billboards.
+  ...PILOT_TEMPLATES,
 ];
 
 

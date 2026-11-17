@@ -27,6 +27,7 @@
 
 import type { DesignObject, TextObject } from './designDocument';
 import { objectId } from './designDocument';
+import { DANGEROUS_TAGS, isUnsafeAttribute } from './svgSanitise.mjs';
 
 export interface SvgImport {
   /** The sanitised artwork, safe to render. */
@@ -42,7 +43,7 @@ export interface SvgImport {
   removed: string[];
 }
 
-const DANGEROUS_TAGS = ['script', 'foreignobject', 'iframe', 'object', 'embed', 'animate', 'set', 'handler'];
+/* DANGEROUS_TAGS and isUnsafeAttribute live in svgSanitise.mjs, shared with the asset intake script. */
 
 /** Tags this document model can represent as real, editable objects. */
 const EDITABLE_TAGS = new Set(['text', 'rect', 'circle', 'ellipse', 'line']);
@@ -82,13 +83,7 @@ export function sanitiseSvg(doc: Document): string[] {
     for (const attr of [...el.attributes]) {
       const name = attr.name.toLowerCase();
       /* Event handlers, and any reference that would fetch from elsewhere. */
-      if (/^on/.test(name)) { removed.push(name); el.removeAttribute(attr.name); continue; }
-      if ((name === 'href' || name === 'xlink:href') && !attr.value.startsWith('#')) {
-        removed.push(name);
-        el.removeAttribute(attr.name);
-        continue;
-      }
-      if (/url\(\s*['"]?\s*http/i.test(attr.value)) {
+      if (isUnsafeAttribute(name, attr.value)) {
         removed.push(name);
         el.removeAttribute(attr.name);
       }

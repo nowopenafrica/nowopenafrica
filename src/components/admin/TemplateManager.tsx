@@ -1,25 +1,30 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import toast from 'react-hot-toast';
 import {
-  AlertTriangle, Archive, CheckCircle2, Download, EyeOff, FileJson, Loader2, Send, Trash2, Upload, X,
+  AlertTriangle, Archive, ClipboardCheck, Download, EyeOff, FileJson, Loader2, Send, Trash2, Upload, X,
 } from 'lucide-react';
 
 import TemplateSurface from '../studio/TemplateSurface';
 import ConfirmDialog from '../ConfirmDialog';
+import AssetReview from './AssetReview';
+import TemplateReviewPanel from './TemplateReviewPanel';
+import { checkUpload, gateFor, readTemplateZip, PUBLISH_SCORE, type ZipFile } from '../../lib/create/templateReview';
 import { supabase } from '../../lib/supabase';
 import { DESIGN_TEMPLATES } from '../../lib/designTemplates';
 import { DESIGN_FORMATS } from '../../data/studioPresets';
 import { DELIVERABLE_CATEGORIES } from '../../lib/design/deliverables';
 import { DESIGN_STYLES } from '../../lib/design/styles';
 import { sampleFor } from '../../lib/create/sampleCopy';
-import { templateToUploadJson, EDITABILITY_LABEL } from '../../lib/create/templateUpload';
+import { templateToUploadJson, withCleanClassification, EDITABILITY_LABEL } from '../../lib/create/templateUpload';
+import TemplateDetailsFields from './TemplateDetailsFields';
+import type { DesignTemplate } from '../../lib/designTemplates';
 import { ingestFiles, type Ingested, type TemplateDraft } from '../../lib/create/ingestTemplates';
 import { measureArtboard } from '../../lib/create/measureArtboard';
 import {
-  fetchTemplateRows, STATUS_LABEL,
+  entryFromRow, fetchTemplateRows, STATUS_LABEL,
   type TemplateRow, type TemplateStatus,
 } from '../../lib/create/templateCatalogue';
-import { invalidateCatalogue } from '../../hooks/useDesignCatalogue';
+import { invalidateCatalogue, useDesignCatalogue } from '../../hooks/useDesignCatalogue';
 
 /**
  * Onboarding a design into Create Media, from the dashboard.
@@ -47,6 +52,36 @@ import { invalidateCatalogue } from '../../hooks/useDesignCatalogue';
  * So it is refused with the reason, and pointed at the Brand Asset Manager.
  */
 export default function TemplateManager() {
+  const [tab, setTab] = useState<'templates' | 'assets'>('templates');
+  const [assetsSeen, setAssetsSeen] = useState(false);
+  return (
+    <div className="space-y-5">
+      <div role="tablist" className="flex gap-2">
+        {([['templates', 'Templates'], ['assets', 'Assets']] as const).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={tab === key}
+            onClick={() => { setTab(key); if (key === 'assets') setAssetsSeen(true); }}
+            className={`min-h-[40px] rounded-lg px-4 text-xs font-bold ${
+              tab === key
+                ? 'bg-purple-600 text-white'
+                : 'border border-gray-300 text-gray-700 hover:bg-gray-50 dark:border-gray-600 dark:text-gray-200 dark:hover:bg-gray-700'
+            }`}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {/* Both stay mounted so staged uploads survive a visit to the other tab. */}
+      <div hidden={tab !== 'templates'}><TemplatesTab /></div>
+      {assetsSeen && <div hidden={tab !== 'assets'}><AssetReview /></div>}
+    </div>
+  );
+}
+
+function TemplatesTab() {
   const [rows, setRows] = useState<TemplateRow[]>([]);
   const [problem, setProblem] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,7 +90,18 @@ export default function TemplateManager() {
   const [reading, setReading] = useState<{ done: number; total: number } | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDrop, setConfirmDrop] = useState<TemplateRow | null>(null);
+  /** False when the database predates the review migration. */
+  const [reviewGate, setReviewGate] = useState(true);
+  const [reviewing, setReviewing] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
+  /** The listed catalogue, which C13 compares a layout against. */
+  const { templates: listed } = useDesignCatalogue();
+  const codeKeys = useMemo(() => new Set(DESIGN_TEMPLATES.map((t) => t.key)), []);
+  /** Each stored row read back as a template once per load, not on every keystroke. */
+  const entries = useMemo(
+    () => new Map(rows.map((r) => [r.id, entryFromRow(r, codeKeys)])),
+    [rows, codeKeys],
+  );
 
   const load = useCallback(async () => {
     const read = await fetchTemplateRows();
@@ -66,7 +112,7 @@ export default function TemplateManager() {
      * invites somebody to upload everything again.
      */
     if (read.state === 'unavailable') { setProblem(read.reason); setRows([]); }
-    else { setProblem(null); setRows(read.rows); }
+    else { setProblem(null); setRows(read.rows); setReviewGate(read.reviewGate); }
     setLoading(false);
   }, []);
 
@@ -78,11 +124,38 @@ export default function TemplateManager() {
     [rows],
   );
 
-  const onFiles = async (files: File[]) => {
+  const onFiles = async (picked: File[]) => {
     setRefused([]);
     setDrafts([]);
-    setReading({ done: 0, total: files.length });
 
+    /*
+     * A ZIP is opened here and its template files join the selection, so
+     * every one goes through the same validation as a file picked alone.
+     * What it held that is not a template is counted in the report.
+     */
+    const files: (File | ZipFile)[] = [];
+    const notes: { fileName: string; reason: string }[] = [];
+    for (const f of picked) {
+      if (!/\.zip$/i.test(f.name) && f.type !== 'application/zip' && f.type !== 'application/x-zip-compressed') {
+        files.push(f);
+        continue;
+      }
+      try {
+        const zip = readTemplateZip(new Uint8Array(await f.arrayBuffer()), f.name);
+        files.push(...zip.files.map((z) => ({ ...z, name: `${f.name} › ${z.name}` })));
+        if (!zip.files.length) notes.push({ fileName: f.name, reason: 'This ZIP holds no template JSON or artboards.' });
+        if (zip.skipped.length) {
+          notes.push({
+            fileName: f.name,
+            reason: `${zip.skipped.length} other file${zip.skipped.length > 1 ? 's were' : ' was'} not a template and ${zip.skipped.length > 1 ? 'were' : 'was'} left out: ${zip.skipped.slice(0, 4).join(', ')}${zip.skipped.length > 4 ? '…' : ''}`,
+          });
+        }
+      } catch (e) {
+        notes.push({ fileName: f.name, reason: `This ZIP could not be opened: ${e instanceof Error ? e.message : String(e)}` });
+      }
+    }
+
+    setReading({ done: 0, total: files.length });
     const results: Ingested[] = await ingestFiles(
       files, taken, measureArtboard,
       (done, total) => setReading({ done, total }),
@@ -91,17 +164,25 @@ export default function TemplateManager() {
     setReading(null);
     setDrafts(results.filter((r): r is Extract<Ingested, { ok: true }> => r.ok)
       .map((r) => ({ fileName: r.fileName, draft: r.draft })));
-    setRefused(results.filter((r): r is Extract<Ingested, { ok: false }> => !r.ok)
-      .map((r) => ({ fileName: r.fileName, reason: r.reason })));
+    setRefused([
+      ...notes,
+      ...results.filter((r): r is Extract<Ingested, { ok: false }> => !r.ok)
+        .map((r) => ({ fileName: r.fileName, reason: r.reason })),
+    ]);
   };
 
-  const saveAll = async (publish: boolean) => {
+  /*
+   * An import is filed for review, never published. Publication needs a
+   * review of record (85 or more, approved, no criticals): the founder's
+   * rule, enforced by design_templates_publish_gate. "Publish all" used to
+   * sit here and put unreviewed layouts straight into the public gallery.
+   */
+  const saveAll = async () => {
     if (!drafts.length) return;
     setBusy(true);
     const who = await currentStaffId();
     if ('why' in who) { setBusy(false); toast.error(who.why); return; }
 
-    const now = new Date().toISOString();
     const payload = drafts.map(({ draft }) => ({
       key: draft.template.key,
       label: draft.template.label,
@@ -110,14 +191,13 @@ export default function TemplateManager() {
       styles: draft.styles,
       industries: draft.industries,
       tags: draft.tags,
-      document: draft.template,
+      /* Tidied as the validator reads it, so the stored document is what a review hashes. */
+      document: withCleanClassification(draft.template),
       editability: draft.editability,
       source_format: draft.sourceFormat,
       format: draft.format || null,
-      status: publish ? 'published' : 'draft',
-      published_at: publish ? now : null,
+      status: 'in_review',
       created_by: who.id,
-      ...(publish ? { approved_by: who.id } : {}),
     }));
 
     /*
@@ -129,9 +209,7 @@ export default function TemplateManager() {
     setBusy(false);
     if (error) { toast.error(`Could not save those: ${error.message}`); return; }
 
-    toast.success(publish
-      ? `${payload.length} published to Create Media.`
-      : `${payload.length} saved as drafts.`);
+    toast.success(`${payload.length} filed for review. Each can be published once it is scored ${PUBLISH_SCORE} or more.`);
     invalidateCatalogue();
     setDrafts([]);
     if (fileRef.current) fileRef.current.value = '';
@@ -142,6 +220,16 @@ export default function TemplateManager() {
     const patch: Record<string, unknown> = { status, updated_at: new Date().toISOString() };
     if (status === 'published') {
       /*
+       * The screen's copy of the gate, so the refusal names its reason. The
+       * database checks the same rule, and a stale review, on the write.
+       */
+      if (!reviewGate) {
+        toast.error('Publishing needs the review migration (20261117000000) applied to this database first.');
+        return;
+      }
+      const gate = gateFor(row);
+      if (!gate.publishable) { toast.error(`${row.label} cannot be published: ${gate.reasons.join('; ')}.`); return; }
+      /*
        * Publishing is an approval, and an approval with no approver is not
        * one. If we cannot say who pressed it, nothing is published.
        */
@@ -151,7 +239,16 @@ export default function TemplateManager() {
       patch.approved_by = who.id;
     }
     const { error } = await supabase.from('design_templates').update(patch).eq('id', row.id);
-    if (error) { toast.error(`Could not change that: ${error.message}`); return; }
+    if (error) {
+      /*
+       * The one refusal the screen cannot predict: the layout changed after
+       * it was scored, so the database holds the review stale.
+       */
+      toast.error(/design_templates_publish_gate/.test(error.message)
+        ? `${row.label} was not published: its review does not cover this version of the layout. Review it again.`
+        : `Could not change that: ${error.message}`);
+      return;
+    }
     toast.success(`${row.label} — ${STATUS_LABEL[status].toLowerCase()}.`);
     invalidateCatalogue();
     void load();
@@ -192,7 +289,11 @@ export default function TemplateManager() {
               Drop in artboards from a Claude Design canvas (<span className="font-semibold">.dc.html</span>) and
               they are laid out here at full size, measured, and turned into real slot templates — the gallery,
               the editor, the exporter and Motion Studio then read them exactly as they read the shipped ones.
-              Template JSON works too. Select as many files as you like.
+              Template JSON works too, and so does a ZIP of either. Select as many files as you like.
+            </p>
+            <p className="mt-1 max-w-2xl text-xs text-gray-500 dark:text-gray-400">
+              Imports are filed for review. A template is published only after an admin scores it {PUBLISH_SCORE} or
+              more on the 100-point rubric, approves it, and no critical failure is recorded.
             </p>
           </div>
           <button
@@ -211,7 +312,7 @@ export default function TemplateManager() {
               ref={fileRef}
               type="file"
               multiple
-              accept=".json,.html,.dc.html,application/json,text/html,image/png,image/jpeg,image/webp"
+              accept=".json,.html,.dc.html,.zip,application/json,text/html,application/zip,image/png,image/jpeg,image/webp"
               className="hidden"
               onChange={(e) => {
                 const picked = [...(e.target.files ?? [])];
@@ -220,9 +321,16 @@ export default function TemplateManager() {
             />
           </label>
           <span className="text-[11px] text-gray-500">
-            Artboards (.dc.html) and template JSON become editable templates. A picture cannot.
+            Artboards (.dc.html), template JSON and ZIPs of them become editable templates. A picture cannot.
           </span>
         </div>
+
+        {!loading && !problem && !reviewGate && (
+          <p className="mt-3 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+            This database has no review gate yet (migration 20261117000000). Imports can be filed for review, but
+            nothing can be scored or published from here until it is applied.
+          </p>
+        )}
 
         {reading && (
           <p className="mt-3 flex items-center gap-2 text-xs font-semibold text-purple-700 dark:text-purple-300">
@@ -260,20 +368,12 @@ export default function TemplateManager() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => void saveAll(false)}
-                disabled={busy}
-                className="min-h-[36px] rounded-lg border border-gray-300 px-3 text-xs font-semibold text-gray-700 disabled:opacity-50 dark:border-gray-600 dark:text-gray-200"
-              >
-                Save all as drafts
-              </button>
-              <button
-                type="button"
-                onClick={() => void saveAll(true)}
+                onClick={() => void saveAll()}
                 disabled={busy}
                 className="inline-flex min-h-[36px] items-center gap-1.5 rounded-lg bg-gray-900 px-4 text-xs font-bold text-white disabled:opacity-50 dark:bg-white dark:text-gray-900"
               >
-                {busy ? <Loader2 size={13} className="animate-spin" /> : <CheckCircle2 size={13} />}
-                Publish all {drafts.length}
+                {busy ? <Loader2 size={13} className="animate-spin" /> : <ClipboardCheck size={13} />}
+                File all {drafts.length} for review
               </button>
               <button
                 type="button"
@@ -292,6 +392,7 @@ export default function TemplateManager() {
                 key={draft.template.key}
                 fileName={fileName}
                 draft={draft}
+                siblings={listed}
                 onChange={(next) => setDrafts((d) => d.map((row, j) => (j === i ? { ...row, draft: next } : row)))}
                 onRemove={() => setDrafts((d) => d.filter((_, j) => j !== i))}
               />
@@ -320,8 +421,12 @@ export default function TemplateManager() {
         </p>
       ) : (
         <ul className="space-y-2">
-          {rows.map((row) => (
-            <li key={row.id} className="flex flex-wrap items-center gap-3 rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+          {rows.map((row) => {
+            const gate = gateFor(row);
+            const entry = entries.get(row.id) ?? entryFromRow(row, codeKeys);
+            return (
+            <li key={row.id} className="rounded-xl border border-gray-200 bg-white p-3 dark:border-gray-700 dark:bg-gray-800">
+            <div className="flex flex-wrap items-center gap-3">
               <FileJson size={16} className="shrink-0 text-gray-400" />
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-semibold text-gray-900 dark:text-white">{row.label}</p>
@@ -330,11 +435,37 @@ export default function TemplateManager() {
                   {row.format ? ` · ${row.format}` : ''} · {EDITABILITY_LABEL[row.editability]}
                   {row.source_format ? ` · from ${row.source_format}` : ''}
                 </p>
+                {reviewGate && (
+                  <p className="truncate text-[11px] text-gray-500">
+                    {row.legacy_listing
+                      ? 'Listed before the review gate: never scored'
+                      : row.reviewed_at
+                        ? `Scored ${row.review_score ?? '?'} · ${row.review_decision ?? 'no decision'}${(row.review_criticals ?? []).length ? ` · critical ${(row.review_criticals ?? []).join(', ')}` : ''}`
+                        : 'Not reviewed'}
+                  </p>
+                )}
               </div>
+              {row.legacy_listing && (
+                <span className="shrink-0 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-700 dark:bg-amber-900/30 dark:text-amber-300">
+                  Legacy
+                </span>
+              )}
               <StatusPill status={row.status} />
               <div className="flex shrink-0 items-center gap-1">
+                {reviewGate && entry.ok && (
+                  <IconButton
+                    label={`Review ${row.label}`}
+                    onClick={() => setReviewing(reviewing === row.id ? null : row.id)}
+                  >
+                    <ClipboardCheck size={14} />
+                  </IconButton>
+                )}
                 {row.status !== 'published' ? (
-                  <IconButton label={`Publish ${row.label}`} onClick={() => void setStatus(row, 'published')} tone="go">
+                  <IconButton
+                    label={gate.publishable ? `Publish ${row.label}` : `Cannot publish ${row.label} yet: ${gate.reasons.join('; ')}`}
+                    onClick={() => void setStatus(row, 'published')}
+                    tone={gate.publishable && reviewGate ? 'go' : undefined}
+                  >
                     <Send size={14} />
                   </IconButton>
                 ) : (
@@ -349,8 +480,19 @@ export default function TemplateManager() {
                   <Trash2 size={14} />
                 </IconButton>
               </div>
+            </div>
+            {reviewing === row.id && entry.ok && (
+              <TemplateReviewPanel
+                row={row}
+                template={entry.entry.template}
+                siblings={listed}
+                onClose={() => setReviewing(null)}
+                onSaved={() => { setReviewing(null); void load(); }}
+              />
+            )}
             </li>
-          ))}
+            );
+          })}
         </ul>
       )}
 
@@ -394,14 +536,24 @@ async function currentStaffId(): Promise<{ id: string } | { why: string }> {
  * headline that landed off the page.
  */
 function DraftCard({
-  fileName, draft, onChange, onRemove,
+  fileName, draft, siblings, onChange, onRemove,
 }: {
   fileName: string;
   draft: TemplateDraft;
+  /** The listed catalogue, for C13. */
+  siblings: DesignTemplate[];
   onChange: (d: TemplateDraft) => void;
   onRemove: () => void;
 }) {
   const set = (patch: Partial<TemplateDraft>) => onChange({ ...draft, ...patch });
+  /*
+   * The same browser-safe criticals the review panel runs, on the card as it
+   * stands, so whoever imports sees what a reviewer will see before filing.
+   */
+  const check = useMemo(
+    () => checkUpload(draft.template, { category: draft.category, label: draft.template.label, format: draft.format }, siblings),
+    [draft.template, draft.category, draft.format, siblings],
+  );
   const field = 'w-full rounded-lg border border-gray-300 bg-white px-2 py-1.5 text-[11px] dark:border-gray-600 dark:bg-gray-800 dark:text-white';
   const W = 220;
 
@@ -468,6 +620,17 @@ function DraftCard({
         })}
       </div>
 
+      <div className="mt-2">
+        <TemplateDetailsFields
+          template={draft.template}
+          idPrefix={`draft-${draft.template.key}`}
+          compact
+          onChange={(details) => onChange({ ...draft, template: { ...draft.template, ...details } })}
+        />
+      </div>
+
+      <CheckSummary check={check} />
+
       {draft.notes.length > 0 && (
         /* Corrections and losses, said out loud rather than absorbed. */
         <ul className="mt-2 space-y-1">
@@ -477,6 +640,29 @@ function DraftCard({
         </ul>
       )}
     </div>
+  );
+}
+
+/** The card's line on the house criticals: clear, or the first few findings. */
+function CheckSummary({ check }: { check: ReturnType<typeof checkUpload> }) {
+  if (!check.ok) {
+    return <p className="mt-2 text-[10px] text-red-700 dark:text-red-300">The house checks could not run: {check.reason}</p>;
+  }
+  if (!check.list.length) {
+    return <p className="mt-2 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300">House checks clear (all but C3, C6, C8, C10).</p>;
+  }
+  return (
+    <ul className="mt-2 space-y-0.5 rounded-lg bg-red-50 p-2 dark:bg-red-950/30">
+      <li className="text-[10px] font-bold text-red-800 dark:text-red-200">
+        {check.list.length} finding{check.list.length > 1 ? 's' : ''}: a reviewer cannot pass it until these are fixed
+      </li>
+      {check.list.slice(0, 4).map((f, i) => (
+        <li key={`${f.code}-${i}`} className="text-[10px] leading-snug text-red-800 dark:text-red-200">
+          <span className="font-bold">{f.code}</span> {f.detail}
+        </li>
+      ))}
+      {check.list.length > 4 && <li className="text-[10px] text-red-700 dark:text-red-300">…and {check.list.length - 4} more</li>}
+    </ul>
   );
 }
 

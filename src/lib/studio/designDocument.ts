@@ -1,8 +1,10 @@
 import type { FontKey } from '../design/typefaces';
 import type { PageBackground } from './pageBackground';
 import type { DesignTemplate, SlotSpec, SurfaceLayer } from '../designTemplates';
-import { estimateLines, fitSlotSize, hexAlpha, lineHeightFor, shapeColor } from '../designTemplates';
-import { gradientCss, resolveLook, type Look, type PatternSpec, type ResolvedLook } from '../design/look';
+import {
+  estimateLines, fitSlotSize, frontShapes, hexAlpha, lineHeightFor, pageTemplate, photoMaskShapes, shapeColor, wrapEstimate,
+} from '../designTemplates';
+import { gradientCss, pairingFace, resolveLook, type Look, type PatternSpec, type ResolvedLook } from '../design/look';
 import type { Palette, PaletteRole } from '../design/palettes';
 import type { Harmony } from '../design/remix';
 import type { TemplateContent } from '../../components/studio/TemplateSurface';
@@ -296,9 +298,9 @@ export function documentFromTemplate(
    * and only the paint changes. A gradient fill becomes a CSS gradient, which
    * DesignSurface draws as the object's background.
    */
-  const shapes = hasLook
-    ? dressing.shapes.map((obj, i) => {
-      const spec = styled.shapes?.[i];
+  const recolour = (d: ReturnType<typeof dressTemplate>): ShapeObject[] => (hasLook
+    ? d.shapes.map((obj, i) => {
+      const spec = d.template.shapes?.[i];
       if (!spec) return obj;
       const flat = shapeColor(spec.tone, roles.primary, roles.ink, roles.ground, roles);
       if (spec.kind === 'ring') return { ...obj, stroke: flat };
@@ -307,7 +309,28 @@ export function documentFromTemplate(
         : flat;
       return { ...obj, fill };
     })
-    : dressing.shapes;
+    : d.shapes);
+
+  /*
+   * Each side's own geometry (Task 18c, S3): the front paints the shared
+   * shapes and its own, a back the shared shapes and the back's. A back used
+   * to open with none at all, while the gallery drew the shared ones on it.
+   *
+   * The photo box (S2): the editor shows a photo-led design's photograph as
+   * the page background, so on the front the ground around the box is laid
+   * back over it as the four panels the window used to be made of, overlapped
+   * by a hair so no seam can open between them. A design without a box adds
+   * nothing, and opens exactly as it did.
+   */
+  const shapesOn = (i: number): ShapeObject[] => {
+    if (i === 0) {
+      const mask = photoMaskShapes(template, 0.002);
+      const own = frontShapes(template);
+      const same = mask.length === 0 && own.length === (template.shapes ?? []).length;
+      return same ? recolour(dressing) : recolour(dressTemplate({ ...template, shapes: [...mask, ...own] }, opts));
+    }
+    return recolour(dressTemplate(pageTemplate(template, i), opts));
+  };
 
   /* TemplateSurface's slotTone: a role tone is the role, muted is the ink held back. */
   const lookColour = (slot: SlotSpec): string => {
@@ -321,11 +344,7 @@ export function documentFromTemplate(
   };
 
   /* TemplateSurface's lookFamily: display face for big type, accent face for the eyebrow. */
-  const lookFont = (slot: SlotSpec): TextObject['font'] => {
-    const p = resolved.pairing;
-    if (slot.role === 'headline' || (slot.size ?? 0) >= 0.06) return p.display;
-    return slot.role === 'eyebrow' ? p.accent : p.text;
-  };
+  const lookFont = (slot: SlotSpec): TextObject['font'] => pairingFace(slot, resolved.pairing);
 
   /**
    * The words for a slot.
@@ -371,9 +390,9 @@ export function documentFromTemplate(
    * of a card, the second page of a menu and a brochure panel are the same
    * mechanism, so the editor and the PDF exporter need no special case.
    */
-  const buildObjects = (slots: typeof template.slots, withShapes: boolean): DesignObject[] => {
+  const buildObjects = (slots: typeof template.slots, shapes: ShapeObject[]): DesignObject[] => {
   /* Geometry first: the template paints it between surface and type. */
-  const objects: DesignObject[] = withShapes ? [...shapes] : [];
+  const objects: DesignObject[] = [...shapes];
   let z = objects.length;
 
   for (const slot of slots) {
@@ -404,6 +423,56 @@ export function documentFromTemplate(
     */
     const fittedPx = fitSlotSize(slot, slots, text, opts.width, opts.height);
     const size = fittedPx / opts.width;
+
+    /*
+     * A solid pill (S7) paints its own ground, and the words are set in the
+     * ink that reads on it. The editor has no treatments, so the pill comes
+     * across as a rounded shape behind the words; without it the words would
+     * be ink-on-pill colour on the page ground.
+     */
+    const solid = slot.treatment === 'pill' && slot.pillStyle === 'solid';
+    const solidRole: PaletteRole | null = solid
+      ? (slot.tone === 'accent' || slot.tone === 'primary' ? 'primary'
+        : slot.tone === 'secondary' || slot.tone === 'highlight' ? slot.tone : null)
+      : null;
+    /* TemplateSurface: a toned pill is its role under that role's ink; an untoned one the slot ink under the ground. */
+    const pillFill = solidRole ? roles[solidRole] : inkOn[slot.on ?? 'ground'];
+    const pillWords = solidRole ? inkOn[solidRole] : roles.ground;
+    if (solid && hasLook) {
+      const W = opts.width;
+      const H = opts.height;
+      const pad = Math.min(W, H) * 0.014;
+      /*
+       * As TemplateSurface draws it: an inline-block around the words, padded
+       * pad x 1.6 at the sides and pad x 0.7 above and below, as many lines
+       * tall as the words wrap to. The text object stays where the slot puts
+       * the words, so the pill sits around it: out by the padding on the side
+       * the words start from, up by the top padding.
+       */
+      const lines = wrapEstimate(text, slot, fittedPx, W);
+      const n = Math.max(1, lines.length);
+      const inner = Math.min(slot.w * W, Math.max(0, ...lines));
+      const pw = inner + pad * 3.2;
+      const ph = n * fittedPx * lineHeightFor(slot.size) + pad * 1.4;
+      const rawLeft = slot.align === 'center' ? slot.x * W + (slot.w * W - pw) / 2
+        : slot.align === 'right' ? (slot.x + slot.w) * W + pad * 1.6 - pw
+          : slot.x * W - pad * 1.6;
+      const rawTop = (slot.fromBottom ? 1 - slot.y : slot.y) * H - pad * 0.7;
+      // A slot flush to the page edge must not push its pill off the page.
+      const left = Math.max(0, Math.min(W - pw, rawLeft));
+      const top = Math.max(0, Math.min(H - ph, rawTop));
+      z += 1;
+      objects.push({
+        id: objectId('s'),
+        type: 'shape',
+        name: 'Pill',
+        shape: 'rect',
+        x: left / W, y: top / H, w: pw / W, h: ph / H,
+        radius: pw > 0 ? (ph / 2) / pw : 0,
+        fill: pillFill,
+        rotation: 0, opacity: 1, visible: true, locked: false, z,
+      });
+    }
 
     z += 1;
     objects.push({
@@ -487,7 +556,7 @@ export function documentFromTemplate(
         type on a dark ground included.
       */
       align: slot.align,
-      colour: hasLook ? lookColour(slot) : toneColour(slot.tone, dressing),
+      colour: solid && hasLook ? pillWords : hasLook ? lookColour(slot) : toneColour(slot.tone, dressing),
       font: hasLook
         ? lookFont(slot)
         : slot.font === 'mono' ? 'mono' : slot.font === 'serif' ? 'serif' : undefined,
@@ -541,8 +610,8 @@ export function documentFromTemplate(
         : {}),
       /* So a photo added in the editor is toned as the customiser toned it. */
       ...(resolved.duotone ? { duotone: [resolved.duotone[0], resolved.duotone[1]] as [string, string] } : {}),
-      /* Shapes belong to the front; a card's back has its own composition. */
-      objects: buildObjects(set.slots, i === 0),
+      /* Each side has its own geometry: the shared shapes plus that side's own. */
+      objects: buildObjects(set.slots, shapesOn(i)),
     })),
   };
 }

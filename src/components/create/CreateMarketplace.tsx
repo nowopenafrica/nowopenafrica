@@ -16,6 +16,9 @@ import PopularNow from './PopularNow';
 import NeedView from './NeedView';
 import ProductCarousel from './ProductCarousel';
 import TemplateCustomiser from './TemplateCustomiser';
+import CollectionStrip from './CollectionStrip';
+import CategoryBrowse from './CategoryBrowse';
+import { shownSubcategories } from '../../lib/create/catalogueTaxonomy';
 import { DESIGN_STYLES } from '../../lib/design/styles';
 import type { DesignTemplate } from '../../lib/designTemplates';
 import { useDesignCatalogue } from '../../hooks/useDesignCatalogue';
@@ -38,7 +41,10 @@ import {
  *   2. Popular now — six things, one tap each;
  *   3. the need view, once a tile, a chip or a request resolves — the things
  *      inside the need, the designs, and a slim made-for-you · prints lane;
- *   4. a footer strip — Track an order · All services.
+ *   4. featured collections (spec §10, lib/create/collections.ts), then
+ *      Browse by category — the latter only once a product spans four
+ *      directions, which none does yet;
+ *   5. a footer strip — Track an order · All services.
  *
  * The page used to stack about fourteen sections: thirteen discipline cards,
  * a facts strip, the gallery, free tools, the priced catalogue, promotion
@@ -121,9 +127,17 @@ export default function CreateMarketplace() {
    * uploads), with the listing rule applied once here so the tiles, the
    * chips and the grid all count the same designs.
    */
-  const { templates } = useDesignCatalogue();
+  const { templates, ready, incomplete } = useDesignCatalogue();
   const listed = useMemo(() => templates.filter(isListed), [templates]);
   const tiles = useMemo(() => shownNeeds(listed), [listed]);
+  /*
+   * Browse by category appears only once a product spans four directions
+   * (shownSubcategories). None does today, so the tiles and need view above
+   * stay the way in; there is never an empty "Browse by category".
+   */
+  const browsable = useMemo(() => shownSubcategories(listed).length > 0, [listed]);
+  /* Only an explicit `false` is "still loading": the code half is always here. */
+  const loading = ready === false;
   const popular = useMemo(() => POPULAR.filter((p) => listedFor(p.deliverable, listed).length > 0), [listed]);
 
   /* Read once, on arrival: a link is where the visit starts, not a filter it is held to. */
@@ -168,11 +182,12 @@ export default function CreateMarketplace() {
   };
 
   /** Opening (or re-asking for) a need from the tiles, Popular now or the request box. */
-  const open = (need: NeedSlug | '', deliverable = '') => {
+  const open = (need: NeedSlug | '', deliverable = '', stay = false) => {
     if (need) {
       const active = document.activeElement;
       opener.current = active instanceof HTMLElement && active !== document.body ? active : null;
-      reveal.current = 'focus';
+      /* A typed request shows its brief first; the designs open below it without pulling the page away. */
+      reveal.current = stay ? null : 'focus';
     }
     const settled = settle(need, deliverable, listed);
     apply(need, deliverable);
@@ -259,7 +274,7 @@ export default function CreateMarketplace() {
   return (
     <div className="space-y-8 sm:space-y-10">
       <IntentComposer
-        onCategory={(s) => (s.need ? open(s.need, s.deliverable) : open(''))}
+        onCategory={(s) => (s.need ? open(s.need, s.deliverable, s.stay) : open(''))}
         offer={tiles.map((t) => t.slug)}
       >
         <NeedTiles needs={tiles} active={focus.need} onPick={(need) => open(need)} />
@@ -293,6 +308,14 @@ export default function CreateMarketplace() {
           onClose={close}
           onOrderPrints={setConfiguring}
         />
+      )}
+
+      {/* Spec §10: featured collections, then browse by category. Below the
+          need view, so opening a need still lands right under its tile. */}
+      <CollectionStrip listed={listed} loading={loading} onEdit={setEditing} />
+
+      {browsable && (
+        <CategoryBrowse listed={listed} loading={loading} error={incomplete ?? null} onEdit={setEditing} />
       )}
 
       {/* Printivo keeps Order Tracking in the top navigation, and it belongs

@@ -1,9 +1,9 @@
 import { existsSync, readFileSync, statSync } from 'node:fs';
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi, afterEach } from 'vitest';
 
 import {
-  FONT_STACKS, TYPEFACES, TYPEFACE_FAMILIES, TYPE_PAIRINGS, fontStack,
-  nearestWeight, pairingOf, typefaceOf,
+  FONT_STACKS, GLYPH_FALLBACK, TYPEFACES, TYPEFACE_FAMILIES, TYPE_PAIRINGS, ensureTypefacesReady,
+  fontStack, glyphFallbackFaces, nearestWeight, pairingOf, typefaceOf,
 } from './typefaces';
 
 const css = readFileSync('src/index.css', 'utf8');
@@ -57,12 +57,46 @@ describe('every face is one we are allowed to ship', () => {
     }
   });
 
-  it('stays inside the weight budget', () => {
-    const total = TYPEFACES.flatMap((f) => f.weights.map((w) =>
-      statSync(`public${f.files[w]}`).size)).reduce((a, b) => a + b, 0);
-    // A design tool that costs a megabyte before it draws anything is one
-    // nobody opens twice. Drop a weight rather than raising this.
-    expect(total).toBeLessThan(600 * 1024);
+  const size = (path: string) => statSync(`public${path}`).size;
+
+  it('keeps what every page loads inside the weight budget', () => {
+    const core = TYPEFACES.filter((f) => f.tier !== 'extended');
+    const total = core.flatMap((f) => f.weights.map((w) => size(f.files[w]))).reduce((a, b) => a + b, 0);
+    /*
+     * A design tool that costs a megabyte before it draws anything is one
+     * nobody opens twice. This is the set ensureTypefacesReady() warms on a
+     * gallery page. It was 600 KB; it is 660 KB since 2026-11-16, and the
+     * whole of the rise is Noto Sans, the fallback that closed the Hausa and
+     * Ewe letters no earlier face could draw. Drop a weight rather than
+     * raising this again.
+     */
+    expect(total).toBeLessThan(660 * 1024);
+  });
+
+  it('charges an extended face nothing until a design uses it', () => {
+    /*
+     * The second batch (2026-11-16) more than doubled the library. It could
+     * only do that because these faces are not warmed with the rest: the
+     * browser fetches one when text is drawn in it. Each file is still held
+     * to a size a phone can fetch mid-edit, and the library to a ceiling.
+     */
+    const extended = TYPEFACES.filter((f) => f.tier === 'extended');
+    expect(extended.length).toBeGreaterThanOrEqual(17);
+    for (const f of extended) for (const w of f.weights) expect(size(f.files[w]), `${f.key} ${w}`).toBeLessThan(70 * 1024);
+    const all = TYPEFACES.flatMap((f) => f.weights.map((w) => size(f.files[w]))).reduce((a, b) => a + b, 0);
+    expect(all).toBeLessThan(1400 * 1024);
+  });
+
+  it('warms only the core faces when no face is named', async () => {
+    const asked: string[] = [];
+    vi.stubGlobal('document', { fonts: { load: (font: string) => { asked.push(font); return Promise.resolve([]); }, ready: Promise.resolve() } });
+    await ensureTypefacesReady();
+    for (const f of TYPEFACES.filter((x) => x.tier === 'extended')) expect(asked.some((a) => a.includes(`"${f.family}"`)), f.key).toBe(false);
+    expect(asked.some((a) => a.includes('"Outfit"'))).toBe(true);
+    asked.length = 0;
+    await ensureTypefacesReady(['neutral']);
+    expect(asked.some((a) => a.includes('"Inter"'))).toBe(true);
+    vi.unstubAllGlobals();
   });
 });
 
@@ -135,6 +169,55 @@ describe('pairings', () => {
 
   it('say what they suit, because that is what somebody is choosing on', () => {
     for (const p of TYPE_PAIRINGS) expect(p.suits.length, p.key).toBeGreaterThan(15);
+  });
+});
+
+describe('loading', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('loads each face with the glyph fallback, using text inside its range', async () => {
+    const load = vi.fn((..._args: unknown[]) => Promise.resolve([]));
+    vi.stubGlobal('document', { fonts: { load, ready: Promise.resolve() } });
+    await ensureTypefacesReady(['sans']);
+    const calls = load.mock.calls.map((c) => ({ font: String(c[0]), text: c[1] as string | undefined }));
+    expect(calls.some((c) => c.font.includes('"Outfit"'))).toBe(true);
+    expect(calls.some((c) => c.font.includes('"Playfair Display"'))).toBe(false);
+    /*
+     * A unicode-range face only downloads for text inside its range, and
+     * load() defaults to a space. Without the sample, nothing would load and
+     * the first canvas frame would draw ₦ from a device font.
+     */
+    const fb = calls.filter((c) => c.font.includes(`"${GLYPH_FALLBACK.family}"`));
+    expect(fb.map((c) => parseInt(c.font, 10))).toEqual(typefaceOf(GLYPH_FALLBACK.source).weights);
+    for (const c of fb) expect(c.text).toBe(GLYPH_FALLBACK.sample);
+    expect(GLYPH_FALLBACK.sample).toContain('₦');
+  });
+
+  it('skips the glyph fallback for a face that does not use it', async () => {
+    const load = vi.fn((..._args: unknown[]) => Promise.resolve([]));
+    vi.stubGlobal('document', { fonts: { load, ready: Promise.resolve() } });
+    await ensureTypefacesReady(['coolvetica']);
+    expect(load.mock.calls.some((c) => String(c[0]).includes(GLYPH_FALLBACK.family))).toBe(false);
+  });
+});
+
+describe('the glyph fallback', () => {
+  it('is declared in the stylesheet at every source weight, with exactly its unicode-range', () => {
+    const rules = css.split('@font-face').filter((r) => r.includes(`font-family: '${GLYPH_FALLBACK.family}'`));
+    const faces = glyphFallbackFaces();
+    expect(rules).toHaveLength(faces.length);
+    for (const f of faces) {
+      const rule = rules.find((r) => r.includes(`font-weight: ${f.weight};`));
+      expect(rule, `${f.weight}`).toBeTruthy();
+      expect(rule).toContain(`url('${f.url}') format('woff2')`);
+      expect(rule).toContain(`unicode-range: ${f.unicodeRange};`);
+    }
+  });
+
+  it('leaves the humanist face its own unrestricted rules', () => {
+    const rules = css.split('@font-face').filter((r) => r.includes("font-family: 'Source Sans 3'"));
+    expect(rules).toHaveLength(typefaceOf('humanist').weights.length);
+    for (const r of rules) expect(r).not.toContain('unicode-range');
   });
 });
 

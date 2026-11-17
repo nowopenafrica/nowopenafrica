@@ -1,10 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 import { drawTemplateFrame, wrapLines, gradientLine, coverRect, applyDuotone, preloadTemplatePatterns } from './drawTemplate';
-import { DESIGN_TEMPLATES, templateByKey, settleTime, fontStack, hexAlpha, type DesignTemplate } from './designTemplates';
+import { DESIGN_TEMPLATES, templateByKey, pageTemplate, settleTime, fontStack, hexAlpha, type DesignTemplate } from './designTemplates';
 import { resolveLook, type Look } from './design/look';
 import { paletteOf } from './design/palettes';
 import { patternZoneBox } from './design/patterns';
 import { pairingOf } from './design/typefaces';
+import { glyphOf } from './design/icons';
+import { platformMark } from './design/platformMarks';
 
 const CONTENT = {
   brand: 'Mama Put Kitchen',
@@ -377,5 +379,52 @@ describe('applyDuotone', () => {
     applyDuotone(b, '#000000', '#ffffff');
     expect(g[0]).toBe(Math.round(0.7152 * 255));
     expect(b[0]).toBe(Math.round(0.0722 * 255));
+  });
+});
+
+describe('row icons (Task 18b)', () => {
+  // The back of the bold card: its contact row leads a phone and a handle (the front keeps one row, Ruling AO).
+  const tpl = pageTemplate(templateByKey('pilot-card-bold'), 1);
+  const content = { ...CONTENT, contact: ['Your phone', '@yourhandle'] };
+
+  it('indents an icon row the same whether or not the context can draw paths', () => {
+    const g = globalThis as { Path2D?: unknown };
+    const had = g.Path2D;
+    const at = (withPath: boolean) => {
+      g.Path2D = withPath ? class { d: string; constructor(d: string) { this.d = d; } } : undefined;
+      const { ctx, calls } = stubCtx();
+      drawTemplateFrame(ctx, tpl, content, 1011, 638, { accent: '#9a3412' });
+      return {
+        handle: calls.find((c) => c.op === 'fillText' && c.args[0] === '@yourhandle'),
+        paths: calls.filter((c) => (c.op === 'fill' || c.op === 'stroke') && c.args.length === 1).length,
+      };
+    };
+    try {
+      const drawn = at(true);
+      const bare = at(false);
+      expect(drawn.paths).toBe(2);
+      expect(bare.paths).toBe(0);
+      expect(drawn.handle?.args[1]).toBe(bare.handle?.args[1]);
+    } finally {
+      g.Path2D = had;
+    }
+  });
+
+  it('drops the mark, and keeps the words, when a handle row is rewritten as something else', () => {
+    const g = globalThis as { Path2D?: unknown };
+    const had = g.Path2D;
+    g.Path2D = class { d: string; constructor(d: string) { this.d = d; } };
+    try {
+      const { ctx, calls } = stubCtx();
+      drawTemplateFrame(ctx, tpl, { ...content, contact: ['Your phone', 'Your website'] }, 1011, 638, { accent: '#9a3412' });
+      const drawn = calls.filter((c) => (c.op === 'fill' || c.op === 'stroke') && c.args.length === 1)
+        .map((c) => (c.args[0] as { d: string }).d);
+      // The website row reads as a website (Ruling AL): a globe, never the Instagram mark.
+      expect(drawn).not.toContain(platformMark('instagram')!.path);
+      expect(drawn).toEqual([...glyphOf({ set: 'lucide', name: 'phone' })!.paths, ...glyphOf({ set: 'lucide', name: 'globe' })!.paths]);
+      expect(calls.some((c) => c.op === 'fillText' && c.args[0] === 'Your website')).toBe(true);
+    } finally {
+      g.Path2D = had;
+    }
   });
 });

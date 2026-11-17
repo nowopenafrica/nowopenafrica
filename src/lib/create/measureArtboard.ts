@@ -34,7 +34,7 @@
  * a poster's composition — is measured in the face it will be drawn in.
  */
 
-import { TYPEFACES, fontStack, type TypefaceKey } from '../design/typefaces';
+import { TYPEFACES, fontStack, glyphFallbackFaces, type TypefaceKey } from '../design/typefaces';
 import type { ParsedArtboard } from './designCanvas';
 
 export interface MeasuredRun {
@@ -122,6 +122,13 @@ function faceRules(): string {
         + `font-weight:${weight};font-style:normal;font-display:block;}`,
       );
     }
+  }
+  // The glyph fallback every Studio stack names second, range-limited as in index.css.
+  for (const f of glyphFallbackFaces()) {
+    out.push(
+      `@font-face{font-family:"${f.family}";src:url("${f.url}") format("woff2");`
+      + `font-weight:${f.weight};font-style:normal;font-display:block;unicode-range:${f.unicodeRange};}`,
+    );
   }
   return out.join('\n');
 }

@@ -1,0 +1,286 @@
+{
+  "shownNeeds": [
+    "stationery",
+    "brand",
+    "social",
+    "promotions",
+    "flyers",
+    "events",
+    "menus",
+    "outdoor",
+    "documents"
+  ],
+  "listedIn": {
+    "stationery": [
+      "quiet-luxe",
+      "card-front",
+      "card-minimal",
+      "card-centred",
+      "card-luxe-dark",
+      "card-type-led",
+      "card-logo-led",
+      "card-colour-block",
+      "card-qr",
+      "letterhead-edge",
+      "email-signature-bar",
+      "invoice-modern",
+      "pilot-card-luxury",
+      "pilot-card-minimal",
+      "pilot-card-corporate",
+      "pilot-card-editorial",
+      "pilot-card-bold",
+      "pilot-card-contemporary",
+      "pilot-card-playful",
+      "pilot-card-industry"
+    ],
+    "brand": [
+      "brand-intro-reveal",
+      "brand-guidelines-cover",
+      "product-label-arch",
+      "hang-tag",
+      "merch-slogan",
+      "round-sticker"
+    ],
+    "social": [
+      "story-caption",
+      "testimonial-card",
+      "profile-banner",
+      "app-download",
+      "carousel-cover-number",
+      "insight-stat",
+      "reels-cover-centre",
+      "status-order",
+      "pilot-ig-luxury",
+      "pilot-ig-editorial",
+      "pilot-ig-bold",
+      "pilot-ig-contemporary",
+      "pilot-ig-industry",
+      "pilot-ig-minimal"
+    ],
+    "promotions": [
+      "flash-sale",
+      "promo-mega-number",
+      "offer-price",
+      "campaign-key-visual",
+      "tiered-sale",
+      "hotel-stay",
+      "shop-product-card",
+      "gift-voucher"
+    ],
+    "flyers": [
+      "editorial-split",
+      "coming-soon",
+      "property-listing",
+      "opening-hours",
+      "vacancy",
+      "order-delivery",
+      "flyer-services-photo"
+    ],
+    "events": [
+      "street-poster",
+      "speaker-card",
+      "event-lineup",
+      "band-poster",
+      "ticket-stub",
+      "swiss-event-poster",
+      "wedding-invite"
+    ],
+    "menus": [
+      "price-list",
+      "menu-column",
+      "menu-modern",
+      "rate-card",
+      "drinks-menu",
+      "menu-board"
+    ],
+    "outdoor": [
+      "shopfront-fascia",
+      "rollup-clean",
+      "billboard-statement",
+      "event-backdrop",
+      "led-screen-ad",
+      "pavement-sign",
+      "pilot-bb-bold",
+      "pilot-bb-minimal",
+      "pilot-bb-luxury",
+      "pilot-bb-contemporary",
+      "pilot-bb-industry",
+      "pilot-bb-editorial"
+    ],
+    "documents": [
+      "minimal-grid",
+      "why-choose-us",
+      "consulting-clean",
+      "report-cover",
+      "company-profile",
+      "swiss-grid",
+      "certificate-modern"
+    ]
+  },
+  "listedFor": {
+    "business-card": [
+      "quiet-luxe",
+      "card-front",
+      "card-minimal",
+      "card-centred",
+      "card-luxe-dark",
+      "card-type-led",
+      "card-logo-led",
+      "card-colour-block",
+      "card-qr",
+      "pilot-card-luxury",
+      "pilot-card-minimal",
+      "pilot-card-corporate",
+      "pilot-card-editorial",
+      "pilot-card-bold",
+      "pilot-card-contemporary",
+      "pilot-card-playful",
+      "pilot-card-industry"
+    ],
+    "letterhead": [
+      "letterhead-edge"
+    ],
+    "email-signature": [
+      "email-signature-bar"
+    ],
+    "invoice": [
+      "invoice-modern"
+    ],
+    "compliment-slip": [],
+    "brand-launch": [
+      "brand-intro-reveal"
+    ],
+    "brand-guidelines": [
+      "brand-guidelines-cover"
+    ],
+    "product-label": [
+      "product-label-arch",
+      "round-sticker"
+    ],
+    "hang-tag": [
+      "hang-tag"
+    ],
+    "packaging": [],
+    "merch": [
+      "merch-slogan"
+    ],
+    "instagram-post": [
+      "testimonial-card",
+      "app-download",
+      "insight-stat",
+      "pilot-ig-luxury",
+      "pilot-ig-editorial",
+      "pilot-ig-bold",
+      "pilot-ig-contemporary",
+      "pilot-ig-industry",
+      "pilot-ig-minimal"
+    ],
+    "story": [
+      "story-caption",
+      "status-order"
+    ],
+    "carousel": [
+      "carousel-cover-number"
+    ],
+    "reels-cover": [
+      "reels-cover-centre"
+    ],
+    "page-banner": [
+      "profile-banner"
+    ],
+    "youtube-thumbnail": [],
+    "sale-post": [
+      "flash-sale",
+      "promo-mega-number",
+      "campaign-key-visual",
+      "tiered-sale",
+      "hotel-stay",
+      "shop-product-card"
+    ],
+    "offer-flyer": [
+      "offer-price"
+    ],
+    "gift-voucher": [
+      "gift-voucher"
+    ],
+    "display-ad": [],
+    "flyer": [
+      "editorial-split",
+      "property-listing",
+      "order-delivery",
+      "flyer-services-photo"
+    ],
+    "poster": [
+      "coming-soon"
+    ],
+    "notice": [
+      "opening-hours",
+      "vacancy"
+    ],
+    "event-poster": [
+      "street-poster",
+      "event-lineup",
+      "band-poster",
+      "swiss-event-poster"
+    ],
+    "ticket": [
+      "ticket-stub"
+    ],
+    "speaker-card": [
+      "speaker-card"
+    ],
+    "invitation": [
+      "wedding-invite"
+    ],
+    "menu": [
+      "menu-column",
+      "menu-modern",
+      "drinks-menu",
+      "menu-board"
+    ],
+    "price-list": [
+      "price-list"
+    ],
+    "rate-card": [
+      "rate-card"
+    ],
+    "shopfront-sign": [
+      "shopfront-fascia",
+      "pavement-sign"
+    ],
+    "roll-up": [
+      "rollup-clean"
+    ],
+    "billboard": [
+      "billboard-statement",
+      "led-screen-ad"
+    ],
+    "billboard-48-sheet": [
+      "pilot-bb-bold",
+      "pilot-bb-minimal",
+      "pilot-bb-luxury",
+      "pilot-bb-contemporary",
+      "pilot-bb-industry",
+      "pilot-bb-editorial"
+    ],
+    "banner": [
+      "event-backdrop"
+    ],
+    "company-profile": [
+      "why-choose-us",
+      "company-profile",
+      "swiss-grid"
+    ],
+    "proposal": [
+      "consulting-clean"
+    ],
+    "certificate": [
+      "certificate-modern"
+    ],
+    "report-cover": [
+      "minimal-grid",
+      "report-cover"
+    ],
+    "deck-cover": []
+  }
+}

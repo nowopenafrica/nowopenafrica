@@ -171,3 +171,10 @@ verify_jwt = false
 [functions.brand-social-publish]
 enabled = true
 verify_jwt = false
+
+# create-concept-ideas writes ideas and copy for Create's three concepts
+# (decision D2). NOT DEPLOYED: trialled and taken down on 2026-11-16. It reaches a model, so JWT
+# verification is on: only signed-in callers. Deploy WITHOUT --no-verify-jwt.
+[functions.create-concept-ideas]
+enabled = true
+verify_jwt = true

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 
-import { PREVIEW_PHOTOS, previewPhotoFor } from './previewMedia';
+import { PREVIEW_PHOTOS, previewPhotoFor, previewPhotoForTemplate } from './previewMedia';
 import { diversify } from './taxonomy';
 import { DESIGN_TEMPLATES } from '../designTemplates';
 
@@ -84,5 +84,43 @@ describe('the first screen shows what the library can do', () => {
   it('does not cluster them all at the top either', () => {
     const first = diversify().slice(0, 12).filter((t) => t.photoLed);
     expect(first.length).toBeLessThanOrEqual(9);
+  });
+});
+
+describe('a template that names a photo subject', () => {
+  it('changes no existing template: without photoSubject the pick is the key hash', () => {
+    for (const t of DESIGN_TEMPLATES.filter((x) => !x.photoSubject)) {
+      expect(previewPhotoForTemplate(t), t.key).toBe(previewPhotoFor(t.key));
+    }
+    // Only the Task 18 pilot names a subject so far.
+    for (const t of DESIGN_TEMPLATES.filter((x) => x.photoSubject)) expect(t.key.startsWith('pilot-'), t.key).toBe(true);
+  });
+
+  it('gets a photograph of that subject, or none when the pool has none', () => {
+    const named = DESIGN_TEMPLATES.filter((t) => t.photoSubject);
+    expect(named.length).toBeGreaterThan(0);
+    for (const t of named) {
+      const url = previewPhotoForTemplate(t);
+      const has = PREVIEW_PHOTOS.some((p) => p.subject === t.photoSubject);
+      if (has) expect(PREVIEW_PHOTOS.find((p) => p.url === url)?.subject, t.key).toBe(t.photoSubject);
+      else expect(url, t.key).toBeNull();
+    }
+  });
+
+  it('picks within the subject, stably, and misses to no photo rather than to the hash', () => {
+    const work = previewPhotoForTemplate({ key: 'qa-work', photoSubject: 'work' });
+    expect(PREVIEW_PHOTOS.find((p) => p.url === work)?.subject).toBe('work');
+    expect(previewPhotoForTemplate({ key: 'qa-work', photoSubject: 'work' })).toBe(work);
+    // Ruling AH: the pool holds no food photograph, so the dish post shows none (not a gavel).
+    expect(PREVIEW_PHOTOS.some((p) => p.subject === 'food')).toBe(false);
+    expect(previewPhotoForTemplate({ key: 'pilot-ig-industry', photoSubject: 'food' })).toBeNull();
+    const dish = DESIGN_TEMPLATES.find((t) => t.key === 'pilot-ig-industry')!;
+    expect(previewPhotoForTemplate(dish)).toBeNull();
+  });
+
+  it('is named on every photo-led pilot design', () => {
+    for (const t of DESIGN_TEMPLATES.filter((x) => x.key.startsWith('pilot-') && x.photoLed)) {
+      expect(t.photoSubject, t.key).toBeDefined();
+    }
   });
 });

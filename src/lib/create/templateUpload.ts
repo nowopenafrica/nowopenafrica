@@ -32,9 +32,12 @@
  */
 
 import {
-  DESIGN_TEMPLATES, type DesignTemplate, type ShapeSpec, type SlotSpec, type SurfaceSpec,
+  DESIGN_TEMPLATES, SAMPLE_LIST_ROLES, SAMPLE_TEXT_ROLES,
+  type DesignTemplate, type SampleCopy, type ShapeSpec, type SlotSpec, type SurfaceSpec,
 } from '../designTemplates';
 import { DELIVERABLE_CATEGORIES } from '../design/deliverables';
+import { directionOf } from '../design/directions';
+import { SUBCATEGORIES } from './catalogueTaxonomy';
 import type { GradientSpec, Look, PatternSpec } from '../design/look';
 import { paletteOf, type PaletteRole } from '../design/palettes';
 import { paletteCarries } from '../design/remix';
@@ -437,6 +440,73 @@ function readSurface(raw: unknown, notes: string[]): SurfaceSpec {
   return surface;
 }
 
+/** Longest demo line, and list rows, an upload may carry. */
+export const SAMPLE_MAX_CHARS = 120;
+export const SAMPLE_MAX_ROWS = 8;
+
+/**
+ * What the catalogue needs to file and show an upload: the product it is
+ * (subcategory), its art direction, and its own demo copy. Without them the
+ * house checks fail it on C2 and C9, so the import card asks for them.
+ *
+ * All three are optional at the door: a file can arrive without them and be
+ * completed on the card. An unknown value is dropped with a note, never kept,
+ * because a subcategory nothing knows files the layout nowhere.
+ */
+function readClassification(
+  r: Record<string, unknown>, notes: string[],
+): Pick<DesignTemplate, 'subcategory' | 'direction' | 'sample'> {
+  const out: Pick<DesignTemplate, 'subcategory' | 'direction' | 'sample'> = {};
+
+  if (typeof r.subcategory === 'string' && r.subcategory) {
+    if (SUBCATEGORIES.some((s) => s.key === r.subcategory)) out.subcategory = r.subcategory;
+    else notes.push(`"${r.subcategory}" is not a product in the catalogue, so it was left unset.`);
+  }
+
+  if (typeof r.direction === 'string' && r.direction) {
+    const d = directionOf(r.direction);
+    if (d) out.direction = d.key;
+    else notes.push(`"${r.direction}" is not a creative direction, so it was left unset.`);
+  }
+
+  if (r.sample && typeof r.sample === 'object' && !Array.isArray(r.sample)) {
+    const s = r.sample as Record<string, unknown>;
+    const sample: SampleCopy = {};
+    for (const role of SAMPLE_TEXT_ROLES) {
+      const v = s[role];
+      if (typeof v === 'string' && v.trim()) sample[role] = v.trim().slice(0, SAMPLE_MAX_CHARS);
+    }
+    for (const role of SAMPLE_LIST_ROLES) {
+      const v = s[role];
+      if (!Array.isArray(v)) continue;
+      const rows = v.filter((x): x is string => typeof x === 'string' && !!x.trim())
+        .map((x) => x.trim().slice(0, SAMPLE_MAX_CHARS)).slice(0, SAMPLE_MAX_ROWS);
+      if (rows.length) sample[role] = rows;
+    }
+    if (Object.keys(sample).length) out.sample = sample;
+  }
+
+  return out;
+}
+
+/**
+ * The classification as typed on a card, tidied the way the door reads it:
+ * blank lines and blank fields gone, unknown values dropped. Run before save,
+ * so what is stored (and hashed for the review) is what the validator keeps.
+ */
+export function cleanClassification(
+  t: Pick<DesignTemplate, 'subcategory' | 'direction' | 'sample'>,
+): Pick<DesignTemplate, 'subcategory' | 'direction' | 'sample'> {
+  return readClassification({ subcategory: t.subcategory, direction: t.direction, sample: t.sample }, []);
+}
+
+/** A template with its classification tidied, the other fields untouched. */
+export function withCleanClassification(t: DesignTemplate): DesignTemplate {
+  const rest: DesignTemplate = { ...t };
+  delete rest.subcategory; delete rest.direction; delete rest.sample;
+  return { ...rest, ...cleanClassification(t) };
+}
+
 /**
  * Read an uploaded design JSON into a template, or say why not.
  *
@@ -565,6 +635,7 @@ export function readTemplateUpload(
     ...(shapes.length ? { shapes } : {}),
     ...(r.photoLed === true ? { photoLed: true } : {}),
     ...(look ? { look } : {}),
+    ...readClassification(r, notes),
   };
 
   /*
@@ -637,6 +708,9 @@ export function templateToUploadJson(
     ...(template.styles?.length ? { styles: template.styles } : {}),
     slots: template.slots,
     ...(template.look ? { look: template.look } : {}),
+    ...(template.direction ? { direction: template.direction } : {}),
+    ...(template.subcategory ? { subcategory: template.subcategory } : {}),
+    ...(template.sample ? { sample: template.sample } : {}),
   };
   return JSON.stringify(body, null, 2);
 }

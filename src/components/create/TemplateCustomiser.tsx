@@ -6,13 +6,15 @@ import {
 } from 'lucide-react';
 
 import TemplateSurface, { type TemplateContent } from '../studio/TemplateSurface';
-import { defaultMediaScrim, type DesignTemplate, type SlotRole } from '../../lib/designTemplates';
+import { defaultMediaScrim, pageTemplate, type DesignTemplate, type SlotRole } from '../../lib/designTemplates';
 import { DESIGN_STYLES, applyStyle, contrastRatio, styleColours, styleOf } from '../../lib/design/styles';
 import { TYPE_PAIRINGS, ensureTypefacesReady, typefaceOf } from '../../lib/design/typefaces';
 import { DESIGN_FORMATS } from '../../data/studioPresets';
 import { exportPixelRatio, printNoteFor, specFor } from '../../lib/design/printSpec';
 import { formatForTemplate } from '../../lib/design/deliverables';
 import { sampleFor } from '../../lib/create/sampleCopy';
+import { CUSTOMISER_PLATFORM_FIELD, handlePlatformOf } from '../../lib/create/customiserFields';
+import { PLATFORM_MARKS } from '../../lib/design/platformMarks';
 import { downloadUrl, exportNodeToPng, slugForFile } from '../../lib/studio';
 import { track } from '../../lib/telemetry';
 import { PALETTES, type Palette, type PaletteFamily, type PaletteRole } from '../../lib/design/palettes';
@@ -214,6 +216,19 @@ export default function TemplateCustomiser({
   const [eyebrow, setEyebrow] = useState(sample.eyebrow ?? '');
   const [brandName, setBrandName] = useState(sample.brand ?? 'Your business');
   const [cta, setCta] = useState(sample.cta ?? 'Book now');
+  /*
+   * The small print (the `meta` role): an address, a web address, terms.
+   * It used to be fixed to one web address with no field, so every design
+   * that showed it carried words the visitor could not change (C7).
+   */
+  const [meta, setMeta] = useState(sample.meta ?? '');
+  /*
+   * Which platform a handle row's mark shows. Starts at the design's own
+   * default (Instagram on the pilots); null for a design with no handle row,
+   * which shows no select.
+   */
+  const handleDefault = useMemo(() => handlePlatformOf(template), [template]);
+  const [platform, setPlatform] = useState<string | null>(handleDefault);
 
   const stage = useRef<HTMLDivElement>(null);
   const frame = useRef<HTMLDivElement>(null);
@@ -328,7 +343,7 @@ export default function TemplateCustomiser({
     eyebrow,
     headline,
     subline,
-    meta: 'yourbusiness.nowopenafrica.com',
+    meta,
     cta,
     /* The template's OWN sample lists (its tiers, prices, services), as the card shows them. */
     services: sample.services,
@@ -337,6 +352,7 @@ export default function TemplateCustomiser({
     contact: sample.contact,
     logoUrl: logo?.url ?? null,
     qrUrl: null,
+    platform: platform ?? undefined,
   };
 
   const MAX_MEDIA_BYTES = 12 * 1024 * 1024;
@@ -558,7 +574,7 @@ export default function TemplateCustomiser({
                       */
                     template={side === 0
                       ? styled
-                      : { ...styled, slots: styled.extraPages?.[side - 1]?.slots ?? styled.slots }}
+                      : pageTemplate(styled, side)}
                     content={content}
                     width={format.w}
                     height={format.h}
@@ -583,6 +599,7 @@ export default function TemplateCustomiser({
                       else if (role === 'eyebrow') setEyebrow(value);
                       else if (role === 'brand') setBrandName(value);
                       else if (role === 'cta') setCta(value);
+                      else if (role === 'meta') setMeta(value);
                     }}
                   />
                 </div>
@@ -622,6 +639,22 @@ export default function TemplateCustomiser({
               <textarea value={headline} onChange={(e) => setHeadline(e.target.value)} maxLength={120} rows={2} aria-label="Headline" placeholder="Headline" className={`${field} mt-2 py-2`} />
               <textarea value={subline} onChange={(e) => setSubline(e.target.value)} maxLength={200} rows={2} aria-label="Supporting line" placeholder="Supporting line" className={`${field} mt-2 py-2`} />
               <input value={cta} onChange={(e) => setCta(e.target.value)} maxLength={40} aria-label="Button or badge text" placeholder="Book now" className={`${field} mt-2`} />
+              <input value={meta} onChange={(e) => setMeta(e.target.value)} maxLength={120} aria-label="Small print" placeholder="Small print" className={`${field} mt-2`} />
+              {handleDefault && (
+                <div className="mt-2">
+                  <label htmlFor="customiser-platform" className="block text-[11px] text-gray-600 dark:text-gray-400 mb-1">
+                    {CUSTOMISER_PLATFORM_FIELD}
+                  </label>
+                  <select
+                    id="customiser-platform"
+                    value={platform ?? handleDefault}
+                    onChange={(e) => setPlatform(e.target.value)}
+                    className={field}
+                  >
+                    {PLATFORM_MARKS.map((mk) => <option key={mk.key} value={mk.key}>{mk.name}</option>)}
+                  </select>
+                </div>
+              )}
             </Group>
 
             {effectiveLook && (

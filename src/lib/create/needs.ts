@@ -1,5 +1,8 @@
 import { DESIGN_TEMPLATES, type DesignTemplate } from '../designTemplates';
 import { deliverableFor } from '../design/deliverables';
+import { gate } from '../design/quality/gate';
+import { GATED_SUBCATEGORIES, REVIEWS, type Review } from '../design/quality/ledger';
+import { localDateISO } from '../dates';
 
 /**
  * The one answer to "what do you need?".
@@ -119,6 +122,7 @@ export const NEEDS: Need[] = [
       { slug: 'shopfront-sign', name: 'Shopfront sign' },
       { slug: 'roll-up', name: 'Roll-up banner' },
       { slug: 'billboard', name: 'Billboard' },
+      { slug: 'billboard-48-sheet', name: '48-sheet billboard' },
       { slug: 'banner', name: 'Banner' },
     ],
   },
@@ -154,7 +158,50 @@ export const MIN_LISTED = 6;
  * A lookless template is still reachable by a direct `?template=` link, so
  * nothing already saved breaks; it just is not offered.
  */
-export const isListed = (t: Pick<DesignTemplate, 'look'>): boolean => Boolean(t.look);
+export const isListed = (t: Pick<DesignTemplate, 'key' | 'look'>): boolean => isListedWith(t);
+
+/**
+ * The review gate's inputs. Injected so tests never mutate module constants;
+ * production uses the ledger's own REVIEWS and GATED_SUBCATEGORIES (both empty
+ * today, so the look rule above is the whole rule).
+ */
+export interface ListingRule {
+  gated: ReadonlySet<string>;
+  reviews: readonly Review[];
+  today: string;
+  all: DesignTemplate[];
+}
+
+/**
+ * In a gated subcategory a template is listed only when it passes the review
+ * gate (a current human review, 85 or more, no critical). Elsewhere: the look
+ * rule. Uploaded rows have no subcategory unless one was registered for them,
+ * so they follow the look rule until they are given a gated one, and are
+ * never listed there without a passing review.
+ *
+ * The subcategory is read from `deliverableFor`, the source `subcategoryFor`
+ * uses, so this file does not import catalogueTaxonomy (which imports this).
+ *
+ * Single-argument `isListed` stays safe to pass to `.filter()`; this is the
+ * seam that takes the rule.
+ */
+export function isListedWith(
+  t: Pick<DesignTemplate, 'key' | 'look'>,
+  rule?: ListingRule,
+): boolean {
+  const gated = rule?.gated ?? GATED_SUBCATEGORIES;
+  if (gated.size > 0) {
+    /* An upload may name a deliverable without a subcategory; gate on either.
+       They are equal for code templates. */
+    const d = deliverableFor(t);
+    const gateKey = d?.subcategory ?? d?.deliverable;
+    if (gateKey && gated.has(gateKey)) {
+      /* gate() hashes the whole template; every caller passes a full one. */
+      return gate(t as DesignTemplate, rule?.all ?? DESIGN_TEMPLATES, rule?.today ?? localDateISO(), rule?.reviews ?? REVIEWS).listed;
+    }
+  }
+  return Boolean(t.look);
+}
 
 export const needFor = (t: Pick<DesignTemplate, 'key'>): NeedSlug | null =>
   deliverableFor(t)?.need ?? null;
@@ -165,16 +212,18 @@ export const deliverableSlugFor = (t: Pick<DesignTemplate, 'key'>): string | nul
 export const listedIn = (
   need: NeedSlug,
   from: DesignTemplate[] = DESIGN_TEMPLATES,
-): DesignTemplate[] => from.filter((t) => isListed(t) && needFor(t) === need);
+  rule?: ListingRule,
+): DesignTemplate[] => from.filter((t) => isListedWith(t, rule) && needFor(t) === need);
 
 export const listedFor = (
   deliverable: string,
   from: DesignTemplate[] = DESIGN_TEMPLATES,
-): DesignTemplate[] => from.filter((t) => isListed(t) && deliverableSlugFor(t) === deliverable);
+  rule?: ListingRule,
+): DesignTemplate[] => from.filter((t) => isListedWith(t, rule) && deliverableSlugFor(t) === deliverable);
 
 /** Needs that have enough listed templates to be worth showing. */
-export const shownNeeds = (from: DesignTemplate[] = DESIGN_TEMPLATES): Need[] =>
-  NEEDS.filter((n) => listedIn(n.slug, from).length >= MIN_LISTED);
+export const shownNeeds = (from: DesignTemplate[] = DESIGN_TEMPLATES, rule?: ListingRule): Need[] =>
+  NEEDS.filter((n) => listedIn(n.slug, from, rule).length >= MIN_LISTED);
 
 /**
  * Old URLs: the 13 disciplines and the 7 gallery categories.

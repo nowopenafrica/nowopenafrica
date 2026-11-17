@@ -98,10 +98,16 @@ const minHeightPx = (el: HTMLElement) => Number(el.className.match(/min-h-\[(\d+
 
 describe('the Create page, top to bottom', () => {
   it('renders spec §4 in order, and the need view only once something is chosen', () => {
+    /*
+     * Task 15 added the featured collections (spec §10) below the need view.
+     * Task 18's pilot directs business cards, posts and 48-sheets across
+     * four directions or more, so Browse by category now renders after them
+     * (CategoryBrowse.test.tsx covers it with and without directions).
+     */
     const { container } = at('/media');
-    expect(sections(container)).toEqual(['request', 'products', 'popular', 'footer']);
+    expect(sections(container)).toEqual(['request', 'products', 'popular', 'collections', 'browse', 'footer']);
     fireEvent.click(tiles()[0]);
-    expect(sections(container)).toEqual(['request', 'products', 'popular', 'need', 'footer']);
+    expect(sections(container)).toEqual(['request', 'products', 'popular', 'need', 'collections', 'browse', 'footer']);
   });
 
   it('carries none of the sections that moved to /media/services', () => {

@@ -25,19 +25,18 @@
  */
 import { describe, expect, it } from 'vitest';
 
-import {
-  DESIGN_TEMPLATES, isListRole, shapeColor, shapeGeometry,
-  type DesignTemplate, type ShapeSpec, type SlotSpec,
-} from '../designTemplates';
-import { resolveLook, type Look, type ResolvedLook } from './look';
+import { DESIGN_TEMPLATES, isListRole, type DesignTemplate, type SlotSpec } from '../designTemplates';
+import type { Look } from './look';
 import { patternZoneBox } from './patterns';
 import {
   PALETTES, displayOnlyRoles, paletteOf, type Palette, type PaletteRole,
 } from './palettes';
 import {
-  brandPalette, needsMet, remixLook, sampleBox, textNeeds, textSlotBox, type Harmony, type TextSlotBox,
+  brandPalette, needsMet, remixLook, textNeeds, textSlotBox, type Harmony, type TextSlotBox,
 } from './remix';
-import { DESIGN_STYLES, applyStyle, contrastRatio } from './styles';
+import { DESIGN_STYLES, applyStyle } from './styles';
+// The measuring itself is shared with the quality scorer (C5), so it lives there.
+import { MUTED_ALPHA, contrastFailures as measureFailures, toneRole } from './quality/checks/contrast';
 
 // Same list designTemplates.test.ts holds every template to.
 const FORMATS: [string, number, number][] = [
@@ -58,131 +57,9 @@ const ROLES: PaletteRole[] = ['ground', 'ink', 'primary', 'secondary', 'highligh
 
 const LOOKED = DESIGN_TEMPLATES.filter((t) => t.look);
 
-/* ---- colour under the words ------------------------------------------------ */
-
-const rgb = (hex: string): [number, number, number] => {
-  const n = Number.parseInt(hex.slice(1), 16);
-  return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
-};
-const toHexString = ([r, g, b]: [number, number, number]): string =>
-  `#${[r, g, b].map((v) => Math.round(v).toString(16).padStart(2, '0')).join('')}`;
-
-/** `top` painted at `alpha` over `under`. */
-const composite = (top: string, under: string, alpha: number): string => {
-  const [a, b] = [rgb(top), rgb(under)];
-  return toHexString([0, 1, 2].map((i) => a[i] * alpha + b[i] * (1 - alpha)) as [number, number, number]);
-};
-
-/** The colours a shape paints: one per gradient stop, or its single tone. */
-function shapeColours(shape: ShapeSpec, r: ResolvedLook): string[] {
-  const fill = (shape.kind === 'rect' || shape.kind === 'circle') ? shape.fill : undefined;
-  if (fill) return fill.stops.map((role) => r.roles[role]);
-  return [shapeColor(shape.tone, ACCENT, r.roles.ink, r.roles.ground, r.roles)];
-}
-
-function covers(shape: ShapeSpec, x: number, y: number, w: number, h: number): boolean {
-  if (shape.kind === 'ring') return false;
-  const g = shapeGeometry(shape, w, h);
-  if (g.kind === 'circle') return (x - g.cx) ** 2 + (y - g.cy) ** 2 <= g.r ** 2;
-  if (g.kind === 'rect') return x >= g.x && x <= g.x + g.w && y >= g.y && y <= g.y + g.h;
-  if (g.kind === 'polygon') {
-    let inside = false;
-    for (let i = 0, j = g.points.length - 1; i < g.points.length; j = i, i += 1) {
-      const [xi, yi] = g.points[i];
-      const [xj, yj] = g.points[j];
-      if (yi > y !== yj > y && x < ((xj - xi) * (y - yi)) / (yj - yi) + xi) inside = !inside;
-    }
-    return inside;
-  }
-  return false;
-}
-
-/** The roles the ground is painted from: the gradient's stops, else the ground. */
-const groundRoles = (look: Look): PaletteRole[] =>
-  look.gradient ? [...new Set<PaletteRole>(look.gradient.stops)] : ['ground'];
-
-/** Every colour that can sit beneath a point: each ground stop, shapes composited over it. */
-function coloursAt(
-  tpl: DesignTemplate, look: Look, r: ResolvedLook, x: number, y: number, w: number, h: number,
-): string[] {
-  let stack: string[] = groundRoles(look).map((role) => r.roles[role]);
-  for (const shape of tpl.shapes ?? []) {
-    if (!covers(shape, x, y, w, h)) continue;
-    const alpha = shape.alpha ?? 1;
-    stack = stack.flatMap((under) => shapeColours(shape, r).map((c) => composite(c, under, alpha)));
-  }
-  return stack;
-}
-
-/* ---- what is set, in what colour, how big ---------------------------------- */
-
-/** `alpha` below 1 means the renderer draws `fg` translucent; it is composited before measuring. */
-interface Run { label: string; fg: string; min: number; box: TextSlotBox; alpha?: number }
-
-// The alphas TemplateSurface, drawTemplate and the editor draw with.
-const MUTED_ALPHA = 0.72;
-const STAT_LABEL_ALPHA = 0.7;
-
-const toneRole = (tone: SlotSpec['tone']): PaletteRole | null =>
-  tone === 'accent' || tone === 'primary' ? 'primary'
-    : tone === 'secondary' || tone === 'highlight' ? tone : null;
-
-/** The coloured runs of text a template draws, as the renderer will colour them. */
-function runsOf(tpl: DesignTemplate, r: ResolvedLook, w: number, h: number): Run[] {
-  const out: Run[] = [];
-  for (const slot of tpl.slots) {
-    if (slot.role === 'qr') continue;
-    const box = textSlotBox(slot, w, h);
-    const ink = r.inkOn[slot.on ?? 'ground'];
-    const toned = toneRole(slot.tone);
-    const size = slot.size ?? 0.05;
-    const body = size >= 0.06 ? 3 : 4.5;
-    const tag = (what: string) => `${tpl.key}/${slot.role}${what}`;
-    const muted = !toned && slot.tone === 'muted' ? MUTED_ALPHA : undefined;
-    const plain = { fg: toned ? r.roles[toned] : ink, alpha: muted };
-    if (isListRole(slot.role)) {
-      if (slot.role === 'stats') {
-        // TemplateSurface: a muted stat's value is the muted tone, otherwise the slot's role or primary.
-        const value = muted ? { fg: ink, alpha: muted } : { fg: r.roles[toned ?? 'primary'] };
-        out.push({ label: tag(' value'), ...value, min: size * 1.55 >= 0.06 ? 3 : 4.5, box });
-        out.push({ label: tag(' label'), fg: ink, alpha: STAT_LABEL_ALPHA, min: 4.5, box });
-      } else {
-        out.push({ label: tag(''), ...plain, min: body, box });
-        // A price is always set in the slot's role, or primary; never muted.
-        if (slot.role === 'price') out.push({ label: tag(' value'), fg: r.roles[toned ?? 'primary'], min: body, box });
-      }
-    } else if (slot.treatment === 'disc' && toned) {
-      out.push({ label: tag(' on disc'), fg: r.inkOn[toned], min: body, box });
-    } else {
-      out.push({ label: tag(''), ...plain, min: body, box });
-    }
-  }
-  return out;
-}
-
 /** Every failure of one look on one template, across every format. */
-function contrastFailures(tpl: DesignTemplate, look: Look, brand?: Palette): string[] {
-  const failures: string[] = [];
-  for (const [name, w, h] of FORMATS) {
-    const r = resolveLook(tpl, { override: look, brandPalette: brand, accent: ACCENT, width: w, height: h });
-    expect(r.source, `${tpl.key} resolves through its look`).toBe('look');
-    for (const run of runsOf(tpl, r, w, h)) {
-      const beneath = new Set<string>();
-      for (const [x, y] of sampleBox(run.box)) {
-        for (const c of coloursAt(tpl, look, r, x, y, w, h)) beneath.add(c);
-      }
-      for (const bg of beneath) {
-        const fg = run.alpha !== undefined ? composite(run.fg, bg, run.alpha) : run.fg;
-        const ratio = contrastRatio(fg, bg);
-        if (ratio < run.min) {
-          const shown = run.alpha !== undefined ? `${run.fg}@${run.alpha}` : run.fg;
-          failures.push(`${run.label} @ ${name}: ${shown} on ${bg} is ${ratio.toFixed(2)}:1, needs ${run.min}`);
-        }
-      }
-    }
-  }
-  return failures;
-}
+const contrastFailures = (tpl: DesignTemplate, look: Look, brand?: Palette): string[] =>
+  measureFailures(tpl, look, { formats: FORMATS, brand, accent: ACCENT, requireLook: true });
 
 /** A text box for the pattern check: three lines, because a headline wraps. */
 function tallBox(slot: SlotSpec, w: number, h: number): TextSlotBox {

@@ -57,7 +57,8 @@ const read = (p) => readFileSync(join(ROOT, p), 'utf8');
  * DESIGN_TEMPLATES; reading only designTemplates.ts would let 38 layouts
  * past the gate unaudited while the report still said "OK".
  */
-const source = read('src/lib/designTemplates.ts') + '\n' + read('src/lib/design/catalogueTemplates.ts');
+const source = read('src/lib/designTemplates.ts') + '\n' + read('src/lib/design/catalogueTemplates.ts')
+  + '\n' + read('src/lib/design/pilotTemplates.ts');
 
 /** Every `{ key: '...', label: '...', ... }` template object, crudely. */
 function templates() {
@@ -166,7 +167,13 @@ const CATEGORY = new Map(
   [...deliverables.matchAll(new RegExp(String.raw`${KEY}:\s*\{\s*category:\s*'([a-z-]+)'`, 'g'))]
     .map((m) => [m[1], m[2]]),
 );
-const category = (key) => CATEGORY.get(key) ?? 'UNMAPPED';
+/* Grouped by subcategory (catalogueTaxonomy), not the old 7 categories. A
+   deliverable with no `subcategory:` falls back to its category name. */
+const SUBCATEGORY = new Map(
+  [...deliverables.matchAll(new RegExp(String.raw`${KEY}:\s*\{[^}]*?subcategory:\s*'([a-z0-9-]+)'`, 'g'))]
+    .map((m) => [m[1], m[2]]),
+);
+const category = (key) => (CATEGORY.has(key) ? (SUBCATEGORY.get(key) ?? CATEGORY.get(key)) : 'UNMAPPED');
 
 const rows = templates().map(({ key, body }) => {
   const slots = slotsOf(body);
@@ -237,7 +244,7 @@ const generic = rows.filter((r) => !withOwnCopy.has(r.key));
 
 const report = {
   templates: rows.length,
-  categories: byCategory.size,
+  categories: byCategory.size, // groups are subcategories
   categoryDepth: Object.fromEntries(
     [...byCategory.entries()].sort((a, b) => a[1].length - b[1].length).map(([c, list]) => [c, list.length]),
   ),
@@ -260,9 +267,9 @@ if (process.argv.includes('--json')) {
   console.log(JSON.stringify(report, null, 2));
 } else {
   const pct = (n) => `${Math.round((n / report.templates) * 100)}%`;
-  console.log(`\nTEMPLATE LIBRARY AUDIT — ${report.templates} layouts in ${report.categories} categories\n`);
+  console.log(`\nTEMPLATE LIBRARY AUDIT — ${report.templates} layouts in ${report.categories} subcategories\n`);
 
-  console.log('Thinnest categories (a deliverable with one direction offers no choice):');
+  console.log('Thinnest subcategories (a deliverable with one direction offers no choice):');
   for (const [c, n] of Object.entries(report.categoryDepth).slice(0, 8)) {
     console.log(`  ${String(n).padStart(3)}  ${c}`);
   }
@@ -282,6 +289,8 @@ if (process.argv.includes('--json')) {
   console.log(`\nDemonstration copy:`);
   console.log(`  own copy  ${String(report.demonstrationCopy.withOwn).padStart(3)}  ${pct(report.demonstrationCopy.withOwn)}`);
   console.log(`  generic   ${String(report.demonstrationCopy.generic).padStart(3)}  ${pct(report.demonstrationCopy.generic)}  (these render "Your headline here")`);
+  console.log('');
+  console.log('Scores, criticals and stale reviews: npm run audit:quality');
   console.log('');
 }
 

@@ -55,6 +55,7 @@
 
 import { DESIGN_FORMATS, type StudioFormat } from '../../data/studioPresets';
 import { PRINT_DPI } from '../studio/formats';
+import { FORMATS } from './formats';
 
 const MM_PER_INCH = 25.4;
 
@@ -99,6 +100,13 @@ export interface PhysicalSize {
   label: string;
 }
 
+/** Physical sizes come from the format registry; only the label lives here. */
+const phys = (key: string, label: string): PhysicalSize => {
+  const mm = FORMATS[key]?.mm;
+  if (!mm) throw new Error(`printSpec: format "${key}" has no mm size in the registry`);
+  return { widthMm: mm.w, heightMm: mm.h, label };
+};
+
 /**
  * The DESIGN_FORMATS entries that are a real object at a real size.
  *
@@ -107,20 +115,20 @@ export interface PhysicalSize {
  * the supplier chooses (a billboard).
  */
 export const PHYSICAL: Record<string, PhysicalSize> = {
-  a4: { widthMm: 210, heightMm: 297, label: 'A4 · 210×297mm' },
-  a3: { widthMm: 297, heightMm: 420, label: 'A3 · 297×420mm' },
-  letter: { widthMm: 215.9, heightMm: 279.4, label: 'US Letter · 8.5×11in' },
+  'a4': phys('a4', 'A4 · 210×297mm'),
+  'a3': phys('a3', 'A3 · 297×420mm'),
+  'letter': phys('letter', 'US Letter · 8.5×11in'),
   /*
    * Half of A4 is A5 — 210x148.5mm — which is exactly what these pixels are
    * at 150dpi. The format's own label reads "Half A4 / DL", and DL is
    * 210x99mm: a different, narrower sheet. `compliment-slip` is the real DL.
    */
-  'half-a4': { widthMm: 210, heightMm: 148.5, label: 'A5 landscape · 210×148.5mm' },
-  'business-card': { widthMm: 85.6, heightMm: 54, label: 'Business card · 85.6×54mm' },
-  'business-card-portrait': { widthMm: 54, heightMm: 85.6, label: 'Business card, portrait · 54×85.6mm' },
-  letterhead: { widthMm: 210, heightMm: 297, label: 'Letterhead, A4 · 210×297mm' },
-  'compliment-slip': { widthMm: 210, heightMm: 99, label: 'Compliment slip, DL · 210×99mm' },
-  postcard: { widthMm: 148, heightMm: 105, label: 'Postcard · 148×105mm' },
+  'half-a4': phys('half-a4', 'A5 landscape · 210×148.5mm'),
+  'business-card': phys('business-card', 'Business card · 85.6×54mm'),
+  'business-card-portrait': phys('business-card-portrait', 'Business card, portrait · 54×85.6mm'),
+  'letterhead': phys('letterhead', 'Letterhead, A4 · 210×297mm'),
+  'compliment-slip': phys('compliment-slip', 'Compliment slip, DL · 210×99mm'),
+  'postcard': phys('postcard', 'Postcard · 148×105mm'),
 };
 
 /**
@@ -130,7 +138,7 @@ export const PHYSICAL: Record<string, PhysicalSize> = {
  * whatever the site is, and judged at thirty metres rather than at arm's
  * length. Quoting a dpi for one of these would be a precise-sounding lie.
  */
-export const LARGE_FORMAT = new Set(['billboard', 'led', 'rollup', 'backdrop', 'street']);
+export const LARGE_FORMAT = new Set(['billboard', 'board-48-sheet', 'led', 'rollup', 'backdrop', 'street']);
 
 export type Readiness =
   /** 300dpi or better in the delivered file. Safe to send to a press. */

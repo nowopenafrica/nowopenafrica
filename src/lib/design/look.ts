@@ -14,10 +14,11 @@ import {
   inkFor,
   surfaceSpecLayers,
   type DesignTemplate,
+  type SlotSpec,
   type SurfaceLayer,
 } from '../designTemplates';
 import { styleOf } from './styles';
-import { TYPE_PAIRINGS, pairingOf, type TypePairing } from './typefaces';
+import { TYPE_PAIRINGS, pairingOf, type TypePairing, type TypefaceKey } from './typefaces';
 import { paletteOf, readableInk, type Palette, type PaletteRole } from './palettes';
 import { patternSvg } from './patterns';
 
@@ -135,6 +136,28 @@ function gradientLayers(g: GradientSpec, roles: Record<PaletteRole, string>): Su
     });
   });
   return layers;
+}
+
+/**
+ * The face a slot is set in, for a template whose look resolved.
+ *
+ * Display-size slots take the display face, the eyebrow the accent face, the
+ * rest the text face. One rule for TemplateSurface, drawTemplate and the
+ * document builder, so the font-coverage test checks the face that renders.
+ */
+export function pairingFace(slot: Pick<SlotSpec, 'role' | 'size' | 'face'>, pairing: TypePairing): TypefaceKey {
+  if (slot.face) return pairing[slot.face];
+  if (slot.role === 'headline' || (slot.size ?? 0) >= 0.06) return pairing.display;
+  return slot.role === 'eyebrow' ? pairing.accent : pairing.text;
+}
+
+/** The face a slot renders in: the look's pairing when the look resolved, else the template's own. */
+export function slotFace(
+  tpl: Pick<DesignTemplate, 'font'>,
+  slot: Pick<SlotSpec, 'role' | 'size' | 'font' | 'face'>,
+  resolved: Pick<ResolvedLook, 'source' | 'pairing'>,
+): TypefaceKey {
+  return resolved.source === 'look' ? pairingFace(slot, resolved.pairing) : (slot.font ?? tpl.font ?? 'sans');
 }
 
 export function resolveLook(tpl: DesignTemplate, opts: ResolveOptions): ResolvedLook {
