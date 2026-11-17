@@ -45,7 +45,7 @@ export interface ConceptOptions {
 }
 
 /** Movements that set their headlines in capitals. */
-const CAPS = new Set(['neo-brutalism', 'kinetic-typography', 'typographic-monumentalism', 'constructivism', 'art-deco', 'retro-futurism']);
+export const CAPS = new Set(['neo-brutalism', 'kinetic-typography', 'typographic-monumentalism', 'constructivism', 'art-deco', 'retro-futurism']);
 
 /**
  * A fact the customer has not given yet, worded as theirs to give.
@@ -80,7 +80,7 @@ export function asPlaceholder(fact: string): string {
  * The repeat a movement reaches for when its composition is a pattern field.
  * All are the pattern library's own constructions; none copies a cloth.
  */
-const PATTERN: Record<string, PatternKey> = {
+export const PATTERN: Record<string, PatternKey> = {
   'afro-contemporary': 'diamond-weave', 'african-modernism': 'arches', maximalism: 'confetti', 'art-deco': 'scales', 'organic-natural': 'waves',
 };
 
@@ -92,12 +92,12 @@ const PATTERN: Record<string, PatternKey> = {
  * decides where in the movement's own list to start. Same brief, same answer;
  * different trade, different answer.
  */
-function seedOf(text: string): number {
+export function seedOf(text: string): number {
   let h = 2166136261;
   for (const ch of text) h = Math.imul(h ^ ch.charCodeAt(0), 16777619) >>> 0;
   return h;
 }
-const turned = <T>(xs: T[], by: number): T[] => (xs.length ? [...xs.slice(by % xs.length), ...xs.slice(0, by % xs.length)] : xs);
+export const turned = <T>(xs: T[], by: number): T[] => (xs.length ? [...xs.slice(by % xs.length), ...xs.slice(0, by % xs.length)] : xs);
 
 /** Compositions that set out the facts a piece must carry. An event with no date on it is not finished. */
 const CARRIES_FACTS = new Set<ArchetypeKey>(['modular-grid', 'typographic-poster', 'monumental-type', 'band-and-field', 'information-ledger', 'serial-tiles', 'diagonal-energy']);
@@ -123,7 +123,7 @@ const QUIET: Partial<Record<Tier, PaletteFamily[]>> = {
   premium: ['mono', 'earth', 'cool', 'warm'],
 };
 
-function paletteFor(movement: Movement, used: Set<string>, seed: number, tier: Tier | undefined): Palette {
+export function paletteFor(movement: Movement, used: Set<string>, seed: number, tier: Tier | undefined): Palette {
   const quiet = tier ? QUIET[tier] : undefined;
   const fits = (p: Palette) => !quiet || quiet.includes(p.family);
   const sample = paletteOf(movement.samplePalette) as Palette;
