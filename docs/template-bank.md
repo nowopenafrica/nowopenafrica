@@ -80,6 +80,14 @@ Each is art-directed for its first listed format. At other formats it holds toge
 (nothing collides or is cut) but only scales: on a story or a 3:1 strip the type is
 small and space is left unused. These layouts do not recompose per format.
 
+## What merging this ships
+
+The importer, review flow, database gate and library wiring. It does not ship any of
+the 33 layouts: nothing in the app imports `src/data/templateBank`, so they are in no
+production bundle, and the importer code sits only in the admin dashboard chunk. A
+layout reaches a customer one way only: the package is uploaded, a reviewer scores it
+80 or more, and its collection is published.
+
 ## Not done
 
 - The migration has not been applied to any Supabase project.
