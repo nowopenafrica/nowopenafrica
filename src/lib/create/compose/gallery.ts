@@ -10,20 +10,21 @@
 // item's real format, and keeps only those that pass every measured check.
 //
 // What it will not do: invent a business, a price or a date (copy comes from
-// the gated bank or is a "Your ..." placeholder), use a photograph (none has
-// been through intake), or offer an item it cannot make properly. Letterheads,
+// the gated bank or is a "Your ..." placeholder), use a photograph outside
+// development (none has been through intake; see photoSet.ts), or offer an item it cannot make properly. Letterheads,
 // invoices, guidelines, carousels, packaging and documents are multi-part or
 // document layouts; they keep their templates until the engine can do them.
 
 import { formatOf, type Format } from '../../design/formats';
 import { readBrief, type CreativeBrief, type Objective } from '../brief';
 import { SUBCATEGORIES } from '../catalogueTaxonomy';
-import { ALL_PAIRINGS, MOVEMENTS, archetypeOf, movementOf, pairingProblems, typefaceLabel, type ArchetypeKey, type TypeContext } from '../intel';
+import { ALL_PAIRINGS, INDUSTRIES, MOVEMENTS, archetypeOf, movementOf, pairingProblems, typefaceLabel, type ArchetypeKey, type TypeContext } from '../intel';
 import type { DesignDocument } from '../../studio/designDocument';
 import { IMPLEMENTED, composeWithReport, type ConceptCopy } from './archetypes';
 import { checkConcept } from './conceptChecks';
 import { BY_GOAL, BY_TRADE } from './copyBank';
 import { CAPS, PATTERN, asPlaceholder, paletteFor, seedOf, turned } from './concepts';
+import { PILOT_PHOTOS, type PilotPhoto } from './photoSet';
 
 interface Kit {
   goal: Objective;
@@ -103,6 +104,8 @@ export interface GalleryDesign {
   type: string;
   /** Lines the format had no room for, reported rather than cut. */
   omitted: string[];
+  /** The pilot photograph a photo-led design uses. Preview only until the photo intake (D1). */
+  photo?: PilotPhoto;
 }
 
 export interface GalleryOptions {
@@ -111,6 +114,36 @@ export interface GalleryOptions {
   count?: number;
   /** A FORMATS key the item is made on; defaults to the item's first. */
   format?: string;
+  /**
+   * Where the pilot photographs are served (PHOTO_BASE, development only).
+   * With it, every other design is photo-led; without it the gallery is type-led.
+   */
+  photos?: string;
+}
+
+/* What each item's photograph should show when no trade is chosen. */
+const PHOTO_SUBJECTS: Record<string, string[]> = {
+  menu: ['food'], 'price-list': ['beauty', 'food'], 'rate-card': ['work'],
+  'event-poster': ['celebration'], invitation: ['celebration'], ticket: ['celebration'],
+  'speaker-card': ['work', 'beauty'], 'business-card': ['work', 'beauty'],
+};
+
+/** Photographs for an item and trade, the trade's own first; rotated so a gallery never repeats one too soon. */
+export function photosFor(deliverable: string, trade?: string): PilotPhoto[] {
+  const group = trade ? INDUSTRIES.find((i) => i.key === trade)?.group : undefined;
+  const subjects = PHOTO_SUBJECTS[deliverable];
+  /* A card for a person shows a person. */
+  const personal = ['speaker-card', 'business-card'].includes(deliverable);
+  const pool = personal ? PILOT_PHOTOS.filter((p) => p.people) : PILOT_PHOTOS;
+  const byTrade = group ? pool.filter((p) => p.groups.includes(group)) : [];
+  const bySubject = subjects ? pool.filter((p) => p.subjects.some((x) => subjects.includes(x))) : [];
+  /* Any business: one of each kind in turn (food, a portrait, work, a celebration...), so the set reads as range. */
+  const kinds = uniq(['food', 'beauty', 'celebration', 'craft', 'work', ...PILOT_PHOTOS.flatMap((p) => p.subjects)]);
+  const spread: PilotPhoto[] = [];
+  for (let i = 0; spread.length < PILOT_PHOTOS.length && i < PILOT_PHOTOS.length; i += 1) {
+    for (const k of kinds) { const p = pool.filter((x) => x.subjects.includes(k))[i]; if (p && !spread.includes(p)) spread.push(p); }
+  }
+  return uniq([...byTrade, ...(byTrade.length ? [] : bySubject), ...(byTrade.length || bySubject.length ? [] : spread)]);
 }
 
 const uniq = <T>(xs: T[]) => [...new Set(xs)];
@@ -173,6 +206,8 @@ export function galleryFor(deliverable: string, opts: GalleryOptions = {}): Gall
   const archetypeUse = new Map<ArchetypeKey, number>();
   const palettes = new Set<string>();
   const displays = new Map<string, number>();
+  const pool = opts.photos ? photosFor(deliverable, trade) : [];
+  let photoUse = 0;
 
   for (let pass = 0; pass < 3 && out.length < count; pass += 1) {
     for (const key of order) {
@@ -187,8 +222,14 @@ export function galleryFor(deliverable: string, opts: GalleryOptions = {}): Gall
       };
       const words = copy.headline.split(/\s+/).length;
       const ctx: TypeContext = { distance: roadside, smallPrint, headlineWords: words, capitals: CAPS.has(movement.key) };
-      /* No photographs: the licensed set has not been through intake. */
-      const archetypes = turned(movement.archetypes.filter((a) => IMPLEMENTED.includes(a) && !archetypeOf(a).needsImage), seed + pass);
+      /*
+       * Photo-led layouts only when photographs are given (development, until
+       * the intake clears them), and then on every other design, so the set
+       * mixes photographs and type.
+       */
+      const usable = turned(movement.archetypes.filter((a) => IMPLEMENTED.includes(a) && (pool.length > 0 || !archetypeOf(a).needsImage)), seed + pass);
+      const wantPhoto = pool.length > 0 && n % 2 === 0;
+      const archetypes = [...usable].sort((a, b) => Number(archetypeOf(b).needsImage === wantPhoto) - Number(archetypeOf(a).needsImage === wantPhoto));
       const pairings = turned(movement.pairings, (seed >>> 3) + pass).filter((k) => {
         const p = ALL_PAIRINGS.find((x) => x.key === k);
         return !!p && pairingProblems(p, ctx).length === 0;
@@ -202,8 +243,10 @@ export function galleryFor(deliverable: string, opts: GalleryOptions = {}): Gall
           if (combos.has(`${archetype}/${pk}`)) continue;
           const p = ALL_PAIRINGS.find((x) => x.key === pk)!;
           const palette = paletteFor(movement, palettes, seed + n, brief.tier?.value);
+          const photo = archetypeOf(archetype).needsImage ? pool[photoUse % pool.length] : undefined;
           const input = {
             copy, colours: palette.colours, fonts: { display: p.display, text: p.text, accent: p.accent },
+            ...(photo && { image: `${opts.photos}/${photo.file}` }),
             upperHeadline: CAPS.has(movement.key),
             ...(archetype === 'pattern-field' && { pattern: PATTERN[movement.key] ?? 'rings' }),
           };
@@ -219,7 +262,8 @@ export function galleryFor(deliverable: string, opts: GalleryOptions = {}): Gall
           const type = p.display === p.text
             ? `Type: ${typefaceLabel(p.display)} throughout`
             : `Headline in ${typefaceLabel(p.display)}, text in ${typefaceLabel(p.text)}`;
-          out.push({ id: `${deliverable}-${formatKey}-${movement.key}-${archetype}-${pk}`, doc, movement: movement.name, archetype, pairing: pk, palette: palette.key, type, omitted });
+          if (photo) photoUse += 1;
+          out.push({ id: `${deliverable}-${formatKey}-${movement.key}-${archetype}-${pk}`, doc, movement: movement.name, archetype, pairing: pk, palette: palette.key, type, omitted, ...(photo && { photo }) });
           placed = true;
           break;
         }

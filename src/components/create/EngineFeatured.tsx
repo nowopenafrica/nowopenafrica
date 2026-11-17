@@ -7,6 +7,7 @@ import EngineGallery from './EngineGallery';
 import { hasEngineGallery } from '../../lib/create/engineItems';
 import { SUBCATEGORIES } from '../../lib/create/catalogueTaxonomy';
 import { galleryFor, type GalleryDesign } from '../../lib/create/compose/gallery';
+import { PHOTO_BASE } from '../../lib/create/compose/photoSet';
 import { NEEDS, type NeedSlug } from '../../lib/create/needs';
 import { FEATURED_ROWS, STRIP_ITEMS } from '../../lib/create/engineFeatured';
 import { formatOf } from '../../lib/design/formats';
@@ -99,7 +100,7 @@ function Featured({ part, onPick }: {
 }) {
   const strip = useMemo(() => (part !== 'strip' ? [] : STRIP_ITEMS.flatMap((item, i) => {
     /* A different design per item, so the strip is not twelve of the same composition. */
-    const g = galleryFor(item, { count: (i % 4) + 1 });
+    const g = galleryFor(item, { count: (i % 4) + 1, photos: PHOTO_BASE || undefined });
     const need = needOf(item);
     const design = g[g.length - 1];
     return design && need ? [{ item, need, design }] : [];
@@ -107,7 +108,7 @@ function Featured({ part, onPick }: {
 
   const rows = useMemo(() => (part !== 'rows' ? [] : FEATURED_ROWS.flatMap((r) => {
     const need = needOf(r.item);
-    const designs = galleryFor(r.item, { count: ROW });
+    const designs = galleryFor(r.item, { count: ROW, photos: PHOTO_BASE || undefined });
     return need && designs.length ? [{ ...r, need, designs }] : [];
   })), [part]);
 

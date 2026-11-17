@@ -4,7 +4,8 @@ import type { TextObject } from '../../studio/designDocument';
 import { SUBCATEGORIES } from '../catalogueTaxonomy';
 import { INDUSTRIES } from '../intel';
 import { checkConcept, describeFindings } from './conceptChecks';
-import { GALLERY_KITS, GENERAL_HEADS, galleryCovers, galleryFor, showsFacts } from './gallery';
+import { GALLERY_KITS, GENERAL_HEADS, galleryCovers, galleryFor, photosFor, showsFacts } from './gallery';
+import { PHOTO_BASE, PILOT_PHOTOS } from './photoSet';
 import { refuseLine } from './ideas';
 import { ENGINE_ITEMS } from '../engineItems';
 
@@ -99,5 +100,43 @@ describe('the category gallery', () => {
     const t = performance.now();
     for (const item of ITEMS) galleryFor(item, { count: 16 });
     expect(performance.now() - t).toBeLessThan(4000);
+  });
+
+  describe('with the pilot photographs (development, until the photo intake clears them)', () => {
+    const photos = 'http://127.0.0.1:5197';
+
+    it('is type-led unless a photo folder is given, and tests never get one', () => {
+      expect(PHOTO_BASE).toBe('');
+      for (const item of ITEMS) expect(galleryFor(item, { count: 8 }).some((d) => d.photo), item).toBe(false);
+    });
+
+    it('mixes photo-led designs into every item, each still passing every check and carrying its facts', () => {
+      const failures: string[] = [];
+      for (const item of ITEMS) for (const trade of [undefined, 'restaurant-dining', 'skincare-beauty']) {
+        const sub = SUBCATEGORIES.find((s) => s.key === item)!;
+        const format = formatOf(sub.formats[0]) as Format;
+        const distance = /^(billboard|board-)/.test(sub.formats[0]);
+        const g = galleryFor(item, { trade, count: 8, photos });
+        const led = g.filter((d) => d.photo);
+        if (g.length < 8) failures.push(`${item}/${trade ?? 'any'}: only ${g.length}`);
+        if (led.length < (item === 'business-card' ? 1 : 2)) failures.push(`${item}/${trade ?? 'any'}: ${led.length} photo-led`);
+        for (const d of led) {
+          const img = (d.doc.pages[0].objects as { type: string; assetId?: string }[]).find((o) => o.type === 'image');
+          if (!img?.assetId?.startsWith(`${photos}/pexels-`)) failures.push(`${item}: photo not drawn`);
+          if (!showsFacts(d.doc, GALLERY_KITS[item])) failures.push(`${item}/${d.archetype}: facts missing`);
+          for (const line of describeFindings(checkConcept(d.doc, { format, distance }))) failures.push(`${item}/${d.archetype}: ${line}`);
+        }
+      }
+      expect(failures.slice(0, 10)).toEqual([]);
+    });
+
+    it('picks photographs that fit: the trade’s own, a person on a card, food on a menu', () => {
+      expect(photosFor('flyer', 'restaurant-dining').every((p) => p.groups.includes('Food & Hospitality'))).toBe(true);
+      expect(photosFor('speaker-card').every((p) => p.people)).toBe(true);
+      expect(photosFor('menu').every((p) => p.subjects.includes('food'))).toBe(true);
+      /* Textures are not photographs of anything; they are not in the set. */
+      expect(PILOT_PHOTOS.some((p) => /marble|wood grain|fabric|paper|metal/i.test(p.title))).toBe(false);
+      for (const p of PILOT_PHOTOS) expect(p.credit, p.file).toMatch(/^Photo by .+ on Pexels$/);
+    });
   });
 });

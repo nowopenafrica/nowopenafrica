@@ -539,15 +539,20 @@ const imageBleed: Draw = (c, i) => {
   const supLines = c.cls === 'wide' ? 2 : 3;
   const sup = i.copy.support ? c.measure({ text: i.copy.support, w: tw, size: B(c), font: i.fonts.text, weight: 400, lineHeight: 1.38, maxLines: supLines, min: B(c) * 0.8 }) : null;
   const footH = row(c) * 2.9 + footerPlan(c, i, tw).extra;
-  const ph = Math.min(1 - 2 * c.my, padY * 2 + eyebrowH + head.h + (sup ? sup.h + row(c) * 0.7 : 0) + footH);
+  /* The facts (a date, a venue) live in the panel, so the panel grows to hold them. */
+  const details = (i.copy.details ?? []).slice(0, 4);
+  const factCols = tw > 0.5 ? 2 : 1;
+  const fh = factsHeight(c, details, factCols);
+  const ph = Math.min(1 - 2 * c.my, padY * 2 + eyebrowH + head.h + (sup ? sup.h + row(c) * 0.7 : 0) + footH + fh);
   const px = c.mx;
   const py = 1 - c.my - ph;
   c.rect('Panel', px, py, pw, ph, ground);
-  const limit = footer(c, i, px + pad, px + pad + tw, py + ph - padY, ink, accent);
+  const foot = footer(c, i, px + pad, px + pad + tw, py + ph - padY, ink, accent);
   let y = py + padY;
   if (i.copy.eyebrow) { label(c, i, i.copy.eyebrow, px + pad, y, tw, accent, { name: 'Eyebrow' }); y += eyebrowH; }
-  const hl = headline(c, i, px + pad, y, tw, ink, { size: hSize, maxLines: 3, lineHeight: 1.04, maxH: limit - y });
+  const hl = headline(c, i, px + pad, y, tw, ink, { size: hSize, maxLines: 3, lineHeight: 1.04, maxH: Math.max(c.rise(hSize) * 1.2, foot - y - fh) });
   y = hl.y + hl.h + row(c) * 0.7;
+  const limit = facts(c, i, details, px + pad, foot - row(c) * 0.3, tw, ink, accent, factCols, y + (sup ? row(c) * 2.6 : 0));
   if (i.copy.support) body(c, i, i.copy.support, px + pad, y, tw, ink, { maxLines: supLines, limit });
   return ground;
 };
@@ -555,24 +560,34 @@ const imageBleed: Draw = (c, i) => {
 const editorialSplit: Draw = (c, i) => {
   const { ground, ink, primary } = i.colours;
   const accent = legible(primary, ground);
+  const details = (i.copy.details ?? []).slice(0, 4);
   if (stacked(c)) {
-    const cut = c.by({ tall: 0.5, portrait: 0.52, square: 0.46, landscape: 0, wide: 0 });
+    /* The photograph gives up height for the facts, never the other way round. */
+    const fh = factsHeight(c, details, 2);
+    const base = c.by({ tall: 0.5, portrait: 0.52, square: 0.46, landscape: 0, wide: 0 });
+    const cut = Math.max(base * 0.62, base - fh * 0.8);
     c.image('Photograph', i.image as string, 0, 0, 1, cut);
-    const limit = footer(c, i, c.mx, 1 - c.mx, 1 - c.my, ink, accent);
+    const foot = footer(c, i, c.mx, 1 - c.mx, 1 - c.my, ink, accent);
     let y = cut + c.my * 0.9;
     if (i.copy.eyebrow) y = label(c, i, i.copy.eyebrow, c.mx, y, 1 - 2 * c.mx, accent, { name: 'Eyebrow' }).y + c.rise(L(c)) * 2.4;
-    const hl = headline(c, i, c.mx, y, 1 - 2 * c.mx, ink, { size: H(c) * 0.86, maxLines: c.cls === 'square' ? 2 : 3, lineHeight: 1.04, maxH: limit - y - row(c) * 0.4 });
-    if (i.copy.support) body(c, i, i.copy.support, c.mx, hl.y + hl.h + row(c) * 0.7, 0.8, ink, { maxLines: 3, limit });
+    const hl = headline(c, i, c.mx, y, 1 - 2 * c.mx, ink, { size: H(c) * 0.86, maxLines: c.cls === 'square' ? 2 : 3, lineHeight: 1.04, maxH: Math.max(c.rise(H(c) * 0.86) * 1.2, foot - y - fh - row(c) * 0.4) });
+    y = hl.y + hl.h + row(c) * 0.7;
+    const limit = facts(c, i, details, c.mx, foot - row(c) * 0.3, 1 - 2 * c.mx, ink, accent, 2, y + (i.copy.support ? row(c) * 2.6 : 0));
+    if (i.copy.support) body(c, i, i.copy.support, c.mx, y, 0.8, ink, { maxLines: 3, limit });
   } else {
     const cut = c.cls === 'wide' ? 0.5 : 0.52;
     c.image('Photograph', i.image as string, 0, 0, cut, 1);
     const x = cut + c.mx * 1.2;
     const w = 1 - x - c.mx;
-    const limit = footer(c, i, x, 1 - c.mx, 1 - c.my, ink, accent);
+    const foot = footer(c, i, x, 1 - c.mx, 1 - c.my, ink, accent);
+    const factCols = details.length > 2 ? 2 : 1;
+    const fh = factsHeight(c, details, factCols);
     let y = c.my;
     if (i.copy.eyebrow) y = label(c, i, i.copy.eyebrow, x, y, w, accent, { name: 'Eyebrow' }).y + c.rise(L(c)) * 2.6;
-    const hl = headline(c, i, x, y, w, ink, { size: H(c) * 0.95, lineHeight: 1.04, maxH: limit - y - row(c) * 0.4 });
-    if (i.copy.support) body(c, i, i.copy.support, x, hl.y + hl.h + row(c) * 0.8, w * 0.9, ink, { maxLines: 3, limit });
+    const hl = headline(c, i, x, y, w, ink, { size: H(c) * 0.95, lineHeight: 1.04, maxH: Math.max(c.rise(H(c) * 0.95) * 1.2, foot - y - fh - row(c) * 0.4) });
+    y = hl.y + hl.h + row(c) * 0.8;
+    const limit = facts(c, i, details, x, foot - row(c) * 0.3, w, ink, accent, factCols, y + (i.copy.support ? row(c) * 2.6 : 0));
+    if (i.copy.support) body(c, i, i.copy.support, x, y, w * 0.9, ink, { maxLines: 3, limit });
   }
   return ground;
 };

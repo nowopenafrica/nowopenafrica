@@ -8,6 +8,7 @@ import { useOptionalAuth } from '../../contexts/AuthContext';
 import { SUBCATEGORIES } from '../../lib/create/catalogueTaxonomy';
 import { galleryCovers, galleryFor } from '../../lib/create/compose/gallery';
 import { saveConceptAsProject } from '../../lib/create/compose/openConcept';
+import { PHOTO_BASE } from '../../lib/create/compose/photoSet';
 import { INDUSTRIES } from '../../lib/create/intel';
 import { formatOf } from '../../lib/design/formats';
 import { paletteOf } from '../../lib/design/palettes';
@@ -38,7 +39,7 @@ export default function EngineGallery({ deliverables }: { deliverables: string[]
 
   const active = items.includes(item) ? item : items[0] ?? '';
   const sub = SUBCATEGORIES.find((s) => s.key === active);
-  const designs = useMemo(() => (active ? galleryFor(active, { trade: trade || undefined, count: MORE }) : []), [active, trade]);
+  const designs = useMemo(() => (active ? galleryFor(active, { trade: trade || undefined, count: MORE, photos: PHOTO_BASE || undefined }) : []), [active, trade]);
   if (!active || !sub || designs.length === 0) return null;
 
   const format = formatOf(sub.formats[0]);
@@ -109,8 +110,13 @@ export default function EngineGallery({ deliverables }: { deliverables: string[]
             </div>
             <p className="mt-2 text-[13px] font-semibold text-gray-900 dark:text-white">{d.movement}</p>
             <p className="text-[12px] text-gray-600 dark:text-gray-400">{d.type}</p>
+            {d.photo && (
+              <p data-testid="engine-design-photo" className="mt-1 text-[11px] text-amber-700 dark:text-amber-400">
+                Preview: {d.photo.credit}. Usable once the photo is cleared for customers.
+              </p>
+            )}
             <div className="mt-2">
-              {user ? (
+              {d.photo ? null : user ? (
                 <button
                   type="button"
                   onClick={() => { void open(d.id); }}

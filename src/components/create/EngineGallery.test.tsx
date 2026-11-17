@@ -13,6 +13,8 @@ const state = vi.hoisted(() => ({
 vi.mock('../../contexts/AuthContext', () => ({ useOptionalAuth: () => ({ user: state.user }) }));
 vi.mock('react-router-dom', async (orig) => ({ ...(await orig<typeof import('react-router-dom')>()), useNavigate: () => state.navigate }));
 vi.mock('react-hot-toast', () => ({ default: { error: vi.fn() } }));
+const photo = vi.hoisted(() => ({ base: '' }));
+vi.mock('../../lib/create/compose/photoSet', async (orig) => ({ ...(await orig<typeof import('../../lib/create/compose/photoSet')>()), get PHOTO_BASE() { return photo.base; } }));
 vi.mock('../../lib/supabase', () => ({
   supabase: { from: () => ({ insert: (row: unknown) => { state.insert(row); return { select: () => ({ single: async () => ({ data: { id: 'proj-7' }, error: null }) }) }; } }) },
 }));
@@ -20,7 +22,7 @@ vi.mock('../../lib/supabase', () => ({
 const show = (deliverables: string[]) => render(<MemoryRouter><EngineGallery deliverables={deliverables} /></MemoryRouter>);
 const words = (el: HTMLElement) => (el.textContent ?? '').replace(/\s+/g, ' ');
 
-beforeEach(() => { state.user = null; state.navigate.mockReset(); state.insert.mockReset(); });
+beforeEach(() => { photo.base = ''; state.user = null; state.navigate.mockReset(); state.insert.mockReset(); });
 
 describe('EngineGallery', () => {
   it('shows eight designs for the first item it can make, each naming its type', () => {
@@ -68,5 +70,20 @@ describe('EngineGallery', () => {
     const row = state.insert.mock.calls[0][0] as { user_id: string; document: { pages: { width: number; height: number }[] } };
     expect(row.user_id).toBe('user-3');
     expect(row.document.pages[0].width / row.document.pages[0].height).toBeCloseTo(1011 / 638, 2);
+  });
+
+  it('shows photo-led designs as previews with their credit, and never lets one be saved', () => {
+    photo.base = 'http://127.0.0.1:5197';
+    state.user = { id: 'user-3' };
+    show(['flyer']);
+    const cards = screen.getAllByTestId('engine-design');
+    const led = cards.filter((c) => within(c).queryByTestId('engine-design-photo'));
+    expect(led.length).toBeGreaterThanOrEqual(2);
+    for (const c of led) {
+      expect(words(c)).toMatch(/Preview: Photo by .+ on Pexels/);
+      expect(within(c).queryByRole('button', { name: 'Edit' })).toBeNull();
+    }
+    /* The type-led designs beside them are still the customer's to edit. */
+    expect(cards.filter((c) => within(c).queryByRole('button', { name: 'Edit' })).length).toBe(cards.length - led.length);
   });
 });
