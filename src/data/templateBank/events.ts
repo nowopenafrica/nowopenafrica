@@ -20,7 +20,7 @@ export const EVENTS = [
         { kind: 'rect', x: 0.08, y: 0.5, w: 0.84, h: 0.004, tone: 'ink' },
       ],
       slots: [
-        { role: 'eyebrow', x: 0.07, y: 0.14, w: 0.86, size: 0.26, weight: 700, tracking: -0.06, tone: 'accent', font: 'grotesk', motion: mo('mask-up', 0, 0.7) },
+        { role: 'eyebrow', x: 0.07, y: 0.14, w: 0.86, size: 0.235, weight: 700, tracking: 0.02, tone: 'accent', font: 'grotesk', motion: mo('mask-up', 0, 0.7) },
         { role: 'headline', x: 0.08, y: 0.54, w: 0.8, size: 0.074, weight: 700, tracking: -0.03, motion: mo('rise', 0.5, 0.6) },
         { role: 'subline', x: 0.08, y: 0.73, w: 0.62, size: 0.03, tone: 'muted', motion: mo('fade', 0.9) },
         { role: 'cta', x: 0.08, y: 0.115, w: 0.4, size: 0.024, weight: 700, upper: true, tracking: 0.1, fromBottom: true, motion: mo('fade', 1.2, 0.4) },
@@ -162,7 +162,7 @@ export const EVENTS = [
       slots: [
         { role: 'brand', x: 0.1, y: 0.08, w: 0.5, size: 0.024, weight: 700, motion: mo('fade', 0, 0.4) },
         { role: 'eyebrow', x: 0.5, y: 0.082, w: 0.4, size: 0.019, align: 'right', upper: true, tracking: 0.2, tone: 'accent', motion: mo('fade', 0.1, 0.4) },
-        { role: 'headline', x: 0.1, y: 0.17, w: 0.8, size: 0.076, weight: 600, tracking: -0.02, motion: mo('rise', 0.25, 0.6) },
+        { role: 'headline', x: 0.1, y: 0.17, w: 0.8, size: 0.066, weight: 600, tracking: -0.02, motion: mo('rise', 0.25, 0.6) },
         { role: 'services', x: 0.1, y: 0.36, w: 0.8, size: 0.034, weight: 600, gap: 2.2, bullet: 'number', max: 5, motion: mo('fade', 0.7, 0.7) },
         { role: 'meta', x: 0.1, y: 0.095, w: 0.8, size: 0.019, tone: 'muted', fromBottom: true, motion: mo('fade', 1.4, 0.4) },
       ],

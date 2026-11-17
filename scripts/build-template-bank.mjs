@@ -186,12 +186,12 @@ if (SHEETS) {
       list.slice(i, i + 12).map((t) => ({ png: previews.get(t.key), label: `${t.id} ${t.name} · ${t.recommendedStyle}` })), 4);
   }
   if (process.argv.includes('--styles')) {
-    for (let i = 0; i < list.length; i += 4) {
+    for (let i = 0; i < list.length; i += 7) {
       const cells = [];
-      for (const t of list.slice(i, i + 4)) {
+      for (const t of list.slice(i, i + 7)) {
         for (const st of DESIGN_STYLES) cells.push({ png: await render(t, st.key, 720, 720), label: `${t.key} · ${st.key}` });
       }
-      await sheet(`styles-${String(i / 4 + 1).padStart(2, '0')}`, cells, 8, 230);
+      await sheet(`styles-${String(i / 7 + 1).padStart(2, '0')}`, cells, 8, 230);
     }
   }
   if (process.argv.includes('--formats')) {

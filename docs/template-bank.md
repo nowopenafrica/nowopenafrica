@@ -62,10 +62,13 @@ provisional and never copied into the review.
 | Fit audit | Real text, real fonts: cut lines, collisions, words wider than their box | `npm run bank:audit` |
 | Unit tests | Validator, package, bank data, registry, fit logic | `npx vitest run src/lib/templateBank` |
 | Migration | Import rollback, review, publish gate, row security, on a local Postgres | `npm run bank:test-migration` |
+| End to end | A browser drives the admin screen against the real migration on a local Postgres: upload, import, reject, approve, publish, the public gallery, unpublish, re-upload | `bash scripts/template-bank/e2e.sh` |
 | Package build | Renders previews, writes the ZIP and catalogue PDF, re-reads the ZIP through the importer | `npm run bank:build` |
 
-The build and the fit audit need Playwright installed on the machine; it is not a
-project dependency. The migration test needs a local Postgres install.
+The build, the fit audit and the end-to-end test need Playwright installed on the
+machine; it is not a project dependency. The migration and end-to-end tests need a
+local Postgres install. The end-to-end test stands in for Supabase with a small shim
+that always acts as an admin, so it does not exercise sign-in.
 
 ## The official bank
 
@@ -73,13 +76,13 @@ Source: `src/data/templateBank/`. Version 1.0.0 holds 33 layouts across social m
 advertising and outdoor, and events. None has been scored. They are type-led layouts
 with no photography and should be expected to score well below the gate until reviewed.
 
+Each is art-directed for its first listed format. At other formats it holds together
+(nothing collides or is cut) but only scales: on a story or a 3:1 strip the type is
+small and space is left unused. These layouts do not recompose per format.
+
 ## Not done
 
 - The migration has not been applied to any Supabase project.
-- The admin screen was exercised in a browser up to the import button, with no
-  database behind it. Import, review and publish were tested at the SQL level only.
-- A deep link to a published template (`/studio?module=design&template=…`) resolves
-  before published templates have loaded and falls back to no selection.
 - Print, brand identity, packaging and motion divisions have no templates.
 - `apply_all_migrations.sql` has not been regenerated to include the new migration.
 

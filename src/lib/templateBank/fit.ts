@@ -1,5 +1,5 @@
 import {
-  slotBox, typePx, isListRole, listRowBoxes, fontStack, nearestWeight,
+  slotBox, typePx, isListRole, listRowBoxes, fontStack, nearestWeight, shapeGeometry,
   type DesignTemplate, type SlotSpec,
 } from '../designTemplates';
 import { wrapLines } from '../drawTemplate';
@@ -21,7 +21,7 @@ import type { BankSample } from './package';
 export type Measure = (text: string, font: string, letterSpacingPx: number) => number;
 
 export interface FitIssue {
-  kind: 'cut' | 'too-wide' | 'overlap' | 'off-canvas';
+  kind: 'cut' | 'too-wide' | 'overlap' | 'off-canvas' | 'on-shape';
   slot: string;
   detail: string;
 }
@@ -73,6 +73,30 @@ export function auditFit(
       const last = rows[rows.length - 1];
       const rowHeight = slot.role === 'stats' ? size * 2.4 : size * 1.3;
       blocks.push({ slot: slot.role, x0: box.left, x1: box.left + box.width, y0: box.top, y1: last.y + rowHeight });
+
+      // A list row is one line. The renderer cuts a label that is too long
+      // rather than wrapping it, so a long row is a cut row.
+      const face = slot.font ?? tpl.font;
+      const rowFont = (weight: number) => `${nearestWeight(face, weight)} ${size}px ${fontStack(face)}`;
+      const labels: { text: string; room: number }[] = [];
+      if (slot.role === 'price') {
+        for (const [i, item] of (content.price ?? []).slice(0, count).entries()) {
+          const priceW = measure(item.price, rowFont(800), 0);
+          const wasW = item.was ? measure(item.was, rowFont(800), 0) + size * 0.5 : 0;
+          labels.push({ text: slot.upper ? item.label.toUpperCase() : item.label, room: rows[i].w - priceW - wasW - size * 0.8 });
+        }
+      } else if (slot.role === 'services' || slot.role === 'contact') {
+        const indent = !slot.bullet || slot.bullet === 'none' ? 0 : size * (slot.bullet === 'number' ? 1.7 : 0.95);
+        const list = (slot.role === 'services' ? content.services : content.contact) ?? [];
+        for (const [i, text] of list.slice(0, count).entries()) {
+          labels.push({ text: slot.upper ? text.toUpperCase() : text, room: rows[i].w - indent });
+        }
+      }
+      for (const label of labels) {
+        if (measure(label.text, rowFont(slot.weight ?? 600), 0) > label.room) {
+          issues.push({ kind: 'cut', slot: slot.role, detail: `"${label.text}" is cut short with an ellipsis` });
+        }
+      }
       continue;
     }
 
@@ -104,6 +128,25 @@ export function auditFit(
   for (const b of blocks) {
     if (b.y1 > h + 1 || b.y0 < -1) issues.push({ kind: 'off-canvas', slot: b.slot, detail: 'runs off the canvas' });
   }
+  // Type sitting on a rule or a solid block. Only shapes whose bounds are their
+  // real extent are checked: a rotated stripe or a corner wedge has a bounding
+  // box far larger than its ink, and would report text that is nowhere near it.
+  for (const shape of tpl.shapes ?? []) {
+    if ((shape.alpha ?? 1) < 0.6 || shape.tone === 'base') continue;
+    if (shape.kind !== 'rect' && shape.kind !== 'circle') continue;
+    if (shape.kind === 'rect' && shape.skew) continue;
+    const g = shapeGeometry(shape, w, h);
+    const s0 = g.kind === 'circle'
+      ? { x0: g.cx - g.r, x1: g.cx + g.r, y0: g.cy - g.r, y1: g.cy + g.r }
+      : g.kind === 'rect' ? { x0: g.x, x1: g.x + g.w, y0: g.y, y1: g.y + g.h } : null;
+    if (!s0) continue;
+    for (const b of blocks) {
+      if (b.x0 < s0.x1 && b.x1 > s0.x0 && b.y0 < s0.y1 && b.y1 > s0.y0) {
+        issues.push({ kind: 'on-shape', slot: b.slot, detail: `${b.slot} sits on a solid ${shape.kind}` });
+      }
+    }
+  }
+
   // A hair of tolerance: glyph boxes are taller than the ink inside them, so
   // two lines that merely share a pixel row do not read as touching.
   const slack = Math.min(w, h) * 0.004;

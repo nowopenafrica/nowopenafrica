@@ -341,7 +341,7 @@ export default function DesignStudio({
    * canvas back to the URL's design after the owner has changed it.
    */
   const fromUrl = useMemo(() => {
-    if (typeof window === 'undefined') return { template: null, style: null };
+    if (typeof window === 'undefined') return { template: null, style: null, wanted: null };
     const q = new URLSearchParams(window.location.search);
     const wanted = q.get('template');
     const style = q.get('style');
@@ -349,6 +349,7 @@ export default function DesignStudio({
       // Verified against the catalogue, never trusted: an unknown key would
       // otherwise render a blank canvas with no explanation.
       template: wanted && templateByKey(wanted).key === wanted ? wanted : null,
+      wanted,
       style: style && DESIGN_STYLES.some((s) => s.key === style) ? style : null,
     };
   }, []);
@@ -512,6 +513,19 @@ export default function DesignStudio({
   const modernTpl = styled;
 
   const library = useTemplateLibrary();
+  /*
+   * A link to a published Template Bank layout arrives before the published
+   * layouts have loaded, so the mount-time check above cannot know the key.
+   * Honour it once, when the library catches up — and only if the owner has
+   * not already picked something else in the meantime.
+   */
+  const deepLinkSettled = useRef(Boolean(fromUrl.template) || !fromUrl.wanted);
+  useEffect(() => {
+    const wanted = fromUrl.wanted;
+    if (deepLinkSettled.current || !wanted || !library.some((t) => t.key === wanted)) return;
+    deepLinkSettled.current = true;
+    setLayoutKey((current) => (current === STUDIO_LAYOUTS[0].key ? `t:${wanted}` : current));
+  }, [library, fromUrl]);
   const foundTemplates = useMemo(
     () => findTemplates(tplQuery, {
       use: tplUse || undefined,

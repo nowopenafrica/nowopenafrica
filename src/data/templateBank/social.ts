@@ -97,7 +97,7 @@ export const SOCIAL = [
         { kind: 'rect', x: 0.08, y: 0.5, w: 0.84, h: 0.006, tone: 'ink' },
       ],
       slots: [
-        { role: 'eyebrow', x: 0.07, y: 0.1, w: 0.86, size: 0.36, weight: 900, tracking: -0.05, tone: 'accent', font: 'heavy', motion: mo('scale-out', 0, 0.7) },
+        { role: 'eyebrow', x: 0.07, y: 0.1, w: 0.86, size: 0.32, weight: 900, tracking: 0.02, tone: 'accent', font: 'heavy', motion: mo('scale-out', 0, 0.7) },
         { role: 'headline', x: 0.08, y: 0.55, w: 0.78, size: 0.072, weight: 800, tracking: -0.02, motion: mo('mask-up', 0.5, 0.7) },
         { role: 'subline', x: 0.08, y: 0.13, w: 0.5, size: 0.028, tone: 'muted', fromBottom: true, motion: mo('fade', 1.0) },
         { role: 'cta', x: 0.64, y: 0.14, w: 0.28, size: 0.026, weight: 800, align: 'right', upper: true, tracking: 0.14, treatment: 'underline', fromBottom: true, motion: mo('slide-left', 1.1) },
@@ -123,7 +123,7 @@ export const SOCIAL = [
       ],
       slots: [
         { role: 'eyebrow', x: 0.08, y: 0.1, w: 0.6, size: 0.026, upper: true, tracking: 0.2, treatment: 'outline', motion: mo('drop', 0, 0.45) },
-        { role: 'headline', x: 0.08, y: 0.19, w: 0.84, size: 0.112, weight: 900, upper: true, tracking: -0.04, motion: mo('wipe', 0.25, 0.7) },
+        { role: 'headline', x: 0.08, y: 0.19, w: 0.84, size: 0.096, weight: 900, upper: true, tracking: -0.04, motion: mo('wipe', 0.25, 0.7) },
         { role: 'subline', x: 0.08, y: 0.225, w: 0.84, size: 0.03, weight: 600, fromBottom: true, motion: mo('rise', 0.9) },
         { role: 'cta', x: 0.08, y: 0.115, w: 0.4, size: 0.028, weight: 800, upper: true, treatment: 'pill', tone: 'accent', fromBottom: true, motion: mo('pop', 1.15, 0.45) },
         { role: 'brand', x: 0.52, y: 0.105, w: 0.4, size: 0.024, weight: 700, align: 'right', fromBottom: true, motion: mo('fade', 1.2, 0.4) },
@@ -189,7 +189,7 @@ export const SOCIAL = [
     description: 'Short priced list under a hand-set heading, thumb-safe for stories.',
     formats: ['instagram-post', 'story', 'a4'], medium: 'both', difficulty: 'standard',
     imagery: 'Optional. A top-down food or product photograph, darkened by the scrim.',
-    sample: { ...YOU, eyebrow: 'Today only', headline: 'On the board', price: [{ label: 'Your first special', price: '₦2,500' }, { label: 'Your second special', price: '₦3,800' }, { label: 'Your third special', price: '₦4,200', was: '₦5,000' }], cta: 'Order on WhatsApp' },
+    sample: { ...YOU, eyebrow: 'Today only', headline: 'On the board', price: [{ label: 'First special', price: '₦2,500' }, { label: 'Second special', price: '₦3,800' }, { label: 'Third special', price: '₦4,200', was: '₦5,000' }], cta: 'Order on WhatsApp' },
     definition: {
       key: 'bank-chalkboard', label: 'Chalkboard', desc: 'Three priced lines under a short heading',
       use: 'industry', industries: ['Food & Hospitality', 'Local & Everyday Business', 'Home & Personal Services'],
@@ -284,7 +284,7 @@ export const SOCIAL = [
         { role: 'brand', x: 0.11, y: 0.115, w: 0.45, size: 0.028, weight: 800, upper: true, motion: mo('fade', 0, 0.4) },
         { role: 'meta', x: 0.5, y: 0.12, w: 0.39, size: 0.018, align: 'right', upper: true, tracking: 0.1, font: 'mono', motion: mo('fade', 0.1, 0.4) },
         { role: 'eyebrow', x: 0.11, y: 0.25, w: 0.5, size: 0.024, upper: true, tracking: 0.2, tone: 'accent', motion: mo('drop', 0.2, 0.45) },
-        { role: 'headline', x: 0.11, y: 0.3, w: 0.78, size: 0.108, weight: 900, upper: true, tracking: -0.03, motion: mo('wipe', 0.35, 0.7) },
+        { role: 'headline', x: 0.11, y: 0.3, w: 0.78, size: 0.096, weight: 900, upper: true, tracking: -0.03, motion: mo('wipe', 0.35, 0.7) },
         { role: 'services', x: 0.11, y: 0.595, w: 0.78, size: 0.036, weight: 700, gap: 1.9, bullet: 'number', max: 3, motion: mo('fade', 0.9, 0.6) },
         { role: 'cta', x: 0.11, y: 0.15, w: 0.5, size: 0.027, weight: 800, upper: true, treatment: 'pill', tone: 'accent', fromBottom: true, motion: mo('pop', 1.3, 0.45) },
       ],
