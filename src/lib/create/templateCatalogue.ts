@@ -77,6 +77,19 @@ export interface TemplateRow {
   status: TemplateStatus;
   published_at: string | null;
   created_at: string;
+  /*
+   * The review (migration 20261117000000). Read by the staff screen only:
+   * the public catalogue select never asks for these.
+   */
+  review_lines?: Record<string, number> | null;
+  review_score?: number | null;
+  review_criticals?: string[] | null;
+  review_decision?: 'approve' | 'revise' | 'reject' | null;
+  review_notes?: string | null;
+  reviewed_by?: string | null;
+  reviewed_at?: string | null;
+  review_hash?: string | null;
+  legacy_listing?: boolean | null;
 }
 
 /** An entry in the merged catalogue, carrying where it came from. */
@@ -316,8 +329,17 @@ export async function templateByKeyAnywhere(key: string): Promise<DesignTemplate
   return read.entry.template;
 }
 
+/** The staff screen's extra columns: the review and its gate. */
+export const REVIEW_COLUMNS =
+  'review_lines,review_score,review_criticals,review_decision,review_notes,reviewed_by,reviewed_at,review_hash,legacy_listing';
+
 export type TemplateRowsRead =
-  | { state: 'ready'; rows: TemplateRow[] }
+  /**
+   * `reviewGate` is false when the database predates the review migration:
+   * the rows are real, but there is nowhere to record a score, so the
+   * screen must say so rather than offer a review that cannot be saved.
+   */
+  | { state: 'ready'; rows: TemplateRow[]; reviewGate: boolean }
   /** The read failed. NEVER rendered as "no templates yet". */
   | { state: 'unavailable'; reason: string };
 
@@ -330,11 +352,22 @@ export type TemplateRowsRead =
  * and invites somebody to upload everything a second time.
  */
 export async function fetchTemplateRows(): Promise<TemplateRowsRead> {
-  const { data, error } = await supabase
+  const read = (columns: string) => supabase
     .from('design_templates')
-    .select(TEMPLATE_COLUMNS)
+    .select(columns)
     .order('created_at', { ascending: false })
     .limit(500);
+
+  let reviewGate = true;
+  let { data, error } = await read(`${TEMPLATE_COLUMNS},${REVIEW_COLUMNS}`);
+  /*
+   * 42703 is "no such column": the review migration is not applied here yet.
+   * The library is still readable, so read it, and say the gate is missing.
+   */
+  if (error?.code === '42703') {
+    reviewGate = false;
+    ({ data, error } = await read(TEMPLATE_COLUMNS));
+  }
 
   if (error) {
     return {
@@ -348,5 +381,6 @@ export async function fetchTemplateRows(): Promise<TemplateRowsRead> {
   return {
     state: 'ready',
     rows: ((data ?? []) as unknown as TemplateRow[]).map(normaliseRow),
+    reviewGate,
   };
 }
