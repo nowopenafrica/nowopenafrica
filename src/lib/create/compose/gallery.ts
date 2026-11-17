@@ -61,15 +61,15 @@ export const GALLERY_KITS: Record<string, Kit> = {
   poster: { goal: 'awareness', details: HERE },
   notice: { goal: 'inform', require: 2, details: ['From: Your date', 'Hours: Your new hours', 'Questions: Your phone'] },
   'event-poster': { goal: 'event', require: 3, details: WHEN },
-  invitation: { goal: 'event', require: 2, details: WHEN, heads: ['You are invited.', 'Join us to celebrate.', 'Save the date.'] },
-  ticket: { goal: 'event', require: 2, details: WHEN, heads: ['Admit one.', 'Your seat is waiting.'] },
+  invitation: { goal: 'event', require: 2, details: WHEN, heads: ['You are invited.', 'Join us to celebrate.', 'Save the date.', 'Celebrate with us.', 'Your presence is requested.', 'Come and celebrate.'] },
+  ticket: { goal: 'event', require: 2, details: WHEN, heads: ['Admit one.', 'Your seat is waiting.', 'Keep this ticket.', 'Entry pass.'] },
   'speaker-card': { goal: 'event', require: 2, details: ['Talk: Your talk title', 'When: Your date'], fixed: { headline: 'Your speaker name', eyebrow: 'Speaking at' } },
   menu: { goal: 'awareness', require: 3, details: ['Your dish: Your price', 'Your dish: Your price', 'Your dish: Your price', 'Your dish: Your price'],
-    fixed: { eyebrow: 'Menu' }, heads: ['What we cook.', 'On the menu.', 'Eat well here.'] },
+    fixed: { eyebrow: 'Menu' }, heads: ['What we cook.', 'On the menu.', 'Eat well here.', 'Cooked to order.', 'Come hungry.', 'Our kitchen, your table.', 'Order what you love.', 'Something for everyone.'] },
   'price-list': { goal: 'inform', require: 3, details: ['Your service: Your price', 'Your service: Your price', 'Your service: Your price', 'Your service: Your price'],
-    fixed: { eyebrow: 'Price list' }, heads: ['Our prices.', 'What it costs.', 'Clear prices.'] },
+    fixed: { eyebrow: 'Price list' }, heads: ['Our prices.', 'What it costs.', 'Clear prices.', 'Our services.', 'Simple and fair.', 'No surprises.', 'Prices at a glance.', 'What we offer.'] },
   'rate-card': { goal: 'inform', require: 2, details: ['Your service: Your rate', 'Your service: Your rate', 'Your service: Your rate'],
-    fixed: { eyebrow: 'Rates' }, heads: ['Our rates.', 'Work with us.'] },
+    fixed: { eyebrow: 'Rates' }, heads: ['Our rates.', 'Work with us.', 'Rates at a glance.', 'What we charge.', 'Book our services.', 'Plain rates.', 'How we charge.', 'Our services.'] },
   'shopfront-sign': { goal: 'identity', details: [] },
   'roll-up': { goal: 'awareness', details: HERE },
   billboard: { goal: 'awareness', details: [] },
@@ -122,15 +122,16 @@ const uniq = <T>(xs: T[]) => [...new Set(xs)];
  */
 export const GENERAL_HEADS: Partial<Record<Objective, string[]>> = {
   awareness: ['Good work, close to home.', 'Made with care.', 'Worth the visit.', 'Here for you.', 'Ask us anything.', 'Simply done well.'],
-  sale: ['Good things, good prices.', 'A little less, for a little while.', 'Do not miss this.', 'Come early.'],
-  event: ['Mark your calendar.', 'Something to look forward to.', 'Be part of it.', 'Come as you are.'],
-  inform: ['Please read.', 'Things are changing.', 'Here is the plan.'],
-  identity: ['This is us.', 'Know the name.', 'Made to be remembered.'],
-  launch: ['Something new.', 'It is here.', 'Ready when you are.'],
+  sale: ['Good things, good prices.', 'A little less, for a little while.', 'Do not miss this.', 'Come early.', 'Your favourites, on offer.', 'Treat yourself.'],
+  event: ['Mark your calendar.', 'Something to look forward to.', 'Be part of it.', 'Come as you are.', 'See you there.', 'An evening worth keeping.'],
+  inform: ['Please read.', 'Things are changing.', 'Here is the plan.', 'A note for you.', 'Before you visit.', 'Keep this handy.'],
+  identity: ['This is us.', 'Know the name.', 'Made to be remembered.', 'Nice to meet you.', 'Look for us.', 'The name to know.'],
+  launch: ['Something new.', 'It is here.', 'Ready when you are.', 'Say hello to it.', 'Made for you.', 'Now you can.'],
 };
 
 function headlinesFor(kit: Kit, trade?: string): string[] {
   const tradeLines = trade ? BY_TRADE[trade]?.map((t) => t[0]) ?? [] : [];
+  /* An item with its own lines (a menu, an invitation) speaks in them first; the general lines are a last resort. */
   return uniq([...(kit.heads ?? []), ...tradeLines, ...BY_GOAL[kit.goal].map((l) => l.headline), ...(GENERAL_HEADS[kit.goal] ?? []), ...(kit.goal === 'awareness' ? BY_GOAL.identity.map((l) => l.headline) : [])]);
 }
 

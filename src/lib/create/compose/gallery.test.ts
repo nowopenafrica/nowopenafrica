@@ -62,7 +62,8 @@ describe('the category gallery', () => {
       if (!['business-card', 'speaker-card'].includes(item)) {
         const heads = g.map((d) => texts(d).find((t) => t === t) ?? '').length;
         const distinct = new Set(g.map((d) => (d.doc.pages[0].objects as TextObject[]).find((o) => o.type === 'text' && o.slotRole === 'headline')?.text.replace(/\s+/g, ' '))).size;
-        expect(distinct, `${item} headlines`).toBeGreaterThanOrEqual(Math.min(heads, 6));
+        /* Eight designs, eight different headlines: a gallery that repeats itself looks like a template pack. */
+        expect(distinct, `${item} headlines`).toBe(heads);
       }
     }
   });
@@ -86,6 +87,7 @@ describe('the category gallery', () => {
     }
     /* The general headlines are held to the same gate as the bank. */
     for (const [goal, heads] of Object.entries(GENERAL_HEADS)) for (const h of heads ?? []) expect(refuseLine(h, 'headline', new Set()), `${goal}: ${h}`).toBeNull();
+    for (const [item, kit] of Object.entries(GALLERY_KITS)) for (const h of kit.heads ?? []) expect(refuseLine(h, 'headline', new Set()), `${item}: ${h}`).toBeNull();
   });
 
   it('uses the chosen trade’s own words', () => {
