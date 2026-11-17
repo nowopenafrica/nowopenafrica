@@ -46,6 +46,13 @@ describe('parseRow', () => {
     }
   });
 
+  it('tags people with no release as no-endorsement, the condition approval requires', () => {
+    const r = ok({ contains_people: 'true', release_on_file: 'false' });
+    expect(r.ok && r.value.tags).toEqual(['cafe', 'coffee', 'no-endorsement']);
+    const released = ok({ contains_people: 'true', release_on_file: 'true' });
+    expect(released.ok && released.value.tags).toEqual(['cafe', 'coffee']);
+  });
+
   it('rejects an unknown licence', () => {
     const r = ok({ licence_key: 'canva-pro' });
     expect(r.ok).toBe(false);

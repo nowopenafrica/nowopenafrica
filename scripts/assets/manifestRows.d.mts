@@ -10,12 +10,13 @@ export interface DesignAssetRow {
   tags?: string[] | null;
   contains_people?: boolean | null;
   icon_set?: string | null;
+  source_asset_id?: string | null;
 }
 export const RASTER_KINDS: string[];
 export function rowProblem(r: DesignAssetRow): string | null;
 export function toManifestAsset(r: DesignAssetRow): {
   id: string; kind: string; path: string; w: number; h: number; licence: string;
-  attribution: string | null; tags: string[]; people: boolean; iconSet: string | null;
+  attribution: string | null; tags: string[]; people: boolean; iconSet: string | null; sourceId: string | null;
 };
 export function partitionRows(rows: DesignAssetRow[]): { ok: DesignAssetRow[]; skipped: { id: string; problem: string }[] };
 export function serialise(rows: DesignAssetRow[]): string;

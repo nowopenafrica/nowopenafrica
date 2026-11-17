@@ -208,12 +208,21 @@ export function parseRow(row, licenceKeys) {
   if (release.error) return fail(release.error);
   if (brands.v) return fail('contains_brands is true: an asset showing third-party brands can never be approved, so it is refused at intake');
 
+  /*
+   * People with no release on file can only ever be approved carrying the
+   * no-endorsement tag (design_assets_people_no_release_tagged). The licence's
+   * condition is what the tag records, so intake adds it rather than leaving
+   * every such row to be refused at review.
+   */
+  const tags = list(get('tags'));
+  if (people.v && !release.v && !tags.includes('no-endorsement')) tags.push('no-endorsement');
+
   return {
     ok: true,
     value: {
       file, ext, mime, kind, title,
       description: text(get('description')),
-      tags: list(get('tags')),
+      tags,
       subjects: list(get('subjects')),
       industries,
       regions,

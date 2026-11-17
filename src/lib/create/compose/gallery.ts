@@ -25,6 +25,7 @@ import { checkConcept } from './conceptChecks';
 import { BY_GOAL, BY_TRADE } from './copyBank';
 import { CAPS, PATTERN, asPlaceholder, paletteFor, seedOf, turned } from './concepts';
 import { PILOT_PHOTOS, type PilotPhoto } from './photoSet';
+import { MANIFEST, assetUrl, type AssetManifest } from '../../design/assetManifest';
 
 interface Kit {
   goal: Objective;
@@ -104,8 +105,10 @@ export interface GalleryDesign {
   type: string;
   /** Lines the format had no room for, reported rather than cut. */
   omitted: string[];
-  /** The pilot photograph a photo-led design uses. Preview only until the photo intake (D1). */
+  /** The pilot photograph a photo-led design uses. */
   photo?: PilotPhoto;
+  /** True while that photograph is not approved: shown in development only, never saved. */
+  preview?: boolean;
 }
 
 export interface GalleryOptions {
@@ -119,6 +122,24 @@ export interface GalleryOptions {
    * With it, every other design is photo-led; without it the gallery is type-led.
    */
   photos?: string;
+  /** The approved-asset manifest; tests pass a fixture. Approved photographs are used everywhere. */
+  manifest?: AssetManifest;
+}
+
+interface PhotoSource { photo: PilotPhoto; url: string; preview: boolean }
+
+/**
+ * The photographs a gallery may draw: every approved copy (from the manifest,
+ * so production gets them too), then, in development, the rest as previews.
+ */
+function photoSources(deliverable: string, trade: string | undefined, base: string | undefined, manifest: AssetManifest): PhotoSource[] {
+  return photosFor(deliverable, trade).flatMap((photo): PhotoSource[] => {
+    const id = photo.file.match(/(\d+)\.\w+$/)?.[1];
+    const approved = manifest.assets.find((a) => a.kind === 'photo' && a.sourceId === id);
+    const url = approved ? assetUrl(approved.id, manifest) : null;
+    if (url) return [{ photo, url, preview: false }];
+    return base ? [{ photo, url: `${base}/${photo.file}`, preview: true }] : [];
+  });
 }
 
 /* What each item's photograph should show when no trade is chosen. */
@@ -206,7 +227,7 @@ export function galleryFor(deliverable: string, opts: GalleryOptions = {}): Gall
   const archetypeUse = new Map<ArchetypeKey, number>();
   const palettes = new Set<string>();
   const displays = new Map<string, number>();
-  const pool = opts.photos ? photosFor(deliverable, trade) : [];
+  const pool = photoSources(deliverable, trade, opts.photos, opts.manifest ?? MANIFEST);
   let photoUse = 0;
 
   for (let pass = 0; pass < 3 && out.length < count; pass += 1) {
@@ -246,7 +267,7 @@ export function galleryFor(deliverable: string, opts: GalleryOptions = {}): Gall
           const photo = archetypeOf(archetype).needsImage ? pool[photoUse % pool.length] : undefined;
           const input = {
             copy, colours: palette.colours, fonts: { display: p.display, text: p.text, accent: p.accent },
-            ...(photo && { image: `${opts.photos}/${photo.file}` }),
+            ...(photo && { image: photo.url }),
             upperHeadline: CAPS.has(movement.key),
             ...(archetype === 'pattern-field' && { pattern: PATTERN[movement.key] ?? 'rings' }),
           };
@@ -263,7 +284,7 @@ export function galleryFor(deliverable: string, opts: GalleryOptions = {}): Gall
             ? `Type: ${typefaceLabel(p.display)} throughout`
             : `Headline in ${typefaceLabel(p.display)}, text in ${typefaceLabel(p.text)}`;
           if (photo) photoUse += 1;
-          out.push({ id: `${deliverable}-${formatKey}-${movement.key}-${archetype}-${pk}`, doc, movement: movement.name, archetype, pairing: pk, palette: palette.key, type, omitted, ...(photo && { photo }) });
+          out.push({ id: `${deliverable}-${formatKey}-${movement.key}-${archetype}-${pk}`, doc, movement: movement.name, archetype, pairing: pk, palette: palette.key, type, omitted, ...(photo && { photo: photo.photo, preview: photo.preview }) });
           placed = true;
           break;
         }

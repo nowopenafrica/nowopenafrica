@@ -152,7 +152,8 @@ describe('manifest generator rows', () => {
 
   it('maps nulls to [] or null and people to a boolean', () => {
     const a = toManifestAsset(row('x', { tags: null, attribution_text: null, icon_set: null, contains_people: null }));
-    expect(a).toMatchObject({ tags: [], attribution: null, iconSet: null, people: false });
+    expect(a).toMatchObject({ tags: [], attribution: null, iconSet: null, people: false, sourceId: null });
+    expect(toManifestAsset(row('y', { source_asset_id: '17952748' })).sourceId).toBe('17952748');
     expect(toManifestAsset(row('y', { contains_people: true })).people).toBe(true);
     expect(toManifestAsset(row('z', { icon_set: 'lucide', kind: 'icon' })).iconSet).toBe('lucide');
   });

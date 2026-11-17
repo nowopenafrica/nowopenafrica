@@ -121,6 +121,7 @@ describe('the category gallery', () => {
         if (g.length < 8) failures.push(`${item}/${trade ?? 'any'}: only ${g.length}`);
         if (led.length < (item === 'business-card' ? 1 : 2)) failures.push(`${item}/${trade ?? 'any'}: ${led.length} photo-led`);
         for (const d of led) {
+          if (!d.preview) failures.push(`${item}: an unapproved photo was not marked as a preview`);
           const img = (d.doc.pages[0].objects as { type: string; assetId?: string }[]).find((o) => o.type === 'image');
           if (!img?.assetId?.startsWith(`${photos}/pexels-`)) failures.push(`${item}: photo not drawn`);
           if (!showsFacts(d.doc, GALLERY_KITS[item])) failures.push(`${item}/${d.archetype}: facts missing`);
@@ -128,6 +129,27 @@ describe('the category gallery', () => {
         }
       }
       expect(failures.slice(0, 10)).toEqual([]);
+    });
+
+    it('uses an approved copy everywhere, editable, and keeps the rest as development previews', () => {
+      const food = PILOT_PHOTOS.filter((p) => p.subjects.includes('food'));
+      const manifest = { assets: food.map((p, k) => ({
+        id: `00000000-0000-4000-8000-00000000000${k}`, kind: 'photo', path: `abc${k}.jpg`, w: 4000, h: 3000,
+        licence: 'pexels', attribution: p.credit, tags: [], people: false, iconSet: null, sourceId: p.file.match(/(\d+)\./)![1],
+      })) };
+      /* No photo folder (production): only the approved photographs appear, from the public bucket, not as previews. */
+      const live = galleryFor('menu', { count: 8, manifest });
+      const led = live.filter((d) => d.photo);
+      expect(led.length).toBeGreaterThanOrEqual(2);
+      for (const d of led) {
+        expect(d.preview).toBe(false);
+        const img = (d.doc.pages[0].objects as { type: string; assetId?: string }[]).find((o) => o.type === 'image')!;
+        expect(img.assetId).toMatch(/\/storage\/v1\/object\/public\/design-assets\/abc\d\.jpg$/);
+      }
+      /* In development the unapproved ones join as previews. */
+      const dev = galleryFor('flyer', { count: 8, manifest, photos });
+      expect(dev.some((d) => d.photo && d.preview)).toBe(true);
+      expect(dev.filter((d) => d.photo && !d.preview).every((d) => d.photo!.subjects.includes('food'))).toBe(true);
     });
 
     it('picks photographs that fit: the trade’s own, a person on a card, food on a menu', () => {
