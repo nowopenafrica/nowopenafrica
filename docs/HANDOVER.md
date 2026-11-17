@@ -1,5 +1,14 @@
 # NowOpen Africa: handover
 
+> **Deploy state (17 November 2026).** Production serves commit `f7bca34`
+> (bundle `index-D-myyetf.js`): `promote-step2` + the formerly uncommitted live
+> work (now committed, `07b1dc0`) + `creative-intel-spec` + the template review
+> gate. This folder's `promote-step2` was fast-forwarded to it and rebuilds the
+> identical bundle, so deploying from here is safe again. Everything is committed:
+> keep it that way, so git and production stay the same thing. This worktree
+> checks out LF (`git config --worktree core.autocrlf false`); CRLF files fail the
+> self-category and wa-link guards in `npm run build`.
+
 Read this first in any new session. Last updated **7 November 2026**.
 Detail per workstream: `docs/create-promote-status-2026-11-06.md`, specs in `docs/superpowers/specs/`, plans in `docs/superpowers/plans/`.
 
