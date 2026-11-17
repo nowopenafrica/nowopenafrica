@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { Pause, Play } from 'lucide-react';
 
 import { PreviewCard } from './TemplateGallery';
@@ -116,9 +116,12 @@ const BRAND = '#2563eb';
  * battery spent on nothing. With reduced motion asked for it never moves:
  * it is a plain strip you scroll yourself, and there is no button to show.
  */
+/** A card someone else draws (the engine's designs), for the same strip. */
+export interface CarouselCard { key: string; render: (clone: boolean) => ReactNode }
+
 export default function ProductCarousel({
-  listed, onOpen,
-}: { listed: DesignTemplate[]; onOpen: (template: DesignTemplate) => void }) {
+  listed, onOpen, cards,
+}: { listed: DesignTemplate[]; onOpen: (template: DesignTemplate) => void; cards?: CarouselCard[] }) {
   const picks = useMemo(() => carouselPicks(listed), [listed]);
   const reduce = usePrefersReducedMotion();
   const section = useRef<HTMLElement>(null);
@@ -143,7 +146,7 @@ export default function ProductCarousel({
     return () => document.removeEventListener('visibilitychange', on);
   }, []);
 
-  if (picks.length === 0) return null;
+  if ((cards ?? picks).length === 0) return null;
 
   const paused = userPaused || offscreen || tabHidden;
   const styleKey = DESIGN_STYLES[0].key;
@@ -159,6 +162,12 @@ export default function ProductCarousel({
       />
     </li>
   );
+
+  const strip = (clone: boolean) => (cards
+    ? cards.map((c) => (
+      <li key={c.key} className="w-[160px] shrink-0 snap-start pr-3 sm:w-[220px] sm:pr-4">{c.render(clone)}</li>
+    ))
+    : picks.map((p) => card(p, clone)));
 
   const fadeLeft = !reduce || scrolled;
   const mask = fadeLeft ? FADE : FADE_RIGHT_ONLY;
@@ -198,7 +207,7 @@ export default function ProductCarousel({
             onScroll={(e) => setScrolled(e.currentTarget.scrollLeft > 4)}
             className="flex snap-x snap-mandatory overflow-x-auto pb-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
           >
-            {picks.map((p) => card(p, false))}
+            {strip(false)}
           </ul>
         ) : (
           <>
@@ -209,10 +218,10 @@ export default function ProductCarousel({
               style={paused ? { animationPlayState: 'paused' } : undefined}
             >
               <ul data-testid="products-list" className="flex">
-                {picks.map((p) => card(p, false))}
+                {strip(false)}
               </ul>
               <ul data-testid="products-clone" aria-hidden="true" className="flex">
-                {picks.map((p) => card(p, true))}
+                {strip(true)}
               </ul>
             </div>
           </>

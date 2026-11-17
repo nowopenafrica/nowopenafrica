@@ -23,6 +23,8 @@ vi.mock('../../hooks/useDesignCatalogue', async () => {
   };
 });
 vi.mock('../../lib/telemetry', () => ({ track: () => {} }));
+/* The template browser is what production runs today; the engine's browse is tested in EngineFeatured.test.tsx. */
+vi.mock('../../lib/create/flags', () => ({ CONCEPTS_ON: false }));
 /* Nothing on /media reads Supabase on mount except the catalogue hook (mocked above). */
 vi.mock('../../lib/supabase', () => ({ supabase: {} }));
 

@@ -25,6 +25,8 @@ vi.mock('../contexts/CurrencyContext', () => ({
   useCurrency: () => ({ format: (n: number) => `$${n}` }),
 }));
 vi.mock('../lib/telemetry', () => ({ track: () => {} }));
+/* This file covers the template path production runs today; the engine's default view has its own test (EngineFeatured.test.tsx). */
+vi.mock('../lib/create/flags', () => ({ CONCEPTS_ON: false }));
 vi.mock('../lib/create/services', () => ({
   loadServices: async () => [],
   loadCategories: async () => [],
