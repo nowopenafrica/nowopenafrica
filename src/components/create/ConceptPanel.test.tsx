@@ -7,13 +7,14 @@ import { readBrief } from '../../lib/create/brief';
 
 const state = vi.hoisted(() => ({
   user: null as { id: string } | null,
+  noProvider: false,
   navigate: vi.fn(),
   insert: vi.fn(),
   result: { data: { id: 'proj-1' } as { id: string } | null, error: null as { message: string } | null },
   toastError: vi.fn(),
 }));
 
-vi.mock('../../contexts/AuthContext', () => ({ useAuth: () => ({ user: state.user }) }));
+vi.mock('../../contexts/AuthContext', () => ({ useOptionalAuth: () => (state.noProvider ? null : { user: state.user }) }));
 vi.mock('react-router-dom', async (orig) => ({ ...(await orig<typeof import('react-router-dom')>()), useNavigate: () => state.navigate }));
 vi.mock('react-hot-toast', () => ({ default: { error: state.toastError } }));
 vi.mock('../../lib/supabase', () => ({
@@ -32,6 +33,7 @@ const show = (request: string, businessName?: string) =>
 
 beforeEach(() => {
   state.user = null;
+  state.noProvider = false;
   state.navigate.mockReset(); state.insert.mockReset(); state.toastError.mockReset();
   state.result = { data: { id: 'proj-1' }, error: null };
 });
@@ -75,6 +77,12 @@ describe('ConceptPanel', () => {
   it('shows nothing until the trade is known', () => {
     show('something nice please');
     expect(screen.queryByTestId('concept-panel')).toBeNull();
+  });
+
+  it('renders on a page with no sign-in provider, as signed out, instead of taking the page down', () => {
+    state.noProvider = true;
+    show('Flyer for my barber shop');
+    expect(screen.getAllByRole('link', { name: /Sign in to edit this/ })).toHaveLength(3);
   });
 
   it('asks a signed-out visitor to sign in, and saves nothing', () => {

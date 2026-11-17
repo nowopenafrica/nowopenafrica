@@ -24,7 +24,13 @@ export async function fetchIdeas(brief: CreativeBrief, concepts: Concept[], sign
   const url = import.meta.env.VITE_SUPABASE_URL;
   if (!url || !concepts.length) return null;
   try {
-    const { data } = await supabase.auth.getSession();
+    const { data, error } = await supabase.auth.getSession();
+    /*
+     * supabase-js reports failure in the result, it does not throw. A session
+     * that cannot be read is treated like no session: the caller keeps the
+     * copy it has, which is this function's answer to every failure.
+     */
+    if (error) return null;
     const token = data.session?.access_token;
     /* Signed-in people only: the function refuses anyone else, so do not spend the request. */
     if (!token) return null;

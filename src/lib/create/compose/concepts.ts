@@ -140,6 +140,8 @@ export function conceptsFor(brief: CreativeBrief, opts: ConceptOptions = {}, cou
   const archetypes = new Set<ArchetypeKey>();
   const palettes = new Set<string>();
   const pairings = new Set<string>();
+  /** Headline faces already used: three concepts should not lead with one face. */
+  const displays = new Set<string>();
 
   const seed = seedOf(brief.industry?.value ?? brief.family?.value ?? '');
   const factsFirst = brief.objective?.value === 'event';
@@ -171,11 +173,22 @@ export function conceptsFor(brief: CreativeBrief, opts: ConceptOptions = {}, cou
     const ctx: TypeContext = { distance: roadside, smallPrint, headlineWords: words, capitals: CAPS.has(movement.key) };
     const suits = (k: string) => { const p = ALL_PAIRINGS.find((x) => x.key === k); return !!p && pairingProblems(p, ctx).length === 0; };
     const own = turned(movement.pairings, seed >>> 5);
-    const pairingKey = own.find((k) => !pairings.has(k) && suits(k))
+    /*
+     * A new pairing is not enough if it leads with the same face: on the real
+     * Create page a Lagos billboard got "modern" and "swiss", both Space
+     * Grotesk headlines (2026-11-17). A customer sees the headline face first,
+     * so a headline face no earlier concept used is preferred at every step.
+     */
+    const display = (k: string) => ALL_PAIRINGS.find((x) => x.key === k)?.display;
+    const freshFace = (k: string) => !displays.has(display(k) as string);
+    const pairingKey = own.find((k) => !pairings.has(k) && suits(k) && freshFace(k))
+      ?? ALL_PAIRINGS.find((p) => !pairings.has(p.key) && suits(p.key) && freshFace(p.key))?.key
+      ?? own.find((k) => !pairings.has(k) && suits(k))
       ?? ALL_PAIRINGS.find((p) => !pairings.has(p.key) && suits(p.key))?.key
       ?? own.find((k) => suits(k))
       ?? own.find((k) => !pairings.has(k)) ?? movement.pairings[0];
     const pairing = ALL_PAIRINGS.find((p) => p.key === pairingKey) ?? ALL_PAIRINGS[0];
+    displays.add(pairing.display);
     const palette = paletteFor(movement, palettes, seed, brief.tier?.value);
     const copy: ConceptCopy = {
       brand: given.brand ?? opts.businessName ?? 'Your brand',
