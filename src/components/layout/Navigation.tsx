@@ -8,6 +8,7 @@
     import Logo from '../Logo';
     import ThemeToggle from '../ThemeToggle';
     import CurrencySelector from '../CurrencySelector';
+import CreditBalanceChip from '../credits/CreditBalanceChip';
 import LanguageSelector from '../LanguageSelector';
 import { useT } from '../../contexts/I18nContext';
 import { useAudience } from '../../hooks/useAudience';
@@ -238,6 +239,8 @@ import AudienceSwitch from './AudienceSwitch';
                   <div className="flex items-center gap-1">
                     <LanguageSelector className="hidden sm:inline-flex" />
                     <CurrencySelector className="hidden sm:inline-flex" />
+                    {/* Signed-in only: NOC balance, low-balance flag, top-up. */}
+                    <CreditBalanceChip className="ml-1" />
                     <ThemeToggle />
                     <button
                       onClick={() => setIsOpen(!isOpen)}

@@ -17,9 +17,10 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Coins, Loader2, Lock } from 'lucide-react';
 import { formatMinor } from '../../lib/create/money';
-import { launchPaystackCheckout, paymentsLive, verifyPayment } from '../../lib/payments';
+import { paymentsLive } from '../../lib/payments';
+import { NOC_BALANCE_EVENT, runTopUp } from '../../lib/credits/topUp';
 import {
-  fetchQuote, formatNoc, nocValue, perNocMinor, startPurchase, topUpClosedMessage, type NocPack, type NocQuote,
+  fetchQuote, formatNoc, nocValue, perNocMinor, topUpClosedMessage, type NocPack, type NocQuote,
 } from '../../lib/credits/noc';
 
 export interface NocCheckoutProps {
@@ -51,7 +52,12 @@ export default function NocCheckout({ action, onUse, useLabel, onToppedUp, class
     }
   }, [action]);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const reload = () => { void load(); };
+    window.addEventListener(NOC_BALANCE_EVENT, reload);
+    return () => window.removeEventListener(NOC_BALANCE_EVENT, reload);
+  }, [load]);
 
   if (error) return <div className={`rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700 ${className}`}>{error}</div>;
   if (!quote) {
@@ -86,23 +92,13 @@ export default function NocCheckout({ action, onUse, useLabel, onToppedUp, class
     setBusy('topup');
     setNotice(null);
     try {
-      const order = await startPurchase(chosen.slug);
-      await launchPaystackCheckout({
-        email: order.email,
-        amount: order.amountMinor / 100,
-        currency: order.currency,
-        reference: order.reference,
-        onSuccess: async (ref) => {
-          const v = await verifyPayment(ref);
-          setNotice(v.message);
-          await load();
-          if (v.verified) onToppedUp?.();
-          setBusy(null);
-        },
-        onCancel: () => setBusy(null),
-      });
+      const r = await runTopUp(chosen.slug);
+      setNotice(r.message);
+      await load();
+      if (r.status === 'credited') onToppedUp?.();
     } catch (e) {
       setNotice(e instanceof Error ? e.message : 'Could not start the top-up.');
+    } finally {
       setBusy(null);
     }
   };

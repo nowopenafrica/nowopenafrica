@@ -14,6 +14,7 @@ import {
 } from '../lib/credits/noc';
 import { formatLocalDate } from '../lib/dates';
 import NocCheckout from '../components/credits/NocCheckout';
+import { NOC_BALANCE_EVENT } from '../lib/credits/topUp';
 
 export default function Wallet() {
   const [summary, setSummary] = useState<NocWalletSummary | null>(null);
@@ -34,7 +35,12 @@ export default function Wallet() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+    const reload = () => { void load(); };
+    window.addEventListener(NOC_BALANCE_EVENT, reload);
+    return () => window.removeEventListener(NOC_BALANCE_EVENT, reload);
+  }, [load]);
 
   if (error) return <main className="mx-auto max-w-3xl px-4 py-10 text-red-700">{error}</main>;
   if (!summary) return <main className="mx-auto max-w-3xl px-4 py-10 text-gray-500">Loading your wallet…</main>;
