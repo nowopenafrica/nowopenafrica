@@ -27,6 +27,8 @@ export interface ManifestAsset {
   iconSet: string | null;
   /** The source's own id (e.g. a Pexels photo number). Absent in manifests written before it was added. */
   sourceId?: string | null;
+  /** A web-size copy (at most 1200 px), drawn in galleries. The editor and print use `path`. */
+  web?: string | null;
 }
 
 export interface AssetManifest {

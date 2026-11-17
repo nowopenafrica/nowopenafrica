@@ -22,7 +22,7 @@ import { mayWrite, nextPageDecision, partitionRows, serialise, totalFromContentR
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 const OUT = join(ROOT, 'src', 'lib', 'design', 'assetManifest.json');
 const PAGE = 1000; // PostgREST's silent row cap; page below it.
-const COLUMNS = 'id,kind,storage_path,width_px,height_px,licence_key,attribution_text,tags,contains_people,icon_set,source_asset_id';
+const COLUMNS = 'id,kind,storage_path,width_px,height_px,licence_key,attribution_text,tags,contains_people,icon_set,source_asset_id,thumb_path';
 
 function parseEnv(text) {
   const out = {};

@@ -442,6 +442,7 @@ export function toInsertRow(v, m) {
     bytes: m.bytes,
     mime: m.mime,
     storage_path: m.storagePath,
+    thumb_path: m.thumbPath ?? null,
     sha256: m.sha256,
     sanitised_at: m.sanitisedAt ?? null,
     source_name: v.source_name,

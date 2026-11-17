@@ -3,7 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { DESIGN_TEMPLATES, type DesignTemplate } from '../designTemplates';
 import {
-  MANIFEST, assetById, assetUrl, missingAssetRefs, templateAssetIds,
+  MANIFEST, assetById, assetUrl, assetWebUrl, fullSizeUrl, missingAssetRefs, templateAssetIds,
   type AssetManifest, type ManifestAsset,
 } from './assetManifest';
 import { externalUrls } from './quality/checks/assets';
@@ -154,6 +154,8 @@ describe('manifest generator rows', () => {
     const a = toManifestAsset(row('x', { tags: null, attribution_text: null, icon_set: null, contains_people: null }));
     expect(a).toMatchObject({ tags: [], attribution: null, iconSet: null, people: false, sourceId: null });
     expect(toManifestAsset(row('y', { source_asset_id: '17952748' })).sourceId).toBe('17952748');
+    expect(a.web).toBeNull();
+    expect(toManifestAsset(row('y', { thumb_path: 'web/abc.jpg' })).web).toBe('web/abc.jpg');
     expect(toManifestAsset(row('y', { contains_people: true })).people).toBe(true);
     expect(toManifestAsset(row('z', { icon_set: 'lucide', kind: 'icon' })).iconSet).toBe('lucide');
   });
@@ -241,5 +243,26 @@ describe('all-or-nothing writing', () => {
     expect(guard).toBeGreaterThan(-1);
     expect(write).toBeGreaterThan(guard);
     expect(src.slice(guard, write)).toContain('throw new Error');
+  });
+});
+
+describe('web-size copies', () => {
+  const M: AssetManifest = { assets: [asset(ID_A, { web: 'web/a.jpg' }), asset(ID_B)] };
+
+  it('draws the web copy small, and falls back to the original when there is none', () => {
+    expect(assetWebUrl(ID_A, M)).toMatch(/\/storage\/v1\/object\/public\/design-assets\/web\/a\.jpg$/);
+    expect(assetWebUrl(ID_B, M)).toBe(assetUrl(ID_B, M));
+    expect(assetWebUrl('nope', M)).toBeNull();
+  });
+
+  it('turns a web copy back into its original, and leaves every other URL alone', () => {
+    expect(fullSizeUrl(assetWebUrl(ID_A, M)!, M)).toBe(assetUrl(ID_A, M));
+    expect(fullSizeUrl(assetUrl(ID_B, M)!, M)).toBe(assetUrl(ID_B, M));
+    expect(fullSizeUrl('https://example.com/x.jpg', M)).toBe('https://example.com/x.jpg');
+  });
+
+  it('every approved photograph in the committed library has a web copy', () => {
+    const photos = MANIFEST.assets.filter((a) => a.kind === 'photo' || a.kind === 'texture');
+    for (const a of photos) expect(a.web, a.id).toMatch(/^web\/[0-9a-f]{64}\.jpg$/);
   });
 });

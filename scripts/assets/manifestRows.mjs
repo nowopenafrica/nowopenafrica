@@ -26,6 +26,8 @@ export const toManifestAsset = (r) => ({
   iconSet: r.icon_set ?? null,
   /* The source's own id (a Pexels photo number), so code can find an approved copy of a known photo. */
   sourceId: r.source_asset_id ?? null,
+  /* The web-size copy (scripts/assets/webcopy.mjs), drawn in galleries; the editor uses `path`. */
+  web: r.thumb_path ?? null,
 });
 
 /** Splits rows into those that can enter the manifest and those refused (with reasons). */

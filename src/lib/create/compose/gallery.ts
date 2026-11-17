@@ -25,7 +25,7 @@ import { checkConcept } from './conceptChecks';
 import { BY_GOAL, BY_TRADE } from './copyBank';
 import { CAPS, PATTERN, asPlaceholder, paletteFor, seedOf, turned } from './concepts';
 import { PILOT_PHOTOS, type PilotPhoto } from './photoSet';
-import { MANIFEST, assetUrl, type AssetManifest } from '../../design/assetManifest';
+import { MANIFEST, assetWebUrl, type AssetManifest } from '../../design/assetManifest';
 
 interface Kit {
   goal: Objective;
@@ -136,7 +136,8 @@ function photoSources(deliverable: string, trade: string | undefined, base: stri
   return photosFor(deliverable, trade).flatMap((photo): PhotoSource[] => {
     const id = photo.file.match(/(\d+)\.\w+$/)?.[1];
     const approved = manifest.assets.find((a) => a.kind === 'photo' && a.sourceId === id);
-    const url = approved ? assetUrl(approved.id, manifest) : null;
+    /* A card is small: draw the web copy. Opening it for editing swaps in the original (openConcept). */
+    const url = approved ? assetWebUrl(approved.id, manifest) : null;
     if (url) return [{ photo, url, preview: false }];
     return base ? [{ photo, url: `${base}/${photo.file}`, preview: true }] : [];
   });

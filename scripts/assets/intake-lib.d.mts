@@ -35,6 +35,6 @@ export function classifyUploadResponse(status: number, bodyText: string): 'uploa
 export interface Measured {
   sha256: string; ext: string; mime: string; bytes: number;
   width: number | null; height: number | null; colours: string[];
-  storagePath: string; evidencePath: string; sanitisedAt: string | null; now: string;
+  storagePath: string; evidencePath: string; thumbPath?: string | null; sanitisedAt: string | null; now: string;
 }
 export function toInsertRow(v: IntakeRow, m: Measured): Record<string, unknown>;

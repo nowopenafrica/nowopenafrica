@@ -8,6 +8,7 @@ import {
   ALLOWED_INDUSTRIES, KINDS, classifyUploadResponse, dominantColours, imageInfo, parseRow, seededLicenceKeys,
   sha256, svgInfo, toInsertRow, validateLibrarySvg,
 } from '../../../scripts/assets/intake-lib.mjs';
+import { needsWebCopy, webCopyPath } from '../../../scripts/assets/webcopy.mjs';
 
 const MIGRATION = readFileSync(
   resolve(__dirname, '../../../supabase/migrations/20261114010000_design_asset_library.sql'), 'utf8',
@@ -315,6 +316,20 @@ describe('retrieved_at', () => {
     const d = parseRow({ ...pexels }, LICENCES);
     if (!d.ok) throw new Error(d.reason);
     expect(toInsertRow(d.value, m)).toMatchObject({ retrieved_at: m.now });
+  });
+
+  it('records the web-size copy in thumb_path, or none', () => {
+    const d = parseRow({ ...pexels }, LICENCES);
+    if (!d.ok) throw new Error(d.reason);
+    const m = {
+      sha256: 'a'.repeat(64), ext: 'jpeg', mime: 'image/jpeg', bytes: 1, width: 1, height: 1, colours: [],
+      storagePath: 'p.jpg', evidencePath: 'evidence/e.png', sanitisedAt: null, now: '2026-11-08T00:00:00.000Z',
+    };
+    expect(toInsertRow(d.value, m)).toMatchObject({ thumb_path: null });
+    expect(toInsertRow(d.value, { ...m, thumbPath: webCopyPath(m.sha256) })).toMatchObject({ thumb_path: `web/${'a'.repeat(64)}.jpg` });
+    expect(needsWebCopy('photo', 'image/jpeg')).toBe(true);
+    expect(needsWebCopy('vector', 'image/svg+xml')).toBe(false);
+    expect(needsWebCopy('photo', 'image/svg+xml')).toBe(false);
   });
 });
 

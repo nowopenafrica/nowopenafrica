@@ -126,7 +126,7 @@ describe('the category gallery', () => {
         for (const d of led) {
           if (d.preview) failures.push(`${item}: an approved photo was marked as a preview`);
           const img = (d.doc.pages[0].objects as { type: string; assetId?: string }[]).find((o) => o.type === 'image');
-          if (!/\/storage\/v1\/object\/public\/design-assets\//.test(img?.assetId ?? '')) failures.push(`${item}: not the public copy`);
+          if (!/\/storage\/v1\/object\/public\/design-assets\/web\//.test(img?.assetId ?? '')) failures.push(`${item}: not the public web copy`);
           for (const line of describeFindings(checkConcept(d.doc, { format, distance }))) failures.push(`${item}/${d.archetype}: ${line}`);
         }
       }

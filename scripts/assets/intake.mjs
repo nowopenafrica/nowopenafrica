@@ -37,6 +37,7 @@ import {
   svgInfo, toInsertRow, CSV_COLUMNS, MIME_BY_EXT,
 } from './intake-lib.mjs';
 import { fileURLToPath } from 'node:url';
+import { makeWebCopy, needsWebCopy, webCopyPath } from './webcopy.mjs';
 
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const MIGRATION = join(HERE, '..', '..', 'supabase', 'migrations', '20261114010000_design_asset_library.sql');
@@ -102,16 +103,24 @@ function prepare(folder, csvRow, licenceKeys, now) {
   const storagePath = `${hash}.${v.ext === 'jpeg' ? 'jpg' : v.ext}`;
   const evidencePath = `evidence/${evidenceHash}.${extOf(v.evidence_file) === 'jpeg' ? 'jpg' : extOf(v.evidence_file)}`;
 
+  /* A web-size copy for the galleries (webcopy.mjs); approval publishes it with the original. */
+  let web = null;
+  if (needsWebCopy(v.kind, v.mime)) {
+    try { web = { path: webCopyPath(hash), body: makeWebCopy(bytes).body }; }
+    catch (e) { return { error: e instanceof Error ? e.message : String(e) }; }
+  }
+
   const row = toInsertRow(v, {
     sha256: hash, ext: v.ext, mime: v.mime, bytes: bytes.length,
     width: measured.width, height: measured.height, colours: measured.colours,
-    storagePath, evidencePath, sanitisedAt, now,
+    storagePath, evidencePath, thumbPath: web?.path ?? null, sanitisedAt, now,
   });
   return {
     row, hash,
     uploads: [
       { path: storagePath, mime: v.mime, body: bytes },
       { path: evidencePath, mime: evidenceMime, body: evidence.buf },
+      ...(web ? [{ path: web.path, mime: 'image/jpeg', body: web.body }] : []),
     ],
   };
 }
