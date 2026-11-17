@@ -25,6 +25,8 @@ export interface Capabilities {
   redirectUris?: Record<string, string>;
   /** Which project secrets a channel is still waiting on. */
   requiredSecrets?: Record<string, string[]>;
+  /** Brand social's own OAuth channels (X, LinkedIn, TikTok, YouTube). */
+  brand?: BrandCapabilities;
 }
 
 /**
@@ -68,6 +70,24 @@ export async function authorizeUrl(provider: string, businessId: string): Promis
   return body.url as string;
 }
 
+/** Start an OAuth flow for NowOpen Africa's own account (admins only, Brand social). */
+export async function brandAuthorizeUrl(provider: string): Promise<string> {
+  const res = await fetch(
+    `${fnUrl('social-auth')}?action=authorize&provider=${encodeURIComponent(provider)}&target=brand`,
+    { headers: await authHeaders() }
+  );
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok || !body.url) throw new Error(body.error ?? 'Could not start the connection.');
+  return body.url as string;
+}
+
+export interface BrandCapabilities {
+  supported: string[];
+  configured: Record<string, boolean>;
+  redirectUris: Record<string, string>;
+  requiredSecrets: Record<string, string[]>;
+}
+
 export interface ConnectOutcome {
   status: 'connected' | 'error' | 'closed';
   provider?: string;
@@ -91,7 +111,9 @@ export function openConnectPopup(url: string): Promise<ConnectOutcome> {
       if (!data || data.type !== 'nowopen-social-connected') return;
       window.clearInterval(timer);
       window.removeEventListener('message', onMessage);
-      finish(data.status === 'connected'
+      // social-auth's callback page sends status 'success'. Checking only for
+      // 'connected' reported every successful connection as a failure.
+      finish(data.status === 'connected' || data.status === 'success'
         ? { status: 'connected', provider: data.provider }
         : { status: 'error', provider: data.provider, error: data.error });
     };

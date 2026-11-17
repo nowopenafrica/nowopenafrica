@@ -3,6 +3,7 @@ import { describe, it, expect } from 'vitest';
 import {
   UPDATE_TYPES, UPDATE_TOPIC, PUBLISHER_ROLES, UPDATE_LIFETIME_MS, MAX_MEDIA, SIGNED_URL_MAX_TTL_S,
   MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_VIDEO_MS, classifyMediaFile, updateMediaPath, ownerGroup, updateTimeLabel,
+  postedAgoLabel, isInAppPath, rankHappening,
   deriveUpdateState, validateUpdateDraft, signedUrlTtlSeconds, updateShareLink,
   type UpdateDraftInput, type UpdateLifecycleRow,
 } from './businessUpdates';
@@ -207,3 +208,72 @@ describe('classifyMediaFile, fix pass', () => {
       .toEqual({ error: "We couldn't read this video's length. Try an MP4 from your phone's camera." });
   });
 });
+
+describe('postedAgoLabel', () => {
+  const now = new Date('2026-11-15T12:00:00.000Z');
+  const ago = (ms: number) => new Date(now.getTime() - ms).toISOString();
+  it('reads naturally at each scale', () => {
+    expect(postedAgoLabel(ago(59_000), now)).toBe('Just now');
+    expect(postedAgoLabel(ago(60_000), now)).toBe('1 min ago');
+    expect(postedAgoLabel(ago(59 * 60_000), now)).toBe('59 min ago');
+    expect(postedAgoLabel(ago(3_600_000), now)).toBe('1h ago');
+    expect(postedAgoLabel(ago(23 * 3_600_000 + 59 * 60_000), now)).toBe('23h ago');
+    expect(postedAgoLabel(ago(24 * 3_600_000), now)).toBe('1 day ago');
+  });
+  it('never says a negative time for a clock running behind', () => {
+    expect(postedAgoLabel(ago(-30_000), now)).toBe('Just now');
+  });
+});
+
+describe('button links, fix pass', () => {
+  it('refuses protocol-relative and backslash links that would leave NowOpen', () => {
+    const base = { type: 'announcement' as const, title: '', body: 'x', mediaCount: 0, offerId: null, ctaLabel: 'Go', publishAt: null };
+    const msg = 'Links must start with https:// or /.';
+    expect(validateUpdateDraft({ ...base, ctaUrl: '//evil.example' })).toContain(msg);
+    expect(validateUpdateDraft({ ...base, ctaUrl: '/\\evil.example' })).toContain(msg);
+    expect(validateUpdateDraft({ ...base, ctaUrl: '/menu' })).toEqual([]);
+  });
+
+  it('knows an in-app path from anything else', () => {
+    expect(isInAppPath('/menu?tab=x')).toBe(true);
+    expect(isInAppPath('//evil.example')).toBe(false);
+    expect(isInAppPath('/\\evil.example')).toBe(false);
+    expect(isInAppPath('https://x.y')).toBe(false);
+  });
+});
+
+describe('rankHappening', () => {
+  const now = new Date('2026-11-15T12:30:00.000Z');
+  const it_ = (id: string, minsAgo: number, over: { location?: string; category?: string } = {}) => ({
+    id,
+    update: { published_at: new Date(now.getTime() - minsAgo * 60_000).toISOString() },
+    business: { id: `b-${id}`, location: over.location ?? 'Abuja', category: over.category ?? 'Salon' },
+  });
+  const ids = (xs: { id: string }[]) => xs.map((x) => x.id);
+  const ctx = (kept: string[] = [], place = '', category = '') => ({ keptIds: new Set(kept), place, category });
+
+  it('is newest first when nothing else applies', () => {
+    expect(ids(rankHappening([it_('old', 50), it_('new', 5)], ctx(), now))).toEqual(['new', 'old']);
+  });
+
+  it('puts kept businesses first within the same hour', () => {
+    // 12:25 and 12:05 are the same clock hour.
+    expect(ids(rankHappening([it_('stranger', 5), it_('kept', 25)], ctx(['b-kept']), now))).toEqual(['kept', 'stranger']);
+  });
+
+  it('never lifts a kept update above a newer hour', () => {
+    expect(ids(rankHappening([it_('fresh', 10), it_('kept', 120)], ctx(['b-kept']), now))).toEqual(['fresh', 'kept']);
+  });
+
+  it('prefers the place, then the category, typed by the visitor', () => {
+    const items = [it_('none', 1), it_('cat', 2, { category: 'Bakery' }), it_('place', 3, { location: 'Lekki, Lagos' })];
+    expect(ids(rankHappening(items, ctx([], 'lekki', 'Bakery'), now))).toEqual(['place', 'cat', 'none']);
+  });
+
+  it('does not change the order of the items it was given', () => {
+    const items = [it_('a', 50), it_('b', 5)];
+    rankHappening(items, ctx(), now);
+    expect(ids(items)).toEqual(['a', 'b']);
+  });
+});
+

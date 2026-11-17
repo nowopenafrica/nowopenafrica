@@ -28,6 +28,16 @@ export interface VideoEmbed {
   label: string;
 }
 
+export interface VideoEmbedOptions {
+  /**
+   * Cover/banner playback: muted, looping, and — where the host allows it —
+   * autoplaying without player chrome. Instagram, TikTok and Facebook make
+   * their own call about autoplay; the parameters are still sent because they
+   * are harmless and are honoured wherever the platform supports them.
+   */
+  ambient?: boolean;
+}
+
 /** Hosts whose iframes the CSP must allow — kept beside the parsers so the
  *  two can't drift. Mirrored in vercel.json's frame-src. */
 export const EMBED_FRAME_HOSTS = [
@@ -64,12 +74,13 @@ const host = (u: URL) => u.hostname.replace(/^www\./i, '').toLowerCase();
  * Recognise a shareable video link and return how to embed it, or null when the
  * link isn't a supported platform video (a direct file, or something else).
  */
-export function parseVideoEmbed(raw: string): VideoEmbed | null {
+export function parseVideoEmbed(raw: string, options: VideoEmbedOptions = {}): VideoEmbed | null {
   const u = toUrl(raw);
   if (!u) return null;
   const h = host(u);
   const segments = u.pathname.split('/').filter(Boolean);
   const original = u.toString();
+  const ambient = options.ambient === true;
 
   const make = (platform: EmbedPlatform, id: string, embedUrl: string): VideoEmbed | null =>
     id ? { platform, id, embedUrl, originalUrl: original, label: PLATFORM_LABELS[platform] } : null;
@@ -79,12 +90,20 @@ export function parseVideoEmbed(raw: string): VideoEmbed | null {
     const v = u.searchParams.get('v');
     const fromPath = ['shorts', 'embed', 'live', 'v'].includes(segments[0]) ? segments[1] : '';
     const id = (v || fromPath || '').split(/[?&#]/)[0];
+    // `loop` only works with `playlist=<id>` on the YouTube player. The rest
+    // strips the controls and branding that would sit on top of a cover.
+    const params = ambient
+      ? `?autoplay=1&mute=1&loop=1&playlist=${encodeURIComponent(id)}&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&iv_load_policy=3`
+      : '';
     // nocookie keeps a viewer's profile out of it until they press play.
-    return make('youtube', id, `https://www.youtube-nocookie.com/embed/${id}`);
+    return make('youtube', id, `https://www.youtube-nocookie.com/embed/${id}${params}`);
   }
   if (h === 'youtu.be') {
     const id = segments[0] || '';
-    return make('youtube', id, `https://www.youtube-nocookie.com/embed/${id}`);
+    const params = ambient
+      ? `?autoplay=1&mute=1&loop=1&playlist=${encodeURIComponent(id)}&playsinline=1&rel=0&modestbranding=1&controls=0&disablekb=1&iv_load_policy=3`
+      : '';
+    return make('youtube', id, `https://www.youtube-nocookie.com/embed/${id}${params}`);
   }
 
   // TikTok: /@user/video/<id>, and the short vm./vt. links (which need the id,
@@ -92,7 +111,9 @@ export function parseVideoEmbed(raw: string): VideoEmbed | null {
   if (h === 'tiktok.com' || h === 'm.tiktok.com') {
     const videoIdx = segments.indexOf('video');
     const id = videoIdx >= 0 ? segments[videoIdx + 1] : (segments[0] === 'embed' ? segments[segments.length - 1] : '');
-    return make('tiktok', (id || '').replace(/\D/g, ''), `https://www.tiktok.com/embed/v2/${(id || '').replace(/\D/g, '')}`);
+    const numericId = (id || '').replace(/\D/g, '');
+    const params = ambient ? '?autoplay=1&loop=1&music_info=0&description=0' : '';
+    return make('tiktok', numericId, `https://www.tiktok.com/embed/v2/${numericId}${params}`);
   }
 
   // Instagram: /reel/<code>, /p/<code>, /tv/<code>
@@ -100,19 +121,24 @@ export function parseVideoEmbed(raw: string): VideoEmbed | null {
     const kind = segments[0];
     const code = ['reel', 'reels', 'p', 'tv'].includes(kind) ? segments[1] : '';
     const path = kind === 'p' ? 'p' : 'reel';
-    return make('instagram', code || '', `https://www.instagram.com/${path}/${code}/embed`);
+    const params = ambient ? '?autoplay=1&muted=1' : '';
+    return make('instagram', code || '', `https://www.instagram.com/${path}/${code}/embed${params}`);
   }
 
   // Vimeo: /<numeric id>
   if (h === 'vimeo.com' || h === 'player.vimeo.com') {
     const id = (segments.find((s) => /^\d+$/.test(s)) || '');
-    return make('vimeo', id, `https://player.vimeo.com/video/${id}`);
+    // `background=1` is Vimeo's own ambient mode: autoplay, muted, looped and
+    // chrome-free. It needs the explicit params too for older players.
+    const params = ambient ? '?autoplay=1&muted=1&loop=1&background=1' : '';
+    return make('vimeo', id, `https://player.vimeo.com/video/${id}${params}`);
   }
 
   // Facebook watch/reel — embedded through their plugin endpoint.
   if (h === 'facebook.com' || h === 'fb.watch') {
     const id = u.searchParams.get('v') || segments[segments.length - 1] || '';
-    return make('facebook', id, `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(original)}&show_text=false`);
+    const params = ambient ? '&autoplay=true&muted=true' : '';
+    return make('facebook', id, `https://www.facebook.com/plugins/video.php?href=${encodeURIComponent(original)}&show_text=false${params}`);
   }
 
   return null;

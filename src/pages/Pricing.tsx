@@ -15,7 +15,8 @@ import {
 } from '../data/pricingPlans';
 import { Editable, PageContentProvider, useEditableSeo } from '../components/editor/PageContent';
 import { track } from '../lib/telemetry';
-import { fetchCreditActions, isCreditProgrammeLive } from '../lib/credits/catalogue';
+import { fetchCreditActions, isActionLive, isCreditProgrammeLive, type CreditAction } from '../lib/credits/catalogue';
+import { formatMinor } from '../lib/create/money';
 
 const BUSINESS_ICONS: Record<string, typeof Building2> = {
   starter: Building2,
@@ -35,7 +36,7 @@ const faqs = [
   },
   {
     q: 'How do AI credits work?',
-    a: 'Every plan includes AI credits — 50 on Free Launch, 500 on Growth and 2,000 on Business Pro each month. Credits power AI content, images, marketing copy and your business assistant, and you can top up more whenever you need them. Unused credits refresh monthly.',
+    a: 'Every plan includes a monthly AI credit (NOC) allowance, shown on its card and added to your wallet automatically each month. Credits power AI writing, images and your business assistant, and free credits are always used before any you buy. Top-up packs appear on your wallet page once they open.',
   },
   {
     q: "What if I only need one feature, like bookings or live streaming?",
@@ -98,10 +99,15 @@ function PricingContent() {
    * `null` means the answer has not arrived: render neither claim yet.
    */
   const [creditsLive, setCreditsLive] = useState<boolean | null>(null);
+  const [liveActions, setLiveActions] = useState<CreditAction[]>([]);
   useEffect(() => {
     let alive = true;
     fetchCreditActions()
-      .then((actions) => { if (alive) setCreditsLive(isCreditProgrammeLive(actions)); })
+      .then((actions) => {
+        if (!alive) return;
+        setCreditsLive(isCreditProgrammeLive(actions));
+        setLiveActions(actions.filter(isActionLive));
+      })
       // A failed read must not be reported as "credits are live".
       .catch(() => { if (alive) setCreditsLive(false); });
     return () => { alive = false; };
@@ -113,8 +119,37 @@ function PricingContent() {
    * still appeared on every card. Same rule: the bullet is a promise, and it
    * only appears once something can grant it.
    */
+  /*
+   * The allowance numbers come from credit_plan_allowances (what the database
+   * actually grants), never from pricingPlans.ts. The "N AI credits / month"
+   * bullets in that file are therefore always dropped: the badge on each card
+   * shows the database's number instead, so an admin change to an allowance
+   * is reflected without a deploy and the two can never disagree.
+   */
+  const [allowances, setAllowances] = useState<Record<string, number> | null>(null);
+  const [topUpsLive, setTopUpsLive] = useState(false);
+  // What one credit (NOC) is worth, from noc_markets — never a constant here.
+  const [nocRate, setNocRate] = useState<{ minorPerNoc: number; currency: string } | null>(null);
+  useEffect(() => {
+    let alive = true;
+    supabase.from('credit_plan_allowances').select('plan,monthly_credits,enabled').then(({ data, error }) => {
+      if (!alive || error) return;
+      setAllowances(Object.fromEntries((data ?? [])
+        .filter((r) => r.enabled && r.monthly_credits > 0)
+        .map((r) => [r.plan as string, r.monthly_credits as number])));
+    });
+    supabase.from('noc_markets').select('purchase_mode,minor_per_noc,currency').eq('code', 'NG').maybeSingle().then(({ data, error }) => {
+      if (!alive || error || !data) return;
+      setTopUpsLive(data.purchase_mode === 'live');
+      const minor = Number(data.minor_per_noc);
+      if (Number.isFinite(minor) && minor > 0) setNocRate({ minorPerNoc: minor, currency: String(data.currency) });
+    });
+    return () => { alive = false; };
+  }, []);
+  const allowanceFor = (tierId: string): number | null => allowances?.[tierId] ?? null;
+
   const visibleFeatures = (features: string[]) =>
-    creditsLive === true ? features : features.filter((f) => !/AI credits?\s*\/\s*month/i.test(f));
+    features.filter((f) => !/AI credits?\s*\/\s*month/i.test(f));
 
   const { format, formatUsd, currency } = useCurrency();
   const [annual, setAnnual] = useState(true);
@@ -340,11 +375,11 @@ function PricingContent() {
 
                 {/* AI credits included in the plan — only once there is a
                     credit programme able to grant them. */}
-                {tier.aiCredits !== null && creditsLive === true && (
+                {allowanceFor(tier.id) !== null && creditsLive === true && (
                   <div className="mb-4 flex items-center gap-2 px-3 py-2 rounded-lg bg-purple-50 dark:bg-purple-900/20 border border-purple-100 dark:border-purple-900/40">
                     <Coins size={16} className="text-purple-600 dark:text-purple-400 flex-shrink-0" />
                     <span className="text-xs font-semibold text-purple-800 dark:text-purple-300">
-                      {tier.aiCredits.toLocaleString()} AI credits / month
+                      {allowanceFor(tier.id)!.toLocaleString()} AI credits / month
                     </span>
                   </div>
                 )}
@@ -411,8 +446,8 @@ function PricingContent() {
           <p className="text-center text-gray-600 dark:text-gray-400 mb-10">
             {creditsLive === true
               ? <>Every plan comes with AI credits each month, granted automatically. Spend them on
-                  AI writing for your profile today — image and video generation follow — or top up
-                  any time with a credit pack.</>
+                  AI writing for your profile today — image and video generation follow.
+                  {topUpsLive ? ' Need more? Top up any time from your wallet.' : ' Top-up packs will open later.'}</>
               : <>AI credits are coming. They will power copy, images and your business assistant across
                   Studio — we will publish the allowances and top-up prices here before they go live.</>}
           </p>
@@ -420,15 +455,42 @@ function PricingContent() {
               something can actually grant them. */}
           {creditsLive === true && (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              {BUSINESS_TIERS.filter((t) => t.aiCredits !== null).map((tier) => (
+              {BUSINESS_TIERS.filter((t) => allowanceFor(t.id) !== null).map((tier) => (
                 <div key={tier.id} className="bg-gray-50 dark:bg-gray-900 rounded-xl p-6 border border-gray-100 dark:border-gray-800 text-center">
                   <p className="text-3xl font-bold text-purple-600 dark:text-purple-400 mb-1">
-                    {tier.aiCredits!.toLocaleString()}
+                    {allowanceFor(tier.id)!.toLocaleString()}
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mb-1">AI credits / month</p>
                   <p className="font-semibold text-gray-900 dark:text-white">{tier.name}</p>
                 </div>
               ))}
+            </div>
+          )}
+          {/* The credit's value and what it buys, read from noc_markets and
+              credit_actions. NGN here is the credit's face value (an amount in
+              naira, not a converted display price), hence formatMinor. */}
+          {creditsLive === true && nocRate && (
+            <div className="mt-8">
+              <p className="text-center font-semibold text-gray-900 dark:text-white">
+                1 AI credit (NOC) = {formatMinor(nocRate.minorPerNoc, nocRate.currency)}
+              </p>
+              {liveActions.length > 0 && (
+                <ul className="mt-4 mx-auto max-w-2xl divide-y divide-gray-100 dark:divide-gray-800 rounded-xl border border-gray-100 dark:border-gray-800 bg-gray-50 dark:bg-gray-900">
+                  {liveActions.map((a) => (
+                    <li key={a.slug} className="flex items-center justify-between gap-4 px-4 py-2.5 text-sm">
+                      <span className="text-gray-700 dark:text-gray-300">{a.name}</span>
+                      <span className="shrink-0 text-right">
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                          {a.creditCost!.toLocaleString()} credit{a.creditCost === 1 ? '' : 's'}
+                        </span>
+                        <span className="ml-2 text-gray-500 dark:text-gray-400">
+                          ({formatMinor(a.creditCost! * nocRate.minorPerNoc, nocRate.currency)})
+                        </span>
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </div>
           )}
           {creditsLive === true && (

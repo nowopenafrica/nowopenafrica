@@ -93,7 +93,7 @@ export function validateUpdateDraft(input: UpdateDraftInput, now: Date = new Dat
   if (input.type === 'offer' && !input.offerId) errors.push('Choose the offer this update is about.');
 
   const url = input.ctaUrl?.trim();
-  if (url && !/^(https:\/\/|\/)/.test(url)) errors.push('Links must start with https:// or /.');
+  if (url && !url.startsWith('https://') && !isInAppPath(url)) errors.push('Links must start with https:// or /.');
   if ((input.ctaLabel?.trim().length ?? 0) > MAX_CTA_LABEL) {
     errors.push(`Button text can be up to ${MAX_CTA_LABEL} characters.`);
   }
@@ -190,4 +190,54 @@ export function updateTimeLabel(row: UpdateLifecycleRow, now: Date = new Date())
   }
   const ends = new Date(row.expires_at as string);
   return `Ends ${dayWord(ends, now)}${clock(ends)}`;
+}
+
+// --- Public profile -------------------------------------------------------------
+
+/** "3h ago" for the viewer's line. A clock running behind never shows a negative time. */
+export function postedAgoLabel(publishedAt: string, now: Date = new Date()): string {
+  const ms = now.getTime() - Date.parse(publishedAt);
+  if (!Number.isFinite(ms) || ms < 60_000) return 'Just now';
+  if (ms < 3_600_000) return `${Math.floor(ms / 60_000)} min ago`;
+  if (ms < 86_400_000) return `${Math.floor(ms / 3_600_000)}h ago`;
+  const days = Math.floor(ms / 86_400_000);
+  return `${days} day${days === 1 ? '' : 's'} ago`;
+}
+
+/**
+ * A path on NowOpen itself. "//host" and "/\host" also start with a slash, but
+ * browsers (and the router) read them as another site, so they are not.
+ */
+export function isInAppPath(url: string): boolean {
+  return /^\/(?![/\\])/.test(url);
+}
+
+// --- Discover and Keeps ---------------------------------------------------------
+
+interface Rankable {
+  update: { published_at: string };
+  business: { id: string; location: string | null; category: string | null };
+}
+
+/**
+ * "Happening on NowOpen" order: newest first, always. Relevance only breaks
+ * ties inside the same clock hour (kept businesses, then the place typed, then
+ * the category chosen), so nothing old is ever lifted above something new and
+ * no signal is invented. Returns a new array.
+ */
+export function rankHappening<T extends Rankable>(
+  items: T[],
+  ctx: { keptIds: Set<string>; place: string; category: string },
+  // Part of the signature for symmetry with the other clock-aware helpers;
+  // the order depends only on the items themselves.
+  _now: Date = new Date(),
+): T[] {
+  const place = ctx.place.trim().toLowerCase();
+  const score = (x: T) =>
+    (ctx.keptIds.has(x.business.id) ? 4 : 0)
+    + (place && (x.business.location ?? '').toLowerCase().includes(place) ? 2 : 0)
+    + (ctx.category && x.business.category === ctx.category ? 1 : 0);
+  const time = (x: T) => Date.parse(x.update.published_at);
+  const hour = (x: T) => Math.floor(time(x) / 3_600_000);
+  return [...items].sort((a, b) => (hour(b) - hour(a)) || (score(b) - score(a)) || (time(b) - time(a)));
 }

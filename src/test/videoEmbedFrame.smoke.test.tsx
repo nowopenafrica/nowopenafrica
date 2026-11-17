@@ -59,4 +59,41 @@ describe('VideoEmbedFrame', () => {
     const { container } = render(<VideoEmbedFrame url="https://youtu.be/abc" />);
     expect(frame(container)?.getAttribute('loading')).toBe('lazy');
   });
+
+  it('plays a cover muted, looped and eager when asked to be ambient', () => {
+    const { container } = render(<VideoEmbedFrame url="https://youtu.be/abc" ambient />);
+    const src = frame(container)?.getAttribute('src') || '';
+    expect(src).toContain('autoplay=1');
+    expect(src).toContain('mute=1');
+    expect(src).toContain('loop=1');
+    expect(frame(container)?.getAttribute('loading')).toBe('eager');
+  });
+
+  it('gives a cover no pointer target, so a hover cannot paint player chrome', () => {
+    // YouTube, Vimeo and TikTok all render their own controls over the frame
+    // when the pointer enters it. There is no parameter that stops that; the
+    // only lever is not letting the iframe see the pointer at all.
+    const { container } = render(<VideoEmbedFrame url="https://youtu.be/abc" ambient />);
+    expect(frame(container)?.className).toContain('pointer-events-none');
+    expect(frame(container)?.getAttribute('tabindex')).toBe('-1');
+    expect(frame(container)?.hasAttribute('allowfullscreen')).toBe(false);
+  });
+
+  it('leaves a gallery player interactive', () => {
+    const { container } = render(<VideoEmbedFrame url="https://youtu.be/abc" />);
+    expect(frame(container)?.className).not.toContain('pointer-events-none');
+    expect(frame(container)?.hasAttribute('allowfullscreen')).toBe(true);
+  });
+
+  it('scales a cover past its box so the video fills the banner', () => {
+    // A 16:9 player pinned to a wide banner letterboxes itself with black bars
+    // down both sides. Cover geometry — own aspect, centred, clipped — is the
+    // only thing that makes the picture reach the edges.
+    const { container } = render(<VideoEmbedFrame url="https://youtu.be/abc" ambient fill />);
+    const iframe = frame(container);
+    expect(iframe?.className).toContain('aspect-video');
+    expect(iframe?.className).toContain('-translate-x-1/2');
+    expect(iframe?.className).not.toContain('inset-0');
+    expect(iframe?.parentElement?.className).toContain('overflow-hidden');
+  });
 });

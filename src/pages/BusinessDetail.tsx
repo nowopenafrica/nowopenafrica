@@ -25,6 +25,7 @@ import ClaimBusiness from '../components/business/ClaimBusiness';
 import { trustClaims } from '../lib/trustClaims';
 import ListingStatusBadge from '../components/business/ListingStatusBadge';
 import ReportListing from '../components/business/ReportListing';
+import UpdatesStrip from '../components/updates/UpdatesStrip';
 import FoundingBadge, { useFoundingNumber } from '../components/business/FoundingBadge';
 import type { ProfileStory } from '../lib/businessProfile';
 import BusinessTimeline from '../components/BusinessTimeline';
@@ -234,6 +235,14 @@ export default function BusinessDetail() {
     const next = new URLSearchParams(searchParams);
     if (id === 'overview') next.delete('tab');
     else next.set('tab', id);
+    setSearchParams(next, { replace: true });
+  };
+  // ?update=<id> opens one Business Update. Replaced, not pushed, so Back
+  // closes the viewer instead of stepping through every update seen.
+  const setOpenUpdate = (id: string | null) => {
+    const next = new URLSearchParams(window.location.search);
+    if (id) next.set('update', id);
+    else next.delete('update');
     setSearchParams(next, { replace: true });
   };
 
@@ -915,6 +924,21 @@ export default function BusinessDetail() {
   const coverVideoKind = mediaKindOf(coverVideo);
   const coverIsVideo = Boolean(coverVideo) && (coverVideoKind === 'video' || coverVideoKind === 'embed');
   const coverPhoto = business?.image_url || publishedCover;
+  const coverVideoRef = useRef<HTMLVideoElement | null>(null);
+  useEffect(() => {
+    const el = coverVideoRef.current;
+    if (!el) return;
+    // The attributes already ask for muted autoplay. Calling play() after the
+    // element mounts covers browsers that ignore the attribute when the source
+    // changes in place; a rejected promise leaves the poster/first frame up.
+    el.muted = true;
+    try {
+      const played = el.play();
+      if (played) void played.catch(() => {});
+    } catch {
+      // Autoplay blocked: the poster/first frame stays up, which is fine.
+    }
+  }, [coverVideo]);
 
   // Intrinsic size per URL, reported by the browser once each item loads. Only
   // the browser knows it, so the orientation filters populate as the grid
@@ -1157,8 +1181,13 @@ export default function BusinessDetail() {
                    * gives reels a poster (see lib/galleryMedia) is not needed
                    * here: `image_url` is the poster when an image exists, and
                    * autoplay+loop makes a first frame appear on its own.
+                   *
+                   * A banner, not a player: no controls, no picture-in-picture,
+                   * and pointer-events off, so hovering cannot make the browser
+                   * surface a play/pause or mute button over the cover.
                    */
                   <video
+                    ref={coverVideoRef}
                     src={coverVideo!}
                     poster={coverPhoto || undefined}
                     autoPlay
@@ -1166,8 +1195,11 @@ export default function BusinessDetail() {
                     loop
                     playsInline
                     preload="metadata"
+                    controls={false}
+                    disablePictureInPicture
+                    disableRemotePlayback
                     aria-label={`${business.name} cover banner`}
-                    className="w-full h-full object-cover"
+                    className="block w-full h-full object-cover pointer-events-none"
                     /*
                      * Where the owner put it. NULL focal values mean nobody
                      * positioned this, and focalToCss returns centre — which
@@ -1179,6 +1211,7 @@ export default function BusinessDetail() {
                   <VideoEmbedFrame
                     url={coverVideo!}
                     fill
+                    ambient
                     title={`${business.name} video banner`}
                     showAttribution={false}
                     className="w-full h-full"
@@ -1533,6 +1566,19 @@ export default function BusinessDetail() {
               ))}
             </div>
           </div>
+        )}
+
+        {/* Business Updates: live 24-hour posts. Hidden when there are none or
+            the read fails; never on sample listings, which have no rows. */}
+        {business && !isSample && (
+          <UpdatesStrip
+            key={String(business.id)}
+            businessId={String(business.id)}
+            businessName={business.name}
+            slug={business.username || `businesses/${business.id}`}
+            openUpdateId={searchParams.get('update')}
+            onOpenChange={setOpenUpdate}
+          />
         )}
 
         {/* Tabs Navigation */}

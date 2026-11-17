@@ -15,7 +15,7 @@
 // TikTok cannot take image posts), publish() returns ok:false with a clear
 // message and the caller simulates the delivery instead.
 
-export type ProviderKey = "instagram" | "facebook" | "linkedin" | "x" | "tiktok";
+export type ProviderKey = "instagram" | "facebook" | "linkedin" | "x" | "tiktok" | "youtube";
 
 export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   instagram: "Instagram",
@@ -23,6 +23,7 @@ export const PROVIDER_LABELS: Record<ProviderKey, string> = {
   linkedin: "LinkedIn",
   x: "X",
   tiktok: "TikTok",
+  youtube: "YouTube",
 };
 
 /**
@@ -397,8 +398,14 @@ export function linkedinAuthorizeUrl(redirectUri: string, state: string): string
   //
   // email is not requested because nothing here uses it: w_member_social is
   // what allows posting, and openid + profile are what identify the account.
+  //
+  // LINKEDIN_ORG_SCOPES=1 adds company-page posting (w_organization_social),
+  // which LinkedIn grants only after Community Management API approval.
+  // Requesting it before approval makes LinkedIn refuse the whole sign-in, so
+  // it stays off until the founder says the app was approved.
   const scope = "openid profile w_member_social".split(" ").join("%20");
-  return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${scope}`;
+  const fullScope = scope + (env("LINKEDIN_ORG_SCOPES") === "1" ? "%20w_organization_social%20r_organization_social" : "");
+  return `https://www.linkedin.com/oauth/v2/authorization?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${encodeURIComponent(state)}&scope=${fullScope}`;
 }
 
 export async function linkedinExchangeCode(code: string, redirectUri: string): Promise<ExchangeResult> {
@@ -527,7 +534,9 @@ export function xConfigured(): boolean {
 
 export function xAuthorizeUrl(redirectUri: string, state: string, extra?: { codeChallenge?: string }): string {
   const { clientId } = xConfig();
-  const scope = "tweet.write users.read offline.access".split(" ").join("%20");
+  // tweet.read is required alongside tweet.write; media.write lets the v2
+  // media upload accept this OAuth 2.0 user token.
+  const scope = "tweet.read tweet.write users.read media.write offline.access".split(" ").join("%20");
   const challenge = extra?.codeChallenge ?? "";
   return `https://twitter.com/i/oauth2/authorize?response_type=code&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${encodeURIComponent(state)}&code_challenge=${encodeURIComponent(challenge)}&code_challenge_method=S256`;
 }
@@ -719,6 +728,62 @@ async function tiktokPublish(input: PublishInput): Promise<PublishResult> {
 }
 
 // ---------------------------------------------------------------------------
+// YouTube (Google OAuth). Brand use only: brand-social-publish uploads.
+// ---------------------------------------------------------------------------
+
+function googleConfig() {
+  return { clientId: env("GOOGLE_CLIENT_ID"), clientSecret: env("GOOGLE_CLIENT_SECRET") };
+}
+
+export function youtubeConfigured(): boolean {
+  return isConfigured("GOOGLE_CLIENT_ID") && isConfigured("GOOGLE_CLIENT_SECRET");
+}
+
+export function youtubeAuthorizeUrl(redirectUri: string, state: string): string {
+  const { clientId } = googleConfig();
+  // youtube.upload to post; youtube.readonly to read the channel name back.
+  // offline + consent so Google returns a refresh token every time.
+  const scope = encodeURIComponent("https://www.googleapis.com/auth/youtube.upload https://www.googleapis.com/auth/youtube.readonly");
+  return `https://accounts.google.com/o/oauth2/v2/auth?response_type=code&access_type=offline&prompt=consent&include_granted_scopes=true&client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${scope}&state=${encodeURIComponent(state)}`;
+}
+
+export async function youtubeExchangeCode(code: string, redirectUri: string): Promise<ExchangeResult> {
+  const { clientId, clientSecret } = googleConfig();
+  const tok = await formPost("https://oauth2.googleapis.com/token", {
+    grant_type: "authorization_code", code, redirect_uri: redirectUri, client_id: clientId, client_secret: clientSecret,
+  });
+  if (!tok.ok || !tok.json.access_token) throw new Error(`Google exchange failed (${tok.json.error_description ?? tok.json.error ?? "unknown error"})`);
+  const ch = await jsonGet("https://www.googleapis.com/youtube/v3/channels?part=snippet&mine=true", { Authorization: `Bearer ${tok.json.access_token}` });
+  const channel = ch.ok ? ch.json.items?.[0] : null;
+  if (!channel?.id) throw new Error("That Google account has no YouTube channel. Sign in with the account that owns the NowOpen Africa channel.");
+  return {
+    account: {
+      provider: "youtube",
+      accountId: String(channel.id),
+      accountName: channel.snippet?.title,
+      accessToken: tok.json.access_token,
+      refreshToken: tok.json.refresh_token,
+      expiresAt: tok.json.expires_in ? new Date(Date.now() + Number(tok.json.expires_in) * 1000) : undefined,
+      scope: tok.json.scope,
+    },
+  };
+}
+
+export async function youtubeRefresh(conn: ProviderConnection): Promise<ProviderAuth> {
+  if (!conn.refreshToken) throw new Error("YouTube refresh needs a refresh token; reconnect the account.");
+  const { clientId, clientSecret } = googleConfig();
+  const tok = await formPost("https://oauth2.googleapis.com/token", {
+    grant_type: "refresh_token", refresh_token: conn.refreshToken, client_id: clientId, client_secret: clientSecret,
+  });
+  if (!tok.ok || !tok.json.access_token) throw new Error(`YouTube refresh failed (${tok.json.error_description ?? tok.json.error ?? "unknown error"})`);
+  return {
+    accessToken: tok.json.access_token,
+    refreshToken: conn.refreshToken, // Google keeps the original refresh token
+    expiresAt: tok.json.expires_in ? new Date(Date.now() + Number(tok.json.expires_in) * 1000) : undefined,
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Provider registry
 // ---------------------------------------------------------------------------
 
@@ -777,6 +842,17 @@ export const PROVIDERS: Record<ProviderKey, Provider> = {
     exchangeCode: tiktokExchangeCode,
     refresh: tiktokRefresh,
     publish: tiktokPublish,
+  },
+  youtube: {
+    key: "youtube",
+    configured: youtubeConfigured,
+    authorizeUrl: youtubeAuthorizeUrl,
+    needsPkce: false,
+    exchangeCode: youtubeExchangeCode,
+    refresh: youtubeRefresh,
+    // Businesses do not publish to YouTube from the Studio; the brand publisher
+    // has its own resumable upload.
+    publish: async () => ({ ok: false, error: "YouTube uploads run through brand-social-publish only." }),
   },
 };
 

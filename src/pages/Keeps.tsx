@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { Heart, LogIn } from 'lucide-react';
 
 import MyKeeps from '../components/MyKeeps';
+import KeptUpdates from '../components/updates/KeptUpdates';
 import { useAuth } from '../contexts/AuthContext';
 import { applySeo } from '../lib/seo';
 
@@ -31,7 +32,11 @@ export default function Keeps() {
   return (
     <div className="site-container py-8">
       {user ? (
-        <MyKeeps />
+        <>
+          {/* Live Business Updates from kept places; nothing when there are none. */}
+          <KeptUpdates />
+          <MyKeeps />
+        </>
       ) : (
         <div className="max-w-md mx-auto text-center py-16">
           <Heart size={32} className="mx-auto mb-3 text-rose-500" />

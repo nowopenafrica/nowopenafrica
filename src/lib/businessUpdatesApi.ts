@@ -275,3 +275,18 @@ export async function loadOwnOffers(businessId: string): Promise<Result<OfferOpt
   if (error) return fail(error);
   return { ok: true, value: (data as OfferOption[] | null) ?? [] };
 }
+
+export interface UpdateStats { people: number; cta: number; shares: number }
+
+/**
+ * Recorded counts per update (distinct sessions; the owner's own visits left
+ * out), from business_update_stats, which counts in the database so the API's
+ * 1,000-row cap cannot under-report. Null when unreadable: the dashboard then
+ * shows no number, because a failed read is not zero.
+ */
+export async function loadUpdateStats(businessId: string): Promise<Map<string, UpdateStats> | null> {
+  const { data, error } = await supabase.rpc('business_update_stats', { p_business: businessId });
+  if (error || !data) return null;
+  const rows = data as { update_id: string; people: number; cta_taps: number; shares: number }[];
+  return new Map(rows.map((r) => [r.update_id, { people: r.people, cta: r.cta_taps, shares: r.shares }]));
+}

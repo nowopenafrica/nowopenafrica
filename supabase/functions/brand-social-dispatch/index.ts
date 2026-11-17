@@ -147,6 +147,12 @@ async function dispatch(contentId: string) {
       continue;
     }
     const ch = channelById.get(v.channel);
+    // Channels on the direct route are published by brand-social-publish at the
+    // planned time. Sending them to Zoho as well would post them twice.
+    if (ch?.publish_route === "meta_direct" || ch?.publish_route === "direct") {
+      results.push({ channel: v.channel, ok: true, skipped: "published directly at the planned time" });
+      continue;
+    }
     const fail = async (msg: string) => {
       await admin.from("brand_social_variants").update({ dispatch_status: "failed", last_error: msg }).eq("id", v.id);
       results.push({ channel: v.channel, ok: false, error: msg });

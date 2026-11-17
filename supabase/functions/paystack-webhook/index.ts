@@ -1,28 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { activatePlanFromIntent } from "../_shared/planActivation.ts";
+import { checkCharge, toMinor } from "../_shared/paystackCharge.ts";
+import { fulfilNocPurchase } from "../_shared/nocFulfil.ts";
 
-/*
- * Credits bought with money.
- *
- * The function takes only the payment REFERENCE — it reads the intent, checks
- * that the platform itself marked it paid, and grants what the PACK says. This
- * code cannot name an amount, which is the point: a caller that could would be
- * a caller that could name a large one.
- *
- * Idempotent, so verify-payment and the webhook may both call it. A failure
- * here must not fail the payment response: the money is already taken and the
- * reference means a retry credits exactly once.
- */
-async function fulfilCreditsIfAny(
-  db: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> },
-  intent: { kind?: string | null },
-  reference: string,
-): Promise<void> {
-  if (intent?.kind !== "credits") return;
-  const { error } = await db.rpc("credit_fulfil_purchase", { p_reference: reference });
-  if (error) console.error("credit fulfilment failed for", reference, error.message);
-}
 
 
 // Paystack's asynchronous notification — the real source of truth for
@@ -88,21 +69,41 @@ Deno.serve(async (req: Request) => {
     if (!reference) return new Response("ok", { status: 200 });
 
     if (event.event === "charge.success") {
+      const { data: intent } = await supabase
+        .from("payment_intents")
+        .select("kind, item_id, item_title, amount_usd, amount_local, currency, status, user_id")
+        .eq("reference", reference)
+        .maybeSingle();
+      if (!intent) return new Response("ok", { status: 200 });
+
+      // NOC orders: the database compares the charge with the order snapshot
+      // and credits exactly once (Paystack retries are replays).
+      if (intent.kind === "credits") {
+        const result = await fulfilNocPurchase(supabase, reference, event.data, "webhook");
+        if (!result.fulfilled) console.error(`paystack-webhook: NOC ${reference} not fulfilled: ${result.reason} ${result.detail ?? ""}`);
+        return new Response("ok", { status: 200 });
+      }
+
+      /*
+       * Every other kind: a signed "success" proves Paystack charged
+       * something for this reference, not that it charged what NowOpen
+       * recorded. Until 2026-11-16 this branch marked the intent paid without
+       * looking, so an underpayment through a tampered checkout would have
+       * been accepted the moment the webhook was registered.
+       */
+      const verdict = checkCharge(event.data, toMinor(intent.amount_local), String(intent.currency));
+      if (!verdict.ok) {
+        console.error(`paystack-webhook: ${reference} refused (${verdict.reason}): ${verdict.detail}`);
+        return new Response("ok", { status: 200 });
+      }
+
       await supabase
         .from("payment_intents")
         .update({ status: "paid", updated_at: new Date().toISOString(), verified_via: "webhook" })
         .eq("reference", reference)
         .neq("status", "paid"); // idempotent — don't clobber a row already confirmed
       // Grant the plan if this charge was a subscription (idempotent).
-      const { data: intent } = await supabase
-        .from("payment_intents")
-        .select("kind, item_id, item_title, amount_usd, currency, user_id")
-        .eq("reference", reference)
-        .maybeSingle();
-      if (intent) {
-        await activatePlanFromIntent(supabase, { ...intent, reference });
-        await fulfilCreditsIfAny(supabase, intent, reference);
-      }
+      await activatePlanFromIntent(supabase, { ...intent, reference });
     } else if (event.event === "charge.failed") {
       await supabase
         .from("payment_intents")

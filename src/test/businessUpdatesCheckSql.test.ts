@@ -52,6 +52,12 @@ const CHECKS = [
   'identity_locked',
   // Phase 2: publishing on the server's clock.
   'publish_uses_server_clock',
+  // Phase 5: owner counts.
+  'stats_owner_only',
+  'stats_exclude_owner',
+  // Phase 5 fix pass.
+  'stats_exclude_own_sessions',
+  'unhide_sends_no_alert',
 ];
 
 describe('business updates check script', () => {

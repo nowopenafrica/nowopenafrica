@@ -6,12 +6,16 @@ import {
 
 import { supabase } from '../../lib/supabase';
 import ConfirmDialog from '../ConfirmDialog';
+import BrandAutopilot from './BrandAutopilot';
+import BrandDirectPublish from './BrandDirectPublish';
+import BrandConnections from './BrandConnections';
 import {
   CHANNEL_RULES, checkVariant, countChars, findNearDuplicates, formatLagos, isBlocked, isSensitive,
   lagosLocalToUtc, postsThatDay, trackedUrl, utcToLagosLocal,
   type CalendarEntry, type ChannelId, type Check as RuleCheck,
 } from '../../lib/brandSocial';
 import { buildZohoBulkCsv, type BulkResult } from '../../lib/zohoBulkCsv';
+import { FORMAT_LABEL, formatProblem, formatsFor, type PostFormat } from '../../lib/brandPublish';
 
 /**
  * Brand social — the founder's desk for NowOpen Africa's OWN accounts.
@@ -42,18 +46,26 @@ import { buildZohoBulkCsv, type BulkResult } from '../../lib/zohoBulkCsv';
  * says published: that happens in Zoho, under the founder's eye.
  */
 
+/** Published by brand-social-publish (Meta token or an OAuth connection), not Zoho. */
+const isDirect = (route: string | undefined | null) => route === 'meta_direct' || route === 'direct';
+
 type Status = 'draft' | 'in_review' | 'approved' | 'rejected' | 'cancelled' | 'sending' | 'sent' | 'failed';
 
-interface Channel { id: ChannelId; label: string; handle: string; connected: boolean; active: boolean; sort: number; note: string | null; verified_at: string | null }
+interface Channel {
+  id: ChannelId; label: string; handle: string; connected: boolean; active: boolean; sort: number; note: string | null; verified_at: string | null;
+  publish_route?: 'zoho' | 'meta_direct' | 'direct'; external_account_id?: string | null;
+}
 interface Campaign { id: string; slug: string; name: string; objective: string; status: string }
 interface Variant {
   id: string; content_id: string; channel: ChannelId; caption: string; tracked_url: string | null; checks: RuleCheck[];
   dispatch_status: 'pending' | 'sending' | 'sent' | 'failed'; attempts: number; last_error: string | null;
   sent_at: string | null; zoho_reference: string | null; zoho_confirmed_at: string | null;
+  external_post_id?: string | null; published_url?: string | null; published_at?: string | null; verified_at?: string | null; next_attempt_at?: string | null;
+  format?: PostFormat;
 }
 interface Content {
   id: string; code: string; campaign_id: string | null; pillar: string; audience: string; objective: string;
-  hook: string | null; caption: string; creative_brief: string | null; media_url: string | null; cta: string | null;
+  hook: string | null; caption: string; creative_brief: string | null; media_url: string | null; media_urls?: string[]; cta: string | null;
   destination_url: string | null; evidence: string | null; sensitive: boolean; planned_at: string | null;
   status: Status; review_note: string | null; approved_at: string | null; created_at: string;
   variants: Variant[];
@@ -62,7 +74,7 @@ interface Metric { id: string; channel: ChannelId; metric: string; value: number
 interface External { id: string; channel: ChannelId; posted_at: string; caption: string; source: string }
 interface ExportRow { id: string; file_name: string; row_count: number; downloaded_at: string; uploaded_at: string | null }
 interface Audit { id: number; content_id: string; action: string; actor: string | null; detail: Record<string, unknown> | null; at: string }
-interface Settings { autonomy_mode: 'draft' | 'approval' | 'automation'; zoho_action: 'draft' | 'schedule'; daily_limit_per_channel: number }
+interface Settings { autonomy_mode: 'draft' | 'approval' | 'automation'; zoho_action: 'draft' | 'schedule'; daily_limit_per_channel: number; direct_publish_enabled?: boolean }
 interface Profile { pillars: { id: string; label: string }[]; audiences: { id: string; label: string }[]; objectives: string[]; main_cta: string }
 
 const STATUS_LABEL: Record<Status, string> = {
@@ -118,7 +130,7 @@ function CheckList({ checks }: { checks: RuleCheck[] }) {
 }
 
 export default function BrandSocialPanel() {
-  const [tab, setTab] = useState<'queue' | 'new' | 'baseline' | 'channels'>('queue');
+  const [tab, setTab] = useState<'queue' | 'new' | 'autopilot' | 'baseline' | 'channels'>('queue');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -134,6 +146,7 @@ export default function BrandSocialPanel() {
   const [audit, setAudit] = useState<Record<string, Audit[]>>({});
   const [working, setWorking] = useState<string | null>(null);
   const [confirmSend, setConfirmSend] = useState<Content | null>(null);
+  const [confirmPublish, setConfirmPublish] = useState<Content | null>(null);
   const [editing, setEditing] = useState<Content | null>(null);
   const [notes, setNotes] = useState<Record<string, string>>({});
 
@@ -205,6 +218,29 @@ export default function BrandSocialPanel() {
     void load();
   };
 
+  const directIds = useMemo(() => new Set(channels.filter((c) => isDirect(c.publish_route)).map((c) => c.id as string)), [channels]);
+  const directPending = (c: Content) => c.variants.filter((v) => directIds.has(v.channel) && v.dispatch_status !== 'sent');
+
+  const publishNow = async (c: Content) => {
+    setWorking(c.id);
+    const { data, error } = await supabase.functions.invoke('brand-social-publish', { body: { action: 'publish_now', content_id: c.id } });
+    setWorking(null);
+    setConfirmPublish(null);
+    if (error) { toast.error(await fnError(error)); void load(); return; }
+    if (data?.skipped) toast(String(data.skipped));
+    else {
+      const res = (data?.results ?? []) as { ok: boolean; channel: string; error?: string; processing?: boolean }[];
+      const done = res.filter((r) => r.ok).length;
+      const processing = res.filter((r) => r.processing).length;
+      const failed = res.filter((r) => !r.ok && !r.processing);
+      if (done) toast.success(`${c.code}: published on ${done} channel${done === 1 ? '' : 's'}.`);
+      if (processing) toast(`${c.code}: video still processing on ${processing} channel${processing === 1 ? '' : 's'}; it finishes within minutes.`);
+      if (failed.length) toast.error(`${c.code}: ${failed.map((f) => `${f.channel}: ${f.error}`).join(' · ')}`);
+      if (!res.length) toast('Nothing to publish: every direct channel of this post has already gone out.');
+    }
+    void load();
+  };
+
   const toggleOpen = async (id: string) => {
     if (open === id) { setOpen(null); return; }
     setOpen(id);
@@ -272,6 +308,7 @@ export default function BrandSocialPanel() {
         {([
           ['queue', `Queue${counts.review ? ` · ${counts.review} to approve` : ''}`],
           ['new', editing ? `Editing ${editing.code}` : 'New post'],
+          ['autopilot', 'AI drafting'],
           ['baseline', 'Baseline'],
           ['channels', 'Channels'],
         ] as const).map(([id, text]) => (
@@ -281,6 +318,10 @@ export default function BrandSocialPanel() {
           </button>
         ))}
       </div>
+
+      {tab === 'autopilot' && (
+        <BrandAutopilot channels={channels} campaigns={campaigns} profile={profile} onDrafted={() => void load()} />
+      )}
 
       {tab === 'queue' && (
         <div className="space-y-4">
@@ -334,11 +375,23 @@ export default function BrandSocialPanel() {
                       {c.variants.map((v) => (
                         <div key={v.id} className="rounded-lg border border-gray-200 dark:border-gray-700 p-3 min-w-0">
                           <div className="flex items-center justify-between gap-2">
-                            <span className="text-sm font-semibold text-gray-900 dark:text-white">{CHANNEL_RULES[v.channel].label}</span>
+                            <span className="text-sm font-semibold text-gray-900 dark:text-white">
+                              {CHANNEL_RULES[v.channel].label}
+                              {v.format && v.format !== 'post' && <span className="ml-2 rounded-full bg-purple-100 dark:bg-purple-900/40 px-2 py-0.5 text-xs text-purple-800 dark:text-purple-200">{FORMAT_LABEL[v.format]}</span>}
+                            </span>
                             <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {v.zoho_confirmed_at ? 'Confirmed in Zoho' : v.dispatch_status === 'sent' ? 'Accepted by Zoho Flow' : v.dispatch_status === 'failed' ? 'Not sent' : v.dispatch_status === 'sending' ? 'Sending' : 'Not sent yet'}
+                              {v.published_url || v.external_post_id
+                                ? (v.verified_at ? 'Published, checked on Meta' : 'Published, not yet checked')
+                                : v.zoho_confirmed_at ? 'Confirmed in Zoho'
+                                : v.dispatch_status === 'sent' ? (v.zoho_reference?.startsWith('Zoho bulk file') ? 'In a Zoho file marked uploaded' : 'Accepted by Zoho Flow')
+                                : v.dispatch_status === 'failed' ? (v.next_attempt_at ? `Retrying ${formatLagos(v.next_attempt_at)}` : 'Not sent')
+                                : v.dispatch_status === 'sending' ? 'Sending'
+                                : isDirect(channels.find((x) => x.id === v.channel)?.publish_route) ? 'Publishes directly at the planned time' : 'Not sent yet'}
                             </span>
                           </div>
+                          {v.published_url && (
+                            <a href={v.published_url} target="_blank" rel="noopener noreferrer" className="mt-1 inline-block text-xs font-semibold text-blue-700 dark:text-blue-300 underline break-all">View the live post</a>
+                          )}
                           <p className="mt-2 whitespace-pre-wrap break-words text-sm text-gray-700 dark:text-gray-200">{v.caption}</p>
                           {v.tracked_url && <p className="mt-2 break-all font-mono text-xs text-gray-500">{v.tracked_url}</p>}
                           {v.last_error && <p className="mt-2 text-xs text-red-700 dark:text-red-300">{v.last_error}</p>}
@@ -381,6 +434,11 @@ export default function BrandSocialPanel() {
                           title={!flow?.flowConfigured ? 'Zoho Flow is not connected yet.' : settings?.autonomy_mode === 'draft' ? 'Draft mode is on.' : undefined}
                           onClick={() => setConfirmSend(c)}><Send size={16} /> Send to Zoho</button>
                       )}
+                      {['approved', 'sent'].includes(c.status) && directPending(c).length > 0 && (
+                        <button type="button" className={btnPrimary} disabled={working === c.id || !settings?.direct_publish_enabled || settings?.autonomy_mode === 'draft'}
+                          title={!settings?.direct_publish_enabled ? 'Direct publishing is off (Channels tab).' : settings?.autonomy_mode === 'draft' ? 'Draft mode is on.' : undefined}
+                          onClick={() => setConfirmPublish(c)}><Send size={16} /> Publish now</button>
+                      )}
                       {c.status === 'failed' && (
                         <button type="button" className={btnQuiet} disabled={working === c.id} onClick={() => void setStatus(c, 'approved')}>Approve again to retry</button>
                       )}
@@ -408,7 +466,7 @@ export default function BrandSocialPanel() {
             );
           })}
 
-          <ZohoFile content={content} campaigns={campaigns} onSaved={load} />
+          <ZohoFile content={content} campaigns={campaigns} channels={channels} onSaved={load} />
 
           <ExternalPosts channels={channels} external={external} onSaved={load} />
         </div>
@@ -431,7 +489,9 @@ export default function BrandSocialPanel() {
 
       {tab === 'channels' && (
         <div className="space-y-3">
-          <p className="text-sm text-gray-600 dark:text-gray-300">As connected in Zoho Social. Inactive channels are connected but not posted to from here.</p>
+          <BrandDirectPublish onChanged={() => void load()} />
+          <BrandConnections channels={channels} onChanged={() => void load()} />
+          <p className="text-sm text-gray-600 dark:text-gray-300">As connected in Zoho Social. Inactive channels are connected but not posted to from here. “Direct” channels publish straight to Meta; the rest go through Zoho.</p>
           <div className="overflow-x-auto rounded-xl border border-gray-200 dark:border-gray-700">
             <table className="w-full text-sm">
               <thead className="bg-gray-50 dark:bg-gray-900 text-left text-xs uppercase tracking-wide text-gray-500">
@@ -440,7 +500,7 @@ export default function BrandSocialPanel() {
               <tbody>
                 {channels.map((c) => (
                   <tr key={c.id} className="border-t border-gray-200 dark:border-gray-700">
-                    <td className="p-3 font-semibold text-gray-900 dark:text-white">{c.label}</td>
+                    <td className="p-3 font-semibold text-gray-900 dark:text-white">{c.label}{isDirect(c.publish_route) && <span className="ml-2 rounded-full bg-blue-100 dark:bg-blue-900/40 px-2 py-0.5 text-xs text-blue-800 dark:text-blue-200">Direct</span>}</td>
                     <td className="p-3 text-gray-700 dark:text-gray-200">{c.handle}</td>
                     <td className="p-3">
                       <button type="button" className={`rounded-full px-3 py-1 text-xs font-semibold ${c.active ? 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-200' : 'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-300'}`}
@@ -478,6 +538,20 @@ export default function BrandSocialPanel() {
         onConfirm={() => confirmSend && void send(confirmSend)}
         onCancel={() => setConfirmSend(null)}
       />
+      <ConfirmDialog
+        open={Boolean(confirmPublish)}
+        title={`Publish ${confirmPublish?.code ?? ''} now?`}
+        message={confirmPublish ? (
+          <span>
+            It goes public straight away on {directPending(confirmPublish).map((v) => `${CHANNEL_RULES[v.channel].label}${v.format && v.format !== 'post' ? ` (${FORMAT_LABEL[v.format]})` : ''}`).join(', ')},
+            {' '}instead of at {formatLagos(confirmPublish.planned_at)}. Channels that go through Zoho are not affected.
+          </span>
+        ) : ''}
+        confirmLabel="Publish now"
+        busy={working === confirmPublish?.id}
+        onConfirm={() => confirmPublish && void publishNow(confirmPublish)}
+        onCancel={() => setConfirmPublish(null)}
+      />
     </div>
   );
 }
@@ -503,7 +577,14 @@ function PostEditor({ editing, channels, campaigns, profile, calendar, dailyLimi
   const [picked, setPicked] = useState<Record<string, string>>(
     () => Object.fromEntries((editing?.variants ?? []).map((v) => [v.channel, v.caption])),
   );
+  const [formats, setFormats] = useState<Record<string, PostFormat>>(
+    () => Object.fromEntries((editing?.variants ?? []).map((v) => [v.channel, v.format ?? 'post'])),
+  );
+  const [extraMedia, setExtraMedia] = useState((editing?.media_urls ?? []).join('\n'));
   const [saving, setSaving] = useState(false);
+  const extras = extraMedia.split(/\s+/).map((s) => s.trim()).filter(Boolean);
+  const allMedia = [media, ...extras].filter(Boolean);
+  const directIds = new Set(channels.filter((c) => isDirect(c.publish_route)).map((c) => c.id as string));
 
   const plannedUtc = when ? lagosLocalToUtc(when) : null;
   const slug = campaigns.find((c) => c.id === campaignId)?.slug ?? 'always-on';
@@ -515,9 +596,12 @@ function PostEditor({ editing, channels, campaigns, profile, calendar, dailyLimi
     const entry: CalendarEntry = { id: editing?.variants.find((v) => v.channel === channel)?.id ?? `new-${channel}`, channel, at: plannedUtc ?? new Date().toISOString(), caption: text };
     const dupes = plannedUtc ? findNearDuplicates(entry, calendar) : [];
     const sameDay = plannedUtc ? postsThatDay(entry, calendar) : 0;
-    return { channel, text, checks, dupes, sameDay };
+    const format = formats[channel] ?? 'post';
+    // Only checked for channels that publish directly; Zoho channels only take posts.
+    const fmtProblem = directIds.has(channel) ? formatProblem(channel, format, allMedia) : null;
+    return { channel, text, checks, dupes, sameDay, format, fmtProblem };
   });
-  const anyBlocked = perChannel.some((p) => isBlocked(p.checks));
+  const anyBlocked = perChannel.some((p) => isBlocked(p.checks) || p.fmtProblem);
   const anySensitive = perChannel.some((p) => isSensitive(p.checks));
 
   const toggleChannel = (id: ChannelId) => setPicked((p) => {
@@ -534,7 +618,7 @@ function PostEditor({ editing, channels, campaigns, profile, calendar, dailyLimi
     setSaving(true);
     const row = {
       campaign_id: campaignId || null, pillar, audience, objective, hook: hook || null, caption, creative_brief: brief || null,
-      media_url: media || null, cta: cta || null, destination_url: dest || null, evidence: evidence || null,
+      media_url: media || null, media_urls: extras.slice(0, 9), cta: cta || null, destination_url: dest || null, evidence: evidence || null,
       sensitive: anySensitive, planned_at: plannedUtc, status: submit ? 'in_review' : 'draft',
     };
     // The id is chosen here so the channel rows can reference it without a
@@ -549,9 +633,10 @@ function PostEditor({ editing, channels, campaigns, profile, calendar, dailyLimi
     const existing = new Map((editing?.variants ?? []).map((v) => [v.channel, v]));
     for (const [ch, text] of Object.entries(picked)) {
       const prev = existing.get(ch as ChannelId);
+      const format = formats[ch] ?? 'post';
       const res = prev
-        ? await supabase.from('brand_social_variants').update({ caption: text }).eq('id', prev.id)
-        : await supabase.from('brand_social_variants').insert({ content_id: id, channel: ch, caption: text });
+        ? await supabase.from('brand_social_variants').update({ caption: text, format }).eq('id', prev.id)
+        : await supabase.from('brand_social_variants').insert({ content_id: id, channel: ch, caption: text, format });
       if (res.error) { setSaving(false); toast.error(`${CHANNEL_RULES[ch as ChannelId].label}: ${res.error.message}`); return; }
     }
     for (const [ch, v] of existing) {
@@ -597,6 +682,8 @@ function PostEditor({ editing, channels, campaigns, profile, calendar, dailyLimi
           {dest && <p className="mt-1 break-all font-mono text-xs text-gray-500">Tracked as {trackedUrl(dest, 'instagram', slug, code)?.replace('utm_source=instagram', 'utm_source={channel}')}</p>}</div>
         <div><label className={label} htmlFor="bs-media">Finished image or video (link)</label>
           <input id="bs-media" className={input} value={media} onChange={(e) => setMedia(e.target.value)} placeholder="https://…/post.png" /></div>
+        <div><label className={label} htmlFor="bs-media-more">More images or videos, for a carousel (one link per line, up to 9)</label>
+          <textarea id="bs-media-more" rows={2} className={input} value={extraMedia} onChange={(e) => setExtraMedia(e.target.value)} placeholder="https://…/slide-2.jpg" /></div>
         <div><label className={label} htmlFor="bs-brief">Creative brief</label>
           <textarea id="bs-brief" rows={3} className={input} value={brief} onChange={(e) => setBrief(e.target.value)} /></div>
         <div><label className={label} htmlFor="bs-evidence">Evidence for any fact in the post</label>
@@ -626,8 +713,21 @@ function PostEditor({ editing, channels, campaigns, profile, calendar, dailyLimi
                 <label htmlFor={`bs-v-${p.channel}`} className="text-sm font-semibold text-gray-900 dark:text-white">{rule.label}</label>
                 <span className={`text-xs tabular-nums ${n > rule.maxChars ? 'text-red-600' : 'text-gray-500'}`}>{n} / {rule.maxChars}</span>
               </div>
+              {directIds.has(p.channel) && formatsFor(p.channel).length > 1 && (
+                <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={`${rule.label} format`}>
+                  {formatsFor(p.channel).map((f) => (
+                    <button key={f} type="button" role="radio" aria-checked={p.format === f}
+                      onClick={() => setFormats((x) => ({ ...x, [p.channel]: f }))}
+                      className={`rounded-full border px-3 min-h-[36px] text-xs font-semibold ${p.format === f ? 'border-blue-600 bg-blue-50 text-blue-800 dark:bg-blue-900/40 dark:text-blue-100' : 'border-gray-300 dark:border-gray-600 text-gray-600 dark:text-gray-300'}`}>
+                      {FORMAT_LABEL[f]}
+                    </button>
+                  ))}
+                </div>
+              )}
               <textarea id={`bs-v-${p.channel}`} rows={4} className={input} value={p.text}
                 onChange={(e) => setPicked((x) => ({ ...x, [p.channel]: e.target.value }))} />
+              {p.fmtProblem && <p className="text-xs text-red-700 dark:text-red-300"><span className="font-semibold">Blocks sending:</span> {p.fmtProblem}</p>}
+              {p.format === 'story' && <p className="text-xs text-gray-500 dark:text-gray-400">Stories show the image or video only; the caption is kept for the record.</p>}
               <CheckList checks={p.checks} />
               {p.dupes.length > 0 && <p className="text-xs text-amber-700 dark:text-amber-300">Very close to {p.dupes.length} other post{p.dupes.length > 1 ? 's' : ''} on this channel within two weeks.</p>}
               {p.sameDay >= dailyLimit && <p className="text-xs text-red-700 dark:text-red-300">This channel already has {p.sameDay} posts that day; the limit is {dailyLimit}.</p>}
@@ -806,7 +906,9 @@ function BulkActions({ content, onDone }: { content: Content[]; onDone: () => vo
 // "Mark uploaded" (after the team uploads it in Zoho) records the handover,
 // through brand_social_mark_uploaded, which only touches posts still approved.
 
-function ZohoFile({ content, campaigns, onSaved }: { content: Content[]; campaigns: Campaign[]; onSaved: () => void }) {
+function ZohoFile({ content, campaigns, channels, onSaved }: { content: Content[]; campaigns: Campaign[]; channels: Channel[]; onSaved: () => void }) {
+  // Channels published directly never go in the Zoho file: Zoho would post them a second time.
+  const direct = new Set(channels.filter((c) => isDirect(c.publish_route)).map((c) => c.id));
   const [exports, setExports] = useState<ExportRow[]>([]);
   const [preview, setPreview] = useState<BulkResult | null>(null);
   const [busy, setBusy] = useState(false);
@@ -830,7 +932,8 @@ function ZohoFile({ content, campaigns, onSaved }: { content: Content[]; campaig
     mediaUrl: c.media_url,
     destinationUrl: c.destination_url,
     // Only channels not already handed over.
-    variants: c.variants.filter((v) => v.dispatch_status !== 'sent').map((v) => ({ channel: v.channel, caption: v.caption })),
+    // Zoho's bulk file only schedules plain posts: no reels, stories or carousels.
+    variants: c.variants.filter((v) => v.dispatch_status !== 'sent' && !direct.has(v.channel) && (v.format ?? 'post') === 'post').map((v) => ({ channel: v.channel, caption: v.caption })),
   })));
 
   const download = async () => {

@@ -75,6 +75,9 @@ export type AdminTabId =
   | 'brand-social'
   // Admin only: verifying a media owner is a trust decision, and every table behind it is is_admin()-gated.
   | 'media-owners'
+  // Admin only: hiding a business's update is a moderation decision, and the
+  // reports behind it are readable only under is_admin().
+  | 'updates'
   | 'business-intel' | 'service-catalogue';
 
 /**

@@ -9,6 +9,14 @@ interface Props {
   title?: string;
   /** Fill the parent's height instead of using the platform's aspect ratio. */
   fill?: boolean;
+  /**
+   * Cover/banner playback: muted, looping, and autoplaying where the host
+   * allows it, with no pointer targets at all — a hovered YouTube or Vimeo
+   * player paints its own chrome (title, watch-later, play/pause) over the
+   * cover, and an iframe cannot be told to stop except by not receiving the
+   * pointer. Off by default so a gallery player still behaves like a player.
+   */
+  ambient?: boolean;
 }
 
 /**
@@ -29,27 +37,42 @@ const ASPECT: Record<string, string> = {
   facebook: 'aspect-video',
 };
 
-export default function VideoEmbedFrame({ url, showAttribution = true, className = '', title, fill = false }: Props) {
-  const embed = parseVideoEmbed(url);
+export default function VideoEmbedFrame({ url, showAttribution = true, className = '', title, fill = false, ambient = false }: Props) {
+  const embed = parseVideoEmbed(url, { ambient });
   if (!embed) return null;
 
   // `fill` is for grid tiles that already impose their own shape; otherwise the
   // frame takes the platform's natural aspect so the player isn't letterboxed.
   const shape = fill ? 'h-full' : ASPECT[embed.platform] || 'aspect-video';
+  const playerAspect = ASPECT[embed.platform] || 'aspect-video';
 
   return (
     <div className={className}>
       <div className={`relative w-full ${shape} bg-black overflow-hidden rounded-lg`}>
+        {/*
+          * Ambient cover: the player keeps its own aspect ratio, is scaled past
+          * the box and clipped — the same geometry as `object-fit: cover`.
+          *
+          * Pinned to `inset-0` instead, a 16:9 player inside a letterbox-shaped
+          * banner draws its own black bars down both sides. That is what "the
+          * video does not fill the banner" looks like: the frame fills, the
+          * video inside it does not, and no URL parameter changes that.
+          */}
         <iframe
           src={embed.embedUrl}
           title={title || `${embed.label} video`}
-          loading="lazy"
+          loading={ambient ? 'eager' : 'lazy'}
           // Only what a player needs. No same-origin: an embedded page has no
           // business reaching into this document.
           allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; fullscreen"
           referrerPolicy="strict-origin-when-cross-origin"
-          allowFullScreen
-          className="absolute inset-0 w-full h-full border-0"
+          allowFullScreen={!ambient}
+          tabIndex={ambient ? -1 : undefined}
+          className={
+            ambient
+              ? `absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full ${playerAspect} max-w-none border-0 pointer-events-none`
+              : 'absolute inset-0 w-full h-full border-0'
+          }
         />
       </div>
       {showAttribution && (

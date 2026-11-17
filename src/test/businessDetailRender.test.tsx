@@ -67,6 +67,11 @@ vi.mock('../lib/supabase', () => {
       ilike: () => self,
       order: () => self,
       limit: () => self,
+      // The Business Updates strip asks for live updates only (not/lte/gt/is).
+      not: () => self,
+      lte: () => self,
+      gt: () => self,
+      is: () => self,
       upsert: () => Promise.resolve({ data: null, error: null }),
       maybeSingle: () => Promise.resolve(resolveFor(table)),
       then: (onF: (v: unknown) => unknown) => Promise.resolve(resolveFor(table)).then(onF),
@@ -156,6 +161,19 @@ describe('the public business profile', () => {
     };
     renderProfile();
     expect((await screen.findAllByText('Test Business Co.')).length).toBeGreaterThan(0);
+    const cover = document.querySelector('video[aria-label="Test Business Co. cover banner"]') as HTMLVideoElement;
+    expect(cover).toBeTruthy();
+    // A cover is an ambient banner: it starts itself, keeps no sound and never
+    // stops at the last frame.
+    expect(cover.autoplay).toBe(true);
+    expect(cover.muted).toBe(true);
+    expect(cover.loop).toBe(true);
+    expect(cover.playsInline).toBe(true);
+    // No controls and no pointer target: hovering a banner must not reveal a
+    // player, and the media has to fill the banner rather than sit in it.
+    expect(cover.controls).toBe(false);
+    expect(cover.className).toContain('object-cover');
+    expect(cover.className).toContain('pointer-events-none');
   });
 
   // Live is no longer a verified-only feature: every listing, claimed or

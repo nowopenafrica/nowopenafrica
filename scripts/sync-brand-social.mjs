@@ -16,13 +16,14 @@ import { fileURLToPath } from 'node:url';
 import { join } from 'node:path';
 
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const SOURCE = join(ROOT, 'src', 'lib', 'brandSocial.ts');
-const TARGET = join(ROOT, 'supabase', 'functions', '_shared', 'brandSocial.ts');
+// Both files are import-free, so a verbatim copy runs unchanged under Deno.
+// brandAutopilot.ts is the AI-drafting rules shared with brand-social-generate.
+const FILES = ['brandSocial.ts', 'brandAutopilot.ts', 'brandPublish.ts'];
 
-const BANNER = `/*
+const banner = (name) => `/*
  * GENERATED FILE — DO NOT EDIT.
  *
- * Derived from src/lib/brandSocial.ts by scripts/sync-brand-social.mjs.
+ * Derived from src/lib/${name} by scripts/sync-brand-social.mjs.
  * Edit the source and run \`npm run sync:brand-social\`; \`npm run verify\`
  * fails if this file and its source have drifted.
  *
@@ -32,30 +33,40 @@ const BANNER = `/*
 
 `;
 
-export function generate(source) {
-  return `${BANNER}${source.trimEnd()}\n`;
+export function generate(source, name = 'brandSocial.ts') {
+  return `${banner(name)}${source.trimEnd()}\n`;
 }
 
-const expected = generate(readFileSync(SOURCE, 'utf8'));
+const check = process.argv.includes('--check');
+let drifted = false;
 
-if (process.argv.includes('--check')) {
+for (const name of FILES) {
+  const target = join(ROOT, 'supabase', 'functions', '_shared', name);
+  const expected = generate(readFileSync(join(ROOT, 'src', 'lib', name), 'utf8'), name);
+  if (!check) {
+    writeFileSync(target, expected);
+    console.log(`Wrote supabase/functions/_shared/${name}`);
+    continue;
+  }
   let actual = '';
   try {
-    actual = readFileSync(TARGET, 'utf8');
+    actual = readFileSync(target, 'utf8');
   } catch {
-    console.error('supabase/functions/_shared/brandSocial.ts is missing. Run: npm run sync:brand-social');
-    process.exit(1);
+    console.error(`supabase/functions/_shared/${name} is missing. Run: npm run sync:brand-social`);
+    drifted = true;
+    continue;
   }
   if (actual !== expected) {
     console.error(
-      'The edge copy of the brand social rules has drifted from src/lib/brandSocial.ts.\n'
-      + 'The screen and the dispatcher would disagree about what may be posted.\n'
+      `The edge copy of ${name} has drifted from src/lib/${name}.\n`
+      + 'The screen and the edge functions would disagree about what may be posted.\n'
       + 'Run: npm run sync:brand-social',
     );
-    process.exit(1);
+    drifted = true;
   }
+}
+
+if (check) {
+  if (drifted) process.exit(1);
   console.log('✓ the edge brand social rules match their source.');
-} else {
-  writeFileSync(TARGET, expected);
-  console.log('Wrote supabase/functions/_shared/brandSocial.ts');
 }

@@ -21,10 +21,43 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import {
   PROVIDERS, PROVIDER_LABELS, providerFor,
   signState, verifyState, randomNonce, pkcePair, metaConfigured,
-  linkedinConfigured, xConfigured, tiktokConfigured, ProviderAccount,
+  linkedinConfigured, xConfigured, tiktokConfigured, youtubeConfigured, ProviderAccount,
 } from "../_shared/social.ts";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
-import { encryptToken } from "../_shared/tokenCrypto.ts";
+import { encryptToken, tokenEncryptionEnabled } from "../_shared/tokenCrypto.ts";
+
+// Brand mode: NowOpen Africa's own accounts (Brand social in the admin). The
+// handshake table needs a business id, so brand handshakes carry this
+// sentinel, which no real business can have. Admins only; tokens go to
+// brand_social_connections, never social_connections.
+const BRAND_ID = "00000000-0000-0000-0000-000000000000";
+const BRAND_PROVIDERS = ["x", "linkedin", "tiktok", "youtube"];
+// YouTube is brand-only: the Studio has no YouTube publishing for businesses.
+const BUSINESS_PROVIDERS = ["instagram", "facebook", "linkedin", "x", "tiktok"];
+
+async function callerIsAdmin(req: Request): Promise<boolean> {
+  const authed = createClient(supabaseUrl, anonKey, { global: { headers: { Authorization: req.headers.get("Authorization") ?? "" } } });
+  const { data, error } = await authed.rpc("is_admin");
+  return !error && data === true;
+}
+
+async function saveBrandAccount(userId: string, account: ProviderAccount) {
+  const { error } = await supabase.from("brand_social_connections").upsert({
+    provider: account.provider,
+    account_id: account.accountId,
+    account_name: account.accountName ?? null,
+    access_token: await encryptToken(account.accessToken),
+    refresh_token: await encryptToken(account.refreshToken ?? null),
+    token_expires_at: account.expiresAt?.toISOString() ?? null,
+    scope: account.scope ?? null,
+    meta: account.meta ?? null,
+    connected_by: userId,
+    connected_at: new Date().toISOString(),
+    refreshed_at: null,
+    last_error: null,
+  }, { onConflict: "provider" });
+  if (error) throw new Error(`Could not save the brand connection: ${error.message}`);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -124,7 +157,11 @@ async function handleAuthorize(req: Request, params: URLSearchParams): Promise<R
     return jsonResponse({ error: "Too many requests — please wait a moment." }, 429);
   }
   const provider = params.get("provider") ?? "";
-  const businessId = params.get("business_id") ?? "";
+  const brand = params.get("target") === "brand";
+  const businessId = brand ? BRAND_ID : params.get("business_id") ?? "";
+  if (!(brand ? BRAND_PROVIDERS : BUSINESS_PROVIDERS).includes(provider)) {
+    return jsonResponse({ error: `${provider} cannot be connected here.` }, 400);
+  }
   const providerDef = providerFor(provider);
 
   if (!providerDef.configured()) {
@@ -132,9 +169,17 @@ async function handleAuthorize(req: Request, params: URLSearchParams): Promise<R
   }
   const user = await currentUser(req);
   if (!user) return jsonResponse({ error: "Not signed in." }, 401);
-  if (!businessId) return jsonResponse({ error: "Missing business id." }, 400);
-  if (!(await canManageChannels(req, businessId))) {
-    return jsonResponse({ error: "You do not have permission to connect channels for that business." }, 403);
+  if (brand) {
+    if (!(await callerIsAdmin(req))) return jsonResponse({ error: "Only admins can connect NowOpen Africa's own accounts." }, 403);
+    // The brand's tokens post as NowOpen Africa: never store them in the clear.
+    if (!(await tokenEncryptionEnabled())) {
+      return jsonResponse({ error: "SOCIAL_TOKEN_KEY is not set, so the token could not be stored encrypted. Nothing was connected." }, 503);
+    }
+  } else {
+    if (!businessId) return jsonResponse({ error: "Missing business id." }, 400);
+    if (!(await canManageChannels(req, businessId))) {
+      return jsonResponse({ error: "You do not have permission to connect channels for that business." }, 403);
+    }
   }
 
   await supabase.rpc("prune_social_auth_pending");
@@ -195,6 +240,11 @@ async function handleCallback(params: URLSearchParams): Promise<Response> {
   try {
     const providerDef = providerFor(provider);
     const exchanged = await providerDef.exchangeCode(code, redirectUri(provider), pending.code_verifier ?? undefined);
+    if (pending.business_id === BRAND_ID) {
+      if (!exchanged.account.accountId) throw new Error("The provider did not say which account this is. Nothing was saved.");
+      await saveBrandAccount(pending.user_id, exchanged.account);
+      return callbackHtml("success", provider, originTarget);
+    }
     const accounts = [exchanged.account, ...(exchanged.extraAccounts ?? [])];
     for (const account of accounts) {
       await saveAccount(pending.user_id, pending.business_id, account);
@@ -240,7 +290,7 @@ function handleCapabilities(): Response {
     x: xConfigured(),
     tiktok: tiktokConfigured(),
   };
-  const supported = Object.keys(PROVIDERS);
+  const supported = Object.keys(PROVIDERS).filter((k) => BUSINESS_PROVIDERS.includes(k));
 
   // The exact callback URL each provider's developer console has to whitelist.
   // Every platform rejects the handshake unless it matches character for
@@ -258,7 +308,20 @@ function handleCapabilities(): Response {
     tiktok: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
   };
 
-  return jsonResponse({ configured, supported, origin: appOrigin(), redirectUris, requiredSecrets });
+  // Brand social's view: its four OAuth channels, YouTube included.
+  const brand = {
+    supported: BRAND_PROVIDERS,
+    configured: { x: xConfigured(), linkedin: linkedinConfigured(), tiktok: tiktokConfigured(), youtube: youtubeConfigured() },
+    redirectUris: Object.fromEntries(BRAND_PROVIDERS.map((k) => [k, redirectUri(k)])),
+    requiredSecrets: {
+      x: ["X_CLIENT_ID", "X_CLIENT_SECRET"],
+      linkedin: ["LINKEDIN_CLIENT_ID", "LINKEDIN_CLIENT_SECRET"],
+      tiktok: ["TIKTOK_CLIENT_KEY", "TIKTOK_CLIENT_SECRET"],
+      youtube: ["GOOGLE_CLIENT_ID", "GOOGLE_CLIENT_SECRET"],
+    },
+  };
+
+  return jsonResponse({ configured, supported, origin: appOrigin(), redirectUris, requiredSecrets, brand });
 }
 
 Deno.serve(async (req: Request) => {

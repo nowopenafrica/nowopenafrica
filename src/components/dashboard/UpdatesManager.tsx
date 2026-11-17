@@ -8,7 +8,8 @@ import {
   UPDATE_TYPES, deriveUpdateState, ownerGroup, updateTimeLabel, type OwnerGroup,
 } from '../../lib/businessUpdates';
 import {
-  deleteUpdate, endUpdate, listOwnerUpdates, loadKeeperReach, publishUpdate, type OwnerUpdate, type Result,
+  deleteUpdate, endUpdate, listOwnerUpdates, loadKeeperReach, loadUpdateStats, publishUpdate,
+  type OwnerUpdate, type Result, type UpdateStats,
 } from '../../lib/businessUpdatesApi';
 import type { KeepTopic } from '../../lib/keeps';
 
@@ -36,6 +37,10 @@ const TABS: { key: OwnerGroup; label: string }[] = [
 
 const typeLabel = (t: string) => UPDATE_TYPES.find((x) => x.key === t)?.label ?? 'Update';
 const summary = (u: OwnerUpdate) => u.title || (u.body.length > 60 ? `${u.body.slice(0, 60)}…` : u.body) || typeLabel(u.type);
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+/** "3 people opened · 1 button tap · 0 shares": recorded counts, nothing more. */
+const countsLine = (s: UpdateStats) =>
+  `${plural(s.people, 'person', 'people')} opened · ${plural(s.cta, 'button tap', 'button taps')} · ${plural(s.shares, 'share', 'shares')}`;
 
 type Confirm = { kind: 'end' | 'delete'; u: OwnerUpdate } | null;
 
@@ -56,6 +61,13 @@ export default function UpdatesManager({ businessId, businessName, isOwner, onCl
 
   useEffect(() => { void load(); }, [load]);
   useEffect(() => { void loadKeeperReach(businessId).then(setReach); }, [businessId]);
+  // Counts are the owner's: analytics are readable by the business owner, not
+  // its team, so a member would only ever get an empty answer that looks like 0.
+  const [stats, setStats] = useState<Map<string, UpdateStats> | null>(null);
+  useEffect(() => {
+    if (!isOwner) return;
+    void loadUpdateStats(businessId).then(setStats);
+  }, [businessId, isOwner, result]);
   useEffect(() => {
     const t = setInterval(() => setNow(new Date()), 30_000);
     return () => clearInterval(t);
@@ -192,6 +204,11 @@ export default function UpdatesManager({ businessId, businessName, isOwner, onCl
                               ? <span className="inline-flex items-center gap-1"><BellRing size={10} /> {u.notified_at ? 'Keeper alert handled' : 'Tells keepers'}</span>
                               : <span className="inline-flex items-center gap-1"><BellOff size={10} /> Quiet</span>}
                           </p>
+                          {stats && (state === 'active' || state === 'ended') && (
+                            <p className="text-[11px] text-gray-600 dark:text-gray-300">
+                              {countsLine(stats.get(u.id) ?? { people: 0, cta: 0, shares: 0 })}
+                            </p>
+                          )}
                           {state === 'hidden' && (
                             <p className="mt-1 text-[12px] text-amber-700 dark:text-amber-400 flex items-start gap-1">
                               <ShieldAlert size={13} className="mt-0.5 shrink-0" />
@@ -227,6 +244,11 @@ export default function UpdatesManager({ businessId, businessName, isOwner, onCl
                   );
                 })}
               </ul>
+            )}
+            {stats && result?.ok && result.value.length > 0 && (
+              <p className="pt-3 text-[11px] text-gray-500 dark:text-gray-400">
+                Counted from visits to NowOpen. Visits by you and your team are not counted.
+              </p>
             )}
           </div>
         </div>

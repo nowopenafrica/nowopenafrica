@@ -12,6 +12,7 @@ const api = vi.hoisted(() => ({
   deleteUpdate: vi.fn(),
   publishUpdate: vi.fn(),
   loadKeeperReach: vi.fn(),
+  loadUpdateStats: vi.fn(),
 }));
 vi.mock('../lib/businessUpdatesApi', () => api);
 vi.mock('../components/dashboard/UpdateComposer', () => ({
@@ -48,6 +49,7 @@ beforeEach(() => {
   vi.setSystemTime(T);
   vi.clearAllMocks();
   api.loadKeeperReach.mockResolvedValue(null);
+  api.loadUpdateStats.mockResolvedValue(new Map());
   api.endUpdate.mockResolvedValue({ ok: true, value: undefined });
   api.deleteUpdate.mockResolvedValue({ ok: true, value: undefined });
   api.listOwnerUpdates.mockResolvedValue({ ok: true, value: ROWS });
@@ -140,5 +142,31 @@ describe('UpdatesManager', () => {
     open();
     await screen.findByText('Clip');
     expect(screen.getByLabelText('Clip', { selector: 'video' })).toHaveAttribute('preload', 'metadata');
+  });
+
+  it('shows real counts on live and ended updates, never on drafts', async () => {
+    api.loadUpdateStats.mockResolvedValue(new Map([
+      ['Live one', { people: 1, cta: 2, shares: 0 }],
+      ['Draft one', { people: 9, cta: 9, shares: 9 }],
+    ]));
+    open();
+    expect(await screen.findByText('1 person opened · 2 button taps · 0 shares')).toBeInTheDocument();
+    expect(screen.getByText(/Counted from visits to NowOpen\. Visits by you and your team are not counted\./)).toBeInTheDocument();
+    fireEvent.click(tab(/Scheduled & drafts/));
+    expect(screen.queryByText(/9 people opened/)).not.toBeInTheDocument();
+  });
+
+  it('shows no count when stats cannot be read', async () => {
+    api.loadUpdateStats.mockResolvedValue(null);
+    open();
+    await screen.findByText('Live one');
+    expect(screen.queryByText(/opened ·/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Counted from visits/)).not.toBeInTheDocument();
+  });
+
+  it('does not ask for counts when a team member opens it', async () => {
+    render(<UpdatesManager businessId="b1" businessName="Mama Put" isOwner={false} onClose={vi.fn()} />);
+    await screen.findByText('Live one');
+    expect(api.loadUpdateStats).not.toHaveBeenCalled();
   });
 });

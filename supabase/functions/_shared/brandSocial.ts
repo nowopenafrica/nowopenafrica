@@ -102,6 +102,12 @@ const SENSITIVE_PATTERNS: Array<{ code: string; re: RegExp; message: string }> =
     message: 'Contains a percentage. Confirm where it comes from.',
   },
   {
+    // No digits, so number_claim misses it, but it is still a statistic.
+    code: 'crowd_claim',
+    re: /\b(the majority of|most (people|customers|shoppers|consumers|businesses|owners|africans|nigerians)|millions of|thousands of|everyone (is|uses|searches))\b/i,
+    message: 'Says how many people do something (“most customers”, “millions of”). Give a source in Evidence or reword it.',
+  },
+  {
     code: 'superlative',
     re: /(#1\b|\bnumber one\b|\bleading\b|\blargest\b|\bbiggest\b|\bbest in\b|\bfirst in africa\b|\bonly platform\b|\bmost trusted\b)/i,
     message: 'Makes a ranking or "first/only/biggest" claim. These need evidence or rewording.',

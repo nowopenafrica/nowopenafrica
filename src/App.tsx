@@ -69,6 +69,8 @@ const Dashboard = lazyRoute(() => import('./pages/Dashboard'));
 const AdminDashboard = lazyRoute(() => import('./pages/AdminDashboard'));
 const AdminCreator = lazyRoute(() => import('./pages/AdminCreator'));
 const BusinessIntelligence = lazyRoute(() => import('./pages/BusinessIntelligence'));
+const AdminCredits = lazyRoute(() => import('./pages/AdminCredits'));
+const Wallet = lazyRoute(() => import('./pages/Wallet'));
 const DigitalForms = lazyRoute(() => import('./pages/DigitalForms'));
 const Pricing = lazyRoute(() => import('./pages/Pricing'));
 const Waitlist = lazyRoute(() => import('./pages/Waitlist'));
@@ -309,6 +311,18 @@ function App() {
                 <AdminRoute adminOnly>
                   <AdminCreator />
                 </AdminRoute>
+              } />
+              {/* NowOpen Credits operations: admins only (every write is also
+                  refused by the database for anyone else). */}
+              <Route path="/admin/credits" element={
+                <AdminRoute adminOnly>
+                  <AdminCredits />
+                </AdminRoute>
+              } />
+              <Route path="/wallet" element={
+                <ProtectedRoute>
+                  <Wallet />
+                </ProtectedRoute>
               } />
               <Route path="/admin/business-intelligence" element={
                 <AdminRoute editorPlus>

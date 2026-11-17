@@ -75,6 +75,9 @@ alter table public.analytics_events
     'campaign_cta_click',
     'campaign_share',
     'campaign_referral_joined',
+    'update_viewed',
+    'update_cta_clicked',
+    'update_shared',
     'client_error'
   )) not valid;
 

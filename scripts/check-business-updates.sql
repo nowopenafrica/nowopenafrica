@@ -656,6 +656,94 @@ BEGIN
   PERFORM pg_temp.chk_pass('publish_uses_server_clock');
 END $$;
 
+-- 34, 35 (phase 5) -------------------------------------------------------------
+-- business_update_stats: distinct sessions per update, the owner's own visits
+-- left out, and nothing at all for anyone who is not the owner (invoker rights).
+DO $$
+DECLARE
+  v_owner uuid := pg_temp.id('owner');
+  v_biz uuid := pg_temp.id('biz');
+  v_u uuid := pg_temp.chk_update(now() - interval '1 hour');
+  v_people int; v_cta int; v_stranger_rows int;
+BEGIN
+  INSERT INTO public.analytics_events (name, props, user_id, business_id, session_id, path) VALUES
+    ('update_viewed', jsonb_build_object('update_id', v_u::text), NULL, v_biz, 'zz-s1', '/zz'),
+    ('update_viewed', jsonb_build_object('update_id', v_u::text), NULL, v_biz, 'zz-s1', '/zz'),
+    ('update_viewed', jsonb_build_object('update_id', v_u::text), NULL, v_biz, 'zz-s2', '/zz'),
+    ('update_viewed', jsonb_build_object('update_id', v_u::text), v_owner, v_biz, 'zz-owner', '/zz'),
+    ('update_cta_clicked', jsonb_build_object('update_id', v_u::text), NULL, v_biz, 'zz-s2', '/zz');
+
+  PERFORM pg_temp.chk_as('authenticated', v_owner);
+  SELECT people, cta_taps INTO v_people, v_cta FROM public.business_update_stats(v_biz) WHERE update_id = v_u;
+  RESET ROLE; PERFORM set_config('request.jwt.claims', '', true);
+  ASSERT v_people = 2, format('stats_exclude_owner: expected 2 people (two sessions, owner left out), got %s', v_people);
+  ASSERT v_cta = 1, format('stats_exclude_owner: expected 1 button tap, got %s', v_cta);
+  PERFORM pg_temp.chk_pass('stats_exclude_owner');
+
+  PERFORM pg_temp.chk_as('authenticated', pg_temp.id('stranger'));
+  SELECT count(*) INTO v_stranger_rows FROM public.business_update_stats(v_biz);
+  RESET ROLE; PERFORM set_config('request.jwt.claims', '', true);
+  ASSERT v_stranger_rows = 0, format('stats_owner_only: a stranger read %s rows of another business''s counts', v_stranger_rows);
+  PERFORM pg_temp.chk_pass('stats_owner_only');
+END $$;
+
+-- 36, 37 (phase 5 fix pass) -------------------------------------------------------
+-- The owner's whole session is left out (signed-out events in it too), and so are
+-- sessions of the business's own team.
+DO $$
+DECLARE
+  v_owner uuid := pg_temp.id('owner');
+  v_support uuid := pg_temp.id('support');
+  v_biz uuid := pg_temp.id('biz');
+  v_u uuid := pg_temp.chk_update(now() - interval '1 hour');
+  v_people int;
+BEGIN
+  INSERT INTO public.analytics_events (name, props, user_id, business_id, session_id, path) VALUES
+    -- The owner, signed in for one event and not for the next, in one session.
+    ('business_viewed', '{}'::jsonb, v_owner, v_biz, 'zz-own', '/zz'),
+    ('update_viewed', jsonb_build_object('update_id', v_u::text), NULL, v_biz, 'zz-own', '/zz'),
+    -- A team member (support role, from the fixtures).
+    ('update_viewed', jsonb_build_object('update_id', v_u::text), v_support, v_biz, 'zz-team', '/zz'),
+    -- One real visitor.
+    ('update_viewed', jsonb_build_object('update_id', v_u::text), NULL, v_biz, 'zz-visitor', '/zz');
+
+  PERFORM pg_temp.chk_as('authenticated', v_owner);
+  SELECT people INTO v_people FROM public.business_update_stats(v_biz) WHERE update_id = v_u;
+  RESET ROLE; PERFORM set_config('request.jwt.claims', '', true);
+  ASSERT v_people = 1, format('stats_exclude_own_sessions: expected 1 visitor, got %s', v_people);
+  PERFORM pg_temp.chk_pass('stats_exclude_own_sessions');
+END $$;
+
+-- Unhiding never sends a keeper alert, now or later from the scheduler: an update
+-- hidden before its alert went out stays quiet when it comes back.
+DO $$
+DECLARE
+  v_admin uuid := pg_temp.id('admin');
+  v_u uuid;
+  v_notified timestamptz;
+  v_sent int;
+  v_before int;
+BEGIN
+  INSERT INTO public.business_updates (business_id, type, body, published_at, notify_keepers, moderation_status)
+  VALUES (pg_temp.id('biz'), 'announcement', 'zz-updates-check', now() - interval '1 hour', true, 'hidden')
+  RETURNING id INTO v_u;
+  ASSERT (SELECT notified_at FROM public.business_updates WHERE id = v_u) IS NULL,
+    'unhide_sends_no_alert: setup failed, a hidden update was alerted';
+  -- Earlier checks in this transaction also sent alerts at the same now(), so
+  -- the unhide is judged by what it adds, not by what is there.
+  SELECT count(*) INTO v_before FROM public.keep_sends WHERE business_id = pg_temp.id('biz');
+
+  PERFORM pg_temp.chk_as('authenticated', v_admin);
+  UPDATE public.business_updates SET moderation_status = 'ok', moderation_note = NULL WHERE id = v_u;
+  RESET ROLE; PERFORM set_config('request.jwt.claims', '', true);
+
+  SELECT count(*) - v_before INTO v_sent FROM public.keep_sends WHERE business_id = pg_temp.id('biz');
+  SELECT notified_at INTO v_notified FROM public.business_updates WHERE id = v_u;
+  ASSERT v_sent = 0, 'unhide_sends_no_alert: unhiding sent a keeper alert';
+  ASSERT v_notified IS NOT NULL, 'unhide_sends_no_alert: notified_at left empty, so the scheduler would alert later';
+  PERFORM pg_temp.chk_pass('unhide_sends_no_alert');
+END $$;
+
 -- Summary row (visible even when the client drops NOTICEs), then discard it all.
 SELECT string_agg(name, ', ') AS checks_passed, count(*) AS n_passed
   FROM unnest(string_to_array(rtrim(current_setting('chk.passed'), ','), ',')) AS name;

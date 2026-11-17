@@ -11,6 +11,7 @@ import PageEditor from '../components/admin/PageEditor';
 import ActivationPanel from '../components/admin/ActivationPanel';
 import ProfileRequests from '../components/admin/ProfileRequests';
 import ClaimsPanel from '../components/admin/ClaimsPanel';
+import UpdatesModerationPanel from '../components/admin/UpdatesModerationPanel';
 import CreateOrders from '../components/admin/CreateOrders';
 import ClaimReachConsole from '../components/admin/ClaimReachConsole';
 import MediaOwnersPanel from '../components/admin/MediaOwnersPanel';
@@ -138,6 +139,21 @@ export default function AdminDashboard() {
       .then(({ count, error }) => {
         // supabase-js resolves with {data,error}; a .catch() here never fires.
         if (alive && !error) setPendingClaims(count ?? 0);
+      });
+    return () => { alive = false; };
+  }, []);
+
+  // Open reports about Business Updates: the Updates tab's queue. Admin-only by
+  // RLS, so for anyone else this stays 0 and the tab is not offered anyway.
+  const [openUpdateReports, setOpenUpdateReports] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    supabase
+      .from('business_update_reports')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'open')
+      .then(({ count, error }) => {
+        if (alive && !error) setOpenUpdateReports(count ?? 0);
       });
     return () => { alive = false; };
   }, []);
@@ -698,7 +714,7 @@ export default function AdminDashboard() {
   const match = (...fields: (string | undefined)[]) =>
     !q || fields.some(f => f?.toLowerCase().includes(q));
 
-  const filteredUsers = users.filter(u => match(u.email, u.name, u.role));
+  const filteredUsers = users.filter(u => match(u.email, u.phone, u.name, u.role));
   const bizCategories = Array.from(new Set(businesses.map(b => b.category).filter(Boolean))).sort((a, b) => a.localeCompare(b));
   const filteredBusinesses = businesses.filter(b => {
     if (!match(b.name, b.category, b.location)) return false;
@@ -722,10 +738,10 @@ export default function AdminDashboard() {
   const filteredRegistrations = registrations.filter(r => match(r.business_name, r.category, r.location, r.email, r.phone));
   const filteredApplications = applications.filter(a => match(a.reference, a.applicant_name, a.email, a.relationship, a.status));
   const filteredEnquiries = enquiries.filter(e => match(e.item_title, e.name, e.email, e.kind, e.message));
-  const userEmailById = Object.fromEntries(users.map(u => [String(u.id), u.email]));
-  const filteredSubscriptions = subscriptions.filter(s => match(userEmailById[s.user_id], s.tier, s.kind, s.status, s.billing_cycle));
+  const userContactById = Object.fromEntries(users.map(u => [String(u.id), u.email || u.phone]));
+  const filteredSubscriptions = subscriptions.filter(s => match(userContactById[s.user_id], s.tier, s.kind, s.status, s.billing_cycle));
   const filteredVerificationDocs = verificationDocs.filter(d => match(businessNameById[d.business_id], d.doc_type, d.status));
-  const filteredDeletionRequests = deletionRequests.filter(r => match(r.entity_label, r.entity_type, r.status, userEmailById[r.requester_id]));
+  const filteredDeletionRequests = deletionRequests.filter(r => match(r.entity_label, r.entity_type, r.status, userContactById[r.requester_id]));
   const filteredAudit = auditLog.filter(a => match(a.action, a.entity_type, a.actor_email, a.entity_id));
 
   // ---- guards ---------------------------------------------------------
@@ -774,6 +790,8 @@ export default function AdminDashboard() {
      * this is an invitation through a door that opens onto nothing.
      */
     { id: 'claims', label: 'Claims', icon: BadgeCheck, count: pendingClaims },
+    // Business Updates moderation. Admin-only (not in EDITOR_TABS).
+    { id: 'updates', label: 'Updates', icon: Megaphone, count: openUpdateReports },
     { id: 'create-orders', label: 'Create Orders', icon: ShoppingBag, count: 0 },
     // Outreach, and only ever as a plan: the console cannot send.
     { id: 'claimreach', label: 'ClaimReach', icon: Radio, count: 0 },
@@ -1048,7 +1066,7 @@ export default function AdminDashboard() {
                 <table className="w-full">
                   <thead>
                     <tr className="border-b border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-900">
-                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Email</th>
+                      <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Email / Phone</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Name</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Role</th>
                       <th className="px-4 py-3 text-left text-xs font-bold text-gray-900 dark:text-white">Plan</th>
@@ -1060,9 +1078,22 @@ export default function AdminDashboard() {
                     {filteredUsers.map(u => (
                       <tr key={u.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                         <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">
-                          {u.email}
-                          {u.id === authUser?.id && (
-                            <span className="ml-2 px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded text-xs">you</span>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span>{u.email || u.phone || '—'}</span>
+                            {!u.email && u.phone && (
+                              <span
+                                title="Registered with a phone number"
+                                className="px-2 py-0.5 bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400 rounded text-xs"
+                              >
+                                phone
+                              </span>
+                            )}
+                            {u.id === authUser?.id && (
+                              <span className="px-2 py-0.5 bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-400 rounded text-xs">you</span>
+                            )}
+                          </div>
+                          {u.email && u.phone && (
+                            <div className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{u.phone}</div>
                           )}
                         </td>
                         <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{u.name || '—'}</td>
@@ -1111,7 +1142,7 @@ export default function AdminDashboard() {
                         <td className="px-4 py-3 text-sm">
                           {canDelete(role) && (
                             <button
-                              onClick={() => deleteRow('users', u.id, `profile for ${u.email}`)}
+                              onClick={() => deleteRow('users', u.id, `profile for ${u.email || u.phone || 'this user'}`)}
                               title="Delete profile row (the auth account must be removed from the Supabase dashboard)"
                               className="inline-flex items-center justify-center w-[44px] h-[44px] text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/30 rounded transition"
                             >
@@ -1570,7 +1601,7 @@ export default function AdminDashboard() {
                         : s.status === 'canceled' ? 'text-gray-500' : 'text-amber-600 dark:text-amber-400';
                       return (
                         <tr key={s.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
-                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{userEmailById[s.user_id] || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{userContactById[s.user_id] || '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 capitalize">{getBusinessTier(s.tier)?.name || s.tier} <span className="text-xs text-gray-400">· {s.kind}</span></td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 capitalize">{s.billing_cycle || '—'}</td>
                           <td className={`px-4 py-3 text-sm font-semibold capitalize ${sc}`}>{s.status}</td>
@@ -1594,6 +1625,7 @@ export default function AdminDashboard() {
               {activeTab === 'activation' && <ActivationPanel />}
               {activeTab === 'profile-requests' && <ProfileRequests />}
               {activeTab === 'claims' && <ClaimsPanel />}
+              {activeTab === 'updates' && <UpdatesModerationPanel />}
               {activeTab === 'create-orders' && <CreateOrders />}
               {activeTab === 'claimreach' && <ClaimReachConsole />}
               {activeTab === 'media-owners' && <MediaOwnersPanel />}
@@ -1655,7 +1687,7 @@ export default function AdminDashboard() {
                         <tr key={r.id} className="border-b border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
                           <td className="px-4 py-3 text-sm text-gray-900 dark:text-white font-medium">{r.entity_label || '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400 capitalize">{r.entity_type}</td>
-                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{userEmailById[r.requester_id] || '—'}</td>
+                          <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{userContactById[r.requester_id] || '—'}</td>
                           <td className="px-4 py-3 text-sm text-gray-600 dark:text-gray-400">{r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
                           <td className={`px-4 py-3 text-sm font-semibold capitalize ${sc}`}>{r.status || 'pending'}</td>
                           <td className="px-4 py-3 text-sm">

@@ -55,6 +55,8 @@ describe('claims that need a person, never automation', () => {
     ['Over 5,000 businesses already listed. Discover them.', 'number_claim'],
     ['Engagement up 40% this month.', 'percent_claim'],
     ["Africa's leading discovery platform.", 'superlative'],
+    ['The majority of customers begin their buying journey online.', 'crowd_claim'],
+    ['Millions of Africans search for services every day.', 'crowd_claim'],
     ['In partnership with a major bank.', 'partner_claim'],
     ['Plans from ₦5,000 a month.', 'price_claim'],
     ['“NowOpen changed how customers find my shop” said Ada.', 'testimonial'],

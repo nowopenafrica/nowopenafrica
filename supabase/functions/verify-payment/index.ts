@@ -2,28 +2,8 @@ import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { getClientIp, isRateLimited } from "../_shared/rateLimit.ts";
 import { activatePlanFromIntent } from "../_shared/planActivation.ts";
+import { fulfilNocPurchase } from "../_shared/nocFulfil.ts";
 
-/*
- * Credits bought with money.
- *
- * The function takes only the payment REFERENCE — it reads the intent, checks
- * that the platform itself marked it paid, and grants what the PACK says. This
- * code cannot name an amount, which is the point: a caller that could would be
- * a caller that could name a large one.
- *
- * Idempotent, so verify-payment and the webhook may both call it. A failure
- * here must not fail the payment response: the money is already taken and the
- * reference means a retry credits exactly once.
- */
-async function fulfilCreditsIfAny(
-  db: { rpc: (fn: string, args: Record<string, unknown>) => Promise<{ data: unknown; error: { message: string } | null }> },
-  intent: { kind?: string | null },
-  reference: string,
-): Promise<void> {
-  if (intent?.kind !== "credits") return;
-  const { error } = await db.rpc("credit_fulfil_purchase", { p_reference: reference });
-  if (error) console.error("credit fulfilment failed for", reference, error.message);
-}
 
 
 const corsHeaders = {
@@ -85,11 +65,43 @@ Deno.serve(async (req: Request) => {
       return jsonResponse({ verified: false, message: "Unknown payment reference." }, 404);
     }
 
+    /*
+     * NOC (NowOpen Credits) orders. Always ask Paystack — even when the
+     * intent is already paid — because noc_fulfil_purchase needs the charge
+     * itself (amount, currency, test/live domain) to compare with the order
+     * snapshot. It marks the intent paid and credits the wallet in one
+     * transaction, and a replay returns the same answer.
+     */
+    if (intent.kind === "credits") {
+      const ps = await fetch(`https://api.paystack.co/transaction/verify/${encodeURIComponent(reference)}`, {
+        headers: { Authorization: `Bearer ${PAYSTACK_SECRET_KEY}` },
+      });
+      const body = await ps.json();
+      if (!ps.ok || !body?.data) {
+        console.error("Paystack verify call failed:", ps.status, JSON.stringify(body));
+        return jsonResponse({ verified: false, message: "Could not reach Paystack to verify this payment." }, 502);
+      }
+      if (body.data.status !== "success") {
+        return jsonResponse({ verified: false, message: "This payment was not successful." });
+      }
+      const result = await fulfilNocPurchase(supabase, reference, body.data, "client");
+      if (result.fulfilled) {
+        return jsonResponse({
+          verified: true,
+          message: result.replay ? "Payment already confirmed." : "Payment confirmed. Your credits are in your wallet.",
+        });
+      }
+      if (result.reason === "mismatch") {
+        console.error(`NOC payment mismatch for ${reference}: ${result.detail}`);
+        return jsonResponse({ verified: false, message: "We couldn't confirm the payment amount, so no credits were added. Contact support with your reference." }, 409);
+      }
+      return jsonResponse({ verified: false, message: "We couldn't add your credits yet. Contact support with your reference." }, 500);
+    }
+
     // Idempotent — the webhook can beat this call to the punch. Still make
     // sure the plan is granted (activatePlanFromIntent no-ops if it already is).
     if (intent.status === "paid") {
       await activatePlanFromIntent(supabase, { ...intent, reference });
-      await fulfilCreditsIfAny(supabase, intent, reference);
       return jsonResponse({ verified: true, message: "Payment already confirmed." });
     }
 
@@ -120,7 +132,6 @@ Deno.serve(async (req: Request) => {
       }).eq("id", intent.id);
       // If this was a plan subscription, grant it on the account now.
       await activatePlanFromIntent(supabase, { ...intent, reference });
-      await fulfilCreditsIfAny(supabase, intent, reference);
       return jsonResponse({ verified: true, message: "Payment confirmed." });
     }
 

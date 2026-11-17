@@ -57,7 +57,7 @@ vi.mock('./imageCompression', () => ({
 
 import {
   createDraftUpdate, uploadUpdateMedia, deleteUpdate, readableError, listOwnerUpdates, publishUpdate,
-  loadKeeperReach, type OwnerUpdate,
+  loadKeeperReach, loadUpdateStats, type OwnerUpdate,
 } from './businessUpdatesApi';
 
 const BIZ = '11111111-1111-4111-8111-111111111111';
@@ -273,3 +273,20 @@ describe('listOwnerUpdates when signing fails', () => {
     expect(r.ok && r.value[0].media[0].url).toBeNull();
   });
 });
+
+describe('loadUpdateStats', () => {
+  it('maps the counts per update from the stats function', async () => {
+    results['rpc.business_update_stats'] = {
+      data: [{ update_id: 'u1', people: 3, cta_taps: 1, shares: 0 }], error: null,
+    };
+    const stats = await loadUpdateStats('b1');
+    expect(calls.find((c) => c.target === 'rpc')).toMatchObject({ op: 'business_update_stats', args: [{ p_business: 'b1' }] });
+    expect(stats?.get('u1')).toEqual({ people: 3, cta: 1, shares: 0 });
+  });
+
+  it('returns null, not zeros, when the counts cannot be read', async () => {
+    results['rpc.business_update_stats'] = { data: null, error: { message: 'down' } };
+    expect(await loadUpdateStats('b1')).toBeNull();
+  });
+});
+

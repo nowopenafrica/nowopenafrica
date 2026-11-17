@@ -79,6 +79,40 @@ describe('Vimeo and Facebook links', () => {
   });
 });
 
+describe('ambient cover playback', () => {
+  it('asks YouTube to autoplay muted, loop and hide its chrome', () => {
+    const e = parseVideoEmbed('https://youtu.be/abc123', { ambient: true });
+    const url = new URL(e!.embedUrl);
+    expect(url.searchParams.get('autoplay')).toBe('1');
+    expect(url.searchParams.get('mute')).toBe('1');
+    expect(url.searchParams.get('loop')).toBe('1');
+    // YouTube only loops when the id is also named in `playlist`.
+    expect(url.searchParams.get('playlist')).toBe('abc123');
+    expect(url.searchParams.get('controls')).toBe('0');
+  });
+
+  it('uses Vimeo background mode for a cover', () => {
+    const e = parseVideoEmbed('https://vimeo.com/123456789', { ambient: true });
+    const url = new URL(e!.embedUrl);
+    expect(url.searchParams.get('background')).toBe('1');
+    expect(url.searchParams.get('autoplay')).toBe('1');
+    expect(url.searchParams.get('muted')).toBe('1');
+    expect(url.searchParams.get('loop')).toBe('1');
+  });
+
+  it('asks Facebook to autoplay muted', () => {
+    const e = parseVideoEmbed('https://www.facebook.com/watch?v=987654321', { ambient: true });
+    expect(e?.embedUrl).toContain('autoplay=true');
+    expect(e?.embedUrl).toContain('muted=true');
+  });
+
+  it('leaves a normal gallery player alone', () => {
+    const e = parseVideoEmbed('https://youtu.be/abc123');
+    expect(e?.embedUrl).not.toContain('autoplay');
+    expect(e?.embedUrl).not.toContain('mute');
+  });
+});
+
 describe('non-embeddable input', () => {
   it('returns null for a direct file, which plays as plain video instead', () => {
     expect(parseVideoEmbed('https://x.test/a/clip.mp4')).toBeNull();

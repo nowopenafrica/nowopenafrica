@@ -1,0 +1,20 @@
+[
+  {"id": "noa-0010", "kicker": "Show us what you're building", "head": "Building something?", "accent": "We want to see it.", "cta": "DM us your work", "theme": "dark"},
+  {"id": "noa-0013", "kicker": "The NowOpen community", "head": "Who should be on", "accent": "NowOpen next?", "cta": "Recommend a business", "theme": "light"},
+  {"id": "noa-0014", "kicker": "Discover what's near", "head": "Stop asking around.", "accent": "Start searching.", "cta": "Search NowOpen", "theme": "dark"},
+  {"id": "noa-0015", "kicker": "Business growth school", "head": "Four WhatsApp settings", "accent": "worth ten minutes.", "sub": "Profile. Catalogue. Greeting and away messages. Quick replies.", "cta": "Save this post", "theme": "light"},
+  {"id": "noa-0016", "kicker": "We built it. You claim it.", "head": "Your listing exists.", "accent": "Are the details right?", "cta": "Claim and correct", "theme": "dark"},
+  {"id": "noa-0017", "kicker": "Media · Create", "head": "Creatives:", "accent": "show us your best project.", "cta": "DM us your project", "theme": "dark"},
+  {"id": "noa-0018", "kicker": "Africa is NowOpen", "head": "Need a tailor", "accent": "before Friday?", "cta": "Search NowOpen", "theme": "dark"},
+  {"id": "noa-0019", "kicker": "Business growth school", "head": "Real reviews build trust.", "accent": "Bought ones break it.", "cta": "Save this post", "theme": "light"},
+  {"id": "noa-0024", "kicker": "Founding businesses", "head": "Tell us one thing", "accent": "to fix.", "sub": "Confusing, slow or missing? Comment or DM. We read everything.", "cta": "Comment your one fix", "theme": "light"},
+  {"id": "noa-0027", "kicker": "Discover what's near", "head": "Found the one?", "accent": "Share the link.", "sub": "Hours, photos and contact in one tap. No more lost screenshots.", "cta": "Share a profile", "theme": "dark"},
+  {"id": "noa-0029", "kicker": "We built it. You claim it.", "head": "Who decides what", "accent": "your page says?", "sub": "Claim it, and you do: number, hours, photos and description.", "cta": "Claim to take control", "theme": "light"},
+  {"id": "noa-0030", "kicker": "Media · Create", "head": "Credit a creative", "accent": "who got it right.", "cta": "Tag a creative", "theme": "dark"},
+  {"id": "noa-0032", "kicker": "Media · Create", "head": "A good brief", "accent": "fits on one screen.", "sub": "What you need. Who it's for. When. A budget range.", "cta": "Send a brief", "theme": "light"},
+  {"id": "noa-0034", "kicker": "The NowOpen community", "head": "Part of a market association?", "accent": "Let's talk.", "cta": "DM us an introduction", "theme": "dark"},
+  {"id": "noa-0037", "kicker": "NowOpen your business", "head": "Regulars know where you are.", "accent": "Newcomers need your page.", "cta": "Complete your profile", "theme": "light"},
+  {"id": "noa-0038", "kicker": "The NowOpen community", "head": "Tag a business that", "accent": "deserves more customers.", "cta": "Tag them below", "theme": "dark"},
+  {"id": "noa-0040", "kicker": "The NowOpen community", "head": "Which business has been on", "accent": "your street the longest?", "cta": "Share a memory", "theme": "light"},
+  {"id": "noa-0041", "kicker": "The NowOpen community", "head": "When did a business get", "accent": "service exactly right?", "cta": "Tell us in the comments", "theme": "dark"}
+]

@@ -124,6 +124,11 @@ export type EventName =
   | 'campaign_cta_click'
   | 'campaign_share'
   | 'campaign_referral_joined'
+  // Business Updates: someone opened an update in the viewer, tapped its
+  // button, or shared it. Counted per session for the owner only, never ranked.
+  | 'update_viewed'
+  | 'update_cta_clicked'
+  | 'update_shared'
   | 'client_error';
 
 export type PropValue = string | number | boolean | null;

@@ -14,6 +14,7 @@ import CategoryCarousel from '../components/discover/CategoryCarousel';
 import SuggestBusiness from '../components/business/SuggestBusiness';
 import { BUSINESS_CATEGORY_GROUPS, matchesCategory } from '../data/categories';
 import LoadFailure from '../components/LoadFailure';
+import HappeningRow from '../components/updates/HappeningRow';
 import {
   openNow, newest, topRated, hiddenGems,
   affinityCategories, recommended, featuredFirst,
@@ -110,6 +111,14 @@ export default function Discover() {
   const setFilter = (key: string, value: string) => setFilters({ [key]: value });
 
   const filtering = Boolean(query || place || category || group || status);
+
+  // Business Updates: kept businesses come first within the hour, never above a
+  // newer one. Place and category are left empty on purpose: the row is hidden
+  // whenever either filter is set, so they could never apply here.
+  const happeningContext = useMemo(
+    () => ({ keptIds: new Set(kept.map((k) => k.business_id)), place: '', category: '' }),
+    [kept],
+  );
 
   useEffect(() => applySeo({
     title: 'Discover businesses — NowOpen Africa',
@@ -371,6 +380,17 @@ export default function Discover() {
           </div>
         )}
       </div>
+
+      {/* Live 24-hour Business Updates. Hidden while searching or filtering, so
+          results stay about the search; hidden when nothing is live. */}
+      {!filtering && !loadError && (
+        <HappeningRow
+          title="Happening on NowOpen"
+          blurb="Live updates from businesses, newest first. Each one is up for 24 hours."
+          rankContext={happeningContext}
+          perBusiness={2}
+        />
+      )}
 
       {/* A failed read is shown as a failed read, never as an empty result. */}
       {loadError ? (

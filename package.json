@@ -23,6 +23,8 @@
     "check:api-imports": "node scripts/check-api-imports.mjs",
     "typecheck:server": "tsc --noEmit -p tsconfig.server.json",
     "check:drift": "node scripts/check-schema-drift.mjs",
+    "check:noc": "node scripts/check-noc.mjs",
+    "check:noc:concurrency": "node scripts/check-noc-concurrency.mjs",
     "typecheck:edge": "tsc --noEmit -p tsconfig.edge.json",
     "check:phone-auth": "node scripts/check-phone-auth.mjs",
     "check:place-qids": "node scripts/check-place-qids.mjs",

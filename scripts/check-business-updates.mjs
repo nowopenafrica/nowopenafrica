@@ -13,7 +13,7 @@
 //              tables, bucket and cron job exist only for the length of the run.
 //   (none)     After the apply. Runs the checks alone.
 //
-// Exits non-zero on ERROR or an assertion failure, or unless all 33 checks
+// Exits non-zero on ERROR or an assertion failure, or unless all 37 checks
 // are confirmed passed.
 
 import { spawnSync } from 'node:child_process';
@@ -24,7 +24,7 @@ import { fileURLToPath } from 'node:url';
 
 // fileURLToPath, not URL.pathname: this project's path contains spaces.
 const ROOT = fileURLToPath(new URL('..', import.meta.url));
-const EXPECTED = 33;
+const EXPECTED = 37;
 const dryRun = process.argv.includes('--dry-run');
 
 const CHECKS = 'scripts/check-business-updates.sql';
@@ -33,6 +33,9 @@ const MIGRATIONS = [
   'supabase/migrations/20261110010000_business_updates.sql',
   'supabase/migrations/20261110020000_business_update_alerts_reports.sql',
   'supabase/migrations/20261112010000_business_update_publish_rpc.sql',
+  // Phase 5: the event names the stats checks insert, then the stats function.
+  'supabase/migrations/20260908120000_analytics_event_integrity.sql',
+  'supabase/migrations/20261117010000_business_update_stats.sql',
 ];
 
 let file = CHECKS;

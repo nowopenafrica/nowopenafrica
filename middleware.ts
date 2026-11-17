@@ -53,6 +53,8 @@ const RESERVED = new Set([
   // screen. Unreserved, a crawler asking for it is rewritten to the business
   // profile renderer and served a 404 for a business nobody has.
   'install',
+  // The NowOpen Credits wallet (signed-in page).
+  'wallet',
   // Consumer surfaces. Without these a crawler asking for /keeps is rewritten
   // to the business-profile renderer and served a 404 profile instead of a page.
   'keeps', 'nearby', 'open-now', 'offers', 'waitlist', 'os', 'forms', 'adverts', 'advertise', 'unsubscribe',
