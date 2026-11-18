@@ -4,6 +4,15 @@
 > `docs/template-review.md` on `release/2026-11-18-create`, which replaced this work.
 > This branch's migration used the same table name with a different shape and has
 > been removed so it cannot be applied by mistake. The rest is kept for reference.
+>
+> **Checked against production on 18 November 2026.** All 33 layouts were converted
+> to production's template JSON (with product, canvas, direction and demo copy) and run
+> through its importer and house criticals. All 33 import; none passes. Every one
+> fails C5 (contrast across production's eleven styles, and the 40-character name
+> trial), and 14 fail C13 as near-copies of existing pilot designs. After mechanical
+> fixes (text off the brand colour, wider name slots, larger billboard type) it was
+> still 0 of 33, with 11 near-copies: what remains needs the newer template model
+> (looks), i.e. re-authoring, not adjustment. Not recommended for further work.
 
 # Template Bank
 
