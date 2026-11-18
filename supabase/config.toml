@@ -162,6 +162,10 @@ verify_jwt = false
 # Brand autopilot drafting. Admin-only: the function re-checks is_admin() with
 # the caller's own token and inserts drafts as that caller. Same gateway
 # setting as the dispatcher so the two behave alike from the admin screen.
+[functions.brand-social-drive-sync]
+enabled = true
+verify_jwt = false
+
 [functions.brand-social-generate]
 enabled = true
 verify_jwt = false

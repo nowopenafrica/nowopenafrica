@@ -9,6 +9,7 @@ import ConfirmDialog from '../ConfirmDialog';
 import BrandAutopilot from './BrandAutopilot';
 import BrandDirectPublish from './BrandDirectPublish';
 import BrandConnections from './BrandConnections';
+import BrandDriveLibrary from './BrandDriveLibrary';
 import {
   CHANNEL_RULES, checkVariant, countChars, findNearDuplicates, formatLagos, isBlocked, isSensitive,
   lagosLocalToUtc, postsThatDay, trackedUrl, utcToLagosLocal,
@@ -130,7 +131,7 @@ function CheckList({ checks }: { checks: RuleCheck[] }) {
 }
 
 export default function BrandSocialPanel() {
-  const [tab, setTab] = useState<'queue' | 'new' | 'autopilot' | 'baseline' | 'channels'>('queue');
+  const [tab, setTab] = useState<'queue' | 'new' | 'drive' | 'autopilot' | 'baseline' | 'channels'>('queue');
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [channels, setChannels] = useState<Channel[]>([]);
@@ -308,6 +309,7 @@ export default function BrandSocialPanel() {
         {([
           ['queue', `Queue${counts.review ? ` · ${counts.review} to approve` : ''}`],
           ['new', editing ? `Editing ${editing.code}` : 'New post'],
+          ['drive', 'Drive library'],
           ['autopilot', 'AI drafting'],
           ['baseline', 'Baseline'],
           ['channels', 'Channels'],
@@ -318,6 +320,8 @@ export default function BrandSocialPanel() {
           </button>
         ))}
       </div>
+
+      {tab === 'drive' && <BrandDriveLibrary onDrafted={() => void load()} />}
 
       {tab === 'autopilot' && (
         <BrandAutopilot channels={channels} campaigns={campaigns} profile={profile} onDrafted={() => void load()} />
