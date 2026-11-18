@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  blankVideoDocument, clipAt, frameCount, readVideoDocument, videoDurationMs,
+  blankVideoDocument, checkFrameSize, clipAt, frameCount, readVideoDocument, videoDurationMs,
   VIDEO_SCHEMA_VERSION, type TextClip, type VideoDocument,
 } from './videoDocument';
 
@@ -71,5 +71,31 @@ describe('readVideoDocument', () => {
 
   it('refuses non-objects', () => {
     for (const raw of [null, undefined, 'x', 3, []]) expect(readVideoDocument(raw).ok).toBe(false);
+  });
+});
+
+describe('checkFrameSize (custom size on the start screen)', () => {
+  it('accepts even whole sizes inside the bounds', () => {
+    expect(checkFrameSize('1280', '720')).toEqual({ ok: true, width: 1280, height: 720 });
+    expect(checkFrameSize(' 16 ', '4096')).toEqual({ ok: true, width: 16, height: 4096 });
+  });
+  it('refuses blanks, decimals, negatives and words', () => {
+    for (const [w, h] of [['', '720'], ['1280.5', '720'], ['-2', '720'], ['wide', '720'], ['1e3', '720']]) {
+      expect(checkFrameSize(w, h).ok).toBe(false);
+    }
+  });
+  it('refuses sizes outside 16..4096', () => {
+    expect(checkFrameSize('14', '720').ok).toBe(false);
+    expect(checkFrameSize('1280', '4098').ok).toBe(false);
+  });
+  it('refuses odd sides rather than rounding them', () => {
+    const r = checkFrameSize('1281', '720');
+    expect(r.ok).toBe(false);
+    if (!r.ok) expect(r.reason).toMatch(/even/);
+  });
+  it('agrees with readVideoDocument: an accepted size survives a save and reload', () => {
+    const r = checkFrameSize('2000', '600');
+    expect(r.ok).toBe(true);
+    if (r.ok) expect(readVideoDocument(stored(blankVideoDocument(r.width, r.height))).ok).toBe(true);
   });
 });

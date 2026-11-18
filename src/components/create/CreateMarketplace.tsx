@@ -645,14 +645,13 @@ function ItemCard({ item, onConfigure }: { item: CatalogueItem; onConfigure: () 
 const STUDIOS = [
   { to: '/media/studio', icon: PenTool, label: 'Design Editor', blurb: 'A blank page for flyers, posts, posters and print.', badge: null },
   { to: '/media/video', icon: Film, label: 'Video Studio', blurb: 'Edit footage, pictures, words and sound on a timeline.', badge: 'New' },
-  { to: '/studio?module=video', icon: Clapperboard, label: 'Motion Studio', blurb: 'Animated titles, logo reveals and billboard motion.', badge: null },
 ] as const;
 
 function StudiosBand() {
   return (
     <section data-create-section="studios" aria-labelledby="create-studios-title">
       <h2 id="create-studios-title" className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Start from scratch</h2>
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid gap-3 sm:grid-cols-2">
         {STUDIOS.map((s) => (
           <Link key={s.to} to={s.to}
             className="group flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:border-green-400 dark:border-gray-700 dark:bg-gray-800">

@@ -37,6 +37,36 @@ export type VideoFps = (typeof VIDEO_FPS)[number];
 export const MAX_DURATION_MS = 60_000 * 10;
 export const MIN_CLIP_MS = 100;
 export const MAX_PIXELS_PER_SIDE = 4096;
+export const MIN_PIXELS_PER_SIDE = 16;
+
+export type FrameSizeCheck = { ok: true; width: number; height: number } | { ok: false; reason: string };
+
+/**
+ * A custom frame size typed on the start screen, checked before a document
+ * exists — the same bounds readVideoDocument enforces on load, so a size the
+ * start screen accepts can always be saved and reopened.
+ *
+ * Even numbers only: H.264/MP4 (the Phase D export) encodes 4:2:0 chroma in
+ * 2×2 blocks and refuses odd sides. Refusing now, with a reason, beats a
+ * project that edits fine and cannot be exported later. Nothing is silently
+ * rounded: the person gets the size they typed or is told why not.
+ */
+export function checkFrameSize(widthText: string, heightText: string): FrameSizeCheck {
+  const parse = (s: string) => (/^\s*\d+\s*$/.test(s) ? Number(s) : NaN);
+  const width = parse(widthText);
+  const height = parse(heightText);
+  if (!Number.isInteger(width) || !Number.isInteger(height)) {
+    return { ok: false, reason: 'Enter the width and height as whole numbers of pixels.' };
+  }
+  const inRange = (n: number) => n >= MIN_PIXELS_PER_SIDE && n <= MAX_PIXELS_PER_SIDE;
+  if (!inRange(width) || !inRange(height)) {
+    return { ok: false, reason: `Each side must be between ${MIN_PIXELS_PER_SIDE} and ${MAX_PIXELS_PER_SIDE} px.` };
+  }
+  if (width % 2 !== 0 || height % 2 !== 0) {
+    return { ok: false, reason: 'Use even numbers: video files cannot be made at an odd width or height.' };
+  }
+  return { ok: true, width, height };
+}
 
 export type AssetKind = 'video' | 'image' | 'audio';
 

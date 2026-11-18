@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
-  ArrowLeft, Copy, Download, Film, Loader2, Music, Pause, Play, Plus, Redo2, Save, Scissors,
+  ArrowLeft, Copy, Download, Film, Loader2, Music, Pause, Play, Plus, Redo2, Ruler, Save, Scissors,
   SkipBack, Trash2, Type, Undo2, Upload, ZoomIn, ZoomOut,
 } from 'lucide-react';
 
@@ -15,7 +15,7 @@ import { decideOpen } from '../lib/studio/projectKind';
 import { autosaveDecision, AUTOSAVE_DELAY_MS, SAVE_LABEL, type SaveState } from '../lib/studio/autosave';
 import { emptyHistory, record, redo as redoStep, undo as undoStep, canUndo, canRedo, type History } from '../lib/studio/history';
 import {
-  blankVideoDocument, clipAt, formatTime, readVideoDocument, videoDurationMs, videoId,
+  blankVideoDocument, checkFrameSize, clipAt, formatTime, MAX_PIXELS_PER_SIDE, MIN_PIXELS_PER_SIDE, readVideoDocument, videoDurationMs, videoId,
   type AudioClip, type Clip, type MediaClip, type TextClip, type TrackKind, type VideoDocument,
 } from '../lib/studio/videoDocument';
 import {
@@ -612,6 +612,10 @@ function StartScreen({ onBlank, onMotion, preselect }: {
   const projects = useMemo(() => loadMotionProjects(), []);
   const [busy, setBusy] = useState<string | null>(null);
   const started = useRef(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customW, setCustomW] = useState('1280');
+  const [customH, setCustomH] = useState('720');
+  const [customError, setCustomError] = useState<string | null>(null);
 
   /* Arriving from Motion Studio with ?motion=<id> opens that project straight away. */
   useEffect(() => {
@@ -634,7 +638,7 @@ function StartScreen({ onBlank, onMotion, preselect }: {
 
         <section>
           <h2 className="text-sm font-semibold mb-3">Start a new video</h2>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
             {FORMATS.map((f) => (
               <button key={f.key} type="button" onClick={() => onBlank(f.w, f.h)}
                 className="rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-3 text-left hover:border-blue-500">
@@ -643,7 +647,42 @@ function StartScreen({ onBlank, onMotion, preselect }: {
                 <span className="block text-[11px] text-gray-500">{f.w}×{f.h}</span>
               </button>
             ))}
+            <button type="button" onClick={() => setCustomOpen((o) => !o)} aria-expanded={customOpen} aria-controls="video-custom-size"
+              className={`rounded-lg border bg-white dark:bg-gray-900 p-3 text-left hover:border-blue-500 ${customOpen ? 'border-blue-500' : 'border-dashed border-gray-300 dark:border-gray-700'}`}>
+              <span className="mx-auto mb-2 grid place-items-center rounded border border-dashed border-gray-300 dark:border-gray-600 text-gray-400" style={{ width: 64, height: 64 }} aria-hidden>
+                <Ruler size={20} />
+              </span>
+              <span className="block text-xs font-medium">Custom size</span>
+              <span className="block text-[11px] text-gray-500">Any width × height</span>
+            </button>
           </div>
+
+          {customOpen && (
+            <form id="video-custom-size" className="mt-3 flex flex-wrap items-end gap-3 rounded-lg border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900 p-3"
+              onSubmit={(e) => {
+                e.preventDefault();
+                const r = checkFrameSize(customW, customH);
+                if (!r.ok) { setCustomError(r.reason); return; }
+                onBlank(r.width, r.height);
+              }}>
+              <label className="text-xs">
+                <span className="block mb-1 text-gray-600 dark:text-gray-400">Width (px)</span>
+                <input inputMode="numeric" value={customW} onChange={(e) => { setCustomW(e.target.value); setCustomError(null); }}
+                  className="w-24 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-sm" aria-label="Width in pixels" autoFocus />
+              </label>
+              <span className="pb-2 text-gray-400" aria-hidden>×</span>
+              <label className="text-xs">
+                <span className="block mb-1 text-gray-600 dark:text-gray-400">Height (px)</span>
+                <input inputMode="numeric" value={customH} onChange={(e) => { setCustomH(e.target.value); setCustomError(null); }}
+                  className="w-24 rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-950 px-2 py-1.5 text-sm" aria-label="Height in pixels" />
+              </label>
+              <button type="submit" className="text-sm px-3 py-1.5 rounded bg-blue-600 text-white">Create video</button>
+              <p className="w-full text-[11px] text-gray-500">
+                {MIN_PIXELS_PER_SIDE}–{MAX_PIXELS_PER_SIDE} px per side, even numbers. You can switch to a standard size later from the editor.
+              </p>
+              {customError && <p role="alert" className="w-full text-xs text-red-700 dark:text-red-400">{customError}</p>}
+            </form>
+          )}
         </section>
 
         <section>
