@@ -1,3 +1,10 @@
+> **Superseded — do not merge this branch.** Production already has a
+> `design_templates` table, a Template Manager with ZIP import, and a review gate
+> (85 or more, no criticals) applied on 17 November 2026. See
+> `docs/template-review.md` on `release/2026-11-18-create`, which replaced this work.
+> This branch's migration used the same table name with a different shape and has
+> been removed so it cannot be applied by mistake. The rest is kept for reference.
+
 # Template Bank
 
 *Written 2026-11-16, against `creative-studio-live-canvas` as pushed on 13 September.
