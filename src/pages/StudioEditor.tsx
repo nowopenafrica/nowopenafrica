@@ -21,6 +21,7 @@ import {
   type DesignDocument, type DesignObject, type DesignPage, type ImageObject, type TextObject,
 } from '../lib/studio/designDocument';
 import { topZ, withObject } from '../lib/studio/editorGeometry';
+import { decideOpen } from '../lib/studio/projectKind';
 import {
   SHAPE_CHOICES, clampRadius, clampStroke, newShape, supportsRadius,
   type ShapeKind,
@@ -200,10 +201,18 @@ export default function StudioEditor() {
 
       if (id) {
         const { data, error } = await supabase
-          .from('design_projects').select('id, document, version, title').eq('id', id).maybeSingle();
+          .from('design_projects').select('id, kind, document, version, title').eq('id', id).maybeSingle();
         if (cancelled) return;
         if (error) { setProblem(`Could not open that project: ${error.message}`); setLoading(false); return; }
         if (!data) { setProblem('That project does not exist, or it is not yours.'); setLoading(false); return; }
+        /*
+         * Only a design row holds a design document. Another editor's row is
+         * sent to that editor, or refused — never read here, because the next
+         * autosave would write a design document over it.
+         */
+        const decision = decideOpen('design', (data as { kind?: unknown }).kind, id);
+        if (decision.action === 'redirect') { navigate(decision.path, { replace: true }); return; }
+        if (decision.action === 'refuse') { setProblem(decision.reason); setLoading(false); return; }
         const read = readDocument((data as { document: unknown }).document);
         if (!read.ok) { setProblem(read.reason); setLoading(false); return; }
         setDoc(read.doc);

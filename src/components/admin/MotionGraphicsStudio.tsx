@@ -13,7 +13,7 @@ import {
   renderVideo, renderPoster, renderContactSheet, drawSceneFrame, buildRenderTimeline,
   sceneElementRegions, sceneLayerRegions, RENDER_DIMENSIONS, RENDER_PALETTES,
   createBackgroundVideo, createBackgroundImage, MOTION_FONT_DEFAULT,
-  type RenderAspect, type SceneFrameOptions, type MotionTreatment,
+  type RenderAspect, type SceneFrameOptions,
   type SceneElementKey, type MotionLayer,
 } from '../../lib/renderVideo';
 import {
@@ -21,7 +21,7 @@ import {
   timelineMoveClip, timelineSetSeconds,
   timelineDuplicate, timelineSplit, timelineRemove,
   timelineSetElement, timelineResetElement, timelineAppendClip,
-  CLIP_SECONDS_MIN, CLIP_SECONDS_MAX,
+  CLIP_SECONDS_MIN, CLIP_SECONDS_MAX, MOTION_TREATMENT_FOR_STYLE,
   type MotionConfig, type MotionStyle, type MotionDuration, type MotionTimeline,
 } from '../../lib/motionGraphics';
 import { resolveAiVideoClips, releaseAiVideoClips, videoGenModelsForTier } from '../../lib/videoGen';
@@ -96,20 +96,8 @@ const STYLES: StyleMeta[] = [
   { key: 'isometric-3d', label: 'Isometric 3D', emoji: '📐', desc: 'Layered shapes with real parallax depth — the camera moves.', defaults: { headline: 'NEW DROP', subhead: 'Depth you can feel', cta: 'Shop the drop', logoEmoji: '📐' } },
 ];
 
-/** The render engine's treatment for each motion style (default = flat look). */
-const TREATMENT_FOR_STYLE: Record<MotionStyle, MotionTreatment> = {
-  'logo-reveal': 'default',
-  'motion-poster': 'default',
-  'kinetic-type': 'default',
-  'lower-third': 'default',
-  countdown: 'default',
-  badge: 'default',
-  'reveal-title': 'default',
-  'billboard-led': 'led',
-  'premium-keyart': 'premium',
-  glassmorphic: 'glass',
-  'isometric-3d': '3d',
-};
+/** The render engine's treatment for each motion style — shared with the Video Studio adapter. */
+const TREATMENT_FOR_STYLE = MOTION_TREATMENT_FOR_STYLE;
 
 const ELEMENT_LABELS: Record<SceneElementKey, string> = {
   brand: 'Brand lockup',
@@ -1419,6 +1407,14 @@ export default function MotionGraphicsStudio({
               <span className="text-[11px] text-gray-400 inline-flex items-center gap-1" title="Saved to this browser under nowopen_motion_projects">
                 <Check size={12} className="text-emerald-500" /> Autosaved · {timeAgo(project.updatedAt)}
               </span>
+              {/* Copies this project into the account as an editable timeline; this one stays as it is. */}
+              <a
+                href={`/media/video?motion=${encodeURIComponent(project.id)}&label=${encodeURIComponent(STYLES.find((s) => s.key === project.brief.style)?.label ?? 'Motion')}`}
+                className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]"
+                title="Open a copy on a multi-track timeline, saved to your account"
+              >
+                <Film size={13} /> Open in Video Studio
+              </a>
               <button onClick={() => startBlank()} className="inline-flex items-center gap-1.5 px-3 rounded-lg text-xs font-semibold bg-gray-100 dark:bg-gray-700 text-gray-700 dark:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition min-h-[44px]">
                 <Plus size={13} /> New
               </button>

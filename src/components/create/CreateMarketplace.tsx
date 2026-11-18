@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
-  ArrowRight, Clapperboard, Megaphone, PackageSearch, Store,
+  ArrowRight, Clapperboard, Film, Megaphone, PackageSearch, PenTool, Store,
 } from 'lucide-react';
 
 import {
@@ -283,6 +283,8 @@ export default function CreateMarketplace() {
       >
         <NeedTiles needs={tiles} active={focus.need} onPick={(need) => open(need)} />
       </IntentComposer>
+
+      <StudiosBand />
 
       {CONCEPTS_ON ? (
         <Suspense fallback={null}>
@@ -632,5 +634,39 @@ function ItemCard({ item, onConfigure }: { item: CatalogueItem; onConfigure: () 
         )}
       </div>
     </div>
+  );
+}
+
+/*
+ * The editors, by what they make. Designs are reached through the needs and
+ * galleries above; this band is the way in for starting from a blank page —
+ * and the only way in to Video Studio, which has no templates yet.
+ */
+const STUDIOS = [
+  { to: '/media/studio', icon: PenTool, label: 'Design Editor', blurb: 'A blank page for flyers, posts, posters and print.', badge: null },
+  { to: '/media/video', icon: Film, label: 'Video Studio', blurb: 'Edit footage, pictures, words and sound on a timeline.', badge: 'New' },
+  { to: '/studio?module=video', icon: Clapperboard, label: 'Motion Studio', blurb: 'Animated titles, logo reveals and billboard motion.', badge: null },
+] as const;
+
+function StudiosBand() {
+  return (
+    <section data-create-section="studios" aria-labelledby="create-studios-title">
+      <h2 id="create-studios-title" className="mb-3 text-sm font-semibold text-gray-900 dark:text-white">Start from scratch</h2>
+      <div className="grid gap-3 sm:grid-cols-3">
+        {STUDIOS.map((s) => (
+          <Link key={s.to} to={s.to}
+            className="group flex items-start gap-3 rounded-xl border border-gray-200 bg-white p-4 hover:border-green-400 dark:border-gray-700 dark:bg-gray-800">
+            <s.icon size={20} className="mt-0.5 shrink-0 text-gray-500 group-hover:text-green-600" aria-hidden />
+            <span className="min-w-0">
+              <span className="flex items-center gap-2 text-sm font-semibold text-gray-900 dark:text-white">
+                {s.label}
+                {s.badge ? <span className="rounded-full bg-green-100 px-2 py-0.5 text-[10px] font-bold text-green-800 dark:bg-green-900/50 dark:text-green-300">{s.badge}</span> : null}
+              </span>
+              <span className="mt-0.5 block text-xs text-gray-600 dark:text-gray-400">{s.blurb}</span>
+            </span>
+          </Link>
+        ))}
+      </div>
+    </section>
   );
 }

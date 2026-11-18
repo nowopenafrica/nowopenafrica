@@ -60,6 +60,7 @@ const InstagramOnboarding = lazyRoute(() => import('./pages/InstagramOnboarding'
 const CreateRoute = lazyRoute(() => import('./pages/CreateRoute'));
 const IndustryExamplePage = lazyRoute(() => import('./pages/IndustryExamplePage'));
 const StudioEditor = lazyRoute(() => import('./pages/StudioEditor'));
+const VideoStudio = lazyRoute(() => import('./pages/VideoStudio'));
 const Login = lazyRoute(() => import('./pages/Login'));
 const Register = lazyRoute(() => import('./pages/Register'));
 const Profile = lazyRoute(() => import('./pages/Profile'));
@@ -218,6 +219,8 @@ function App() {
                 */}
               <Route path="/media/studio" element={<StudioEditor />} />
               <Route path="/media/studio/:id" element={<StudioEditor />} />
+              <Route path="/media/video" element={<VideoStudio />} />
+              <Route path="/media/video/:id" element={<VideoStudio />} />
               {/* Hire a creator, services, packs and credits - off the Create page.
                   Also before /media/:id, or "services" would be read as a media id. */}
               <Route path="/media/services" element={<MediaServices />} />

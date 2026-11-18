@@ -634,6 +634,8 @@ export async function fetchOwnDesigns(): Promise<OwnDesignsRead> {
     .from('design_projects')
     .select('id,title,pages:document->pages')
     .eq('user_id', auth.user.id)
+    /* Only Design Editor documents have pages to print; a video row is not artwork. */
+    .eq('kind', 'design')
     .is('archived_at', null)
     .order('updated_at', { ascending: false })
     .limit(30);

@@ -12,7 +12,7 @@
 // films it the same way every time.
 
 import type { DirectorScene, SceneTextElement, TextElementStyle } from './creativeDirector';
-import type { RenderAspect } from './renderVideo';
+import type { MotionTreatment, RenderAspect } from './renderVideo';
 
 export type MotionStyle =
   | 'logo-reveal'
@@ -27,7 +27,26 @@ export type MotionStyle =
   | 'glassmorphic'
   | 'isometric-3d';
 
-export type MotionDuration = 'short' | 'medium' | 'long' | 'extended' | 'cinematic';
+/**
+ * The render engine's treatment for each motion style (default = flat look).
+ * Lives here, not in the studio component, because the Video Studio adapter
+ * (lib/studio/fromMotionProject.ts) must paint a converted project the same way.
+ */
+export const MOTION_TREATMENT_FOR_STYLE: Record<MotionStyle, MotionTreatment> = {
+  'logo-reveal': 'default',
+  'motion-poster': 'default',
+  'kinetic-type': 'default',
+  'lower-third': 'default',
+  countdown: 'default',
+  badge: 'default',
+  'reveal-title': 'default',
+  'billboard-led': 'led',
+  'premium-keyart': 'premium',
+  glassmorphic: 'glass',
+  'isometric-3d': '3d',
+};
+
+export type MotionDuration ='short' | 'medium' | 'long' | 'extended' | 'cinematic';
 
 export interface MotionConfig {
   business: string;

@@ -25,6 +25,7 @@ const state = vi.hoisted(() => ({
   uploads: [] as Array<{ bucket: string; path: string; opts: unknown }>,
   designs: [] as Array<Record<string, unknown>>,
   designsError: null as { message: string } | null,
+  designsKindFilter: null as string | null,
   getUserError: null as { message: string } | null,
   inError: false,
   /** Ids placement_trust has a row for; null means every id asked about. */
@@ -107,11 +108,16 @@ vi.mock('../supabase', () => ({
         return {
           select: () => ({
             eq: () => ({
-              is: () => ({
-                order: () => ({
-                  limit: async () => ({ data: state.designs, error: state.designsError }),
-                }),
-              }),
+              eq: (col: string, val: string) => {
+                state.designsKindFilter = `${col}=${val}`;
+                return {
+                  is: () => ({
+                    order: () => ({
+                      limit: async () => ({ data: state.designs, error: state.designsError }),
+                    }),
+                  }),
+                };
+              },
             }),
           }),
         };
@@ -187,6 +193,7 @@ beforeEach(() => {
   state.uploads = [];
   state.designs = [];
   state.designsError = null;
+  state.designsKindFilter = null;
   state.getUserError = null;
   state.inError = false;
   state.trustIds = null;
@@ -484,6 +491,8 @@ describe('fetchOwnDesigns', () => {
         { id: 'd4', title: 'D', width: 800, height: 600 },
       ],
     });
+    /* A video project has no pages to print: only design rows are artwork. */
+    expect(state.designsKindFilter).toBe('kind=design');
   });
 
   it('reports unavailable on error, never as no designs', async () => {

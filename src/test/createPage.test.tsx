@@ -107,9 +107,9 @@ describe('the Create page, top to bottom', () => {
      * (CategoryBrowse.test.tsx covers it with and without directions).
      */
     const { container } = at('/media');
-    expect(sections(container)).toEqual(['request', 'products', 'popular', 'collections', 'browse', 'footer']);
+    expect(sections(container)).toEqual(['request', 'studios', 'products', 'popular', 'collections', 'browse', 'footer']);
     fireEvent.click(tiles()[0]);
-    expect(sections(container)).toEqual(['request', 'products', 'popular', 'need', 'collections', 'browse', 'footer']);
+    expect(sections(container)).toEqual(['request', 'studios', 'products', 'popular', 'need', 'collections', 'browse', 'footer']);
   });
 
   it('carries none of the sections that moved to /media/services', () => {
