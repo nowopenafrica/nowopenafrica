@@ -11,7 +11,7 @@
  */
 
 import {
-  clipEndMs, MIN_CLIP_MS, TRACK_ACCEPTS, videoId,
+  clipEndMs, MAX_DURATION_MS, MAX_SPEED, MIN_CLIP_MS, MIN_SPEED, speedOf, TRACK_ACCEPTS, videoId,
   type Clip, type Keyframe, type Track, type TrackKind, type VideoDocument,
 } from './videoDocument';
 
@@ -42,12 +42,16 @@ function withTrack(doc: VideoDocument, index: number, track: Track): VideoDocume
   return { ...doc, tracks };
 }
 
-/** Times the asset can still supply after `inMs`, or Infinity for stills and text. */
+/**
+ * TIMELINE time the asset can still fill after `inMs`, or Infinity for stills
+ * and text. At 2x speed a clip uses its source twice as fast, so the same
+ * source covers half the timeline.
+ */
 function sourceRemaining(doc: VideoDocument, clip: Clip, inMs: number): number {
   if (clip.type !== 'media' && clip.type !== 'audio') return Infinity;
   const asset = doc.assets[clip.assetId];
   if (!asset || asset.kind === 'image' || !asset.durationMs) return Infinity;
-  return Math.max(0, asset.durationMs - inMs);
+  return Math.max(0, Math.floor((asset.durationMs - inMs) / speedOf(clip)));
 }
 
 // ── snapping ────────────────────────────────────────────────────────────────
@@ -127,12 +131,13 @@ export function trimClip(doc: VideoDocument, clipId: string, edge: 'start' | 'en
     next = { ...clip, durationMs: newEnd - clip.startMs };
   } else {
     /* Pulling the start earlier needs source before inMs; stills and text have no limit. */
-    const earliest = Math.max(prevEnd, finiteSource ? clip.startMs - inMs : 0);
+    const speed = speedOf(clip);
+    const earliest = Math.max(prevEnd, finiteSource ? clip.startMs - Math.floor(inMs / speed) : 0);
     const newStart = Math.max(earliest, Math.min(end - MIN_CLIP_MS, whole(toMs)));
     if (newStart === clip.startMs) return doc;
     const shift = newStart - clip.startMs;
     next = { ...clip, startMs: newStart, durationMs: end - newStart } as Clip;
-    if (next.type === 'media' || next.type === 'audio') next.inMs = Math.max(0, inMs + shift);
+    if (next.type === 'media' || next.type === 'audio') next.inMs = Math.max(0, Math.round(inMs + shift * speed));
     if (next.keyframes) next.keyframes = shiftKeyframes(next.keyframes, -shift, next.durationMs);
   }
   if (next.keyframes) next.keyframes = next.keyframes.filter((k) => k.tMs <= next.durationMs);
@@ -152,9 +157,10 @@ export function splitClip(doc: VideoDocument, clipId: string, atMs: number, newI
   const leftMs = at - clip.startMs;
   const rightMs = clipEndMs(clip) - at;
   if (leftMs < MIN_CLIP_MS || rightMs < MIN_CLIP_MS) return doc;
-  const left = { ...clip, durationMs: leftMs } as Clip;
+  /* The cut is a hard cut on both sides: the exit belongs to the right half's end, the entrance to the left's start. */
+  const left = { ...clip, durationMs: leftMs, transitionOut: undefined } as Clip;
   const right = { ...clip, id: newId, startMs: at, durationMs: rightMs, transitionIn: undefined } as Clip;
-  if (right.type === 'media' || right.type === 'audio') right.inMs = (clip as { inMs: number }).inMs + leftMs;
+  if (right.type === 'media' || right.type === 'audio') right.inMs = Math.round((clip as { inMs: number }).inMs + leftMs * speedOf(clip));
   if (clip.keyframes) {
     left.keyframes = clip.keyframes.filter((k) => k.tMs <= leftMs);
     right.keyframes = shiftKeyframes(clip.keyframes, -leftMs, rightMs);
@@ -191,6 +197,29 @@ export function setClipDuration(doc: VideoDocument, clipId: string, durationMs: 
   const ref = findClip(doc, clipId);
   if (!ref) return doc;
   return trimClip(doc, clipId, 'end', ref.clip.startMs + durationMs);
+}
+
+/**
+ * Change a clip's speed the way phone editors do: the same stretch of source
+ * plays faster or slower, so the clip gets shorter or longer on the timeline.
+ * It never runs into the next clip: when it would, it ends where that clip
+ * starts (a little less source is used).
+ */
+export function setClipSpeed(doc: VideoDocument, clipId: string, speed: number): VideoDocument {
+  const ref = findClip(doc, clipId);
+  if (!ref || ref.track.locked) return doc;
+  const { clip, track } = ref;
+  if (clip.type !== 'media' && clip.type !== 'audio') return doc;
+  const next = Math.min(MAX_SPEED, Math.max(MIN_SPEED, Math.round(speed * 100) / 100));
+  const old = speedOf(clip);
+  if (next === old) return doc;
+  const sourceSpan = clip.durationMs * old;
+  const nextStart = track.clips.filter((c) => c.id !== clipId && c.startMs >= clipEndMs(clip)).reduce((m, c) => Math.min(m, c.startMs), Infinity);
+  const wanted = Math.max(MIN_CLIP_MS, Math.round(sourceSpan / next));
+  const durationMs = Math.max(MIN_CLIP_MS, Math.min(wanted, nextStart - clip.startMs, MAX_DURATION_MS));
+  const updated = { ...clip, speed: next === 1 ? undefined : next, durationMs } as Clip;
+  if (updated.keyframes) updated.keyframes = updated.keyframes.map((k) => ({ ...k, tMs: Math.min(durationMs, Math.round(k.tMs * (durationMs / clip.durationMs))) }));
+  return withTrack(doc, ref.trackIndex, { ...track, clips: track.clips.map((c) => (c.id === clipId ? updated : c)) });
 }
 
 // ── tracks ──────────────────────────────────────────────────────────────────

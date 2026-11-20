@@ -70,10 +70,35 @@ export function checkFrameSize(widthText: string, heightText: string): FrameSize
 
 export type AssetKind = 'video' | 'image' | 'audio';
 
+export type LinkPlatform = 'youtube' | 'vimeo' | 'tiktok' | 'instagram' | 'facebook';
+export const LINK_PLATFORMS: readonly LinkPlatform[] = ['youtube', 'vimeo', 'tiktok', 'instagram', 'facebook'];
+
+/**
+ * Media that plays from a pasted link rather than from NowOpen storage.
+ *
+ * - `platform` + `embedId`: a YouTube/Vimeo/TikTok/Instagram/Facebook video,
+ *   shown through that platform's official player (never downloaded: their
+ *   terms forbid it). The compositor leaves a transparent hole where it sits
+ *   and the editor places the player under the canvas, so clips above it
+ *   still draw over it. It cannot be in an exported file.
+ * - `url` alone: a direct file link (.mp4, .jpg…), played from the link until
+ *   a storage copy exists (`path`), which replaces it.
+ */
+export interface AssetLink {
+  /** https only. */
+  url: string;
+  platform?: LinkPlatform;
+  embedId?: string;
+}
+
 export interface VideoAsset {
   kind: AssetKind;
-  /** Storage path in the `business-images` bucket, never a URL. */
-  path: string;
+  /**
+   * Storage path in the `business-images` bucket, never a URL. Absent only
+   * while the asset still plays from `link`.
+   */
+  path?: string;
+  link?: AssetLink;
   durationMs?: number;
   width?: number;
   height?: number;
@@ -99,15 +124,55 @@ export interface Keyframe {
   ease: Ease;
 }
 
-export type TransitionType = 'cut' | 'fade' | 'slide';
+/**
+ * How a clip arrives (`transitionIn`) or leaves (`transitionOut`). `slide` is
+ * the original slide-from-the-right; the rest were added with the effects
+ * panel. The painter maths for every one is in lib/studio/videoEffects.ts.
+ */
+export const TRANSITION_TYPES = [
+  'cut', 'fade', 'slide', 'slide-left', 'slide-up', 'slide-down', 'zoom-in', 'zoom-out', 'spin',
+  'wipe-left', 'wipe-right', 'wipe-up', 'wipe-down', 'circle', 'blur', 'dip-black', 'dip-white', 'flash',
+] as const;
+export type TransitionType = (typeof TRANSITION_TYPES)[number];
+export interface Transition { type: TransitionType; ms: number }
+
+/** Colour and look adjustments, CapCut's "Adjust" and "Filters". Neutral values change nothing. */
+export interface ClipEffects {
+  /** A named look from FILTER_PRESETS, applied under the sliders. */
+  preset?: string;
+  /** Percent, 100 = unchanged. */
+  brightness?: number;
+  contrast?: number;
+  saturation?: number;
+  /** Degrees. */
+  hue?: number;
+  /** Percent 0..100. */
+  grayscale?: number;
+  sepia?: number;
+  invert?: number;
+  /** Fraction of the frame width, 0..0.05. */
+  blur?: number;
+  /** 0..1: darkened edges. */
+  vignette?: number;
+  /** 0..1: film grain. */
+  grain?: number;
+}
 
 interface ClipBase {
   id: string;
   startMs: number;
   durationMs: number;
-  transitionIn?: { type: TransitionType; ms: number };
+  transitionIn?: Transition;
+  transitionOut?: Transition;
   keyframes?: Keyframe[];
 }
+
+/**
+ * How a picture fills its box: crop to fill, fit whole, or fit whole over a
+ * blurred, enlarged copy of itself (the "blurred background" every phone
+ * editor offers for a landscape clip in a vertical frame).
+ */
+export type MediaFit = 'cover' | 'contain' | 'blur-fill';
 
 /** A video or still image placed on the frame. */
 export interface MediaClip extends ClipBase {
@@ -117,6 +182,12 @@ export interface MediaClip extends ClipBase {
   inMs: number;
   transform: Transform;
   volume?: number;
+  /** Playback speed, 0.25..4; 1 when absent. Source used = timeline length x speed. */
+  speed?: number;
+  fit?: MediaFit;
+  flipX?: boolean;
+  flipY?: boolean;
+  effects?: ClipEffects;
 }
 
 export interface TextClipStyle {
@@ -129,6 +200,27 @@ export interface TextClipStyle {
   align: 'left' | 'center' | 'right';
   letterSpacing: number;
   lineHeight: number;
+  italic?: boolean;
+  uppercase?: boolean;
+  /** Outline: colour and width as a fraction of the type size. */
+  stroke?: { color: string; width: number };
+  /** Drop shadow: offset and blur as fractions of the type size. */
+  shadow?: { color: string; x: number; y: number; blur: number };
+  /** A box behind the words: padding as a fraction of the type size, opacity 0..1. */
+  background?: { color: string; opacity: number; padding: number; radius: number };
+}
+
+export const TEXT_ANIMS_IN = ['none', 'fade', 'typewriter', 'pop', 'rise', 'drop', 'slide-left', 'slide-right', 'zoom', 'blur-in', 'letters-fade', 'letters-rise', 'bounce', 'wave', 'flip'] as const;
+export const TEXT_ANIMS_OUT = ['none', 'fade', 'shrink', 'sink', 'lift', 'slide-left', 'slide-right', 'blur-out', 'letters-fade', 'typewriter-erase'] as const;
+export const TEXT_ANIMS_LOOP = ['none', 'pulse', 'float', 'shake', 'flicker', 'wiggle', 'glow'] as const;
+export type TextAnimIn = (typeof TEXT_ANIMS_IN)[number];
+export type TextAnimOut = (typeof TEXT_ANIMS_OUT)[number];
+export type TextAnimLoop = (typeof TEXT_ANIMS_LOOP)[number];
+
+export interface TextAnimation {
+  in?: { type: TextAnimIn; ms: number };
+  out?: { type: TextAnimOut; ms: number };
+  loop?: TextAnimLoop;
 }
 
 export interface TextClip extends ClipBase {
@@ -136,6 +228,7 @@ export interface TextClip extends ClipBase {
   text: string;
   transform: Transform;
   style: TextClipStyle;
+  animation?: TextAnimation;
 }
 
 export interface AudioClip extends ClipBase {
@@ -145,6 +238,16 @@ export interface AudioClip extends ClipBase {
   volume: number;
   fadeInMs: number;
   fadeOutMs: number;
+  speed?: number;
+}
+
+export const MIN_SPEED = 0.25;
+export const MAX_SPEED = 4;
+/** A clip's playback speed: 1 unless set, clamped to what the editor offers. */
+export function speedOf(clip: Pick<Clip, 'type'> & { speed?: number }): number {
+  if (clip.type !== 'media' && clip.type !== 'audio') return 1;
+  const s = clip.speed;
+  return typeof s === 'number' && Number.isFinite(s) ? Math.min(MAX_SPEED, Math.max(MIN_SPEED, s)) : 1;
 }
 
 /** Everything lib/renderVideo's scene painter needs besides the scene itself. */
@@ -292,6 +395,12 @@ function clipProblem(c: unknown, assets: Record<string, VideoAsset>): string | n
       if (!isObj(k) || !isNum(k.value) || !isInt(k.tMs) || (k.tMs as number) > (c.durationMs as number)) return 'has a keyframe outside the clip';
     }
   }
+  for (const key of ['transitionIn', 'transitionOut'] as const) {
+    const tr = c[key];
+    if (tr === undefined) continue;
+    if (!isObj(tr) || !(TRANSITION_TYPES as readonly string[]).includes(tr.type as string) || !isInt(tr.ms)) return `has a damaged ${key === 'transitionIn' ? 'entrance' : 'exit'}`;
+  }
+  if (c.speed !== undefined && (!isNum(c.speed) || (c.speed as number) < MIN_SPEED || (c.speed as number) > MAX_SPEED)) return `has a speed outside ${MIN_SPEED}..${MAX_SPEED}`;
   const needsAsset = c.type === 'media' || c.type === 'audio';
   if (needsAsset) {
     if (!isStr(c.assetId) || !assets[c.assetId]) return 'points at an asset the document does not list';
@@ -323,6 +432,21 @@ function clipProblem(c: unknown, assets: Record<string, VideoAsset>): string | n
   return null;
 }
 
+function assetLinkProblem(l: unknown): string | null {
+  if (!isObj(l) || !isStr(l.url)) return 'has a damaged link';
+  let u: URL;
+  try { u = new URL(l.url); } catch { return 'has a link that is not a URL'; }
+  if (u.protocol !== 'https:') return 'has a link that is not https';
+  if (l.platform !== undefined) {
+    if (!LINK_PLATFORMS.includes(l.platform as LinkPlatform)) return 'has a link to an unknown platform';
+    if (!isStr(l.embedId) || !/^[A-Za-z0-9_-]{1,64}$/.test(l.embedId)) return 'has a platform link without a video id';
+  }
+  return null;
+}
+
+/** A platform video (YouTube…) shown through its own player, never drawn by the compositor. */
+export const isEmbedAsset = (a: VideoAsset | undefined): boolean => !!a?.link?.platform && !a.path;
+
 export function readVideoDocument(raw: unknown): Read {
   if (!isObj(raw)) return { ok: false, reason: 'This video project is empty or damaged.' };
   if (!isInt(raw.schemaVersion, 1)) return { ok: false, reason: 'This video project has no schema version.' };
@@ -338,10 +462,13 @@ export function readVideoDocument(raw: unknown): Read {
 
   const assets = raw.assets as Record<string, VideoAsset>;
   for (const [id, a] of Object.entries(assets)) {
-    if (!isObj(a) || !['video', 'image', 'audio'].includes(a.kind as string) || !isStr(a.path) || !a.path) {
-      return { ok: false, reason: `Asset ${id} is damaged.` };
-    }
-    if (/^(https?:|data:|blob:)/i.test(a.path)) return { ok: false, reason: `Asset ${id} is a URL; projects store storage paths only.` };
+    if (!isObj(a) || !['video', 'image', 'audio'].includes(a.kind as string)) return { ok: false, reason: `Asset ${id} is damaged.` };
+    const hasPath = isStr(a.path) && a.path.length > 0;
+    if (a.path !== undefined && !hasPath) return { ok: false, reason: `Asset ${id} is damaged.` };
+    if (hasPath && /^(https?:|data:|blob:)/i.test(a.path as string)) return { ok: false, reason: `Asset ${id} is a URL; projects store storage paths only.` };
+    const linkProblem = a.link === undefined ? null : assetLinkProblem(a.link);
+    if (linkProblem) return { ok: false, reason: `Asset ${id} ${linkProblem}.` };
+    if (!hasPath && a.link === undefined) return { ok: false, reason: `Asset ${id} has no file and no link.` };
   }
 
   const clipIds = new Set<string>();

@@ -47,7 +47,10 @@ function clipLabel(doc: VideoDocument, c: Clip): string {
     case 'motion-scene': return c.scene.elements?.title?.text ?? c.scene.text;
     default: {
       const a = doc.assets[c.assetId];
-      return a ? assetLabel(a.kind, a.path) : 'Missing media';
+      if (!a) return 'Missing media';
+      if (a.link?.platform && !a.path) return `${a.link.platform === 'youtube' ? 'YouTube' : a.link.platform[0].toUpperCase() + a.link.platform.slice(1)} video`;
+      if (!a.path) return a.kind === 'video' ? 'Clip from link' : a.kind === 'image' ? 'Image from link' : 'Sound from link';
+      return assetLabel(a.kind, a.path);
     }
   }
 }

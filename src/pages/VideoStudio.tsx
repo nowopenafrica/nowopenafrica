@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import toast from 'react-hot-toast';
 import {
   ArrowLeft, Copy, Download, Film, Loader2, Music, Pause, Play, Plus, Redo2, Ruler, Save, Scissors,
-  SkipBack, Trash2, Type, Undo2, Upload, ZoomIn, ZoomOut,
+  SkipBack, Trash2, Type, Undo2, ZoomIn, ZoomOut,
 } from 'lucide-react';
 
 import { supabase } from '../lib/supabase';
@@ -20,10 +20,20 @@ import {
 } from '../lib/studio/videoDocument';
 import {
   addTrack, deleteClip, duplicateClip, findClip, firstTrackFor, insertClip, removeTrack,
-  setClipDuration, setTrackFlag, splitClip, updateClip,
+  setClipDuration, setClipSpeed, setTrackFlag, splitClip, updateClip,
 } from '../lib/studio/videoEdit';
 import { audioGainAt, drawVideoFrame, sourceSecondsAt, type MediaSource } from '../lib/studio/videoCompositor';
-import { ACCEPT_ATTR, assetLabel, checkMediaFile, mediaPath, probeMedia } from '../lib/studio/videoAssets';
+import { assetLabel, checkMediaFile, mediaPath, probeMedia, type MediaFacts } from '../lib/studio/videoAssets';
+import { importFromLink, planLink, probeLink, probeMediaUrl, storageBaseUrl, type ReelFile } from '../lib/studio/videoSources';
+import { isEmbedAsset, speedOf, type AssetKind, type VideoAsset } from '../lib/studio/videoDocument';
+import AddMediaPanel from '../components/video/AddMediaPanel';
+import EmbedLayer from '../components/video/EmbedLayer';
+import ExportDialog from '../components/video/ExportDialog';
+
+/** A platform video's length is not known without its API; start at 15 s and let the person trim. */
+const EMBED_DEFAULT_MS = 15_000;
+/* The camera is large and most edits never open it. */
+const OpenReelCapture = lazy(() => import('../components/dashboard/OpenReelCapture'));
 import { fromMotionProject } from '../lib/studio/fromMotionProject';
 import { resolveWeight } from '../lib/studio/textStyle';
 import { loadMotionProjects, type MotionProject } from '../lib/motionProject';
@@ -73,6 +83,8 @@ export default function VideoStudio() {
   const [playing, setPlaying] = useState(false);
   const [pps, setPps] = useState(60);
   const [uploading, setUploading] = useState(false);
+  const [recording, setRecording] = useState(false);
+  const [exporting, setExporting] = useState(false);
   const [online, setOnline] = useState(typeof navigator === 'undefined' ? true : navigator.onLine);
 
   const docRef = useRef<VideoDocument | null>(null);
@@ -81,7 +93,6 @@ export default function VideoStudio() {
   playheadRef.current = playheadMs;
   const projectIdRef = useRef<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
   const media = useRef(new Map<string, HTMLImageElement | HTMLVideoElement | HTMLAudioElement>());
 
   useEffect(() => { applySeo({ title: 'Video Studio — NowOpen Create', description: 'Edit videos on a real timeline.' }); }, []);
@@ -184,18 +195,33 @@ export default function VideoStudio() {
     if (!doc) return;
     const map = media.current;
     for (const [assetId, a] of Object.entries(doc.assets)) {
-      if (map.has(assetId)) continue;
-      const url = publicUrl(a.proxyPath ?? a.path);
+      /* Platform videos play in their own player (EmbedLayer), never as an element here. */
+      if (isEmbedAsset(a)) continue;
+      const stored = a.proxyPath ?? a.path;
+      const url = stored ? publicUrl(stored) : a.link?.url;
+      if (!url) continue;
+      const had = map.get(assetId);
+      /* A linked file that has since been copied into storage switches to the copy. */
+      if (had && had.dataset.src === url) continue;
+      if (had && !(had instanceof HTMLImageElement)) { had.pause(); had.removeAttribute('src'); had.load(); }
+      /*
+       * Storage files are read with CORS so the canvas stays exportable. A
+       * file still playing from someone else's link is not: most sites send
+       * no CORS headers, and asking would stop it playing at all.
+       */
+      const cors = !!stored;
       if (a.kind === 'image') {
         const img = new Image();
-        img.crossOrigin = 'anonymous';
+        if (cors) img.crossOrigin = 'anonymous';
+        img.dataset.src = url;
         img.src = url;
         map.set(assetId, img);
       } else {
         const el = document.createElement(a.kind === 'video' ? 'video' : 'audio');
-        el.crossOrigin = 'anonymous';
+        if (cors) el.crossOrigin = 'anonymous';
         el.preload = 'auto';
         (el as HTMLVideoElement).playsInline = true;
+        el.dataset.src = url;
         el.src = url;
         map.set(assetId, el);
       }
@@ -216,6 +242,8 @@ export default function VideoStudio() {
       if (!el || el instanceof HTMLImageElement) continue;
       active.add(el);
       const want = sourceSecondsAt(c, ms);
+      const rate = speedOf(c);
+      if (el.playbackRate !== rate) el.playbackRate = rate;
       if (c.type === 'audio') el.volume = Math.min(1, audioGainAt(c, ms));
       else el.volume = Math.min(1, Math.max(0, (c as MediaClip).volume ?? 1));
       el.muted = t.muted || (t.kind !== 'audio' && t.hidden);
@@ -260,6 +288,8 @@ export default function VideoStudio() {
               const el = media.current.get(assetId);
               return el && !(el instanceof HTMLAudioElement) ? (el as MediaSource) : null;
             },
+            /* Platform videos show through from EmbedLayer underneath. */
+            hole: (assetId) => isEmbedAsset(d.assets[assetId]),
           });
         }
       }
@@ -361,9 +391,57 @@ export default function VideoStudio() {
     addClip(clip);
   };
 
-  const onFiles = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files ?? []);
-    e.target.value = '';
+  /** Put media on the timeline at the playhead. Every source ends here; returns the new asset id. */
+  const placeAsset = (asset: VideoAsset, label: string, lengthMs?: number) => {
+    const assetId = videoId('a');
+    const d = docRef.current!;
+    const withAsset: VideoDocument = { ...d, assets: { ...d.assets, [assetId]: asset } };
+    const start = Math.round(playheadRef.current);
+    const len = lengthMs ?? (asset.kind === 'image' ? 3000 : Math.max(100, Math.min(asset.durationMs ?? 5000, 60_000)));
+    const clip: Clip = asset.kind === 'audio'
+      ? { id: videoId('c'), type: 'audio', assetId, startMs: start, durationMs: len, inMs: 0, volume: 1, fadeInMs: 0, fadeOutMs: 0 } satisfies AudioClip
+      : { id: videoId('c'), type: 'media', assetId, startMs: start, durationMs: len, inMs: 0, transform: { x: 0, y: 0, w: 1, h: 1, rotation: 0, opacity: 1 }, volume: 1 } satisfies MediaClip;
+    docRef.current = withAsset;
+    setDocState(withAsset);
+    addClip(clip);
+    toast.success(`${label} added.`);
+    return assetId;
+  };
+
+  /** A file NowOpen already holds (an OpenReel, an own-storage link, an upload). */
+  const addStored = async (path: string, kind: AssetKind, label?: string) => {
+    let facts: MediaFacts;
+    try { facts = await probeMediaUrl(publicUrl(path), kind); } catch (err) { toast.error(err instanceof Error ? err.message : 'That file could not be read.'); return false; }
+    placeAsset({ kind, path, ...facts }, label ?? assetLabel(kind, path));
+    return true;
+  };
+
+  /**
+   * A linked file has been copied into storage: point the asset at the copy.
+   * Not an undo step (nothing the person did), but it is saved.
+   */
+  const adoptCopy = (assetId: string, path: string) => {
+    const d = docRef.current;
+    const a = d?.assets[assetId];
+    if (!d || !a || a.path) return;
+    const next: VideoDocument = { ...d, assets: { ...d.assets, [assetId]: { ...a, path } } };
+    docRef.current = next;
+    setDocState(next);
+    setSaveState((s) => (s === 'conflict' ? s : 'unsaved'));
+  };
+
+  /** A platform player reported its video's real length: record it (not an undo step). */
+  const adoptDuration = useCallback((assetId: string, durationMs: number) => {
+    const d = docRef.current;
+    const a = d?.assets[assetId];
+    if (!d || !a || a.durationMs === durationMs) return;
+    const next: VideoDocument = { ...d, assets: { ...d.assets, [assetId]: { ...a, durationMs } } };
+    docRef.current = next;
+    setDocState(next);
+    if (projectIdRef.current) setSaveState((s) => (s === 'conflict' ? s : 'unsaved'));
+  }, []);
+
+  const onFiles = async (files: File[]) => {
     if (!files.length) return;
     if (!user) { toast.error('Sign in to upload media.'); return; }
     setUploading(true);
@@ -376,22 +454,49 @@ export default function VideoStudio() {
         const path = mediaPath(user.id, check.ext);
         const { error } = await supabase.storage.from(STUDIO_BUCKET).upload(path, file, { cacheControl: '3600', upsert: false, contentType: file.type });
         if (error) { toast.error(`Upload failed: ${error.message}`); continue; }
-        const assetId = videoId('a');
-        const d = docRef.current!;
-        const withAsset: VideoDocument = { ...d, assets: { ...d.assets, [assetId]: { kind: check.kind, path, ...facts } } };
-        const start = Math.round(playheadRef.current);
-        const len = check.kind === 'image' ? 3000 : Math.max(100, Math.min(facts.durationMs ?? 5000, 60_000));
-        const clip: Clip = check.kind === 'audio'
-          ? { id: videoId('c'), type: 'audio', assetId, startMs: start, durationMs: len, inMs: 0, volume: 1, fadeInMs: 0, fadeOutMs: 0 } satisfies AudioClip
-          : { id: videoId('c'), type: 'media', assetId, startMs: start, durationMs: len, inMs: 0, transform: { x: 0, y: 0, w: 1, h: 1, rotation: 0, opacity: 1 }, volume: 1 } satisfies MediaClip;
-        docRef.current = withAsset;
-        setDocState(withAsset);
-        addClip(clip);
-        toast.success(`${assetLabel(check.kind, path)} added.`);
+        placeAsset({ kind: check.kind, path, ...facts }, assetLabel(check.kind, path));
       }
     } finally {
       setUploading(false);
     }
+  };
+
+  const onLink = async (raw: string): Promise<boolean> => {
+    if (!user) { toast.error('Sign in to add media from a link.'); return false; }
+    const plan = planLink(raw, storageBaseUrl(), user.id);
+    if (plan.type === 'refuse') { toast.error(plan.reason); return false; }
+    /* A platform video shows at once, through its own player. */
+    if (plan.type === 'embed') {
+      placeAsset({ kind: 'video', link: { url: plan.url, platform: plan.platform, embedId: plan.embedId } }, `${plan.label} video`, EMBED_DEFAULT_MS);
+      return true;
+    }
+    setUploading(true);
+    try {
+      if (plan.type === 'storage') return await addStored(plan.path, plan.kind);
+      /* A direct file link plays from the link at once; a storage copy follows in the background. */
+      let probed;
+      try { probed = await probeLink(plan.url, plan.kind); } catch (err) { toast.error(err instanceof Error ? err.message : 'That link could not be opened.'); return false; }
+      const label = probed.kind === 'video' ? 'Clip from link' : probed.kind === 'image' ? 'Image from link' : 'Sound from link';
+      const assetId = placeAsset({ kind: probed.kind, link: { url: plan.url }, ...probed.facts }, label);
+      void importFromLink(plan.url).then((r) => { if (r.ok) adoptCopy(assetId, r.path); });
+      return true;
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const onReel = async (reel: ReelFile) => {
+    setUploading(true);
+    try { await addStored(reel.path, reel.kind, reel.kind === 'video' ? 'OpenReel' : 'OpenReel photo'); } finally { setUploading(false); }
+  };
+
+  const onRecorded = async (url: string) => {
+    setRecording(false);
+    if (!user) return;
+    const plan = planLink(url, storageBaseUrl(), user.id);
+    if (plan.type !== 'storage') { toast.error('The OpenReel was saved but could not be placed. Add it from OpenReel in the media panel.'); return; }
+    setUploading(true);
+    try { await addStored(plan.path, plan.kind, plan.kind === 'video' ? 'OpenReel' : 'OpenReel photo'); } finally { setUploading(false); }
   };
 
   const downloadFrame = async () => {
@@ -403,10 +508,16 @@ export default function VideoStudio() {
     const ctx = c.getContext('2d');
     if (!ctx) return;
     drawVideoFrame(ctx, d, playheadRef.current, { media: (a) => { const el = media.current.get(a); return el && !(el instanceof HTMLAudioElement) ? (el as MediaSource) : null; } });
-    c.toBlob((blob) => {
-      if (!blob) { toast.error('This frame could not be saved.'); return; }
-      downloadBlob(blob, `${d.title.replace(/[^\w-]+/g, '-').toLowerCase() || 'frame'}-${formatTime(playheadRef.current).replace(':', 'm')}s.png`);
-    }, 'image/png');
+    try {
+      c.toBlob((blob) => {
+        if (!blob) { toast.error('This frame could not be saved.'); return; }
+        downloadBlob(blob, `${d.title.replace(/[^\w-]+/g, '-').toLowerCase() || 'frame'}-${formatTime(playheadRef.current).replace(':', 'm')}s.png`);
+      }, 'image/png');
+    } catch {
+      /* A file still playing from another site's link "taints" the canvas: the browser forbids saving it. */
+      toast.error('This frame shows a clip still playing from its original link, so the browser will not save it. Upload that file instead.');
+    }
+    if (Object.values(d.assets).some(isEmbedAsset)) toast('YouTube and other platform videos are not in saved frames or exports: only their own player can show them.');
   };
 
   // ── keyboard ───────────────────────────────────────────────────────────
@@ -491,8 +602,12 @@ export default function VideoStudio() {
           {FORMATS.map((f) => <option key={f.key} value={f.key}>{f.label}</option>)}
           {!FORMATS.some((f) => f.w === doc.width && f.h === doc.height) ? <option value="custom">{doc.width}×{doc.height}</option> : null}
         </select>
-        <button type="button" onClick={() => void downloadFrame()} className="inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 whitespace-nowrap" title="Save the frame under the playhead as a PNG. Video export is the next phase.">
-          <Download size={14} /> Frame PNG
+        <button type="button" onClick={() => void downloadFrame()} className="hidden sm:inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 whitespace-nowrap" title="Save the frame under the playhead as a PNG, at once.">
+          <Download size={14} /> Frame
+        </button>
+        <button type="button" onClick={() => { setPlaying(false); setExporting(true); }} data-testid="open-export"
+          className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded bg-gray-900 text-white dark:bg-white dark:text-gray-900 whitespace-nowrap" title="MP4, WebM, GIF or PNG">
+          <Download size={14} /> Export
         </button>
         <button type="button" onClick={() => void save()} disabled={saveState === 'saving' || saveState === 'conflict'}
           className="inline-flex items-center gap-1 text-xs px-3 py-1.5 rounded bg-blue-600 text-white disabled:opacity-50 whitespace-nowrap">
@@ -504,12 +619,16 @@ export default function VideoStudio() {
         {/* Preview */}
         <main className="flex-1 flex flex-col items-center justify-center p-3 gap-2 min-h-0">
           <div className="flex-1 w-full min-h-[240px] grid place-items-center">
-            <canvas
-              ref={canvasRef}
-              aria-label={`Preview of ${doc.title}, ${doc.width} by ${doc.height}`}
-              className="bg-black shadow max-w-full max-h-[52vh] lg:max-h-[58vh]"
-              style={{ aspectRatio: `${doc.width} / ${doc.height}` }}
-            />
+            {/* Platform players sit under the canvas; the canvas is transparent where they show. */}
+            <div className="relative max-w-full bg-black shadow">
+              <EmbedLayer doc={doc} ms={playheadMs} playing={playing} onDuration={adoptDuration} />
+              <canvas
+                ref={canvasRef}
+                aria-label={`Preview of ${doc.title}, ${doc.width} by ${doc.height}`}
+                className="relative block max-w-full max-h-[52vh] lg:max-h-[58vh]"
+                style={{ aspectRatio: `${doc.width} / ${doc.height}` }}
+              />
+            </div>
           </div>
           <div className="flex items-center gap-2 text-sm">
             <button type="button" className="p-2 rounded hover:bg-gray-200 dark:hover:bg-gray-800" aria-label="Go to start" onClick={() => seek(0)}><SkipBack size={16} /></button>
@@ -523,13 +642,23 @@ export default function VideoStudio() {
 
         {/* Side panel */}
         <aside className="w-full lg:w-80 shrink-0 border-t lg:border-t-0 lg:border-l border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-900 p-3 overflow-y-auto lg:max-h-[calc(100vh-49px-14rem)]">
+          <AddMediaPanel
+            userId={user?.id ?? null}
+            busy={uploading}
+            publicUrl={publicUrl}
+            onFiles={(files) => void onFiles(files)}
+            onLink={onLink}
+            onReel={(r) => void onReel(r)}
+            onRecord={() => setRecording(true)}
+          />
           <div className="flex flex-wrap gap-2 mb-4">
             <button type="button" onClick={addText} className="inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700"><Type size={14} /> Text</button>
-            <button type="button" onClick={() => fileRef.current?.click()} disabled={uploading} className="inline-flex items-center gap-1 text-xs px-2 py-1.5 rounded border border-gray-300 dark:border-gray-700 disabled:opacity-50">
-              {uploading ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />} Video, image or sound
-            </button>
-            <input ref={fileRef} type="file" accept={ACCEPT_ATTR} multiple hidden onChange={(e) => void onFiles(e)} />
           </div>
+          {recording && user && (
+            <Suspense fallback={<div className="fixed inset-0 z-50 grid place-items-center bg-black/60"><Loader2 className="animate-spin text-white" aria-label="Opening the camera" /></div>}>
+              <OpenReelCapture userId={user.id} initialMode="video" onCaptured={(url) => void onRecorded(url)} onClose={() => setRecording(false)} />
+            </Suspense>
+          )}
           {selected ? (
             <>
               <div className="flex items-center gap-1 mb-3">
@@ -548,6 +677,7 @@ export default function VideoStudio() {
                   if (next === doc) refuse('That length would overlap the next clip or run past the end of the footage.');
                   mutate(next);
                 }}
+                onSpeed={(speed) => mutate(setClipSpeed(doc, selected.clip.id, speed))}
               />
             </>
           ) : (
@@ -558,11 +688,13 @@ export default function VideoStudio() {
                 <li>Drag either end to trim. Edges snap to other clips and the playhead.</li>
                 <li><kbd>Space</kbd> play · <kbd>S</kbd> split · <kbd>Del</kbd> delete · <kbd>Ctrl+D</kbd> duplicate · <kbd>←/→</kbd> one frame.</li>
               </ul>
-              <p className="pt-2">Video file export (MP4) is the next phase. Until then, <em>Frame PNG</em> saves the frame under the playhead.</p>
+              <p className="pt-2">Select a clip for its Effects, Transitions, Speed and (for words) Animation. <em>Export</em> makes an MP4, WebM, GIF or PNG.</p>
             </div>
           )}
         </aside>
       </div>
+
+      {exporting && <ExportDialog doc={doc} playheadMs={playheadMs} urlFor={publicUrl} onClose={() => setExporting(false)} />}
 
       {/* Timeline */}
       <section aria-label="Timeline" className="border-t border-gray-300 dark:border-gray-800 bg-white dark:bg-gray-900">
